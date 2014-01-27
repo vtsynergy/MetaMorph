@@ -194,7 +194,8 @@ if (device == -1) return accelOpenCLInitStackFrameDefault(frame);
 		accelCLProgLen = accelOpenCLLoadProgramSource("afosr_cfd_opencl_core.cl", &accelCLProgSrc);
 	}
 	(*frame)->program_opencl_core = clCreateProgramWithSource((*frame)->context, 1, &accelCLProgSrc, &accelCLProgLen, NULL);
-	clBuildProgram((*frame)->program_opencl_core, 1, &((*frame)->device), "-I . -g -s\"/home/psath/private_repos/afosr_cfd_lib/afosr_cfd_opencl_core.cl\"", NULL, NULL);
+// Add this debug string if needed: -g -s\"/home/psath/private_repos/afosr_cfd_lib/afosr_cfd_opencl_core.cl\"
+	clBuildProgram((*frame)->program_opencl_core, 1, &((*frame)->device), "-I . ", NULL, NULL);
 
 //Stub to get build log
 size_t logsize = 0;
@@ -299,12 +300,12 @@ cl_int opencl_dotProd_reduce(size_t (* grid_size)[3], size_t (* block_size)[3], 
 	cl_int smem_len =  (*block_size)[0] * (*block_size)[1] * (*block_size)[2];
 	size_t grid[3] = {(*grid_size)[0]*(*block_size)[0], (*grid_size)[1]*(*block_size)[1], (*block_size)[2]};
 	size_t block[3] = {(*block_size)[0], (*block_size)[1], (*block_size)[2]};
-	printf("Grid: %d %d %d\n", grid[0], grid[1], grid[2]);
-	printf("Block: %d %d %d\n", block[0], block[1], block[2]);
-	printf("Size: %d %d %d\n", (*array_size)[0], (*array_size)[1], (*array_size)[2]);
-	printf("Start: %d %d %d\n", (*arr_start)[0], (*arr_start)[1], (*arr_start)[2]);
-	printf("End: %d %d %d\n", (*arr_end)[1], (*arr_end)[0], (*arr_end)[2]);
-	printf("SMEM: %d\n", smem_len);
+	//printf("Grid: %d %d %d\n", grid[0], grid[1], grid[2]);
+	//printf("Block: %d %d %d\n", block[0], block[1], block[2]);
+	//printf("Size: %d %d %d\n", (*array_size)[0], (*array_size)[1], (*array_size)[2]);
+	//printf("Start: %d %d %d\n", (*arr_start)[0], (*arr_start)[1], (*arr_start)[2]);
+	//printf("End: %d %d %d\n", (*arr_end)[1], (*arr_end)[0], (*arr_end)[2]);
+	//printf("SMEM: %d\n", smem_len);
 
 	//before enqueuing, get a copy of the top stack frame
 	accelOpenCLStackFrame * frame = accelOpenCLTopStackFrame();
@@ -330,6 +331,7 @@ ret |= clEnqueueNDRangeKernel(frame->queue, frame->kernel_reduction3, 3, NULL, g
 	ret |= clFinish(frame->queue);
 	printf("CHECK THIS! %d\n", ret);
 	//free the copy of the top stack frame, DO NOT release it's members
+	free(frame);
 
 	return(ret);
 }

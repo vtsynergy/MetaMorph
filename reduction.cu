@@ -11,7 +11,7 @@
 	int stride = len_ >> 1; //STRIDE = len_/2
             while (stride > 32) {
              //DO WHILE(STRIDE.GT.32)
-		if (tid +stride < len_) psum[tid] += psum[tid+stride];
+		if (tid < stride) psum[tid] += psum[tid+stride];
                   //IF(TID.LE.STRIDE) THEN
                   //      PSUM(TID) = PSUM(TID)+PSUM(TID+STRIDE)
                   //END IF
@@ -20,7 +20,7 @@
             } //END DO
             __syncthreads(); //CALL SYNCTHREADS()      
 		//! this is for unrolling.      
-            if (tid <= 32) { //IF(TID.LE.32) THEN
+            if (tid < 32) { //IF(TID.LE.32) THEN
                    psum[tid] += psum[tid+32]; //PSUM(TID) = PSUM(TID) + PSUM(TID+32)
                    __syncthreads(); //CALL SYNCTHREADS()
                    psum[tid] += psum[tid+16]; //PSUM(TID) = PSUM(TID) + PSUM(TID+16)
@@ -278,7 +278,7 @@ int i;
             for (i = 0; i < 10; i++) { //do i=1,10
             cudaMemset(reduction, 0.0, sizeof(double)); //*reduction = 0.0;
            kernel_reduction3<<<dimgrid,dimblock,tx*ty*tz*sizeof(double)>>>(dev_data3, //call kernel_reduction3<<<dimgrid,dimblock,tx*ty*tz*8>>>(dev_data3 &
-           dev_data3_2, ni, nj, nk, 2, 2, 2, nj-1, ni-1, nk-1, gz, reduction, tx*ty*tz); //& ,dev_data3_2,ni,nj,nk,2,2,2,nj-1,ni-1,nk-1,gz,reduction,tx*ty*tz)
+           dev_data3_2, ni, nj, nk, 1, 1, 1, nj-2, ni-2, nk-2, gz, reduction, tx*ty*tz); //& ,dev_data3_2,ni,nj,nk,2,2,2,nj-1,ni-1,nk-1,gz,reduction,tx*ty*tz)
             istat = cudaThreadSynchronize(); //cudathreadsynchronize()
 	//	printf("cudaThreadSynchronize error code:%d\n", istat);            
 istat = cudaMemcpy((void *) &sum_dot_gpu, (void *) reduction, sizeof(double), cudaMemcpyDeviceToHost); //sum_dot_gpu = *reduction;

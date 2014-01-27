@@ -1,13 +1,14 @@
 #pragma OPENCL EXTENSION cl_khr_fp64: enable
 #pragma OPENCL EXTENSION cl_khr_int64_base_atomics: enable
-   void block_reduction(__local double *psum, int tid, int len_) {
+   void block_reduction(__local volatile double *psum, int tid, int len_) {
       //implicit none
       //real(8), shared,dimension(len_)::psum
       //integer::tid,stride,len_
 	int stride = len_ >> 1; //STRIDE = len_/2
-            while (stride > 32) {
+//for (; stride > 64; stride >>=1);
+            while (stride > 0) {
              //DO WHILE(STRIDE.GT.32)
-		if (tid +stride < len_) psum[tid] += psum[tid+stride];
+		if (tid < stride) psum[tid] += psum[tid+stride];
                   //IF(TID.LE.STRIDE) THEN
                   //      PSUM(TID) = PSUM(TID)+PSUM(TID+STRIDE)
                   //END IF
@@ -15,9 +16,11 @@
                 stride >>= 1;//  STRIDE = STRIDE/2
             } //END DO
             barrier(CLK_LOCAL_MEM_FENCE | CLK_GLOBAL_MEM_FENCE); //CALL SYNCTHREADS()      
-		//! this is for unrolling.      
-            if (tid <= 32) { //IF(TID.LE.32) THEN
-                   psum[tid] += psum[tid+32]; //PSUM(TID) = PSUM(TID) + PSUM(TID+32)
+		//! this is for unrolling.   
+		//TODO - Paul 2014.01.24. I removed this unrolling and changed the above loop from (stride >32) to ensure compatibility with CPU platforms.
+		// once I can work out how to use the preferred_work_group_size_multiple that Tom suggested, I'll re-add the optimized version.   
+            /*if (tid < 32) { //IF(TID.LE.32) THEN
+                  psum[tid] += psum[tid+32]; //PSUM(TID) = PSUM(TID) + PSUM(TID+32)
                    barrier(CLK_LOCAL_MEM_FENCE | CLK_GLOBAL_MEM_FENCE); //CALL SYNCTHREADS()
                    psum[tid] += psum[tid+16]; //PSUM(TID) = PSUM(TID) + PSUM(TID+16)
                    barrier(CLK_LOCAL_MEM_FENCE | CLK_GLOBAL_MEM_FENCE); //CALL SYNCTHREADS()
@@ -29,7 +32,7 @@
                    barrier(CLK_LOCAL_MEM_FENCE | CLK_GLOBAL_MEM_FENCE); //CALL SYNCTHREADS()
                    psum[tid] += psum[tid+1]; //PSUM(TID) = PSUM(TID) + PSUM(TID+1)
                    barrier(CLK_LOCAL_MEM_FENCE | CLK_GLOBAL_MEM_FENCE); //CALL SYNCTHREADS()
-           } //END IF
+           } *///END IF
   } //end subroutine block_reduction
 
 //Paul - Implementation of double atomicAdd from CUDA Programming Guide: Appendix B.12
@@ -63,13 +66,15 @@
 		int i, int j, int k,
 		int sx, int sy, int sz,
 		int ex, int ey, int ez, 
-		int gz, __global double * reduction, int len_, __local double * psum) {
+		int gz, __global double * reduction, int len_, __local volatile double * psum) {
+
+		
             //IMPLICIT NONE
             //real(8), DEVICE, DIMENSION(i,j,k):: PHI1,PHI2
 //!            double[32] par_sum; //real(8), DEVICE, DIMENSION(32):: PAR_SUM
             //extern __local double psum[]; //real(8),VOLATILE, SHARED, DIMENSION(len_)::PSUM
             //real(8), DEVICE:: REDUCTION
-            int stride, istat, tid, loads, x, y, z, itr; //INTEGER:: STRIDE,ISTAT,TID,loads,x,y,z,itr
+            int tid, loads, x, y, z, itr; //INTEGER:: STRIDE,ISTAT,TID,loads,x,y,z,itr
             //INTEGER, VALUE:: i,j,k,sx,sy,sz,len_,ex,ey,ez,gz
             int boundx, boundy, boundz; //logical::  boundx, boundy, boundz
             tid = get_local_id(0)+(get_local_id(1))*get_local_size(0)+(get_local_id(2))*(get_local_size(0)*get_local_size(1)); //TID = THREADIDX%X+(threadidx%y-1)*blockdim%x &
@@ -85,19 +90,19 @@
             boundx = ((x >= sx) && (x <= ex)); //x.ge.(sx).and.x.le.(ex)
             
             for (itr = 0; itr < loads; itr++) { //do itr=1,loads
-                  z = itr*get_local_size(0)+get_local_id(2) +sz; //z = (itr-1)*blockdim%z+threadidx%z + sz -1
+                  z = itr*get_local_size(2)+get_local_id(2) +sz; //z = (itr-1)*blockdim%z+threadidx%z + sz -1
                   boundz = ((z >= sz) && (z <= ez)); //z.ge.(sz).and.z.le.(ez)
-                  if (boundx && boundy && boundz) psum[tid] += 1;//phi1[x+y*i+z*i*j] * phi2[x+y*i+z*i*j]; ////{ if(boundx.and.boundy.and.boundz) then
+                  if (boundx && boundy && boundz) psum[tid] += phi1[x+y*i+z*i*j] * phi2[x+y*i+z*i*j]; ////{ if(boundx.and.boundy.and.boundz) then
                   //      PSUM(TID) = psum(tid) + PHI1(y,x,z) * PHI2(Y,X,Z)
                   //end if
             } //end do
             
             barrier(CLK_LOCAL_MEM_FENCE | CLK_GLOBAL_MEM_FENCE); //CALL SYNCTHREADS()
-            block_reduction(psum,tid,len_); //call block_reduction(psum,tid,stride,len_)
+           block_reduction(psum,tid,len_); //call block_reduction(psum,tid,stride,len_)
             barrier(CLK_LOCAL_MEM_FENCE | CLK_GLOBAL_MEM_FENCE); //CALL SYNCTHREADS()            
 
 
-            if(tid == 0) istat = atomicAdd(reduction,psum[0]); //IF(TID.EQ.1) THEN
+            if(tid == 0) atomicAdd(reduction,psum[0]); //IF(TID.EQ.1) THEN
             //      ISTAT = ATOMICADD(REDUCTION,PSUM(1))
             //END IF
        }

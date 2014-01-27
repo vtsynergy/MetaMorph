@@ -23,10 +23,13 @@ int ni, nj, nk, nm;
             data3 = (double *) malloc(sizeof(double)*ni*nj*nk);
 	    data4 = (double *) malloc (sizeof(double)*ni*nj*nk*nm);
             printf("Status:\t%d\n", istat); //NOOP for output compatibility //print *,"Status:",istat
-            istat |= accel_alloc((void **) &dev_data3, sizeof(double)*ni*nj*nk);
-	    istat |= accel_alloc((void **) &dev_data3_2, sizeof(double)*ni*nj*nk);
-	    istat |= accel_alloc((void **) &dev_data4, sizeof(double)*ni*nj*nk*nm); 
-	    istat |= accel_alloc((void **) &reduction, sizeof(double));
+            istat = accel_alloc((void **) &dev_data3, sizeof(double)*ni*nj*nk);
+            printf("Status:\t%d\n", istat);
+	    istat = accel_alloc((void **) &dev_data3_2, sizeof(double)*ni*nj*nk);
+            printf("Status:\t%d\n", istat);
+	    istat = accel_alloc((void **) &dev_data4, sizeof(double)*ni*nj*nk*nm); 
+            printf("Status:\t%d\n", istat);
+	    istat = accel_alloc((void **) &reduction, sizeof(double));
             printf("Status:\t%d\n", istat);
             printf("Data Allocated\n"); 
       } 
@@ -67,7 +70,7 @@ int ni, nj, nk, nm;
             int istat, deviceused, idevice = -1; //integer::istat, deviceused, idevice
 
 //            ! Initialize GPU
-            istat = choose_accel(idevice, accelModePreferOpenCL); //TODO make "choose_accel"
+            istat = choose_accel(idevice, accelModePreferGeneric); //TODO make "choose_accel"
 
 //            ! cudaChooseDevice
 //            ! Tell me which GPU I use
@@ -141,10 +144,14 @@ int ni, nj, nk, nm;
             printf("gz:\t%d\n", gz); //print *,"gz:",gz
 		double zero = 0.0;
 	    dimarray[0] = ni, dimarray[1] = nj, dimarray[2] = nk;
-	    arr_start[0] = arr_start[1] = arr_start[2] = 2;
-	    arr_end[0] = ni-1, arr_end[1] = nj-1, arr_end[2] = nk-1;
+	    arr_start[0] = arr_start[1] = arr_start[2] = 1;
+	    arr_end[0] = ni-2, arr_end[1] = nj-2, arr_end[2] = nk-2;
             for (i = 0; i < 10; i++) { //do i=1,10
 		accel_copy_h2d((void *) reduction, (void *) &zero, sizeof(double));
+		
+		//Validate grid and block sizes (if too big, shrink the z-dim and add iterations)
+		for(;accel_validate_worksize(&dimgrid, &dimblock) != 0; dimgrid[2] <<=1, dimblock[2] >>=1);
+		
 
 		//Call the entire reduction
 		accel_reduce(&dimgrid, &dimblock, dev_data3, dev_data3_2, &dimarray, &arr_start, &arr_end, reduction);

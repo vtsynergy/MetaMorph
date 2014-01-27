@@ -12,7 +12,7 @@
 	int stride = len_ >> 1; //STRIDE = len_/2
             while (stride > 32) {
              //DO WHILE(STRIDE.GT.32)
-		if (tid +stride < len_) psum[tid] += psum[tid+stride];
+		if (tid  < stride) psum[tid] += psum[tid+stride];
                   //IF(TID.LE.STRIDE) THEN
                   //      PSUM(TID) = PSUM(TID)+PSUM(TID+STRIDE)
                   //END IF
@@ -21,7 +21,7 @@
             } //END DO
             __syncthreads(); //CALL SYNCTHREADS()      
 		//! this is for unrolling.      
-            if (tid <= 32) { //IF(TID.LE.32) THEN
+            if (tid < 32) { //IF(TID.LE.32) THEN
                    psum[tid] += psum[tid+32]; //PSUM(TID) = PSUM(TID) + PSUM(TID+32)
                    __syncthreads(); //CALL SYNCTHREADS()
                    psum[tid] += psum[tid+16]; //PSUM(TID) = PSUM(TID) + PSUM(TID+16)
@@ -74,7 +74,7 @@ __device__ double atomicAdd(double* address, double val)
 //!            double[32] par_sum; //real(8), DEVICE, DIMENSION(32):: PAR_SUM
             extern __shared__ double psum[]; //real(8),VOLATILE, SHARED, DIMENSION(len_)::PSUM
             //real(8), DEVICE:: REDUCTION
-            int stride, istat, tid, loads, x, y, z, itr; //INTEGER:: STRIDE,ISTAT,TID,loads,x,y,z,itr
+            int tid, loads, x, y, z, itr; //INTEGER:: STRIDE,ISTAT,TID,loads,x,y,z,itr
             //INTEGER, VALUE:: i,j,k,sx,sy,sz,len_,ex,ey,ez,gz
             bool boundx, boundy, boundz; //logical::  boundx, boundy, boundz
             tid = threadIdx.x+(threadIdx.y)*blockDim.x+(threadIdx.z)*(blockDim.x*blockDim.y); //TID = THREADIDX%X+(threadidx%y-1)*blockdim%x &
@@ -90,7 +90,7 @@ __device__ double atomicAdd(double* address, double val)
             boundx = ((x >= sx) && (x <= ex)); //x.ge.(sx).and.x.le.(ex)
             
             for (itr = 0; itr < loads; itr++) { //do itr=1,loads
-                  z = itr*blockDim.x+threadIdx.z +sz; //z = (itr-1)*blockdim%z+threadidx%z + sz -1
+                  z = itr*blockDim.z+threadIdx.z +sz; //z = (itr-1)*blockdim%z+threadidx%z + sz -1
                   boundz = ((z >= sz) && (z <= ez)); //z.ge.(sz).and.z.le.(ez)
                   if (boundx && boundy && boundz) psum[tid] += phi1[x+y*i+z*i*j] * phi2[x+y*i+z*i*j]; ////{ if(boundx.and.boundy.and.boundz) then
                   //      PSUM(TID) = psum(tid) + PHI1(y,x,z) * PHI2(Y,X,Z)
@@ -102,7 +102,7 @@ __device__ double atomicAdd(double* address, double val)
             __syncthreads(); //CALL SYNCTHREADS()            
 
 
-            if(tid == 0) istat = atomicAdd(reduction,psum[0]); //IF(TID.EQ.1) THEN
+            if(tid == 0) atomicAdd(reduction,psum[0]); //IF(TID.EQ.1) THEN
             //      ISTAT = ATOMICADD(REDUCTION,PSUM(1))
             //END IF
        }
