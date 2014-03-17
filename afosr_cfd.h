@@ -12,36 +12,43 @@
  *  selections.)
  *
  * Created as part of the AFOSR-BRI <<INSERT PROJECT NAME AND ##>>
- * Virginia Polytechnic Institue and State University, 2013
+ * Virginia Polytechnic Institue and State University, 2013-2014
  *
- * Authors: Paul Sathre, Sriram Chivukula, Kaixi Hou, Tom Scogland
- *  Harold Trease, Hao Wang. <<ADD OTHERS>>
+ * Authors: Paul Sathre
  */
+
+#ifndef AFOSR_CFD_H
+#define AFOSR_CFD_H
 
 #include <stdio.h>
 
+//These are global controls over which accelerator "cores" are
+// compiled in. Plugins, such as timers, should support
+// conditional compilation for one or more accelerator cores, but
+// SHOULD NOT, include the core headers themselves without #ifdef macros
+// i.e. plugins should never fail to compile regardless of what cores
+// are selected, rather if none of their supported cores are selected,
+// they should just define down to a NOOP.
 #ifdef WITH_CUDA
-//TODO implement CUDA versions
-	#include <afosr_cfd_cuda_core.cuh>
+	#include "afosr_cfd_cuda_core.cuh"
 #endif
 
 #ifdef WITH_OPENCL
-//TODO implement OpenCL versions
-	#include <afosr_cfd_opencl_core.h>
+	#include "afosr_cfd_opencl_core.h"
 #endif
 
 #ifdef WITH_OPENMP
-//TODO implement OpenMP versions
-	#include <afosr_cfd_openmp_core.h>
+	#include "afosr_cfd_openmp_core.h"
 #endif
+
+
+
 
 //TODO move all these typedefs, the generic types need to be runtime controlled
 //TODO should generic "accelerator" types be typedefs, unions, ...?
-//#ifndef ONLY_CUDA || ONLY_OPENCL || ONLY_OPENMP)
-	//TODO implement generic accelerators types so an accelerator model
-	// can be chosen at runtime
+//TODO implement generic accelerators types so an accelerator model
+// can be chosen at runtime
 
-//#elif defined ONLY_CUDA
 typedef double a_double;
 typedef float a_float;
 typedef int a_int;
@@ -55,42 +62,24 @@ typedef unsigned int a_uint;
 typedef unsigned long a_ulong;
 typedef int a_err;
 typedef size_t a_dim3[3];
-//typedef cudaError_t a_err;
-//typedef unsigned long long a_ulonglong;
 
-//#elif defined ONLY_OPENCL
-// #pragma OPENCL EXTENSION cl_khr_fp64 : enable
-//typedef cl_double a_double;
-//typedef cl_float a_float;
-//typedef cl_int a_int;
-//typedef cl_long a_long;
-//typedef cl_short a_short;
-//typedef cl_char a_char;
-//typedef cl_uchar a_uchar;
-//typedef cl_ushort a_ushort;
-//typedef cl_uint a_uint;
-//typedef cl_ulong a_ulong;
-//typedef cl_int a_err;
 #ifdef WITH_OPENCL
-cl_context accel_context = NULL;
-cl_command_queue accel_queue = NULL;
-cl_device_id accel_device = NULL;
+	extern cl_context accel_context;
+	extern cl_command_queue accel_queue;
+	extern cl_device_id accel_device;
 #endif
-//#elif defined ONLY_OPENMP
-//TODO implement OpenMP primitives, should be same as CUDA
-//#endif
 
 typedef enum {
 	accelModePreferGeneric = 0,
-#ifdef WITH_CUDA
+	#ifdef WITH_CUDA
 	accelModePreferCUDA = 1,
-#endif
-#ifdef WITH_OPENCL
+	#endif
+	#ifdef WITH_OPENCL
 	accelModePreferOpenCL = 2,
-#endif
-#ifdef WITH_OPENMP
+	#endif
+	#ifdef WITH_OPENMP
 	accelModePreferOpenMP = 3
-#endif
+	#endif
 } accel_preferred_mode;
 
 a_err accel_alloc(void ** ptr, size_t size);
@@ -99,6 +88,19 @@ a_err accel_copy_h2d(void * dst, void * src, size_t size);
 a_err choose_accel(int accel, accel_preferred_mode mode);
 a_err get_accel(int * accel, accel_preferred_mode * mode);
 a_err accel_validate_worksize(a_dim3 * grid_size, a_dim3 * block_size);
-a_err accel_reduce(a_dim3 * grid_size, a_dim3 * block_size, a_double * data1, a_double * data2, a_dim3 * array_size, a_dim3 * array_start, a_dim3 * array_end, a_double * reduction_var);
+a_err accel_dotProd(a_dim3 * grid_size, a_dim3 * block_size, a_double * data1, a_double * data2, a_dim3 * array_size, a_dim3 * array_start, a_dim3 * array_end, a_double * reduction_var);
+a_err accel_reduce(a_dim3 * grid_size, a_dim3 * block_size, a_double * data, a_dim3 * array_size, a_dim3 * array_start, a_dim3 * array_end, a_double * reduction_var);
 a_err accel_copy_d2h(void * dst, void * src, size_t size);
 
+//Separate from which core libraries are compiled in, the users
+// should decide whether to compiler with different metrics
+// packages. First and foremost, event-based timers for their
+// respective platforms.
+//WITH_TIMERS needs to be here, so the header passthrough can give it the accel_preferred_mode enum
+#ifdef WITH_TIMERS
+	#ifndef AFOSR_CFD_TIMERS_H
+		#include "afosr_cfd_timers.h"
+	#endif
+#endif
+
+#endif //AFOSR_CFD_H
