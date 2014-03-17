@@ -53,10 +53,6 @@ int ni, nj, nk, nm;
             ret |= accel_copy_h2d((void *) dev_data3, (void *) data3, sizeof(double)*ni*nj*nk);
             ret |= accel_copy_h2d((void *) dev_data4, (void *) data4, sizeof(double)*ni*nj*nk*nm);
             ret |= accel_copy_h2d((void *) dev_data3_2, (void *) data3, sizeof(double)*ni*nj*nk);
-      fprintf(stderr, "error transferring arrays to device: %d\n", ret);
-	ret |= accel_copy_d2h((void *) data3, (void *) dev_data3, sizeof(double)*ni*nj*nk);
-	ret |= accel_copy_d2h((void*) data4, (void *) dev_data4, sizeof(double)*ni*nj*nk*nm);
-	ret |= accel_copy_d2h((void*) data3, (void *) dev_data3_2, sizeof(double)*ni*nj*nk);
 } 
 
       void deallocate_() {
@@ -153,7 +149,6 @@ int ni, nj, nk, nm;
 	    arr_end[0] = ni-2, arr_end[1] = nj-2, arr_end[2] = nk-2;
             for (i = 0; i < 10; i++) { //do i=1,10
 	istat =	accel_copy_h2d((void *) reduction, (void *) &zero, sizeof(double));
-	fprintf(stderr, "Reduction Zero-init error: %d\n", istat);	
 		//Validate grid and block sizes (if too big, shrink the z-dim and add iterations)
 		for(;accel_validate_worksize(&dimgrid, &dimblock) != 0 && dimblock[2] > 1; dimgrid[2] <<=1, dimblock[2] >>=1);
 		// Z-scaling won't be enough, abort
@@ -172,7 +167,6 @@ int ni, nj, nk, nm;
 //            istat = cudaThreadSynchronize(); //cudathreadsynchronize()// TODO move into CUDA backend
 	//	printf("cudaThreadSynchronize error code:%d\n", istat);            
 		istat = accel_copy_d2h((void *) &sum_dot_gpu, (void *) reduction, sizeof(double));
-            	printf("cudaMemcpy error code:%d\n", istat);
             printf("Test Reduction:\t%f\n", sum_dot_gpu); //print *, "Test Reduction:",sum_dot_gpu
             //printf("Test Reduction:\t%d\n", sum_dot_gpu); //print *, "Test Reduction:",sum_dot_gpu
             } //end do

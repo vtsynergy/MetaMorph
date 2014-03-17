@@ -295,7 +295,7 @@ cl_int opencl_dotProd(size_t (* grid_size)[3], size_t (* block_size)[3], double 
 	//printf("Size: %d %d %d\n", (*array_size)[0], (*array_size)[1], (*array_size)[2]);
 	//printf("Start: %d %d %d\n", (*arr_start)[0], (*arr_start)[1], (*arr_start)[2]);
 	//printf("End: %d %d %d\n", (*arr_end)[1], (*arr_end)[0], (*arr_end)[2]);
-	printf("SMEM: %d\n", smem_len);
+	//printf("SMEM: %d\n", smem_len);
 
 	//before enqueuing, get a copy of the top stack frame
 	accelOpenCLStackFrame * frame = accelOpenCLTopStackFrame();
