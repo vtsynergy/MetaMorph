@@ -111,7 +111,7 @@ __global__ void kernel_reduction3(double *phi,
 	for (itr = 0; itr < loads; itr++) {
 		z = itr*blockDim.z+threadIdx.z +sz;
 		boundz = ((z >= sz) && (z <= ez));
-		if (boundx && boundy && boundz) psum[tid] += phi[x+y*i+z*i*j];
+		if (boundx && boundy && boundz) psum[tid] += phi[x*i+y+z*i*j];
 	}
 
 	__syncthreads();
