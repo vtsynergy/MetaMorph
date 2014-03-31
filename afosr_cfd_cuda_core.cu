@@ -124,8 +124,8 @@ __global__ void kernel_reduction3(double *phi,
 }
 
 
-cudaError_t cuda_dotProd(size_t (* grid_size)[3], size_t (* block_size)[3], double * data1, double * data2, size_t (* array_size)[3], size_t (* arr_start)[3], size_t (* arr_end)[3], double * reduced_val) {
-	cudaError_t ret;
+cudaError_t cuda_dotProd(size_t (* grid_size)[3], size_t (* block_size)[3], double * data1, double * data2, size_t (* array_size)[3], size_t (* arr_start)[3], size_t (* arr_end)[3], double * reduced_val, int async, cudaEvent_t ((*event)[2])) {
+	cudaError_t ret = cudaSuccess;
 	size_t smem_size = sizeof(double) * (*block_size)[0] * (*block_size)[1] * (*block_size)[2];
 	dim3 grid = dim3((*grid_size)[0], (*grid_size)[1], 1);
 	dim3 block = dim3((*block_size)[0], (*block_size)[1], (*block_size)[2]);
@@ -136,15 +136,22 @@ cudaError_t cuda_dotProd(size_t (* grid_size)[3], size_t (* block_size)[3], doub
 	//printf("Start: %d %d %d\n", (*arr_start)[0], (*arr_start)[1], (*arr_start)[2]);
 	//printf("End: %d %d %d\n", (*arr_end)[1], (*arr_end)[0], (*arr_end)[2]);
 	//printf("SMEM: %d\n", smem_size);
+	if (event != NULL) {
+		cudaEventCreate(&(*event)[0]);
+		cudaEventRecord((*event)[0], 0);
+	}
 	kernel_dotProd<<<grid,block,smem_size>>>(data1, data2, (*array_size)[0], (*array_size)[1], (*array_size)[2], (*arr_start)[0], (*arr_start)[1], (*arr_start)[2], (*arr_end)[1], (*arr_end)[0], (*arr_end)[2], (*grid_size)[2], reduced_val, (*block_size)[0] * (*block_size)[1] * (*block_size)[2]);
-	ret = cudaThreadSynchronize();
-
+	if (event != NULL) {
+		cudaEventCreate(&(*event)[1]);
+		cudaEventRecord((*event)[1], 0);
+	}
+	if (!async) ret = cudaThreadSynchronize();
 	return(ret);
 }
 
 
-cudaError_t cuda_reduce(size_t (* grid_size)[3], size_t (* block_size)[3], double * data, size_t (* array_size)[3], size_t (* arr_start)[3], size_t (* arr_end)[3], double * reduced_val) {
-	cudaError_t ret;
+cudaError_t cuda_reduce(size_t (* grid_size)[3], size_t (* block_size)[3], double * data, size_t (* array_size)[3], size_t (* arr_start)[3], size_t (* arr_end)[3], double * reduced_val, int async, cudaEvent_t ((*event)[2])) {
+	cudaError_t ret = cudaSuccess;
 	size_t smem_size = sizeof(double) * (*block_size)[0] * (*block_size)[1] * (*block_size)[2];
 	dim3 grid = dim3((*grid_size)[0], (*grid_size)[1], 1);
 	dim3 block = dim3((*block_size)[0], (*block_size)[1], (*block_size)[2]);
@@ -155,10 +162,16 @@ cudaError_t cuda_reduce(size_t (* grid_size)[3], size_t (* block_size)[3], doubl
 	//printf("Start: %d %d %d\n", (*arr_start)[0], (*arr_start)[1], (*arr_start)[2]);
 	//printf("End: %d %d %d\n", (*arr_end)[1], (*arr_end)[0], (*arr_end)[2]);
 	//printf("SMEM: %d\n", smem_size);
+	if (event != NULL) {
+		cudaEventCreate(&(*event)[0]);
+		cudaEventRecord((*event)[0], 0);
+	}
 	kernel_reduction3<<<grid,block,smem_size>>>(data, (*array_size)[0], (*array_size)[1], (*array_size)[2], (*arr_start)[0], (*arr_start)[1], (*arr_start)[2], (*arr_end)[1], (*arr_end)[0], (*arr_end)[2], (*grid_size)[2], reduced_val, (*block_size)[0] * (*block_size)[1] * (*block_size)[2]);
-	ret = cudaThreadSynchronize();
-
+	if (event != NULL) {
+		cudaEventCreate(&(*event)[1]);
+		cudaEventRecord((*event)[1], 0);
+	}
+	if (!async) ret = cudaThreadSynchronize();
 	//TODO consider derailing for an explictly 2D/1D reduce..
-
 	return(ret);
 }

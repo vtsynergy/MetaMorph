@@ -113,9 +113,18 @@ a_err accel_free(void * ptr) {
 	return (ret);
 }
 
-//TODO support async copies
-a_err accel_copy_h2d(void * dst, void * src, size_t size) {
+//Simplified wrapper for sync copies
+//a_err accel_copy_h2d(void * dst, void * src, size_t size) {
+//	return accel_copy_h2d(dst, src, size, true);
+//}
+//Workhorse for both sync and async variants
+a_err accel_copy_h2d(void * dst, void * src, size_t size, a_bool async) {
 	a_err ret;
+	#ifdef WITH_TIMERS
+	accelTimerQueueFrame * frame = malloc (sizeof(accelTimerQueueFrame));
+	frame->mode = run_mode;
+	frame->size = size;
+	#endif
 	switch (run_mode) {
 		default:
 		case accelModePreferGeneric:
@@ -124,7 +133,19 @@ a_err accel_copy_h2d(void * dst, void * src, size_t size) {
 
 		#ifdef WITH_CUDA
 		case accelModePreferCUDA:
-			ret = cudaMemcpy(dst, src, size, cudaMemcpyHostToDevice);
+			#ifdef WITH_TIMERS
+			cudaEventCreate(&(frame->event.cuda[0]));
+			cudaEventRecord(frame->event.cuda[0], 0);
+			#endif
+			if (async) {
+				ret = cudaMemcpyAsync(dst, src, size, cudaMemcpyHostToDevice, 0);
+			} else {
+				ret = cudaMemcpy(dst, src, size, cudaMemcpyHostToDevice);
+			}
+			#ifdef WITH_TIMERS
+			cudaEventCreate(&(frame->event.cuda[1]));
+			cudaEventRecord(frame->event.cuda[1], 0);
+			#endif
 			break;
 		#endif
 
@@ -132,7 +153,11 @@ a_err accel_copy_h2d(void * dst, void * src, size_t size) {
 		case accelModePreferOpenCL:
 			//Make sure some context exists..
 			if (accel_context == NULL) accelOpenCLFallBack();
-			ret = clEnqueueWriteBuffer(accel_queue, (cl_mem) dst, CL_TRUE, 0, size, src, 0, NULL, NULL);
+			#ifdef WITH_TIMERS
+			ret = clEnqueueWriteBuffer(accel_queue, (cl_mem) dst, ((async) ? CL_FALSE : CL_TRUE), 0, size, src, 0, NULL, &(frame->event.opencl));
+			#else
+			ret = clEnqueueWriteBuffer(accel_queue, (cl_mem) dst, ((async) ? CL_FALSE : CL_TRUE), 0, size, src, 0, NULL, NULL);
+			#endif
 			break;
 		#endif
 
@@ -142,12 +167,24 @@ a_err accel_copy_h2d(void * dst, void * src, size_t size) {
 			break;
 		#endif
 	}
+	#ifdef WITH_TIMERS
+	accelTimerEnqueue(frame, &(accelBuiltinQueues[c_H2D]));
+	#endif
 	return (ret);
 }
 
-//TODO support async copies
-a_err accel_copy_d2h(void * dst, void * src, size_t size) {
+//Simplified wrapper for sync copies
+//a_err accel_copy_d2h(void * dst, void * src, size_t) {
+//	return accel_copy_d2h(dst, src, size, true);
+//}
+//Workhorse for both sync and async copies
+a_err accel_copy_d2h(void * dst, void * src, size_t size, a_bool async) {
 	a_err ret;
+	#ifdef WITH_TIMERS
+	accelTimerQueueFrame * frame = malloc (sizeof(accelTimerQueueFrame));
+	frame->mode = run_mode;
+	frame->size = size;
+	#endif
 	switch (run_mode) {
 		default:
 		case accelModePreferGeneric:
@@ -156,7 +193,19 @@ a_err accel_copy_d2h(void * dst, void * src, size_t size) {
 
 		#ifdef WITH_CUDA
 		case accelModePreferCUDA:
-			ret = cudaMemcpy(dst, src, size, cudaMemcpyDeviceToHost);
+			#ifdef WITH_TIMERS
+			cudaEventCreate(&(frame->event.cuda[0]));
+			cudaEventRecord(frame->event.cuda[0], 0);
+			#endif
+			if (async) {
+				ret = cudaMemcpyAsync(dst, src, size, cudaMemcpyDeviceToHost, 0);
+			} else {
+				ret = cudaMemcpy(dst, src, size, cudaMemcpyDeviceToHost);
+			}
+			#ifdef WITH_TIMERS
+			cudaEventCreate(&(frame->event.cuda[1]));
+			cudaEventRecord(frame->event.cuda[1], 0);
+			#endif
 			break;
 		#endif
 
@@ -164,7 +213,11 @@ a_err accel_copy_d2h(void * dst, void * src, size_t size) {
 		case accelModePreferOpenCL:
 			//Make sure some context exists..
 			if (accel_context == NULL) accelOpenCLFallBack();
-			ret = clEnqueueReadBuffer(accel_queue, (cl_mem) src, CL_TRUE, 0, size, dst, 0, NULL, NULL);
+			#ifdef WITH_TIMERS
+			ret = clEnqueueReadBuffer(accel_queue, (cl_mem) src, ((async) ? CL_FALSE : CL_TRUE), 0, size, dst, 0, NULL, &(frame->event.opencl));
+			#else
+			ret = clEnqueueReadBuffer(accel_queue, (cl_mem) src, ((async) ? CL_FALSE : CL_TRUE), 0, size, dst, 0, NULL, NULL);
+			#endif
 			break;
 		#endif
 
@@ -174,6 +227,71 @@ a_err accel_copy_d2h(void * dst, void * src, size_t size) {
 			break;
 		#endif
 	}
+	#ifdef WITH_TIMERS
+	accelTimerEnqueue(frame, &(accelBuiltinQueues[c_D2H]));
+	#endif
+	return (ret);
+}
+
+//Simplified wrapper for sync copies
+//a_err accel_copy_d2d(void * dst, void * src, size_t size) {
+//	return (dst, src, size, true);
+//}
+//Workhorse for both sync and async copies
+a_err accel_copy_d2d(void * dst, void * src, size_t size, a_bool async) {
+	a_err ret;
+	#ifdef WITH_TIMERS
+	accelTimerQueueFrame * frame = malloc (sizeof(accelTimerQueueFrame));
+	frame->mode = run_mode;
+	frame->size = size;
+	#endif
+	switch (run_mode) {
+		default:
+		case accelModePreferGeneric:
+			//TODO implement generic (runtime choice) H2D copy
+			break;
+
+		#ifdef WITH_CUDA
+		case accelModePreferCUDA:
+			#ifdef WITH_TIMERS
+			cudaEventCreate(&(frame->event.cuda[0]));
+			cudaEventRecord(frame->event.cuda[0], 0);
+			#endif
+			if (async) {
+				ret = cudaMemcpyAsync(dst, src, size, cudaMemcpyDeviceToDevice, 0);
+			} else {
+				ret = cudaMemcpy(dst, src, size, cudaMemcpyDeviceToDevice);
+			}
+			#ifdef WITH_TIMERS
+			cudaEventCreate(&(frame->event.cuda[1]));
+			cudaEventRecord(frame->event.cuda[1], 0);
+			#endif
+			break;
+		#endif
+
+		#ifdef WITH_OPENCL
+		case accelModePreferOpenCL:
+			//Make sure some context exists..
+			if (accel_context == NULL) accelOpenCLFallBack();
+			#ifdef WITH_TIMERS
+			ret = clEnqueueCopyBuffer(accel_queue, (cl_mem) src, (cl_mem) dst, 0, 0, size, 0, NULL, &(frame->event.opencl));
+			#else
+			ret = clEnqueueCopyBuffer(accel_queue, (cl_mem) src, (cl_mem) dst, 0, 0, size, 0, NULL, NULL);
+			#endif
+			//clEnqueueCopyBuffer is by default async, so clFinish
+			if (!async) clFinish(accel_queue);
+			break;
+		#endif
+
+		#ifdef WITH_OPENMP
+		case accelModePreferOpenMP:
+			//TODO implement OpenMP copy
+			break;
+		#endif
+	}
+	#ifdef WITH_TIMERS
+	accelTimerEnqueue(frame, &(accelBuiltinQueues[c_D2D]));
+	#endif
 	return (ret);
 }
 
@@ -360,8 +478,18 @@ a_err accel_validate_worksize(a_dim3 * grid_size, a_dim3 * block_size) {
 	return(ret);
 }
 
-a_err accel_dotProd(a_dim3 * grid_size, a_dim3 * block_size, a_double * data1, a_double * data2, a_dim3 * array_size, a_dim3 * array_start, a_dim3 * array_end, a_double * reduction_var) {
+//Simple wrapper for synchronous kernel
+//a_err accel_dotProd(a_dim3 * grid_size, a_dim3 * block_size, a_double * data1, a_double * data2, a_dim3 * array_size, a_dim3 * array_start, a_dim3 * array_end, a_double * reduction_var) {
+//	return accel_dotProd(grid_size, block_size, data1, data2, array_size, array_start, array_end, reduction_var, true);
+//}
+//Workhorse for both sync and async dot products
+a_err accel_dotProd(a_dim3 * grid_size, a_dim3 * block_size, a_double * data1, a_double * data2, a_dim3 * array_size, a_dim3 * array_start, a_dim3 * array_end, a_double * reduction_var, a_bool async) {
 	a_err ret;
+	#ifdef WITH_TIMERS
+	accelTimerQueueFrame * frame = malloc (sizeof(accelTimerQueueFrame));
+	frame->mode = run_mode;
+	frame->size = (*array_size)[0]*(*array_size)[1]*(*array_size)[2]*sizeof(double);
+	#endif
 	switch(run_mode) {
 		default:
 		case accelModePreferGeneric:
@@ -370,7 +498,11 @@ a_err accel_dotProd(a_dim3 * grid_size, a_dim3 * block_size, a_double * data1, a
 
 		#ifdef WITH_CUDA
 		case accelModePreferCUDA: {
-						  ret = (a_err) cuda_dotProd(grid_size, block_size, data1, data2, array_size, array_start, array_end, reduction_var);
+						#ifdef WITH_TIMERS
+						  ret = (a_err) cuda_dotProd(grid_size, block_size, data1, data2, array_size, array_start, array_end, reduction_var, async, &(frame->event.cuda));
+						#else
+						  ret = (a_err) cuda_dotProd(grid_size, block_size, data1, data2, array_size, array_start, array_end, reduction_var, async, NULL);
+						#endif
 						  break;
 					  }
 		#endif
@@ -379,7 +511,11 @@ a_err accel_dotProd(a_dim3 * grid_size, a_dim3 * block_size, a_double * data1, a
 		case accelModePreferOpenCL:
 					  //Make sure some context exists..
 					  if (accel_context == NULL) accelOpenCLFallBack();
-					  ret = (a_err) opencl_dotProd(grid_size, block_size, data1, data2, array_size, array_start, array_end, reduction_var);
+					  #ifdef WITH_TIMERS
+					  ret = (a_err) opencl_dotProd(grid_size, block_size, data1, data2, array_size, array_start, array_end, reduction_var, async, &(frame->event.opencl));
+					  #else
+					  ret = (a_err) opencl_dotProd(grid_size, block_size, data1, data2, array_size, array_start, array_end, reduction_var, async, NULL);
+					  #endif
 					  break;
 		#endif
 
@@ -389,12 +525,24 @@ a_err accel_dotProd(a_dim3 * grid_size, a_dim3 * block_size, a_double * data1, a
 					  break;
 		#endif
 	}
+	#ifdef WITH_TIMERS
+	accelTimerEnqueue(frame, &(accelBuiltinQueues[k_dotProd]));
+	#endif
 	return(ret);
 }
 
-
-a_err accel_reduce(a_dim3 * grid_size, a_dim3 * block_size, a_double * data, a_dim3 * array_size, a_dim3 * array_start, a_dim3 * array_end, a_double * reduction_var) {
+//Simplified wrapper for synchronous kernel
+//a_err accel_reduce(a_dim3 * grid_size, a_dim3 * block_size, a_double * data, a_dim3 * array_size, a_dim3 * array_start, a_dim3 * array_end, a_double * reduction_var) {
+//	return accel_reduce(grid_size, block_size, data, array_size, array_start, array_end, reduction_var, true);
+//}
+//Workhorse for both sync and async reductions
+a_err accel_reduce(a_dim3 * grid_size, a_dim3 * block_size, a_double * data, a_dim3 * array_size, a_dim3 * array_start, a_dim3 * array_end, a_double * reduction_var, a_bool async) {
 	a_err ret;
+	#ifdef WITH_TIMERS
+	accelTimerQueueFrame * frame = malloc (sizeof(accelTimerQueueFrame));
+	frame->mode = run_mode;
+	frame->size = (*array_size)[0]*(*array_size)[1]*(*array_size)[2]*sizeof(double);
+	#endif
 	switch(run_mode) {
 		default:
 		case accelModePreferGeneric:
@@ -403,7 +551,11 @@ a_err accel_reduce(a_dim3 * grid_size, a_dim3 * block_size, a_double * data, a_d
 
 		#ifdef WITH_CUDA
 		case accelModePreferCUDA: {
-						  ret = (a_err) cuda_reduce(grid_size, block_size, data, array_size, array_start, array_end, reduction_var);
+						#ifdef WITH_TIMERS
+						  ret = (a_err) cuda_reduce(grid_size, block_size, data, array_size, array_start, array_end, reduction_var, async, &(frame->event.cuda));
+						#else
+						  ret = (a_err) cuda_reduce(grid_size, block_size, data, array_size, array_start, array_end, reduction_var, async, NULL);
+						#endif
 						  break;
 					  }
 		#endif
@@ -412,7 +564,11 @@ a_err accel_reduce(a_dim3 * grid_size, a_dim3 * block_size, a_double * data, a_d
 		case accelModePreferOpenCL:
 					  //Make sure some context exists..
 					  if (accel_context == NULL) accelOpenCLFallBack();
-					  ret = (a_err) opencl_reduce(grid_size, block_size, data, array_size, array_start, array_end, reduction_var);
+					  #ifdef WITH_TIMERS
+					  ret = (a_err) opencl_reduce(grid_size, block_size, data, array_size, array_start, array_end, reduction_var, async, &(frame->event.opencl));
+					  #else
+					  ret = (a_err) opencl_reduce(grid_size, block_size, data, array_size, array_start, array_end, reduction_var, async, NULL);
+					  #endif
 					  break;
 		#endif
 
@@ -422,5 +578,8 @@ a_err accel_reduce(a_dim3 * grid_size, a_dim3 * block_size, a_double * data, a_d
 					  break;
 		#endif
 	}
+	#ifdef WITH_TIMERS
+	accelTimerEnqueue(frame, &(accelBuiltinQueues[k_reduce]));
+	#endif
 	return(ret);
 }

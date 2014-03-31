@@ -62,6 +62,7 @@ typedef unsigned int a_uint;
 typedef unsigned long a_ulong;
 typedef int a_err;
 typedef size_t a_dim3[3];
+typedef enum { false, true } a_bool;
 
 #ifdef WITH_OPENCL
 	extern cl_context accel_context;
@@ -84,13 +85,22 @@ typedef enum {
 
 a_err accel_alloc(void ** ptr, size_t size);
 a_err accel_free(void * ptr);
-a_err accel_copy_h2d(void * dst, void * src, size_t size);
 a_err choose_accel(int accel, accel_preferred_mode mode);
 a_err get_accel(int * accel, accel_preferred_mode * mode);
 a_err accel_validate_worksize(a_dim3 * grid_size, a_dim3 * block_size);
-a_err accel_dotProd(a_dim3 * grid_size, a_dim3 * block_size, a_double * data1, a_double * data2, a_dim3 * array_size, a_dim3 * array_start, a_dim3 * array_end, a_double * reduction_var);
-a_err accel_reduce(a_dim3 * grid_size, a_dim3 * block_size, a_double * data, a_dim3 * array_size, a_dim3 * array_start, a_dim3 * array_end, a_double * reduction_var);
-a_err accel_copy_d2h(void * dst, void * src, size_t size);
+//Implicitly synchronous versions of functions
+//a_err accel_dotProd(a_dim3 * grid_size, a_dim3 * block_size, a_double * data1, a_double * data2, a_dim3 * array_size, a_dim3 * array_start, a_dim3 * array_end, a_double * reduction_var);
+//a_err accel_reduce(a_dim3 * grid_size, a_dim3 * block_size, a_double * data, a_dim3 * array_size, a_dim3 * array_start, a_dim3 * array_end, a_double * reduction_var);
+//a_err accel_copy_h2d(void * dst, void * src, size_t size);
+//a_err accel_copy_d2h(void * dst, void * src, size_t size);
+//a_err accel_copy_d2d(void * dst, void * src, size_t size);
+
+//Power-user explicitly (a)synchronous versions of 
+a_err accel_dotProd(a_dim3 * grid_size, a_dim3 * block_size, a_double * data1, a_double * data2, a_dim3 * array_size, a_dim3 * array_start, a_dim3 * array_end, a_double * reduction_var, a_bool async);
+a_err accel_reduce(a_dim3 * grid_size, a_dim3 * block_size, a_double * data, a_dim3 * array_size, a_dim3 * array_start, a_dim3 * array_end, a_double * reduction_var, a_bool async);
+a_err accel_copy_h2d(void * dst, void * src, size_t size, a_bool async);
+a_err accel_copy_d2h(void * dst, void * src, size_t size, a_bool async);
+a_err accel_copy_d2d(void * dst, void * src, size_t size, a_bool async);
 
 //Separate from which core libraries are compiled in, the users
 // should decide whether to compiler with different metrics

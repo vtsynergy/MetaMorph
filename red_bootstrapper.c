@@ -6,6 +6,7 @@
 #include <stdlib.h>
 #include "afosr_cfd.h"
 
+
 a_double * dev_data3;
 a_double * dev_data3_2;
 a_double * dev_data4;
@@ -50,9 +51,9 @@ int ni, nj, nk, nm;
 //      !Transfers data from host to device
       void data_transfer_h2d() {
 	a_err ret= CL_SUCCESS; 
-            ret |= accel_copy_h2d((void *) dev_data3, (void *) data3, sizeof(double)*ni*nj*nk);
-            ret |= accel_copy_h2d((void *) dev_data4, (void *) data4, sizeof(double)*ni*nj*nk*nm);
-            ret |= accel_copy_h2d((void *) dev_data3_2, (void *) data3, sizeof(double)*ni*nj*nk);
+            ret |= accel_copy_h2d((void *) dev_data3, (void *) data3, sizeof(double)*ni*nj*nk, true);
+            ret |= accel_copy_h2d((void *) dev_data4, (void *) data4, sizeof(double)*ni*nj*nk*nm, true);
+            ret |= accel_copy_d2d((void *) dev_data3_2, (void *) dev_data3, sizeof(double)*ni*nj*nk, true);
 } 
 
       void deallocate_() {
@@ -102,6 +103,10 @@ int ni, nj, nk, nm;
             tx = atoi(argv[5]);
             ty = atoi(argv[6]);
             tz = atoi(argv[7]);
+		//TODO make timer initialization automatic
+            #ifdef WITH_TIMERS
+	    accelTimersInit();
+	    #endif
 
             gpu_initialize(); //call gpu_initialize 
             data_allocate(ni,nj,nk,nm); //call data_allocate(ni,nj,nk,nm) 
@@ -147,8 +152,8 @@ int ni, nj, nk, nm;
 	    dimarray[0] = ni, dimarray[1] = nj, dimarray[2] = nk;
 	    arr_start[0] = arr_start[1] = arr_start[2] = 1;
 	    arr_end[0] = ni-2, arr_end[1] = nj-2, arr_end[2] = nk-2;
-            for (i = 0; i < 10; i++) { //do i=1,10
-	istat =	accel_copy_h2d((void *) reduction, (void *) &zero, sizeof(double));
+for (i = 0; i < 10; i++) { //do i=1,10
+	istat =	accel_copy_h2d((void *) reduction, (void *) &zero, sizeof(double), true);
 		//Validate grid and block sizes (if too big, shrink the z-dim and add iterations)
 		for(;accel_validate_worksize(&dimgrid, &dimblock) != 0 && dimblock[2] > 1; dimgrid[2] <<=1, dimblock[2] >>=1);
 		// Z-scaling won't be enough, abort
@@ -159,16 +164,20 @@ int ni, nj, nk, nm;
 		
 
 		//Call the entire reduction
-		a_err ret = accel_dotProd(&dimgrid, &dimblock, dev_data3, dev_data3_2, &dimarray, &arr_start, &arr_end, reduction);
+		a_err ret = accel_dotProd(&dimgrid, &dimblock, dev_data3, dev_data3_2, &dimarray, &arr_start, &arr_end, reduction, true);
 		fprintf(stderr, "Kernel Status: %d\n", ret);
 
 //           kernel_reduction3<<<dimgrid,dimblock,tx*ty*tz*sizeof(double)>>>(dev_data3, //call kernel_reduction3<<<dimgrid,dimblock,tx*ty*tz*8>>>(dev_data3 & //TODO move into CUDA backend, make "accel_reduce"
 //           dev_data3_2, ni, nj, nk, 2, 2, 2, nj-1, ni-1, nk-1, gz, reduction, tx*ty*tz); //& ,dev_data3_2,ni,nj,nk,2,2,2,nj-1,ni-1,nk-1,gz,reduction,tx*ty*tz) //TODO - see previous
 //            istat = cudaThreadSynchronize(); //cudathreadsynchronize()// TODO move into CUDA backend
 	//	printf("cudaThreadSynchronize error code:%d\n", istat);            
-		istat = accel_copy_d2h((void *) &sum_dot_gpu, (void *) reduction, sizeof(double));
+		istat = accel_copy_d2h((void *) &sum_dot_gpu, (void *) reduction, sizeof(double), false);
             printf("Test Reduction:\t%f\n", sum_dot_gpu); //print *, "Test Reduction:",sum_dot_gpu
             //printf("Test Reduction:\t%d\n", sum_dot_gpu); //print *, "Test Reduction:",sum_dot_gpu
+	    //accelTimersFlush();
             } //end do
-            deallocate_(); //call deallocate_
+            deallocate_(); //call deallocate_i
+	    #ifdef WITH_TIMERS
+	    accelTimersFinish();
+	    #endif
       } //end program main

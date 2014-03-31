@@ -285,7 +285,7 @@ cl_int accelOpenCLInitStackFrameDefault(accelOpenCLStackFrame ** frame) {
 //  ! i,j,k are the array dimensions
 //  ! len_ is number of threads in a threadblock.
 //  !      This can be computed in the kernel itself.
-cl_int opencl_dotProd(size_t (* grid_size)[3], size_t (* block_size)[3], double * data1, double * data2, size_t (* array_size)[3], size_t (* arr_start)[3], size_t (* arr_end)[3], double * reduced_val) {
+cl_int opencl_dotProd(size_t (* grid_size)[3], size_t (* block_size)[3], double * data1, double * data2, size_t (* array_size)[3], size_t (* arr_start)[3], size_t (* arr_end)[3], double * reduced_val, int async, cl_event * event) {
 	cl_int ret;
 	cl_int smem_len =  (*block_size)[0] * (*block_size)[1] * (*block_size)[2];
 	size_t grid[3] = {(*grid_size)[0]*(*block_size)[0], (*grid_size)[1]*(*block_size)[1], (*block_size)[2]};
@@ -315,10 +315,10 @@ cl_int opencl_dotProd(size_t (* grid_size)[3], size_t (* block_size)[3], double 
 	ret |= clSetKernelArg(frame->kernel_dotProd, 12, sizeof(cl_mem *), &reduced_val);
 	ret |= clSetKernelArg(frame->kernel_dotProd, 13, sizeof(cl_int), &smem_len);
 	ret |= clSetKernelArg(frame->kernel_dotProd, 14, smem_len*sizeof(cl_double), NULL);
-	ret |= clEnqueueNDRangeKernel(frame->queue, frame->kernel_dotProd, 3, NULL, grid, block, 0, NULL, NULL);
+	ret |= clEnqueueNDRangeKernel(frame->queue, frame->kernel_dotProd, 3, NULL, grid, block, 0, NULL, event);
 	
 	//TODO find a way to make explicit sync optional
-	ret |= clFinish(frame->queue);
+	if (!async) ret |= clFinish(frame->queue);
 	//printf("CHECK THIS! %d\n", ret);
 	//free the copy of the top stack frame, DO NOT release it's members
 	free(frame);
@@ -327,7 +327,7 @@ cl_int opencl_dotProd(size_t (* grid_size)[3], size_t (* block_size)[3], double 
 }
 
 
-cl_int opencl_reduce(size_t (* grid_size)[3], size_t (* block_size)[3], double * data, size_t (* array_size)[3], size_t (* arr_start)[3], size_t (* arr_end)[3], double * reduced_val) {
+cl_int opencl_reduce(size_t (* grid_size)[3], size_t (* block_size)[3], double * data, size_t (* array_size)[3], size_t (* arr_start)[3], size_t (* arr_end)[3], double * reduced_val, int async, cl_event * event) {
 	cl_int ret;
 	cl_int smem_len =  (*block_size)[0] * (*block_size)[1] * (*block_size)[2];
 	size_t grid[3] = {(*grid_size)[0]*(*block_size)[0], (*grid_size)[1]*(*block_size)[1], (*block_size)[2]};
@@ -356,10 +356,10 @@ cl_int opencl_reduce(size_t (* grid_size)[3], size_t (* block_size)[3], double *
 	ret |= clSetKernelArg(frame->kernel_reduction3, 11, sizeof(cl_mem *), &reduced_val);
 	ret |= clSetKernelArg(frame->kernel_reduction3, 12, sizeof(cl_int), &smem_len);
 	ret |= clSetKernelArg(frame->kernel_reduction3, 13, smem_len*sizeof(cl_double), NULL);
-	ret |= clEnqueueNDRangeKernel(frame->queue, frame->kernel_reduction3, 3, NULL, grid, block, 0, NULL, NULL);
+	ret |= clEnqueueNDRangeKernel(frame->queue, frame->kernel_reduction3, 3, NULL, grid, block, 0, NULL, event);
 	
 	//TODO find a way to make explicit sync optional
-	ret |= clFinish(frame->queue);
+	if (!async) ret |= clFinish(frame->queue);
 	//printf("CHECK THIS! %d\n", ret);
 	//free the copy of the top stack frame, DO NOT release it's members
 	free(frame);
