@@ -15,28 +15,28 @@ nocuda_DEBUG: red_test_nocuda_DEBUG
 nocuda_notimers_DEBUG: red_test_nocuda_notimers_DEBUG
 
 red_test_nocuda_notimers: libafosr_cfd_nocuda_notimers.so libafosr_cfd_opencl_core.so
-	gcc red_bootstrapper.c -I ./ -D WITH_OPENCL -D WITH_OPENMP -L ./ -lafosr_cfd_nocuda_notimers -lafosr_cfd_opencl_core -o red_test_nocuda_notimers
+	gcc red_bootstrapper.c -I ./ -D WITH_OPENCL -D WITH_OPENMP -D WITH_FORTRAN -L ./ -lafosr_cfd_nocuda_notimers -lafosr_cfd_opencl_core -o red_test_nocuda_notimers
 
 red_test_nocuda: libafosr_cfd_nocuda.so libafosr_cfd_opencl_core.so
-	gcc red_bootstrapper.c -I ./ -D WITH_OPENCL -D WITH_OPENMP -D WITH_TIMERS -L ./ -lafosr_cfd_nocuda -lafosr_cfd_opencl_core -o red_test_nocuda
+	gcc red_bootstrapper.c -I ./ -D WITH_OPENCL -D WITH_OPENMP -D WITH_TIMERS -D WITH_FORTRAN -L ./ -lafosr_cfd_nocuda -lafosr_cfd_opencl_core -o red_test_nocuda
 
 red_test_notimers: libafosr_cfd_notimers.so libafosr_cfd_opencl_core.so
-	gcc red_bootstrapper.c -I ./ -D WITH_CUDA -D WITH_OPENCL -D WITH_OPENMP -L ./ -lafosr_cfd_notimers -lafosr_cfd_opencl_core -lafosr_cfd_cuda_core -o red_test_notimers
+	gcc red_bootstrapper.c -I ./ -D WITH_CUDA -D WITH_OPENCL -D WITH_OPENMP -D WITH_FORTRAN -L ./ -lafosr_cfd_notimers -lafosr_cfd_opencl_core -lafosr_cfd_cuda_core -o red_test_notimers
 
 red_test: libafosr_cfd.so libafosr_cfd_opencl_core.so
-	gcc red_bootstrapper.c -I ./ -D WITH_CUDA -D WITH_OPENCL -D WITH_OPENMP -D WITH_TIMERS -L ./ -lafosr_cfd -lafosr_cfd_opencl_core -lafosr_cfd_cuda_core -o red_test
+	gcc red_bootstrapper.c -I ./ -D WITH_CUDA -D WITH_OPENCL -D WITH_OPENMP -D WITH_TIMERS -D WITH_FORTRAN -L ./ -lafosr_cfd -lafosr_cfd_opencl_core -lafosr_cfd_cuda_core -o red_test
 
 libafosr_cfd_nocuda_notimers.so: libafosr_cfd_opencl_core.so afosr_cfd.c
-	gcc afosr_cfd.c -fPIC -shared -D WITH_OPENCL -D WITH_OPENMP -I ./ -L ./ -lafosr_cfd_opencl_core -lOpenCL -o libafosr_cfd_nocuda_notimers.so
+	gcc afosr_cfd.c afosr_cfd_fortran_compat.c -fPIC -shared -D WITH_OPENCL -D WITH_OPENMP -D WITH_FORTRAN -I ./ -L ./ -lafosr_cfd_opencl_core -lOpenCL -o libafosr_cfd_nocuda_notimers.so
 
 libafosr_cfd_nocuda.so: libafosr_cfd_opencl_core.so afosr_cfd.c
-	gcc afosr_cfd.c afosr_cfd_timers.c -fPIC -shared -D WITH_OPENCL -D WITH_OPENMP -D WITH_TIMERS -I ./ -L ./ -lafosr_cfd_opencl_core -lOpenCL -o libafosr_cfd_nocuda.so
+	gcc afosr_cfd.c afosr_cfd_timers.c afosr_cfd_fortran_compat.c -fPIC -shared -D WITH_OPENCL -D WITH_OPENMP -D WITH_TIMERS -D WITH_FORTRAN -I ./ -L ./ -lafosr_cfd_opencl_core -lOpenCL -o libafosr_cfd_nocuda.so
 
 libafosr_cfd_notimers.so: libafosr_cfd_cuda_core.so libafosr_cfd_opencl_core.so afosr_cfd.c
-	gcc afosr_cfd.c  -fPIC -shared -D WITH_CUDA -D WITH_OPENCL -D WITH_OPENMP -I ./ -L ./ -lafosr_cfd_opencl_core -lafosr_cfd_cuda_core -lOpenCL -lcudart -o libafosr_cfd_notimers.so
+	gcc afosr_cfd.c afosr_cfd_fortran_compat.c  -fPIC -shared -D WITH_CUDA -D WITH_OPENCL -D WITH_OPENMP -D WITH_FORTRAN -I ./ -L ./ -lafosr_cfd_opencl_core -lafosr_cfd_cuda_core -lOpenCL -lcudart -o libafosr_cfd_notimers.so
 
 libafosr_cfd.so: libafosr_cfd_cuda_core.so libafosr_cfd_opencl_core.so afosr_cfd.c
-	gcc afosr_cfd.c afosr_cfd_timers.c -fPIC -shared -D WITH_CUDA -D WITH_OPENCL -D WITH_OPENMP -D WITH_TIMERS -I ./ -L ./ -lafosr_cfd_opencl_core -lafosr_cfd_cuda_core -lOpenCL -lcudart -o libafosr_cfd.so
+	gcc afosr_cfd.c afosr_cfd_timers.c afosr_cfd_fortran_compat.c -fPIC -shared -D WITH_CUDA -D WITH_OPENCL -D WITH_OPENMP -D WITH_TIMERS -D WITH_FORTRAN -I ./ -L ./ -lafosr_cfd_opencl_core -lafosr_cfd_cuda_core -lOpenCL -lcudart -o libafosr_cfd.so
 
 #I can only get it to provide correct results with the debugging symbols..
 #  Something to do with volatiles and sync on the shared memory regions
@@ -51,28 +51,28 @@ libafosr_cfd_opencl_core.so:
 
 #Debug variants
 red_test_nocuda_notimers_DEBUG: libafosr_cfd_nocuda_notimers_DEBUG.so libafosr_cfd_opencl_core_DEBUG.so
-	gcc red_bootstrapper.c -I ./ -D WITH_OPENCL -D WITH_OPENMP -L ./ -lafosr_cfd_nocuda_notimers_DEBUG -lafosr_cfd_opencl_core_DEBUG -o red_test_nocuda_notimers_DEBUG -g -O0
+	gcc red_bootstrapper.c -I ./ -D WITH_OPENCL -D WITH_OPENMP -D WITH_FORTRAN -L ./ -lafosr_cfd_nocuda_notimers_DEBUG -lafosr_cfd_opencl_core_DEBUG -o red_test_nocuda_notimers_DEBUG -g -O0
 
 red_test_nocuda_DEBUG: libafosr_cfd_nocuda_DEBUG.so libafosr_cfd_opencl_core_DEBUG.so
-	gcc red_bootstrapper.c -I ./ -D WITH_OPENCL -D WITH_OPENMP -D WITH_TIMERS -L ./ -lafosr_cfd_nocuda_DEBUG -lafosr_cfd_opencl_core_DEBUG -o red_test_nocuda_DEBUG -g -O0
+	gcc red_bootstrapper.c -I ./ -D WITH_OPENCL -D WITH_OPENMP -D WITH_TIMERS -D WITH_FORTRAN -L ./ -lafosr_cfd_nocuda_DEBUG -lafosr_cfd_opencl_core_DEBUG -o red_test_nocuda_DEBUG -g -O0
 
 red_test_notimers_DEBUG: libafosr_cfd_notimers_DEBUG.so libafosr_cfd_opencl_core_DEBUG.so
-	gcc red_bootstrapper.c -I ./ -D WITH_CUDA -D WITH_OPENCL -D WITH_OPENMP -L ./ -lafosr_cfd_notimers_DEBUG -lafosr_cfd_opencl_core_DEBUG -lafosr_cfd_cuda_core_DEBUG -o red_test_notimers_DEBUG -g -O0
+	gcc red_bootstrapper.c -I ./ -D WITH_CUDA -D WITH_OPENCL -D WITH_OPENMP -D WITH_FORTRAN -L ./ -lafosr_cfd_notimers_DEBUG -lafosr_cfd_opencl_core_DEBUG -lafosr_cfd_cuda_core_DEBUG -o red_test_notimers_DEBUG -g -O0
 
 red_test_DEBUG: libafosr_cfd_DEBUG.so libafosr_cfd_opencl_core_DEBUG.so
-	gcc red_bootstrapper.c -I ./ -D WITH_CUDA -D WITH_OPENCL -D WITH_OPENMP -D WITH_TIMERS -L ./ -lafosr_cfd_DEBUG -lafosr_cfd_opencl_core_DEBUG -lafosr_cfd_cuda_core_DEBUG -o red_test_DEBUG -g -O0
+	gcc red_bootstrapper.c -I ./ -D WITH_CUDA -D WITH_OPENCL -D WITH_OPENMP -D WITH_TIMERS -D WITH_FORTRAN -L ./ -lafosr_cfd_DEBUG -lafosr_cfd_opencl_core_DEBUG -lafosr_cfd_cuda_core_DEBUG -o red_test_DEBUG -g -O0
 
 libafosr_cfd_nocuda_notimers_DEBUG.so: libafosr_cfd_opencl_core_DEBUG.so afosr_cfd.c
-	gcc afosr_cfd.c -fPIC -shared -D WITH_OPENCL -D WITH_OPENMP -I ./ -L ./ -lafosr_cfd_opencl_core_DEBUG -lOpenCL -o libafosr_cfd_nocuda_notimers_DEBUG.so -g -O0
+	gcc afosr_cfd.c afosr_cfd_fortran_compat.c -fPIC -shared -D WITH_OPENCL -D WITH_OPENMP -D WITH_FORTRAN -I ./ -L ./ -lafosr_cfd_opencl_core_DEBUG -lOpenCL -o libafosr_cfd_nocuda_notimers_DEBUG.so -g -O0
 
 libafosr_cfd_nocuda_DEBUG.so: libafosr_cfd_opencl_core_DEBUG.so afosr_cfd.c
-	gcc afosr_cfd.c afosr_cfd_timers.c -fPIC -shared -D WITH_OPENCL -D WITH_OPENMP -D WITH_TIMERS -I ./ -L ./ -lafosr_cfd_opencl_core_DEBUG -lOpenCL -o libafosr_cfd_nocuda_DEBUG.so -g -O0
+	gcc afosr_cfd.c afosr_cfd_timers.c afosr_cfd_fortran_compat.c -fPIC -shared -D WITH_OPENCL -D WITH_OPENMP -D WITH_TIMERS -D WITH_FORTRAN -I ./ -L ./ -lafosr_cfd_opencl_core_DEBUG -lOpenCL -o libafosr_cfd_nocuda_DEBUG.so -g -O0
 
 libafosr_cfd_notimers_DEBUG.so: libafosr_cfd_cuda_core_DEBUG.so libafosr_cfd_opencl_core_DEBUG.so afosr_cfd.c
-	gcc afosr_cfd.c  -fPIC -shared -D WITH_CUDA -D WITH_OPENCL -D WITH_OPENMP -I ./ -L ./ -lafosr_cfd_opencl_core_DEBUG -lafosr_cfd_cuda_core_DEBUG -lOpenCL -lcudart -o libafosr_cfd_notimers_DEBUG.so -g -O0
+	gcc afosr_cfd.c afosr_cfd_fortran_compat.c  -fPIC -shared -D WITH_CUDA -D WITH_OPENCL -D WITH_OPENMP -D WITH_FORTRAN -I ./ -L ./ -lafosr_cfd_opencl_core_DEBUG -lafosr_cfd_cuda_core_DEBUG -lOpenCL -lcudart -o libafosr_cfd_notimers_DEBUG.so -g -O0
 
 libafosr_cfd_DEBUG.so: libafosr_cfd_cuda_core_DEBUG.so libafosr_cfd_opencl_core_DEBUG.so afosr_cfd.c
-	gcc afosr_cfd.c afosr_cfd_timers.c -fPIC -shared -D WITH_CUDA -D WITH_OPENCL -D WITH_OPENMP -D WITH_TIMERS -I ./ -L ./ -lafosr_cfd_opencl_core_DEBUG -lafosr_cfd_cuda_core_DEBUG -lOpenCL -lcudart -o libafosr_cfd_DEBUG.so -g -O0
+	gcc afosr_cfd.c afosr_cfd_timers.c afosr_cfd_fortran_compat.c -fPIC -shared -D WITH_CUDA -D WITH_OPENCL -D WITH_OPENMP -D WITH_TIMERS -D WITH_FORTRAN -I ./ -L ./ -lafosr_cfd_opencl_core_DEBUG -lafosr_cfd_cuda_core_DEBUG -lOpenCL -lcudart -o libafosr_cfd_DEBUG.so -g -O0
 
 #I can only get it to provide correct results with the debugging symbols..
 #  Something to do with volatiles and sync on the shared memory regions
