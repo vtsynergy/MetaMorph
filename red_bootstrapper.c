@@ -124,19 +124,19 @@ int ni, nj, nk, nm;
             printf("ni:\t%d\n", ni); //print *,"ni:",ni
             printf("nj:\t%d\n", nj); //print *,"nj:",nj
             printf("nk:\t%d\n", nk); //print *,"nk:",nk
-            printf("gyr:\t%d\n", (ni-2)%ty); //print *,"gyr:",modulo(ni-2,ty)
+            printf("gyr:\t%d\n", (nj-2)%ty); //print *,"gyr:",modulo(ni-2,ty)
 
-            printf("gxr:\t%d\n", (nj-2)%tx); //print *,"gxr:",modulo(ni-2,tx)
+            printf("gxr:\t%d\n", (ni-2)%tx); //print *,"gxr:",modulo(ni-2,tx)
             printf("gzr:\t%d\n", (nk-2)%tz); //print *,"gzr:",modulo(nk-2,tz)
-            if ((ni-2)%ty != 0)  //if(modulo(ni-2,ty).ne.0)then
-                  gy = (ni-2)/ty +1;
+            if ((nj-2)%ty != 0)  //if(modulo(ni-2,ty).ne.0)then
+                  gy = (nj-2)/ty +1;
             else
-                  gy = (ni-2)/ty;
+                  gy = (nj-2)/ty;
             //end if
-            if ((nj-2)%tx != 0) //if(modulo(nj-2,tx).ne.0)then
-                  gx = (nj-2)/tx +1;
+            if ((ni-2)%tx != 0) //if(modulo(nj-2,tx).ne.0)then
+                  gx = (ni-2)/tx +1;
             else
-                  gx = (nj-2)/tx;
+                  gx = (ni-2)/tx;
             //end if
             if ((nk-2)%tz != 0) //if(modulo(nk-2,tz).ne.0)then
                   gz = (nk-2)/tz +1;

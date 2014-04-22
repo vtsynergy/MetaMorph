@@ -78,7 +78,7 @@ __kernel void kernel_dotProd(__global double *phi1, __global double *phi2,
 	for (itr = 0; itr < loads; itr++) {
 		z = itr*get_local_size(2)+get_local_id(2) +sz;
 		boundz = ((z >= sz) && (z <= ez));
-		if (boundx && boundy && boundz) psum[tid] += phi1[x*i+y+z*i*j] * phi2[x*i+y+z*i*j];
+		if (boundx && boundy && boundz) psum[tid] += phi1[x+y*i+z*i*j] * phi2[x+y*i+z*i*j];
 	} 
 	barrier(CLK_LOCAL_MEM_FENCE | CLK_GLOBAL_MEM_FENCE);
 	block_reduction(psum,tid,len_);
@@ -111,7 +111,7 @@ __kernel void kernel_reduction3(__global double *phi,
 	for (itr = 0; itr < loads; itr++) {
 		z = itr*get_local_size(2)+get_local_id(2) +sz;
 		boundz = ((z >= sz) && (z <= ez));
-		if (boundx && boundy && boundz) psum[tid] += phi[x*i+y+z*i*j];
+		if (boundx && boundy && boundz) psum[tid] += phi[x+y*i+z*i*j];
 	} 
 
 	barrier(CLK_LOCAL_MEM_FENCE | CLK_GLOBAL_MEM_FENCE);

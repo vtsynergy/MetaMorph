@@ -64,6 +64,14 @@ typedef int a_err;
 typedef size_t a_dim3[3];
 typedef enum { false, true } a_bool;
 
+typedef struct HPRecType {
+	void * HP[2];
+        struct HPRecType * next;
+	void * rlist; //TODO implement the rlist type
+	int rcount;
+        char active;
+} HPRecType;
+//Shared HP variables
 #ifdef WITH_OPENCL
 	extern cl_context accel_context;
 	extern cl_command_queue accel_queue;

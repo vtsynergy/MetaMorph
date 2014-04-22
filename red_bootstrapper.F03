@@ -159,19 +159,19 @@
             print *,"ni:",ni
             print *,"nj:",nj
             print *,"nk:",nk
-            print *,"gyr:",modulo(ni-2,ty)
+            print *,"gyr:",modulo(nj-2,ty)
 
-            print *,"gxr:",modulo(nj-2,tx)
+            print *,"gxr:",modulo(ni-2,tx)
             print *,"gzr:",modulo(nk-2,tz)
-            if(modulo(ni-2,ty).ne.0)then
-                  gy = (ni-2)/ty +1
+            if(modulo(nj-2,ty).ne.0)then
+                  gy = (nj-2)/ty +1
             else
-                  gy = (ni-2)/ty
+                  gy = (nj-2)/ty
             end if
-            if(modulo(nj-2,tx).ne.0)then
-                  gx = (nj-2)/tx +1
+            if(modulo(ni-2,tx).ne.0)then
+                  gx = (ni-2)/tx +1
             else
-                  gx = (nj-2)/tx
+                  gx = (ni-2)/tx
             end if
             if(modulo(nk-2,tz).ne.0)then
                   gz = (nk-2)/tz +1
@@ -190,8 +190,8 @@
             & int(gz*tz,kind=C_SIZE_T),int(tx,kind=C_SIZE_T),int(ty,kind=C_SIZE_T),&
             & int(1,kind=C_SIZE_T),dev_data3, dev_data3_2, int(ni,kind=C_SIZE_T),&
             & int(nj,kind=C_SIZE_T),int(nk,kind=C_SIZE_T),int(2,kind=C_SIZE_T),&
-            & int(2,kind=C_SIZE_T),int(2,kind=C_SIZE_T),int(nj-1,kind=C_SIZE_T),&
-            & int(ni-1,kind=C_SIZE_T),int(nk-1,kind=C_SIZE_T),reduction&
+            & int(2,kind=C_SIZE_T),int(2,kind=C_SIZE_T),int(ni-1,kind=C_SIZE_T),&
+            & int(nj-1,kind=C_SIZE_T),int(nk-1,kind=C_SIZE_T),reduction&
             &, int(0,kind=C_INT))
 !           istat = accel_dotprod(int(gx,kind=C_SIZE_T),int(gy,kind=C_SIZE_T),&
 !            & int(gz,kind=C_SIZE_T),int(tx,kind=C_SIZE_T),int(ty,kind=C_SIZE_T),&

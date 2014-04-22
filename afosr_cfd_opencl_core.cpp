@@ -308,8 +308,8 @@ cl_int opencl_dotProd(size_t (* grid_size)[3], size_t (* block_size)[3], double 
 	ret |= clSetKernelArg(frame->kernel_dotProd, 5, sizeof(cl_int), &(*arr_start)[0]);
 	ret |= clSetKernelArg(frame->kernel_dotProd, 6, sizeof(cl_int), &(*arr_start)[1]);
 	ret |= clSetKernelArg(frame->kernel_dotProd, 7, sizeof(cl_int), &(*arr_start)[2]);
-	ret |= clSetKernelArg(frame->kernel_dotProd, 8, sizeof(cl_int), &(*arr_end)[1]);
-	ret |= clSetKernelArg(frame->kernel_dotProd, 9, sizeof(cl_int), &(*arr_end)[0]);
+	ret |= clSetKernelArg(frame->kernel_dotProd, 8, sizeof(cl_int), &(*arr_end)[0]);
+	ret |= clSetKernelArg(frame->kernel_dotProd, 9, sizeof(cl_int), &(*arr_end)[1]);
 	ret |= clSetKernelArg(frame->kernel_dotProd, 10, sizeof(cl_int), &(*arr_end)[2]);
 	ret |= clSetKernelArg(frame->kernel_dotProd, 11, sizeof(cl_int), &(*grid_size)[2]);
 	ret |= clSetKernelArg(frame->kernel_dotProd, 12, sizeof(cl_mem *), &reduced_val);
@@ -349,8 +349,8 @@ cl_int opencl_reduce(size_t (* grid_size)[3], size_t (* block_size)[3], double *
 	ret |= clSetKernelArg(frame->kernel_reduction3, 4, sizeof(cl_int), &(*arr_start)[0]);
 	ret |= clSetKernelArg(frame->kernel_reduction3, 5, sizeof(cl_int), &(*arr_start)[1]);
 	ret |= clSetKernelArg(frame->kernel_reduction3, 6, sizeof(cl_int), &(*arr_start)[2]);
-	ret |= clSetKernelArg(frame->kernel_reduction3, 7, sizeof(cl_int), &(*arr_end)[1]);
-	ret |= clSetKernelArg(frame->kernel_reduction3, 8, sizeof(cl_int), &(*arr_end)[0]);
+	ret |= clSetKernelArg(frame->kernel_reduction3, 7, sizeof(cl_int), &(*arr_end)[0]);
+	ret |= clSetKernelArg(frame->kernel_reduction3, 8, sizeof(cl_int), &(*arr_end)[1]);
 	ret |= clSetKernelArg(frame->kernel_reduction3, 9, sizeof(cl_int), &(*arr_end)[2]);
 	ret |= clSetKernelArg(frame->kernel_reduction3, 10, sizeof(cl_int), &(*grid_size)[2]);
 	ret |= clSetKernelArg(frame->kernel_reduction3, 11, sizeof(cl_mem *), &reduced_val);

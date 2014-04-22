@@ -76,7 +76,7 @@ __global__ void kernel_dotProd(double *phi1, double *phi2,
 		z = itr*blockDim.z+threadIdx.z +sz;
 		boundz = ((z >= sz) && (z <= ez));
 		//if (boundx && boundy && boundz) psum[tid] += phi1[x+y*i+z*i*j] * phi2[x+y*i+z*i*j];
-		if (boundx && boundy && boundz) psum[tid] += phi1[x*i+y+z*i*j] * phi2[x*i+y+z*i*j];
+		if (boundx && boundy && boundz) psum[tid] += phi1[x+y*i+z*i*j] * phi2[x+y*i+z*i*j];
 	}
 
 	__syncthreads();
@@ -111,7 +111,7 @@ __global__ void kernel_reduction3(double *phi,
 	for (itr = 0; itr < loads; itr++) {
 		z = itr*blockDim.z+threadIdx.z +sz;
 		boundz = ((z >= sz) && (z <= ez));
-		if (boundx && boundy && boundz) psum[tid] += phi[x*i+y+z*i*j];
+		if (boundx && boundy && boundz) psum[tid] += phi[x+y*i+z*i*j];
 	}
 
 	__syncthreads();
@@ -140,7 +140,7 @@ cudaError_t cuda_dotProd(size_t (* grid_size)[3], size_t (* block_size)[3], doub
 		cudaEventCreate(&(*event)[0]);
 		cudaEventRecord((*event)[0], 0);
 	}
-	kernel_dotProd<<<grid,block,smem_size>>>(data1, data2, (*array_size)[0], (*array_size)[1], (*array_size)[2], (*arr_start)[0], (*arr_start)[1], (*arr_start)[2], (*arr_end)[1], (*arr_end)[0], (*arr_end)[2], (*grid_size)[2], reduced_val, (*block_size)[0] * (*block_size)[1] * (*block_size)[2]);
+	kernel_dotProd<<<grid,block,smem_size>>>(data1, data2, (*array_size)[0], (*array_size)[1], (*array_size)[2], (*arr_start)[0], (*arr_start)[1], (*arr_start)[2], (*arr_end)[0], (*arr_end)[1], (*arr_end)[2], (*grid_size)[2], reduced_val, (*block_size)[0] * (*block_size)[1] * (*block_size)[2]);
 	if (event != NULL) {
 		cudaEventCreate(&(*event)[1]);
 		cudaEventRecord((*event)[1], 0);
@@ -166,7 +166,7 @@ cudaError_t cuda_reduce(size_t (* grid_size)[3], size_t (* block_size)[3], doubl
 		cudaEventCreate(&(*event)[0]);
 		cudaEventRecord((*event)[0], 0);
 	}
-	kernel_reduction3<<<grid,block,smem_size>>>(data, (*array_size)[0], (*array_size)[1], (*array_size)[2], (*arr_start)[0], (*arr_start)[1], (*arr_start)[2], (*arr_end)[1], (*arr_end)[0], (*arr_end)[2], (*grid_size)[2], reduced_val, (*block_size)[0] * (*block_size)[1] * (*block_size)[2]);
+	kernel_reduction3<<<grid,block,smem_size>>>(data, (*array_size)[0], (*array_size)[1], (*array_size)[2], (*arr_start)[0], (*arr_start)[1], (*arr_start)[2], (*arr_end)[2], (*arr_end)[1], (*arr_end)[2], (*grid_size)[2], reduced_val, (*block_size)[0] * (*block_size)[1] * (*block_size)[2]);
 	if (event != NULL) {
 		cudaEventCreate(&(*event)[1]);
 		cudaEventRecord((*event)[1], 0);

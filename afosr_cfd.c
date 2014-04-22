@@ -459,12 +459,12 @@ a_err accel_validate_worksize(a_dim3 * grid_size, a_dim3 * block_size) {
 			ret = clGetDeviceInfo(accel_device, CL_DEVICE_MAX_WORK_GROUP_SIZE, sizeof(size_t), &max_wg_size, NULL);
 			ret |= clGetDeviceInfo(accel_device, CL_DEVICE_MAX_WORK_ITEM_SIZES, sizeof(size_t)*3, &max_wg_dim_sizes, NULL);
 			if ((*block_size)[0] * (*block_size)[1] * (*block_size)[2] > max_wg_size)
-				fprintf(stderr, "Error: Maximum block volume is: %d\nRequested block volume of: %d (%d * %d * %d) not supported!\n", max_wg_size, (*block_size)[0] * (*block_size)[1] * (*block_size)[2], (*block_size)[0], (*block_size)[1], (*block_size)[2]);
+				{fprintf(stderr, "Error: Maximum block volume is: %d\nRequested block volume of: %d (%d * %d * %d) not supported!\n", max_wg_size, (*block_size)[0] * (*block_size)[1] * (*block_size)[2], (*block_size)[0], (*block_size)[1], (*block_size)[2]); ret |= -1;}
 			
-			if ((*block_size)[0] > max_wg_dim_sizes[0]) fprintf(stderr, "Error: Maximum block size for dimension 0 is: %d\nRequested 0th dimension size of: %d not supported\n!", max_wg_dim_sizes[0], (*block_size)[0]);
-			if ((*block_size)[1] > max_wg_dim_sizes[1]) fprintf(stderr, "Error: Maximum block size for dimension 1 is: %d\nRequested 1st dimension size of: %d not supported\n!", max_wg_dim_sizes[1], (*block_size)[1]);
-			if ((*block_size)[2] > max_wg_dim_sizes[2]) fprintf(stderr, "Error: Maximum block size for dimension 2 is: %d\nRequested 2nd dimension size of: %d not supported\n!", max_wg_dim_sizes[2], (*block_size)[2]);
-			return -1;
+			if ((*block_size)[0] > max_wg_dim_sizes[0]) {fprintf(stderr, "Error: Maximum block size for dimension 0 is: %d\nRequested 0th dimension size of: %d not supported\n!", max_wg_dim_sizes[0], (*block_size)[0]); ret |= -1;}
+			if ((*block_size)[1] > max_wg_dim_sizes[1]) {fprintf(stderr, "Error: Maximum block size for dimension 1 is: %d\nRequested 1st dimension size of: %d not supported\n!", max_wg_dim_sizes[1], (*block_size)[1]); ret |= -1;}
+			if ((*block_size)[2] > max_wg_dim_sizes[2]) {fprintf(stderr, "Error: Maximum block size for dimension 2 is: %d\nRequested 2nd dimension size of: %d not supported\n!", max_wg_dim_sizes[2], (*block_size)[2]); ret |= -1;}
+			return(ret);
 		break;
 		#endif
 
