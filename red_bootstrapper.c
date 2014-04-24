@@ -38,13 +38,24 @@ int ni, nj, nk, nm;
 //      !initilialize the host side data that has to be reduced here.
 //      !For now I initialized it to 1.0
       void data_initialize() { 
-	int i;
+	int i, j, k;
 	for (i = ni*nj*nk*nm-1; i >= ni*nj*nk; i--) {
             data4[i] = 1.0;
 	}
 	for (; i >= 0; i--) {
 	    data4[i] = 1.0;
             data3[i] = 1.0;
+	}
+	k = 0;
+	for (; k < nk; k++) {
+		j = 0;
+		for (; j < nj; j++) {
+			i = 0;
+			for (; i < ni; i++) {
+				if (i == 0 || j == 0 || k == 0) data3[i+j*ni+k*ni*nj] = 0.0f;
+				if (i == ni-1 || j == nj-1 || k == nk-1) data3[i+j*ni+k*ni*nj] = 0.0f;
+			}
+		}
 	}
       }
 

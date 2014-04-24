@@ -55,8 +55,21 @@
       subroutine data_initialize
             use data_
             implicit none
+            integer :: i, j, k
             data3 = 1.0
             data4 = 1.0
+            do i = 1, ni
+              do j = 1, nj
+                do k = 1, nk
+                  if (i.eq.1.OR.j.eq.1.OR.k.eq.1) then
+                    data3(i,j,k)=0.0
+                  end if
+                  if (i.eq.ni.OR.j.eq.nj.OR.k.eq.nk) then
+                    data3(i,j,k)=0.0
+                  end if 
+                end do
+              end do
+            end do
       end subroutine data_initialize
 
       !Transfers data from host to device
