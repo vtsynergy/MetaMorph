@@ -94,8 +94,16 @@ void copyStackNodeToFrame(accelOpenCLStackNode * t, accelOpenCLStackFrame ** fra
 	(*frame)->context = t->frame.context;
 	(*frame)->queue = t->frame.queue;
 	(*frame)->program_opencl_core = t->frame.program_opencl_core;
-	(*frame)->kernel_reduction3 = t->frame.kernel_reduction3;
-	(*frame)->kernel_dotProd = t->frame.kernel_dotProd;
+	(*frame)->kernel_reduce_db = t->frame.kernel_reduce_db;
+	(*frame)->kernel_reduce_fl = t->frame.kernel_reduce_fl;
+	(*frame)->kernel_reduce_ul = t->frame.kernel_reduce_ul;
+	(*frame)->kernel_reduce_in = t->frame.kernel_reduce_in;
+	(*frame)->kernel_reduce_ui = t->frame.kernel_reduce_ui;
+	(*frame)->kernel_dotProd_db = t->frame.kernel_dotProd_db;
+	(*frame)->kernel_dotProd_fl = t->frame.kernel_dotProd_fl;
+	(*frame)->kernel_dotProd_ul = t->frame.kernel_dotProd_ul;
+	(*frame)->kernel_dotProd_in = t->frame.kernel_dotProd_in;
+	(*frame)->kernel_dotProd_ui = t->frame.kernel_dotProd_ui;
 
 	//This should be the end of the hazards;
 }
@@ -108,8 +116,16 @@ void copyStackFrameToNode(accelOpenCLStackFrame * f, accelOpenCLStackNode ** nod
 	(*node)->frame.context = f->context;
 	(*node)->frame.queue = f->queue;
 	(*node)->frame.program_opencl_core = f->program_opencl_core;
-	(*node)->frame.kernel_reduction3 = f->kernel_reduction3;
-	(*node)->frame.kernel_dotProd = f->kernel_dotProd;
+	(*node)->frame.kernel_reduce_db = f->kernel_reduce_db;
+	(*node)->frame.kernel_reduce_fl = f->kernel_reduce_fl;
+	(*node)->frame.kernel_reduce_ul = f->kernel_reduce_ul;
+	(*node)->frame.kernel_reduce_in = f->kernel_reduce_in;
+	(*node)->frame.kernel_reduce_ui = f->kernel_reduce_ui;
+	(*node)->frame.kernel_dotProd_db = f->kernel_dotProd_db;
+	(*node)->frame.kernel_dotProd_fl = f->kernel_dotProd_fl;
+	(*node)->frame.kernel_dotProd_ul = f->kernel_dotProd_ul;
+	(*node)->frame.kernel_dotProd_in = f->kernel_dotProd_in;
+	(*node)->frame.kernel_dotProd_ui = f->kernel_dotProd_ui;
 
 }
 
@@ -204,8 +220,16 @@ cl_int accelOpenCLInitStackFrame(accelOpenCLStackFrame ** frame, cl_int device) 
 	clGetProgramBuildInfo((*frame)->program_opencl_core, (*frame)->device, CL_PROGRAM_BUILD_LOG, logsize, log, NULL);
 	fprintf(stderr, "CL_PROGRAM_BUILD_LOG:\n%s", log);
 	free(log);
-	(*frame)->kernel_reduction3 = clCreateKernel((*frame)->program_opencl_core, "kernel_reduction3", NULL);
-	(*frame)->kernel_dotProd = clCreateKernel((*frame)->program_opencl_core, "kernel_dotProd", NULL);
+	(*frame)->kernel_reduce_db = clCreateKernel((*frame)->program_opencl_core, "kernel_reduce_db", NULL);
+	(*frame)->kernel_reduce_fl = clCreateKernel((*frame)->program_opencl_core, "kernel_reduce_fl", NULL);
+	(*frame)->kernel_reduce_ul = clCreateKernel((*frame)->program_opencl_core, "kernel_reduce_ul", NULL);
+	(*frame)->kernel_reduce_in = clCreateKernel((*frame)->program_opencl_core, "kernel_reduce_in", NULL);
+	(*frame)->kernel_reduce_ui = clCreateKernel((*frame)->program_opencl_core, "kernel_reduce_ui", NULL);
+	(*frame)->kernel_dotProd_db = clCreateKernel((*frame)->program_opencl_core, "kernel_dotProd_db", NULL);
+	(*frame)->kernel_dotProd_fl = clCreateKernel((*frame)->program_opencl_core, "kernel_dotProd_fl", NULL);
+	(*frame)->kernel_dotProd_ul = clCreateKernel((*frame)->program_opencl_core, "kernel_dotProd_ul", NULL);
+	(*frame)->kernel_dotProd_in = clCreateKernel((*frame)->program_opencl_core, "kernel_dotProd_in", NULL);
+	(*frame)->kernel_dotProd_ui = clCreateKernel((*frame)->program_opencl_core, "kernel_dotProd_ui", NULL);
 
 }
 
@@ -218,7 +242,16 @@ cl_int accelOpenCLInitStackFrame(accelOpenCLStackFrame ** frame, cl_int device) 
 //	 (more specifically, copying a frame to a node doesn't need to be hazard-aware, as the node cannot be shared unless copied inside the hazard-aware accelOpenCLPushStackFrame. Pop, Top, and copyStackNodeToFrame are all hazard aware and provide a thread-private copy back to the caller.)
 cl_int accelOpenCLDestroyStackFrame(accelOpenCLStackFrame * frame) {
 
-	clReleaseKernel(frame->kernel_reduction3);
+	clReleaseKernel(frame->kernel_reduce_db);
+	clReleaseKernel(frame->kernel_reduce_fl);
+	clReleaseKernel(frame->kernel_reduce_ul);
+	clReleaseKernel(frame->kernel_reduce_in);
+	clReleaseKernel(frame->kernel_reduce_ui);
+	clReleaseKernel(frame->kernel_dotProd_db);
+	clReleaseKernel(frame->kernel_dotProd_fl);
+	clReleaseKernel(frame->kernel_dotProd_ul);
+	clReleaseKernel(frame->kernel_dotProd_in);
+	clReleaseKernel(frame->kernel_dotProd_ui);
 	clReleaseProgram(frame->program_opencl_core);
 	clReleaseCommandQueue(frame->queue);
 	clReleaseContext(frame->context);
@@ -285,11 +318,42 @@ cl_int accelOpenCLInitStackFrameDefault(accelOpenCLStackFrame ** frame) {
 //  ! i,j,k are the array dimensions
 //  ! len_ is number of threads in a threadblock.
 //  !      This can be computed in the kernel itself.
-cl_int opencl_dotProd(size_t (* grid_size)[3], size_t (* block_size)[3], double * data1, double * data2, size_t (* array_size)[3], size_t (* arr_start)[3], size_t (* arr_end)[3], double * reduced_val, int async, cl_event * event) {
+cl_int opencl_dotProd(size_t (* grid_size)[3], size_t (* block_size)[3], void * data1, void * data2, size_t (* array_size)[3], size_t (* arr_start)[3], size_t (* arr_end)[3], void * reduced_val, accel_type_id type, int async, cl_event * event) {
 	cl_int ret;
+	cl_kernel kern;
 	cl_int smem_len =  (*block_size)[0] * (*block_size)[1] * (*block_size)[2];
 	size_t grid[3] = {(*grid_size)[0]*(*block_size)[0], (*grid_size)[1]*(*block_size)[1], (*block_size)[2]};
 	size_t block[3] = {(*block_size)[0], (*block_size)[1], (*block_size)[2]};
+	//before enqueuing, get a copy of the top stack frame
+	accelOpenCLStackFrame * frame = accelOpenCLTopStackFrame();
+
+	switch (type) {
+		case a_db:
+			kern = frame->kernel_dotProd_db;
+			break;
+
+		case a_fl:
+			kern = frame->kernel_dotProd_fl;
+			break;
+
+		case a_ul:
+			kern = frame->kernel_dotProd_ul;
+			break;
+
+		case a_in:
+			kern = frame->kernel_dotProd_in;
+			break;
+
+		case a_ui:
+			kern = frame->kernel_dotProd_ui;
+			break;
+
+		default:
+			fprintf(stderr, "Error: Function 'opencl_dotProd' not implemented for selected type!\n");
+			return -1;
+			break;
+
+	}
 	//printf("Grid: %d %d %d\n", grid[0], grid[1], grid[2]);
 	//printf("Block: %d %d %d\n", block[0], block[1], block[2]);
 	//printf("Size: %d %d %d\n", (*array_size)[0], (*array_size)[1], (*array_size)[2]);
@@ -297,25 +361,47 @@ cl_int opencl_dotProd(size_t (* grid_size)[3], size_t (* block_size)[3], double 
 	//printf("End: %d %d %d\n", (*arr_end)[1], (*arr_end)[0], (*arr_end)[2]);
 	//printf("SMEM: %d\n", smem_len);
 
-	//before enqueuing, get a copy of the top stack frame
-	accelOpenCLStackFrame * frame = accelOpenCLTopStackFrame();
+	ret =  clSetKernelArg(kern, 0, sizeof(cl_mem *), &data1);
+	ret |= clSetKernelArg(kern, 1, sizeof(cl_mem *), &data2);
+	ret |= clSetKernelArg(kern, 2, sizeof(cl_int), &(*array_size)[0]);
+	ret |= clSetKernelArg(kern, 3, sizeof(cl_int), &(*array_size)[1]);
+	ret |= clSetKernelArg(kern, 4, sizeof(cl_int), &(*array_size)[2]);
+	ret |= clSetKernelArg(kern, 5, sizeof(cl_int), &(*arr_start)[0]);
+	ret |= clSetKernelArg(kern, 6, sizeof(cl_int), &(*arr_start)[1]);
+	ret |= clSetKernelArg(kern, 7, sizeof(cl_int), &(*arr_start)[2]);
+	ret |= clSetKernelArg(kern, 8, sizeof(cl_int), &(*arr_end)[0]);
+	ret |= clSetKernelArg(kern, 9, sizeof(cl_int), &(*arr_end)[1]);
+	ret |= clSetKernelArg(kern, 10, sizeof(cl_int), &(*arr_end)[2]);
+	ret |= clSetKernelArg(kern, 11, sizeof(cl_int), &(*grid_size)[2]);
+	ret |= clSetKernelArg(kern, 12, sizeof(cl_mem *), &reduced_val);
+	ret |= clSetKernelArg(kern, 13, sizeof(cl_int), &smem_len);
+	switch (type) {
+		case a_db:
+			ret |= clSetKernelArg(kern, 14, smem_len*sizeof(cl_double), NULL);
+			break;
 
-	ret =  clSetKernelArg(frame->kernel_dotProd, 0, sizeof(cl_mem *), &data1);
-	ret |= clSetKernelArg(frame->kernel_dotProd, 1, sizeof(cl_mem *), &data2);
-	ret |= clSetKernelArg(frame->kernel_dotProd, 2, sizeof(cl_int), &(*array_size)[0]);
-	ret |= clSetKernelArg(frame->kernel_dotProd, 3, sizeof(cl_int), &(*array_size)[1]);
-	ret |= clSetKernelArg(frame->kernel_dotProd, 4, sizeof(cl_int), &(*array_size)[2]);
-	ret |= clSetKernelArg(frame->kernel_dotProd, 5, sizeof(cl_int), &(*arr_start)[0]);
-	ret |= clSetKernelArg(frame->kernel_dotProd, 6, sizeof(cl_int), &(*arr_start)[1]);
-	ret |= clSetKernelArg(frame->kernel_dotProd, 7, sizeof(cl_int), &(*arr_start)[2]);
-	ret |= clSetKernelArg(frame->kernel_dotProd, 8, sizeof(cl_int), &(*arr_end)[0]);
-	ret |= clSetKernelArg(frame->kernel_dotProd, 9, sizeof(cl_int), &(*arr_end)[1]);
-	ret |= clSetKernelArg(frame->kernel_dotProd, 10, sizeof(cl_int), &(*arr_end)[2]);
-	ret |= clSetKernelArg(frame->kernel_dotProd, 11, sizeof(cl_int), &(*grid_size)[2]);
-	ret |= clSetKernelArg(frame->kernel_dotProd, 12, sizeof(cl_mem *), &reduced_val);
-	ret |= clSetKernelArg(frame->kernel_dotProd, 13, sizeof(cl_int), &smem_len);
-	ret |= clSetKernelArg(frame->kernel_dotProd, 14, smem_len*sizeof(cl_double), NULL);
-	ret |= clEnqueueNDRangeKernel(frame->queue, frame->kernel_dotProd, 3, NULL, grid, block, 0, NULL, event);
+		case a_fl:
+			ret |= clSetKernelArg(kern, 14, smem_len*sizeof(cl_float), NULL);
+			break;
+
+		case a_ul:
+			ret |= clSetKernelArg(kern, 14, smem_len*sizeof(cl_ulong), NULL);
+			break;
+
+		case a_in:
+			ret |= clSetKernelArg(kern, 14, smem_len*sizeof(cl_int), NULL);
+			break;
+
+		case a_ui:
+			ret |= clSetKernelArg(kern, 14, smem_len*sizeof(cl_uint), NULL);
+			break;
+
+		//Shouldn't be reachable, but cover our bases
+		default:
+			fprintf(stderr, "Error: unexpected type, cannot set shared memory size in 'opencl_dotProd'!\n");
+	}
+		
+	ret |= clEnqueueNDRangeKernel(frame->queue, kern, 3, NULL, grid, block, 0, NULL, event);
 	
 	//TODO find a way to make explicit sync optional
 	if (!async) ret |= clFinish(frame->queue);
@@ -327,11 +413,43 @@ cl_int opencl_dotProd(size_t (* grid_size)[3], size_t (* block_size)[3], double 
 }
 
 
-cl_int opencl_reduce(size_t (* grid_size)[3], size_t (* block_size)[3], double * data, size_t (* array_size)[3], size_t (* arr_start)[3], size_t (* arr_end)[3], double * reduced_val, int async, cl_event * event) {
+cl_int opencl_reduce(size_t (* grid_size)[3], size_t (* block_size)[3], void * data, size_t (* array_size)[3], size_t (* arr_start)[3], size_t (* arr_end)[3], void * reduced_val, accel_type_id type, int async, cl_event * event) {
 	cl_int ret;
+	cl_kernel kern;
 	cl_int smem_len =  (*block_size)[0] * (*block_size)[1] * (*block_size)[2];
 	size_t grid[3] = {(*grid_size)[0]*(*block_size)[0], (*grid_size)[1]*(*block_size)[1], (*block_size)[2]};
 	size_t block[3] = {(*block_size)[0], (*block_size)[1], (*block_size)[2]};
+
+	//before enqueuing, get a copy of the top stack frame
+	accelOpenCLStackFrame * frame = accelOpenCLTopStackFrame();
+	
+	switch (type) {
+		case a_db:
+			kern = frame->kernel_reduce_db;
+			break;
+
+		case a_fl:
+			kern = frame->kernel_reduce_fl;
+			break;
+
+		case a_ul:
+			kern = frame->kernel_reduce_ul;
+			break;
+
+		case a_in:
+			kern = frame->kernel_reduce_in;
+			break;
+
+		case a_ui:
+			kern = frame->kernel_reduce_ui;
+			break;
+
+		default:
+			fprintf(stderr, "Error: Function 'opencl_reduce' not implemented for selected type!\n");
+			return -1;
+			break;
+
+	}
 	//printf("Grid: %d %d %d\n", grid[0], grid[1], grid[2]);
 	//printf("Block: %d %d %d\n", block[0], block[1], block[2]);
 	//printf("Size: %d %d %d\n", (*array_size)[0], (*array_size)[1], (*array_size)[2]);
@@ -339,24 +457,45 @@ cl_int opencl_reduce(size_t (* grid_size)[3], size_t (* block_size)[3], double *
 	//printf("End: %d %d %d\n", (*arr_end)[1], (*arr_end)[0], (*arr_end)[2]);
 	//printf("SMEM: %d\n", smem_len);
 
-	//before enqueuing, get a copy of the top stack frame
-	accelOpenCLStackFrame * frame = accelOpenCLTopStackFrame();
+	ret =  clSetKernelArg(kern, 0, sizeof(cl_mem *), &data);
+	ret |= clSetKernelArg(kern, 1, sizeof(cl_int), &(*array_size)[0]);
+	ret |= clSetKernelArg(kern, 2, sizeof(cl_int), &(*array_size)[1]);
+	ret |= clSetKernelArg(kern, 3, sizeof(cl_int), &(*array_size)[2]);
+	ret |= clSetKernelArg(kern, 4, sizeof(cl_int), &(*arr_start)[0]);
+	ret |= clSetKernelArg(kern, 5, sizeof(cl_int), &(*arr_start)[1]);
+	ret |= clSetKernelArg(kern, 6, sizeof(cl_int), &(*arr_start)[2]);
+	ret |= clSetKernelArg(kern, 7, sizeof(cl_int), &(*arr_end)[0]);
+	ret |= clSetKernelArg(kern, 8, sizeof(cl_int), &(*arr_end)[1]);
+	ret |= clSetKernelArg(kern, 9, sizeof(cl_int), &(*arr_end)[2]);
+	ret |= clSetKernelArg(kern, 10, sizeof(cl_int), &(*grid_size)[2]);
+	ret |= clSetKernelArg(kern, 11, sizeof(cl_mem *), &reduced_val);
+	ret |= clSetKernelArg(kern, 12, sizeof(cl_int), &smem_len);
+	switch (type) {
+		case a_db:
+			ret |= clSetKernelArg(kern, 13, smem_len*sizeof(cl_double), NULL);
+			break;
 
-	ret =  clSetKernelArg(frame->kernel_reduction3, 0, sizeof(cl_mem *), &data);
-	ret |= clSetKernelArg(frame->kernel_reduction3, 1, sizeof(cl_int), &(*array_size)[0]);
-	ret |= clSetKernelArg(frame->kernel_reduction3, 2, sizeof(cl_int), &(*array_size)[1]);
-	ret |= clSetKernelArg(frame->kernel_reduction3, 3, sizeof(cl_int), &(*array_size)[2]);
-	ret |= clSetKernelArg(frame->kernel_reduction3, 4, sizeof(cl_int), &(*arr_start)[0]);
-	ret |= clSetKernelArg(frame->kernel_reduction3, 5, sizeof(cl_int), &(*arr_start)[1]);
-	ret |= clSetKernelArg(frame->kernel_reduction3, 6, sizeof(cl_int), &(*arr_start)[2]);
-	ret |= clSetKernelArg(frame->kernel_reduction3, 7, sizeof(cl_int), &(*arr_end)[0]);
-	ret |= clSetKernelArg(frame->kernel_reduction3, 8, sizeof(cl_int), &(*arr_end)[1]);
-	ret |= clSetKernelArg(frame->kernel_reduction3, 9, sizeof(cl_int), &(*arr_end)[2]);
-	ret |= clSetKernelArg(frame->kernel_reduction3, 10, sizeof(cl_int), &(*grid_size)[2]);
-	ret |= clSetKernelArg(frame->kernel_reduction3, 11, sizeof(cl_mem *), &reduced_val);
-	ret |= clSetKernelArg(frame->kernel_reduction3, 12, sizeof(cl_int), &smem_len);
-	ret |= clSetKernelArg(frame->kernel_reduction3, 13, smem_len*sizeof(cl_double), NULL);
-	ret |= clEnqueueNDRangeKernel(frame->queue, frame->kernel_reduction3, 3, NULL, grid, block, 0, NULL, event);
+		case a_fl:
+			ret |= clSetKernelArg(kern, 13, smem_len*sizeof(cl_float), NULL);
+			break;
+
+		case a_ul:
+			ret |= clSetKernelArg(kern, 13, smem_len*sizeof(cl_ulong), NULL);
+			break;
+
+		case a_in:
+			ret |= clSetKernelArg(kern, 13, smem_len*sizeof(cl_int), NULL);
+			break;
+
+		case a_ui:
+			ret |= clSetKernelArg(kern, 13, smem_len*sizeof(cl_uint), NULL);
+			break;
+
+		//Shouldn't be reachable, but cover our bases
+		default:
+			fprintf(stderr, "Error: unexpected type, cannot set shared memory size in 'opencl_reduce'!\n");
+	}
+	ret |= clEnqueueNDRangeKernel(frame->queue, kern, 3, NULL, grid, block, 0, NULL, event);
 	
 	//TODO find a way to make explicit sync optional
 	if (!async) ret |= clFinish(frame->queue);

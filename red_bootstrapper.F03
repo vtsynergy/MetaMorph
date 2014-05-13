@@ -8,10 +8,10 @@
             use ISO_C_BINDING
             implicit none
             
-            type (C_PTR), TARGET :: dev_data3, dev_data3_2, dev_data4
+            real(C_DOUBLE), TARGET :: dev_data3, dev_data3_2, dev_data4
             real(C_DOUBLE), TARGET, allocatable, dimension(:,:,:)::data3
             real(C_DOUBLE), TARGET, allocatable, dimension(:,:,:,:)::data4
-            type (C_PTR), TARGET :: reduction
+            real(C_DOUBLE), TARGET :: reduction
             integer::ni,nj,nk,nm
 
 !            allocate(dev_data3(1,1,1))
@@ -28,7 +28,6 @@
             implicit none
             integer,intent(in)::i,j,k,m
             integer::istat
-            real (C_DOUBLE) :: double
 !            ni = i
 !            nj = j
 !            nk = k
@@ -39,13 +38,13 @@
             allocate(data3(ni,nj,nk),data4(ni,nj,nk,nm),stat=istat)
             print *,"Status:",istat
 !            allocate(dev_data3(ni,nj,nk),dev_data3_2(ni,nj,nk),dev_data4(ni,nj,nk,nm),stat=istat)
-            istat = accel_alloc(C_LOC(dev_data3), ni*nj*nk*C_SIZEOF(double))
+            istat = accel_alloc(dev_data3, ni*nj*nk)
             print *,"Status:",istat
-            istat = accel_alloc(C_LOC(dev_data4), ni*nj*nk*nm*C_SIZEOF(double))
+            istat = accel_alloc(dev_data4, ni*nj*nk*nm)
             print *,"Status:",istat
-            istat = accel_alloc(C_LOC(dev_data3_2), ni*nj*nk*C_SIZEOF(double))
+            istat = accel_alloc(dev_data3_2, ni*nj*nk)
             print *,"Status:",istat
-            istat = accel_alloc(C_LOC(reduction), C_SIZEOF(double))
+            istat = accel_alloc(reduction, 1)
             print *,"Status:",istat
             print *,"Data Allocated"
       end subroutine data_allocate
@@ -79,11 +78,10 @@
             use afosr_cfd_c
             implicit none
             integer::istat
-            real (C_DOUBLE) :: double
 !            dev_data3(:,:,:) = data3(:,:,:)
-            istat = accel_copy_h2d(dev_data3, C_LOC(data3), ni*nj*nk*C_SIZEOF(double), 1)
-            istat = accel_copy_h2d(dev_data4, C_LOC(data4), ni*nj*nk*nm*C_SIZEOF(double), 1)
-            istat = accel_copy_d2d(dev_data3_2, dev_data3, ni*nj*nk*C_SIZEOF(double), 1)
+            istat = accel_copy_h2d(dev_data3, data3, ni*nj*nk, 1)
+            istat = accel_copy_h2d(dev_data4, data4, ni*nj*nk*nm, 1)
+            istat = accel_copy_d2d(dev_data3_2, dev_data3, ni*nj*nk, 1)
 !            dev_data4(:,:,:,:) = data4(:,:,:,:)
 !            dev_data3_2(:,:,:) = data3(:,:,:)
       end subroutine data_transfer_h2d
@@ -198,14 +196,10 @@
             do i=1,10
 !            reduction = 0.0
            zero = 0
-           istat = accel_copy_h2d(reduction, C_LOC(zero), C_SIZEOF(zero), 1)
-           istat = accel_dotprod(int(gx,kind=C_SIZE_T),int(gy,kind=C_SIZE_T),&
-            & int(gz*tz,kind=C_SIZE_T),int(tx,kind=C_SIZE_T),int(ty,kind=C_SIZE_T),&
-            & int(1,kind=C_SIZE_T),dev_data3, dev_data3_2, int(ni,kind=C_SIZE_T),&
-            & int(nj,kind=C_SIZE_T),int(nk,kind=C_SIZE_T),int(2,kind=C_SIZE_T),&
-            & int(2,kind=C_SIZE_T),int(2,kind=C_SIZE_T),int(ni-1,kind=C_SIZE_T),&
-            & int(nj-1,kind=C_SIZE_T),int(nk-1,kind=C_SIZE_T),reduction&
-            &, int(0,kind=C_INT))
+           istat = accel_copy_h2d(reduction, (/zero/), 1, 1)
+           istat = accel_dotprod((/gx, gy, gz*tz/),(/tx, ty, 1/), &
+            dev_data3, dev_data3_2, (/ni, nj, nk/), (/2, 2, 2/), &
+            (/ni-1, nj-1, nk-1/), reduction, 0)
 !           istat = accel_dotprod(int(gx,kind=C_SIZE_T),int(gy,kind=C_SIZE_T),&
 !            & int(gz,kind=C_SIZE_T),int(tx,kind=C_SIZE_T),int(ty,kind=C_SIZE_T),&
 !            & int(tz,kind=C_SIZE_T),dev_data3, dev_data3_2, int(ni,kind=C_SIZE_T),&
@@ -217,7 +211,7 @@
 !           & ,dev_data3_2,ni,nj,nk,2,2,2,nj-1,ni-1,nk-1,gz,reduction,tx*ty*tz)
 !            istat = cudathreadsynchronize()
 !            sum_dot_gpu = reduction
-           istat = accel_copy_d2h(C_LOC(sum_dot_gpu), reduction, C_SIZEOF(sum_dot_gpu), 0)
+           istat = accel_copy_d2h((/sum_dot_gpu/), reduction, 1, 0)
             
             print *, "Test Reduction:",sum_dot_gpu
             end do

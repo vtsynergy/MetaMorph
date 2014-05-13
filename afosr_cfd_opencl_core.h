@@ -7,6 +7,12 @@
 #include <stdio.h>
 #include <string.h>
 
+#ifndef AFOSR_CFD_OPENCL_CORE_H
+#define AFOSR_CFD_OPENCL_CORE_H
+
+#ifndef AFOSR_CFD_H
+	#include "afosr_cfd.h"
+#endif
 
 //Not sure if these C compatibility stubs will actually be needed
 #ifdef __OPENCLCC__
@@ -35,8 +41,16 @@ extern "C" {
 
 		cl_program program_opencl_core;
 
-		cl_kernel kernel_reduction3;
-		cl_kernel kernel_dotProd;
+		cl_kernel kernel_reduce_db;
+		cl_kernel kernel_reduce_fl;
+		cl_kernel kernel_reduce_ul;
+		cl_kernel kernel_reduce_in;
+		cl_kernel kernel_reduce_ui;
+		cl_kernel kernel_dotProd_db;
+		cl_kernel kernel_dotProd_fl;
+		cl_kernel kernel_dotProd_ul;
+		cl_kernel kernel_dotProd_in;
+		cl_kernel kernel_dotProd_ui;
 	} accelOpenCLStackFrame;
 	//TODO these shouldn't need to be exposed to the user, unless there's a CUDA call we need to emulate
 	void accelOpenCLPushStackFrame(accelOpenCLStackFrame * frame);
@@ -57,10 +71,12 @@ extern "C" {
 
 	size_t accelOpenCLLoadProgramSource(const char *filename, const char **progSrc);
 
-	cl_int opencl_dotProd(size_t (* grid_size)[3], size_t (* block_size)[3], double * data1, double * data2, size_t (* array_size)[3], size_t (* arr_start)[3], size_t (* arr_end)[3], double * reduced_val, int async, cl_event * event); 
-	cl_int opencl_reduce(size_t (* grid_size)[3], size_t (* block_size)[3], double * data, size_t (* array_size)[3], size_t (* arr_start)[3], size_t (* arr_end)[3], double * reduced_val, int async, cl_event * event); 
+	cl_int opencl_dotProd(size_t (* grid_size)[3], size_t (* block_size)[3], void * data1, void * data2, size_t (* array_size)[3], size_t (* arr_start)[3], size_t (* arr_end)[3], void * reduced_val, accel_type_id type, int async, cl_event * event); 
+	cl_int opencl_reduce(size_t (* grid_size)[3], size_t (* block_size)[3], void * data, size_t (* array_size)[3], size_t (* arr_start)[3], size_t (* arr_end)[3], void * reduced_val, accel_type_id type, int async, cl_event * event); 
 
 
 #ifdef __OPENCLCC__
 }
 #endif
+
+#endif //AFOSR_CFD_OPENCL_CORE_H

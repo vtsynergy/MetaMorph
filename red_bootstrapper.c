@@ -7,12 +7,12 @@
 #include "afosr_cfd.h"
 
 
-a_double * dev_data3;
-a_double * dev_data3_2;
-a_double * dev_data4;
-a_double * reduction;
-double * data3;
-double * data4;
+a_ulong * dev_data3;
+a_ulong * dev_data3_2;
+a_ulong * dev_data4;
+a_ulong * reduction;
+unsigned long * data3;
+unsigned long * data4;
 int ni, nj, nk, nm;
 
 //      !This does the host and device data allocations.
@@ -21,16 +21,16 @@ int ni, nj, nk, nm;
             printf("ni:\t%d\n", ni); //print *,"ni:",ni
             printf("nj:\t%d\n", nj); //print *,"nj:",nj
             printf("nk:\t%d\n", nk); //print *,"nk:",nk
-            data3 = (double *) malloc(sizeof(double)*ni*nj*nk);
-	    data4 = (double *) malloc (sizeof(double)*ni*nj*nk*nm);
+            data3 = (unsigned long *) malloc(sizeof(unsigned long)*ni*nj*nk);
+	    data4 = (unsigned long *) malloc (sizeof(unsigned long)*ni*nj*nk*nm);
             printf("Status:\t%d\n", istat); //NOOP for output compatibility //print *,"Status:",istat
-            istat = accel_alloc((void **) &dev_data3, sizeof(double)*ni*nj*nk);
+            istat = accel_alloc((void **) &dev_data3, sizeof(unsigned long)*ni*nj*nk);
             printf("Status:\t%d\n", istat);
-	    istat = accel_alloc((void **) &dev_data3_2, sizeof(double)*ni*nj*nk);
+	    istat = accel_alloc((void **) &dev_data3_2, sizeof(unsigned long)*ni*nj*nk);
             printf("Status:\t%d\n", istat);
-	    istat = accel_alloc((void **) &dev_data4, sizeof(double)*ni*nj*nk*nm); 
+	    istat = accel_alloc((void **) &dev_data4, sizeof(unsigned long)*ni*nj*nk*nm); 
             printf("Status:\t%d\n", istat);
-	    istat = accel_alloc((void **) &reduction, sizeof(double));
+	    istat = accel_alloc((void **) &reduction, sizeof(unsigned long));
             printf("Status:\t%d\n", istat);
             printf("Data Allocated\n"); 
       } 
@@ -40,11 +40,11 @@ int ni, nj, nk, nm;
       void data_initialize() { 
 	int i, j, k;
 	for (i = ni*nj*nk*nm-1; i >= ni*nj*nk; i--) {
-            data4[i] = 1.0;
+            data4[i] = 1;
 	}
 	for (; i >= 0; i--) {
-	    data4[i] = 1.0;
-            data3[i] = 1.0;
+	    data4[i] = 1;
+            data3[i] = 1;
 	}
 	k = 0;
 	for (; k < nk; k++) {
@@ -52,8 +52,8 @@ int ni, nj, nk, nm;
 		for (; j < nj; j++) {
 			i = 0;
 			for (; i < ni; i++) {
-				if (i == 0 || j == 0 || k == 0) data3[i+j*ni+k*ni*nj] = 0.0f;
-				if (i == ni-1 || j == nj-1 || k == nk-1) data3[i+j*ni+k*ni*nj] = 0.0f;
+				if (i == 0 || j == 0 || k == 0) data3[i+j*ni+k*ni*nj] = 0;
+				if (i == ni-1 || j == nj-1 || k == nk-1) data3[i+j*ni+k*ni*nj] = 0;
 			}
 		}
 	}
@@ -62,9 +62,9 @@ int ni, nj, nk, nm;
 //      !Transfers data from host to device
       void data_transfer_h2d() {
 	a_err ret= CL_SUCCESS; 
-            ret |= accel_copy_h2d((void *) dev_data3, (void *) data3, sizeof(double)*ni*nj*nk, true);
-            ret |= accel_copy_h2d((void *) dev_data4, (void *) data4, sizeof(double)*ni*nj*nk*nm, true);
-            ret |= accel_copy_d2d((void *) dev_data3_2, (void *) dev_data3, sizeof(double)*ni*nj*nk, true);
+            ret |= accel_copy_h2d((void *) dev_data3, (void *) data3, sizeof(unsigned long)*ni*nj*nk, true);
+            ret |= accel_copy_h2d((void *) dev_data4, (void *) data4, sizeof(unsigned long)*ni*nj*nk*nm, true);
+            ret |= accel_copy_d2d((void *) dev_data3_2, (void *) dev_data3, sizeof(unsigned long)*ni*nj*nk, true);
 } 
 
       void deallocate_() {
@@ -98,8 +98,8 @@ int ni, nj, nk, nm;
             int tx, ty, tz, gx, gy, gz, istat, i;
             a_dim3 dimgrid, dimblock, dimarray, arr_start, arr_end; //TODO move into CUDA backend, replace with generic struct
             char args[32];
-            double sum_dot_gpu;
-            double *dev_, *dev2; 
+            unsigned long sum_dot_gpu;
+            unsigned long *dev_, *dev2; 
             i = argc; 
             if (i < 8) { 
                   printf("<ni><nj><nk><nm><tblockx><tblocky><tblockz>"); 
@@ -159,12 +159,12 @@ int ni, nj, nk, nm;
             printf("gx:\t%d\n", gx); //print *,"gx:",gx
             printf("gy:\t%d\n", gy); //print *,"gy:",gy
             printf("gz:\t%d\n", gz); //print *,"gz:",gz
-		double zero = 0.0;
+		unsigned long zero = 0;
 	    dimarray[0] = ni, dimarray[1] = nj, dimarray[2] = nk;
 	    arr_start[0] = arr_start[1] = arr_start[2] = 1;
 	    arr_end[0] = ni-2, arr_end[1] = nj-2, arr_end[2] = nk-2;
 for (i = 0; i < 10; i++) { //do i=1,10
-	istat =	accel_copy_h2d((void *) reduction, (void *) &zero, sizeof(double), true);
+	istat =	accel_copy_h2d((void *) reduction, (void *) &zero, sizeof(unsigned long), true);
 		//Validate grid and block sizes (if too big, shrink the z-dim and add iterations)
 		for(;accel_validate_worksize(&dimgrid, &dimblock) != 0 && dimblock[2] > 1; dimgrid[2] <<=1, dimblock[2] >>=1);
 		// Z-scaling won't be enough, abort
@@ -175,15 +175,15 @@ for (i = 0; i < 10; i++) { //do i=1,10
 		
 
 		//Call the entire reduction
-		a_err ret = accel_dotProd(&dimgrid, &dimblock, dev_data3, dev_data3_2, &dimarray, &arr_start, &arr_end, reduction, true);
+		a_err ret = accel_dotProd(&dimgrid, &dimblock, dev_data3, dev_data3_2, &dimarray, &arr_start, &arr_end, reduction, a_ul, true);
 		fprintf(stderr, "Kernel Status: %d\n", ret);
 
 //           kernel_reduction3<<<dimgrid,dimblock,tx*ty*tz*sizeof(double)>>>(dev_data3, //call kernel_reduction3<<<dimgrid,dimblock,tx*ty*tz*8>>>(dev_data3 & //TODO move into CUDA backend, make "accel_reduce"
 //           dev_data3_2, ni, nj, nk, 2, 2, 2, nj-1, ni-1, nk-1, gz, reduction, tx*ty*tz); //& ,dev_data3_2,ni,nj,nk,2,2,2,nj-1,ni-1,nk-1,gz,reduction,tx*ty*tz) //TODO - see previous
 //            istat = cudaThreadSynchronize(); //cudathreadsynchronize()// TODO move into CUDA backend
 	//	printf("cudaThreadSynchronize error code:%d\n", istat);            
-		istat = accel_copy_d2h((void *) &sum_dot_gpu, (void *) reduction, sizeof(double), false);
-            printf("Test Reduction:\t%f\n", sum_dot_gpu); //print *, "Test Reduction:",sum_dot_gpu
+		istat = accel_copy_d2h((void *) &sum_dot_gpu, (void *) reduction, sizeof(unsigned long), false);
+            printf("Test Reduction:\t%d\n", sum_dot_gpu); //print *, "Test Reduction:",sum_dot_gpu
             //printf("Test Reduction:\t%d\n", sum_dot_gpu); //print *, "Test Reduction:",sum_dot_gpu
 	    //accelTimersFlush();
             } //end do

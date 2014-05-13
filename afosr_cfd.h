@@ -22,6 +22,23 @@
 
 #include <stdio.h>
 
+//This needs to be here so that the cores can internally
+// switch between implementations for different primitive types
+typedef enum {
+	a_db = 0,
+	a_fl = 1,
+	a_lo = 2,
+	a_ul = 3,
+	a_in = 4,
+	a_ui = 5,
+	a_sh = 6,
+	a_us = 7,
+	a_ch = 8,
+	a_uc = 9
+} accel_type_id;
+
+
+
 //These are global controls over which accelerator "cores" are
 // compiled in. Plugins, such as timers, should support
 // conditional compilation for one or more accelerator cores, but
@@ -30,11 +47,15 @@
 // are selected, rather if none of their supported cores are selected,
 // they should just define down to a NOOP.
 #ifdef WITH_CUDA
-	#include "afosr_cfd_cuda_core.cuh"
+	#ifndef AFOSR_CFD_CUDA_CORE_H
+		#include "afosr_cfd_cuda_core.cuh"
+	#endif
 #endif
 
 #ifdef WITH_OPENCL
-	#include "afosr_cfd_opencl_core.h"
+	#ifndef AFOSR_CFD_OPENCL_CORE_H
+		#include "afosr_cfd_opencl_core.h"
+	#endif
 #endif
 
 #ifdef WITH_OPENMP
@@ -61,8 +82,12 @@ typedef unsigned short a_ushort;
 typedef unsigned int a_uint;
 typedef unsigned long a_ulong;
 typedef int a_err;
+#if defined __CUDACC__ || __cplusplus
+typedef bool a_bool;
+#else
+typedef enum { false , true } a_bool;
+#endif
 typedef size_t a_dim3[3];
-typedef enum { false, true } a_bool;
 
 typedef struct HPRecType {
 	void * HP[2];
@@ -96,8 +121,8 @@ a_err accel_free(void * ptr);
 a_err choose_accel(int accel, accel_preferred_mode mode);
 a_err get_accel(int * accel, accel_preferred_mode * mode);
 a_err accel_validate_worksize(a_dim3 * grid_size, a_dim3 * block_size);
-a_err accel_dotProd(a_dim3 * grid_size, a_dim3 * block_size, a_double * data1, a_double * data2, a_dim3 * array_size, a_dim3 * array_start, a_dim3 * array_end, a_double * reduction_var, a_bool async);
-a_err accel_reduce(a_dim3 * grid_size, a_dim3 * block_size, a_double * data, a_dim3 * array_size, a_dim3 * array_start, a_dim3 * array_end, a_double * reduction_var, a_bool async);
+a_err accel_dotProd(a_dim3 * grid_size, a_dim3 * block_size, void * data1, void * data2, a_dim3 * array_size, a_dim3 * array_start, a_dim3 * array_end, void * reduction_var, accel_type_id type, a_bool async);
+a_err accel_reduce(a_dim3 * grid_size, a_dim3 * block_size, void * data, a_dim3 * array_size, a_dim3 * array_start, a_dim3 * array_end, void * reduction_var, accel_type_id type, a_bool async);
 a_err accel_copy_h2d(void * dst, void * src, size_t size, a_bool async);
 a_err accel_copy_d2h(void * dst, void * src, size_t size, a_bool async);
 a_err accel_copy_d2d(void * dst, void * src, size_t size, a_bool async);

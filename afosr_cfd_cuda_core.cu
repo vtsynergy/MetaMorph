@@ -2,8 +2,60 @@
 
 #include "afosr_cfd_cuda_core.cuh"
 
+// non-specialized class template
+template <typename T>
+class SharedMem
+{
+public:
+    // Ensure that we won't compile any un-specialized types
+    __device__ T* getPointer() { return (T*)NULL; };
+};
 
-__device__ void block_reduction(double *psum, int tid, int len_) {
+// specialization for double
+template <>
+class SharedMem <double>
+{
+public:
+    __device__ double* getPointer() { extern __shared__ double s_db[]; return s_db; }
+};
+
+// specialization for float
+template <>
+class SharedMem <float>
+{
+public:
+    __device__ float* getPointer() { extern __shared__ float s_fl[]; return s_fl; }
+};
+
+
+// specialization for unsigned long long
+template <>
+class SharedMem <unsigned long long>
+{
+public:
+    __device__ unsigned long long* getPointer() { extern __shared__ unsigned long long s_ul[]; return s_ul; }
+};
+
+
+// specialization for int
+template <>
+class SharedMem <int>
+{
+public:
+    __device__ int* getPointer() { extern __shared__ int s_in[]; return s_in; }
+};
+
+
+// specialization for unsigned int
+template <>
+class SharedMem <unsigned int>
+{
+public:
+    __device__ unsigned int* getPointer() { extern __shared__ unsigned int s_ui[]; return s_ui; }
+};
+
+template <typename T>
+__device__ void block_reduction(T *psum, int tid, int len_) {
 	int stride = len_ >> 1; 
 	while (stride > 0) {
 	//while (stride > 32) {
@@ -27,9 +79,9 @@ __device__ void block_reduction(double *psum, int tid, int len_) {
 		__syncthreads();
 	}*/
 }
-
-
+//TODO figure out how to use templates with the __X_as_Y intrinsics
 //Paul - Implementation of double atomicAdd from CUDA Programming Guide: Appendix B.12
+
 __device__ double atomicAdd(double* address, double val)
 {
 	unsigned long long int* address_as_ull =
@@ -44,6 +96,17 @@ __device__ double atomicAdd(double* address, double val)
 	return __longlong_as_double(old);
 }
 
+//wrapper for all the types natively supported by CUDA
+template <typename T> __device__ T atomicAdd_wrapper(T* addr, T val) {
+	return atomicAdd(addr, val);
+}
+
+//wrapper for had-implemented double type
+template <> __device__ double atomicAdd_wrapper<double>(double* addr, double val) {
+	return atomicAdd(addr, val);
+}
+
+
 // this kernel works for 3D data only.
 //  PHI1 and PHI2 are input arrays.
 //  s* parameters are start values in each dimension.
@@ -53,12 +116,14 @@ __device__ double atomicAdd(double* address, double val)
 //  i,j,k are the array dimensions
 //  len_ is number of threads in a threadblock.
 //       This can be computed in the kernel itself.
-__global__ void kernel_dotProd(double *phi1, double *phi2,
+template <typename T>
+__global__ void kernel_dotProd(T *phi1, T *phi2,
 		int i, int j, int k,
 		int sx, int sy, int sz,
 		int ex, int ey, int ez, 
-		int gz, double * reduction, int len_) {
-	extern __shared__ double psum[];
+		int gz, T * reduction, int len_) {
+	SharedMem<T> shared;
+	T * psum = shared.getPointer();
 	int tid, loads, x, y, z, itr;
 	bool boundx, boundy, boundz;
 	tid = threadIdx.x+(threadIdx.y)*blockDim.x+(threadIdx.z)*(blockDim.x*blockDim.y);
@@ -81,20 +146,21 @@ __global__ void kernel_dotProd(double *phi1, double *phi2,
 
 	__syncthreads();
 	//After accumulating the Z-dimension, have each block internally reduce X and Y
-	block_reduction(psum,tid,len_);
+	block_reduction<T>(psum,tid,len_);
 	__syncthreads();
 
 	//Merge reduced values from all blocks
-	if(tid == 0) atomicAdd(reduction,psum[0]);
+	if(tid == 0) atomicAdd_wrapper<T>(reduction,psum[0]);
 }
 
-
-__global__ void kernel_reduction3(double *phi,
+template <typename T>
+__global__ void kernel_reduction3(T *phi,
 		int i, int j, int k,
 		int sx, int sy, int sz,
 		int ex, int ey, int ez, 
-		int gz, double * reduction, int len_) {
-	extern __shared__ double psum[];
+		int gz, T * reduction, int len_) {
+	SharedMem<T> shared;
+	T *psum = shared.getPointer();
 	int tid, loads, x, y, z, itr;
 	bool boundx, boundy, boundz;
 	tid = threadIdx.x+(threadIdx.y)*blockDim.x+(threadIdx.z)*(blockDim.x*blockDim.y);
@@ -116,17 +182,17 @@ __global__ void kernel_reduction3(double *phi,
 
 	__syncthreads();
 	//After accumulating the Z-dimension, have each block internally reduce X and Y
-	block_reduction(psum,tid,len_);
+	block_reduction<T>(psum,tid,len_);
 	__syncthreads();
 
 	//Merge reduced values from all blocks
-	if(tid == 0) atomicAdd(reduction,psum[0]);
+	if(tid == 0) atomicAdd_wrapper<T>(reduction,psum[0]);
 }
 
 
-cudaError_t cuda_dotProd(size_t (* grid_size)[3], size_t (* block_size)[3], double * data1, double * data2, size_t (* array_size)[3], size_t (* arr_start)[3], size_t (* arr_end)[3], double * reduced_val, int async, cudaEvent_t ((*event)[2])) {
+cudaError_t cuda_dotProd(size_t (* grid_size)[3], size_t (* block_size)[3], void * data1, void * data2, size_t (* array_size)[3], size_t (* arr_start)[3], size_t (* arr_end)[3], void * reduced_val, accel_type_id type, int async, cudaEvent_t ((*event)[2])) {
 	cudaError_t ret = cudaSuccess;
-	size_t smem_size = sizeof(double) * (*block_size)[0] * (*block_size)[1] * (*block_size)[2];
+	size_t smem_len =  (*block_size)[0] * (*block_size)[1] * (*block_size)[2];
 	dim3 grid = dim3((*grid_size)[0], (*grid_size)[1], 1);
 	dim3 block = dim3((*block_size)[0], (*block_size)[1], (*block_size)[2]);
 	//Lingering debugging output
@@ -140,7 +206,31 @@ cudaError_t cuda_dotProd(size_t (* grid_size)[3], size_t (* block_size)[3], doub
 		cudaEventCreate(&(*event)[0]);
 		cudaEventRecord((*event)[0], 0);
 	}
-	kernel_dotProd<<<grid,block,smem_size>>>(data1, data2, (*array_size)[0], (*array_size)[1], (*array_size)[2], (*arr_start)[0], (*arr_start)[1], (*arr_start)[2], (*arr_end)[0], (*arr_end)[1], (*arr_end)[2], (*grid_size)[2], reduced_val, (*block_size)[0] * (*block_size)[1] * (*block_size)[2]);
+	switch (type) {
+		case a_db:
+			kernel_dotProd<double><<<grid,block,smem_len*sizeof(double)>>>((double*)data1, (double*)data2, (*array_size)[0], (*array_size)[1], (*array_size)[2], (*arr_start)[0], (*arr_start)[1], (*arr_start)[2], (*arr_end)[0], (*arr_end)[1], (*arr_end)[2], (*grid_size)[2], (double*)reduced_val, smem_len);
+		break;
+
+		case a_fl:
+			kernel_dotProd<float><<<grid,block,smem_len*sizeof(float)>>>((float*)data1, (float*)data2, (*array_size)[0], (*array_size)[1], (*array_size)[2], (*arr_start)[0], (*arr_start)[1], (*arr_start)[2], (*arr_end)[0], (*arr_end)[1], (*arr_end)[2], (*grid_size)[2], (float*)reduced_val, smem_len);
+		break;
+
+		case a_ul:
+			kernel_dotProd<unsigned long long><<<grid,block,smem_len*sizeof(unsigned long long)>>>((unsigned long long*)data1, (unsigned long long*)data2, (*array_size)[0], (*array_size)[1], (*array_size)[2], (*arr_start)[0], (*arr_start)[1], (*arr_start)[2], (*arr_end)[0], (*arr_end)[1], (*arr_end)[2], (*grid_size)[2], (unsigned long long*)reduced_val, smem_len);
+		break;
+
+		case a_in:
+			kernel_dotProd<int><<<grid,block,smem_len*sizeof(int)>>>((int*)data1, (int*)data2, (*array_size)[0], (*array_size)[1], (*array_size)[2], (*arr_start)[0], (*arr_start)[1], (*arr_start)[2], (*arr_end)[0], (*arr_end)[1], (*arr_end)[2], (*grid_size)[2], (int *)reduced_val, smem_len);
+		break;
+
+		case a_ui:
+			kernel_dotProd<unsigned int><<<grid,block,smem_len*sizeof(unsigned int)>>>((unsigned int*)data1, (unsigned int*)data2, (*array_size)[0], (*array_size)[1], (*array_size)[2], (*arr_start)[0], (*arr_start)[1], (*arr_start)[2], (*arr_end)[0], (*arr_end)[1], (*arr_end)[2], (*grid_size)[2], (unsigned int*)reduced_val, smem_len);
+		break;
+
+		default:
+			fprintf(stderr, "Error: Function 'cuda_dotProd' not implemented for selected type!\n");
+		break;		
+	}
 	if (event != NULL) {
 		cudaEventCreate(&(*event)[1]);
 		cudaEventRecord((*event)[1], 0);
@@ -150,9 +240,9 @@ cudaError_t cuda_dotProd(size_t (* grid_size)[3], size_t (* block_size)[3], doub
 }
 
 
-cudaError_t cuda_reduce(size_t (* grid_size)[3], size_t (* block_size)[3], double * data, size_t (* array_size)[3], size_t (* arr_start)[3], size_t (* arr_end)[3], double * reduced_val, int async, cudaEvent_t ((*event)[2])) {
+cudaError_t cuda_reduce(size_t (* grid_size)[3], size_t (* block_size)[3], void * data, size_t (* array_size)[3], size_t (* arr_start)[3], size_t (* arr_end)[3], void * reduced_val, accel_type_id type, int async, cudaEvent_t ((*event)[2])) {
 	cudaError_t ret = cudaSuccess;
-	size_t smem_size = sizeof(double) * (*block_size)[0] * (*block_size)[1] * (*block_size)[2];
+	size_t smem_len = (*block_size)[0] * (*block_size)[1] * (*block_size)[2];
 	dim3 grid = dim3((*grid_size)[0], (*grid_size)[1], 1);
 	dim3 block = dim3((*block_size)[0], (*block_size)[1], (*block_size)[2]);
 	//Lingering debugging output
@@ -166,7 +256,33 @@ cudaError_t cuda_reduce(size_t (* grid_size)[3], size_t (* block_size)[3], doubl
 		cudaEventCreate(&(*event)[0]);
 		cudaEventRecord((*event)[0], 0);
 	}
-	kernel_reduction3<<<grid,block,smem_size>>>(data, (*array_size)[0], (*array_size)[1], (*array_size)[2], (*arr_start)[0], (*arr_start)[1], (*arr_start)[2], (*arr_end)[2], (*arr_end)[1], (*arr_end)[2], (*grid_size)[2], reduced_val, (*block_size)[0] * (*block_size)[1] * (*block_size)[2]);
+	switch (type) {
+		case a_db:
+
+			kernel_reduction3<double><<<grid,block,smem_len*sizeof(double)>>>((double*)data, (*array_size)[0], (*array_size)[1], (*array_size)[2], (*arr_start)[0], (*arr_start)[1], (*arr_start)[2], (*arr_end)[2], (*arr_end)[1], (*arr_end)[2], (*grid_size)[2], (double*)reduced_val, (*block_size)[0] * (*block_size)[1] * (*block_size)[2]);
+		break;
+
+		case a_fl:
+			kernel_reduction3<float><<<grid,block,smem_len*sizeof(float)>>>((float*)data, (*array_size)[0], (*array_size)[1], (*array_size)[2], (*arr_start)[0], (*arr_start)[1], (*arr_start)[2], (*arr_end)[2], (*arr_end)[1], (*arr_end)[2], (*grid_size)[2], (float*)reduced_val, (*block_size)[0] * (*block_size)[1] * (*block_size)[2]);
+		break;
+
+		case a_ul:
+			kernel_reduction3<unsigned long long><<<grid,block,smem_len*sizeof(unsigned long long)>>>((unsigned long long*)data, (*array_size)[0], (*array_size)[1], (*array_size)[2], (*arr_start)[0], (*arr_start)[1], (*arr_start)[2], (*arr_end)[2], (*arr_end)[1], (*arr_end)[2], (*grid_size)[2], (unsigned long long*)reduced_val, (*block_size)[0] * (*block_size)[1] * (*block_size)[2]);
+		break;
+
+		case a_in:
+			kernel_reduction3<int><<<grid,block,smem_len*sizeof(int)>>>((int*)data, (*array_size)[0], (*array_size)[1], (*array_size)[2], (*arr_start)[0], (*arr_start)[1], (*arr_start)[2], (*arr_end)[2], (*arr_end)[1], (*arr_end)[2], (*grid_size)[2], (int*)reduced_val, (*block_size)[0] * (*block_size)[1] * (*block_size)[2]);
+		break;
+
+		case a_ui:
+			kernel_reduction3<unsigned int><<<grid,block,smem_len*sizeof(unsigned int)>>>((unsigned int*)data, (*array_size)[0], (*array_size)[1], (*array_size)[2], (*arr_start)[0], (*arr_start)[1], (*arr_start)[2], (*arr_end)[2], (*arr_end)[1], (*arr_end)[2], (*grid_size)[2], (unsigned int*)reduced_val, (*block_size)[0] * (*block_size)[1] * (*block_size)[2]);
+		break;
+
+		default:
+			fprintf(stderr, "Error: Function 'cuda_reduce' not implemented for selected type!\n");
+		break;
+
+	}
 	if (event != NULL) {
 		cudaEventCreate(&(*event)[1]);
 		cudaEventRecord((*event)[1], 0);

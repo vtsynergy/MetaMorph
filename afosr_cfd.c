@@ -483,7 +483,7 @@ a_err accel_validate_worksize(a_dim3 * grid_size, a_dim3 * block_size) {
 //	return accel_dotProd(grid_size, block_size, data1, data2, array_size, array_start, array_end, reduction_var, true);
 //}
 //Workhorse for both sync and async dot products
-a_err accel_dotProd(a_dim3 * grid_size, a_dim3 * block_size, a_double * data1, a_double * data2, a_dim3 * array_size, a_dim3 * array_start, a_dim3 * array_end, a_double * reduction_var, a_bool async) {
+a_err accel_dotProd(a_dim3 * grid_size, a_dim3 * block_size, void * data1, void * data2, a_dim3 * array_size, a_dim3 * array_start, a_dim3 * array_end, void * reduction_var, accel_type_id type, a_bool async) {
 	a_err ret;
 	#ifdef WITH_TIMERS
 	accelTimerQueueFrame * frame = malloc (sizeof(accelTimerQueueFrame));
@@ -499,9 +499,9 @@ a_err accel_dotProd(a_dim3 * grid_size, a_dim3 * block_size, a_double * data1, a
 		#ifdef WITH_CUDA
 		case accelModePreferCUDA: {
 						#ifdef WITH_TIMERS
-						  ret = (a_err) cuda_dotProd(grid_size, block_size, data1, data2, array_size, array_start, array_end, reduction_var, async, &(frame->event.cuda));
+						  ret = (a_err) cuda_dotProd(grid_size, block_size, data1, data2, array_size, array_start, array_end, reduction_var, type, async, &(frame->event.cuda));
 						#else
-						  ret = (a_err) cuda_dotProd(grid_size, block_size, data1, data2, array_size, array_start, array_end, reduction_var, async, NULL);
+						  ret = (a_err) cuda_dotProd(grid_size, block_size, data1, data2, array_size, array_start, array_end, reduction_var, type, async, NULL);
 						#endif
 						  break;
 					  }
@@ -512,9 +512,9 @@ a_err accel_dotProd(a_dim3 * grid_size, a_dim3 * block_size, a_double * data1, a
 					  //Make sure some context exists..
 					  if (accel_context == NULL) accelOpenCLFallBack();
 					  #ifdef WITH_TIMERS
-					  ret = (a_err) opencl_dotProd(grid_size, block_size, data1, data2, array_size, array_start, array_end, reduction_var, async, &(frame->event.opencl));
+					  ret = (a_err) opencl_dotProd(grid_size, block_size, data1, data2, array_size, array_start, array_end, reduction_var, type, async, &(frame->event.opencl));
 					  #else
-					  ret = (a_err) opencl_dotProd(grid_size, block_size, data1, data2, array_size, array_start, array_end, reduction_var, async, NULL);
+					  ret = (a_err) opencl_dotProd(grid_size, block_size, data1, data2, array_size, array_start, array_end, reduction_var, type, async, NULL);
 					  #endif
 					  break;
 		#endif
@@ -536,7 +536,7 @@ a_err accel_dotProd(a_dim3 * grid_size, a_dim3 * block_size, a_double * data1, a
 //	return accel_reduce(grid_size, block_size, data, array_size, array_start, array_end, reduction_var, true);
 //}
 //Workhorse for both sync and async reductions
-a_err accel_reduce(a_dim3 * grid_size, a_dim3 * block_size, a_double * data, a_dim3 * array_size, a_dim3 * array_start, a_dim3 * array_end, a_double * reduction_var, a_bool async) {
+a_err accel_reduce(a_dim3 * grid_size, a_dim3 * block_size, void * data, a_dim3 * array_size, a_dim3 * array_start, a_dim3 * array_end, void * reduction_var, accel_type_id type, a_bool async) {
 	a_err ret;
 	#ifdef WITH_TIMERS
 	accelTimerQueueFrame * frame = malloc (sizeof(accelTimerQueueFrame));
@@ -552,9 +552,9 @@ a_err accel_reduce(a_dim3 * grid_size, a_dim3 * block_size, a_double * data, a_d
 		#ifdef WITH_CUDA
 		case accelModePreferCUDA: {
 						#ifdef WITH_TIMERS
-						  ret = (a_err) cuda_reduce(grid_size, block_size, data, array_size, array_start, array_end, reduction_var, async, &(frame->event.cuda));
+						  ret = (a_err) cuda_reduce(grid_size, block_size, data, array_size, array_start, array_end, reduction_var, type, async, &(frame->event.cuda));
 						#else
-						  ret = (a_err) cuda_reduce(grid_size, block_size, data, array_size, array_start, array_end, reduction_var, async, NULL);
+						  ret = (a_err) cuda_reduce(grid_size, block_size, data, array_size, array_start, array_end, reduction_var, type, async, NULL);
 						#endif
 						  break;
 					  }
@@ -565,9 +565,9 @@ a_err accel_reduce(a_dim3 * grid_size, a_dim3 * block_size, a_double * data, a_d
 					  //Make sure some context exists..
 					  if (accel_context == NULL) accelOpenCLFallBack();
 					  #ifdef WITH_TIMERS
-					  ret = (a_err) opencl_reduce(grid_size, block_size, data, array_size, array_start, array_end, reduction_var, async, &(frame->event.opencl));
+					  ret = (a_err) opencl_reduce(grid_size, block_size, data, array_size, array_start, array_end, reduction_var, type, async, &(frame->event.opencl));
 					  #else
-					  ret = (a_err) opencl_reduce(grid_size, block_size, data, array_size, array_start, array_end, reduction_var, async, NULL);
+					  ret = (a_err) opencl_reduce(grid_size, block_size, data, array_size, array_start, array_end, reduction_var, type, async, NULL);
 					  #endif
 					  break;
 		#endif

@@ -21,20 +21,20 @@
 	#include "afosr_cfd.h"
 #endif
 
-int accel_alloc_(void ** ptr, size_t * size);
-int accel_free_(void * ptr);
-int choose_accel_(int * accel, int * mode);
-int get_accel_(int * accel, int * mode);
-int accel_validate_worksize_(size_t * grid_x, size_t * grid_y, size_t * grid_z, size_t * block_x, size_t * block_y, size_t * block_z);
-int accel_dotprod_(size_t * grid_x, size_t * grid_y, size_t * grid_z, size_t * block_x, size_t * block_y, size_t * block_z, void * data1, void * data2, size_t * size_x, size_t * size_y, size_t * size_z, size_t * start_x, size_t * start_y, size_t * start_z, size_t * end_x, size_t * end_y, size_t * end_z, void * reduction_var, int * async);
-int accel_reduce_(size_t * grid_x, size_t * grid_y, size_t * grid_z, size_t * block_x, size_t * block_y, size_t * block_z, void  * data, size_t * size_x, size_t * size_y, size_t * size_z, size_t * start_x, size_t * start_y, size_t * start_z, size_t * end_x, size_t * end_y, size_t * end_z, void * reduction_var, int * async);
-int accel_copy_h2d_(void * dst, void * src, size_t * size, int * async);
-int accel_copy_d2h_(void * dst, void * src, size_t * size, int * async);
-int accel_copy_d2d_(void * dst, void * src, size_t * size, int * async);
+int accel_alloc_c_(void ** ptr, size_t * size);
+int accel_free_c_(void * ptr);
+int choose_accel_c_(int * accel, int * mode);
+int get_accel_c_(int * accel, int * mode);
+int accel_validate_worksize_c_(size_t * grid_x, size_t * grid_y, size_t * grid_z, size_t * block_x, size_t * block_y, size_t * block_z);
+int accel_dotprod_c_(size_t * grid_x, size_t * grid_y, size_t * grid_z, size_t * block_x, size_t * block_y, size_t * block_z, void * data1, void * data2, size_t * size_x, size_t * size_y, size_t * size_z, size_t * start_x, size_t * start_y, size_t * start_z, size_t * end_x, size_t * end_y, size_t * end_z, void * reduction_var, accel_type_id type, int * async);
+int accel_reduce_c_(size_t * grid_x, size_t * grid_y, size_t * grid_z, size_t * block_x, size_t * block_y, size_t * block_z, void  * data, size_t * size_x, size_t * size_y, size_t * size_z, size_t * start_x, size_t * start_y, size_t * start_z, size_t * end_x, size_t * end_y, size_t * end_z, void * reduction_var, accel_type_id type, int * async);
+int accel_copy_h2d_c_(void * dst, void * src, size_t * size, int * async);
+int accel_copy_d2h_c_(void * dst, void * src, size_t * size, int * async);
+int accel_copy_d2d_c_(void * dst, void * src, size_t * size, int * async);
 	
 #ifdef WITH_TIMERS
-int accel_timers_init_();
-int accel_timers_flush_();
-int accel_timers_finish_();
+int accel_timers_init_c_();
+int accel_timers_flush_c_();
+int accel_timers_finish_c_();
 #endif
 #endif //AFOSR_CFD_FORTRAN_COMPAT_H
