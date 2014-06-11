@@ -9,7 +9,7 @@
       function accel_alloc_c(ptr, size)
       use ISO_C_BINDING
       integer (C_INT) :: accel_alloc_c
-      type (C_PTR), VALUE :: ptr
+      type (C_PTR) :: ptr
       integer (C_SIZE_T) :: size
       end function accel_alloc_c
       end interface
@@ -63,7 +63,7 @@
       integer (C_SIZE_T) :: start_x, start_y, start_z
       integer (C_SIZE_T) :: end_x, end_y, end_z
       type (C_PTR), VALUE :: reduction_var
-      integer (C_INT) :: a_type
+      integer (C_INT), VALUE :: a_type
       integer (C_INT) :: async
       end function accel_dotprod_c
       end interface
@@ -81,7 +81,7 @@
       integer (C_SIZE_T) :: start_x, start_y, start_z
       integer (C_SIZE_T) :: end_x, end_y, end_z
       type (C_PTR), VALUE :: reduction_var
-      integer (C_INT) :: a_type
+      integer (C_INT), VALUE :: a_type
       integer (C_INT) :: async
       end function accel_reduce_c
       end interface
@@ -153,6 +153,9 @@
       end function accel_copy_d2d_c
       end interface
 
+      interface accel_alloc
+        module procedure accel_alloc_db, accel_alloc_fl, accel_alloc_in
+      end interface accel_alloc
 #ifdef WITH_TIMERS
 
       interface accel_timers_init
@@ -179,25 +182,58 @@
 #endif
 
       contains
-      function accel_alloc(ptr, size)
+
+      function accel_alloc_db(ptr, size)
       use ISO_C_BINDING
-      integer (C_INT) :: accel_alloc
-      class(*), target :: ptr
+      integer (C_INT) :: accel_alloc_db
+      real(C_DOUBLE), POINTER, intent(inout) :: ptr
       integer :: size
-      select type(ptr)
-      type is (integer(kind=C_INT))
-           accel_alloc = accel_alloc_c(C_LOC(ptr), &
-            int(C_SIZEOF(in)*size, kind=C_SIZE_T))
-      type is (real(kind=C_FLOAT))
-           accel_alloc = accel_alloc_c(C_LOC(ptr), &
-            int(C_SIZEOF(fl)*size, kind=C_SIZE_T))
-      type is (real(kind=C_DOUBLE))
-           accel_alloc = accel_alloc_c(C_LOC(ptr), &
-            int(C_SIZEOF(db)*size, kind=C_SIZE_T))
-      class default
+      type(C_PTR) :: cptr
+      accel_alloc_db = accel_alloc_c(cptr, &
+       int(C_SIZEOF(db)*size, kind=C_SIZE_T))
+      call C_F_POINTER(cptr, ptr)
+      end function accel_alloc_db
+
+      function accel_alloc_fl(ptr, size)
+      use ISO_C_BINDING
+      integer (C_INT) :: accel_alloc_fl
+      real(C_FLOAT), POINTER, intent(inout) :: ptr
+      integer :: size
+      type(C_PTR) :: cptr
+      accel_alloc_fl = accel_alloc_c(cptr, &
+       int(C_SIZEOF(fl)*size, kind=C_SIZE_T))
+      call C_F_POINTER(cptr, ptr) 
+      end function accel_alloc_fl
+
+      function accel_alloc_in(ptr, size)
+      use ISO_C_BINDING
+      integer (C_INT) :: accel_alloc_in
+      integer(C_INT), POINTER, intent(inout) :: ptr
+      integer :: size
+      type(C_PTR) :: cptr
+      accel_alloc_in = accel_alloc_c(cptr, &
+       int(C_SIZEOF(in)*size, kind=C_SIZE_T))
+      call C_F_POINTER(cptr, ptr)
+      end function accel_alloc_in
+!      function accel_alloc(ptr, size)
+!      use ISO_C_BINDING
+!      integer (C_INT) :: accel_alloc
+!      class(*), TARGET :: ptr
+!      integer :: size
+!      select type(ptr)
+!      type is (integer(kind=C_INT))
+!           accel_alloc = accel_alloc_c(C_LOC(ptr), &
+!            int(C_SIZEOF(in)*size, kind=C_SIZE_T))
+!      type is (real(kind=C_FLOAT))
+!           accel_alloc = accel_alloc_c(C_LOC(ptr), &
+!            int(C_SIZEOF(fl)*size, kind=C_SIZE_T))
+!      type is (real(kind=C_DOUBLE))
+!           accel_alloc = accel_alloc_c(C_LOC(ptr), &
+!            int(C_SIZEOF(db)*size, kind=C_SIZE_T))
+!      class default
            ! do something
-      end select
-      end function accel_alloc
+!      end select
+!      end function accel_alloc
 
       function accel_free(ptr)
       use ISO_C_BINDING
@@ -252,8 +288,8 @@
             int(sz(3),kind=C_SIZE_T), int(start_idx(1),kind=C_SIZE_T),&
             int(start_idx(2),kind=C_SIZE_T), int(start_idx(3),kind=C_SIZE_T), &
             int(end_idx(1),kind=C_SIZE_T),int(end_idx(2),kind=C_SIZE_T)&
-            , int(end_idx(3),kind=C_SIZE_T), C_LOC(reduction_var), 4, &
-            async)
+            , int(end_idx(3),kind=C_SIZE_T), C_LOC(reduction_var), &
+            int(4,kind=C_INT), int(async,kind=C_INT))
         end select
        end select
       type is(real(kind=C_FLOAT))
@@ -269,8 +305,8 @@
             int(sz(3),kind=C_SIZE_T), int(start_idx(1),kind=C_SIZE_T),&
             int(start_idx(2),kind=C_SIZE_T), int(start_idx(3),kind=C_SIZE_T), &
             int(end_idx(1),kind=C_SIZE_T),int(end_idx(2),kind=C_SIZE_T)&
-            , int(end_idx(3),kind=C_SIZE_T), C_LOC(reduction_var), 1, &
-            async)
+            , int(end_idx(3),kind=C_SIZE_T), C_LOC(reduction_var), &
+            int(1,kind=C_INT), int(async,kind=C_INT))
         end select
        end select
       type is(real(kind=C_DOUBLE))
@@ -286,8 +322,8 @@
             int(sz(3),kind=C_SIZE_T), int(start_idx(1),kind=C_SIZE_T),&
             int(start_idx(2),kind=C_SIZE_T), int(start_idx(3),kind=C_SIZE_T), &
             int(end_idx(1),kind=C_SIZE_T),int(end_idx(2),kind=C_SIZE_T)&
-            , int(end_idx(3),kind=C_SIZE_T), C_LOC(reduction_var), 0, &
-            async)
+            , int(end_idx(3),kind=C_SIZE_T), C_LOC(reduction_var), &
+            int(0,kind=C_INT), int(async,kind=C_INT))
         end select
        end select
       class default
@@ -320,8 +356,8 @@
             int(sz(3),kind=C_SIZE_T), int(start_idx(1),kind=C_SIZE_T),&
             int(start_idx(2),kind=C_SIZE_T), int(start_idx(3),kind=C_SIZE_T), &
             int(end_idx(1),kind=C_SIZE_T),int(end_idx(2),kind=C_SIZE_T)&
-            , int(end_idx(3),kind=C_SIZE_T), C_LOC(reduction_var), 4, &
-            async)
+            , int(end_idx(3),kind=C_SIZE_T), C_LOC(reduction_var), &
+            int(4,kind=C_INT), int(async,kind=C_INT))
        end select
       type is(real(kind=C_FLOAT))
        select type (data)
@@ -334,8 +370,8 @@
             int(sz(3),kind=C_SIZE_T), int(start_idx(1),kind=C_SIZE_T),&
             int(start_idx(2),kind=C_SIZE_T), int(start_idx(3),kind=C_SIZE_T), &
             int(end_idx(1),kind=C_SIZE_T),int(end_idx(2),kind=C_SIZE_T)&
-            , int(end_idx(3),kind=C_SIZE_T), C_LOC(reduction_var), 1, &
-            async)
+            , int(end_idx(3),kind=C_SIZE_T), C_LOC(reduction_var), &
+            int(1,kind=C_INT), int(async,kind=C_INT))
        end select
       type is(real(kind=C_DOUBLE))
        select type (data)
@@ -348,8 +384,8 @@
             int(sz(3),kind=C_SIZE_T), int(start_idx(1),kind=C_SIZE_T),&
             int(start_idx(2),kind=C_SIZE_T), int(start_idx(3),kind=C_SIZE_T), &
             int(end_idx(1),kind=C_SIZE_T),int(end_idx(2),kind=C_SIZE_T)&
-            , int(end_idx(3),kind=C_SIZE_T), C_LOC(reduction_var), 0, &
-            async)
+            , int(end_idx(3),kind=C_SIZE_T), C_LOC(reduction_var), &
+            int(0,kind=C_INT), int(async,kind=C_INT))
        end select
       class default
             !do seomthing

@@ -32,7 +32,7 @@ int accel_dotprod_c_(size_t * grid_x, size_t * grid_y, size_t * grid_z, size_t *
 	size[0] = *size_x, size[1] = *size_y, size[2] = *size_z;
 	start[0] = *start_x-1, start[1] = *start_y-1, start[2] = *start_z-1;
 	end[0] = *end_x-1, end[1] = *end_y-1, end[2] = *end_z-1;
-	return (int) accel_dotProd(&grid, &block, (double *) data1, (double *) data2, &size, &start, &end, (double *) reduction_var, type, (a_bool) *async);
+	return (int) accel_dotProd(&grid, &block, data1, data2, &size, &start, &end, reduction_var, type, (a_bool) *async);
 }
 int accel_reduce_c_(size_t * grid_x, size_t * grid_y, size_t * grid_z, size_t * block_x, size_t * block_y, size_t * block_z, void * data, size_t * size_x, size_t * size_y, size_t * size_z, size_t * start_x, size_t * start_y, size_t * start_z, size_t * end_x, size_t * end_y, size_t * end_z, void * reduction_var, accel_type_id type,  int * async) {
 	a_dim3 grid, block, size, start, end;
@@ -41,7 +41,7 @@ int accel_reduce_c_(size_t * grid_x, size_t * grid_y, size_t * grid_z, size_t * 
 	size[0] = *size_x, size[1] = *size_y, size[2] = *size_z;
 	start[0] = *start_x-1, start[1] = *start_y-1, start[2] = *start_z-1;
 	end[0] = *end_x-1, end[1] = *end_y-1, end[2] = *end_z-1;
-	return (int) accel_reduce(&grid, &block, (double *) data, &size, &start, &end, (double *) reduction_var, type, (a_bool) *async);
+	return (int) accel_reduce(&grid, &block, data, &size, &start, &end, reduction_var, type, (a_bool) *async);
 }
 int accel_copy_h2d_c_(void * dst, void * src, size_t * size, int * async) { return (int) accel_copy_h2d(dst, src, *size, (a_bool) *async);}
 int accel_copy_d2h_c_(void * dst, void * src, size_t * size, int * async) { return (int) accel_copy_d2h(dst, src, *size, (a_bool) *async);}

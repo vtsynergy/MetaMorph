@@ -6,13 +6,44 @@
 #include <stdlib.h>
 #include "afosr_cfd.h"
 
+//global for the current type
+accel_type_id g_type;
+size_t g_typesize;
 
-a_ulong * dev_data3;
-a_ulong * dev_data3_2;
-a_ulong * dev_data4;
-a_ulong * reduction;
-unsigned long * data3;
-unsigned long * data4;
+//Sets the benchmark's global configuration for one of the supported data types
+void set_type(accel_type_id type) {
+	switch (type) {
+		case a_db:
+		g_typesize=sizeof(double);
+		break;
+
+		case a_fl:
+		g_typesize=sizeof(float);
+		break;
+
+		case a_ul:
+		g_typesize=sizeof(unsigned long);
+		break;
+
+		case a_in:
+		g_typesize=sizeof(int);
+		break;
+
+		case a_ui:
+		g_typesize=sizeof(unsigned int);
+		break;
+
+		default:
+		fprintf(stderr, "Unsupported type: [%d] provided to set_type!\n", type);
+		exit(-1);
+		break;
+	}
+	g_type = type;
+}
+//device buffers
+void * dev_data3, * dev_data4, * dev_data3_2, * reduction;
+// host buffers
+void * data3, * data4;
 int ni, nj, nk, nm;
 
 //      !This does the host and device data allocations.
@@ -21,50 +52,160 @@ int ni, nj, nk, nm;
             printf("ni:\t%d\n", ni); //print *,"ni:",ni
             printf("nj:\t%d\n", nj); //print *,"nj:",nj
             printf("nk:\t%d\n", nk); //print *,"nk:",nk
-            data3 = (unsigned long *) malloc(sizeof(unsigned long)*ni*nj*nk);
-	    data4 = (unsigned long *) malloc (sizeof(unsigned long)*ni*nj*nk*nm);
+            data3 = malloc(g_typesize*ni*nj*nk);
+	    data4 = malloc(g_typesize*ni*nj*nk*nm);
             printf("Status:\t%d\n", istat); //NOOP for output compatibility //print *,"Status:",istat
-            istat = accel_alloc((void **) &dev_data3, sizeof(unsigned long)*ni*nj*nk);
+            istat = accel_alloc( &dev_data3, g_typesize*ni*nj*nk);
             printf("Status:\t%d\n", istat);
-	    istat = accel_alloc((void **) &dev_data3_2, sizeof(unsigned long)*ni*nj*nk);
+	    istat = accel_alloc( &dev_data3_2, g_typesize*ni*nj*nk);
             printf("Status:\t%d\n", istat);
-	    istat = accel_alloc((void **) &dev_data4, sizeof(unsigned long)*ni*nj*nk*nm); 
+	    istat = accel_alloc( &dev_data4, g_typesize*ni*nj*nk*nm); 
             printf("Status:\t%d\n", istat);
-	    istat = accel_alloc((void **) &reduction, sizeof(unsigned long));
+	    istat = accel_alloc( &reduction, g_typesize);
             printf("Status:\t%d\n", istat);
             printf("Data Allocated\n"); 
       } 
 
 //      !initilialize the host side data that has to be reduced here.
 //      !For now I initialized it to 1.0
-      void data_initialize() { 
+      void data_initialize() {
 	int i, j, k;
-	for (i = ni*nj*nk*nm-1; i >= ni*nj*nk; i--) {
-            data4[i] = 1;
-	}
-	for (; i >= 0; i--) {
-	    data4[i] = 1;
-            data3[i] = 1;
-	}
-	k = 0;
-	for (; k < nk; k++) {
-		j = 0;
-		for (; j < nj; j++) {
-			i = 0;
-			for (; i < ni; i++) {
-				if (i == 0 || j == 0 || k == 0) data3[i+j*ni+k*ni*nj] = 0;
-				if (i == ni-1 || j == nj-1 || k == nk-1) data3[i+j*ni+k*ni*nj] = 0;
+	switch(g_type) {
+		default:
+		case a_db:
+			{
+				double * l_data3 = (double *) data3;
+				double * l_data4 = (double *) data4;
+				for (i = ni*nj*nk*nm-1; i >= ni*nj*nk; i--) {
+			            l_data4[i] = 1;
+				}
+				for (; i >= 0; i--) {
+				    l_data4[i] = 1;
+			            l_data3[i] = 1;
+				}
+				k = 0;
+				for (; k < nk; k++) {
+					j = 0;
+					for (; j < nj; j++) {
+						i = 0;
+						for (; i < ni; i++) {
+							if (i == 0 || j == 0 || k == 0) l_data3[i+j*ni+k*ni*nj] = 0;
+							if (i == ni-1 || j == nj-1 || k == nk-1) l_data3[i+j*ni+k*ni*nj] = 0;
+						}
+					}
+				}
 			}
-		}
+		break;
+		
+		case a_fl:
+			{
+				float * l_data3 = (float *) data3;
+				float * l_data4 = (float *) data4;
+				for (i = ni*nj*nk*nm-1; i >= ni*nj*nk; i--) {
+			            l_data4[i] = 1;
+				}
+				for (; i >= 0; i--) {
+				    l_data4[i] = 1;
+			            l_data3[i] = 1;
+				}
+				k = 0;
+				for (; k < nk; k++) {
+					j = 0;
+					for (; j < nj; j++) {
+						i = 0;
+						for (; i < ni; i++) {
+							if (i == 0 || j == 0 || k == 0) l_data3[i+j*ni+k*ni*nj] = 0;
+							if (i == ni-1 || j == nj-1 || k == nk-1) l_data3[i+j*ni+k*ni*nj] = 0;
+						}
+					}
+				}
+			}
+		break;
+		
+		case a_ul: 
+			{
+				unsigned long * l_data3 = (unsigned long *) data3;
+				unsigned long * l_data4 = (unsigned long *) data4;
+				for (i = ni*nj*nk*nm-1; i >= ni*nj*nk; i--) {
+			            l_data4[i] = 1;
+				}
+				for (; i >= 0; i--) {
+				    l_data4[i] = 1;
+			            l_data3[i] = 1;
+				}
+				k = 0;
+				for (; k < nk; k++) {
+					j = 0;
+					for (; j < nj; j++) {
+						i = 0;
+						for (; i < ni; i++) {
+							if (i == 0 || j == 0 || k == 0) l_data3[i+j*ni+k*ni*nj] = 0;
+							if (i == ni-1 || j == nj-1 || k == nk-1) l_data3[i+j*ni+k*ni*nj] = 0;
+						}
+					}
+				}
+			}
+		break;
+		
+		case a_in:
+			{
+				int * l_data3 = (int *) data3;
+				int * l_data4 = (int *) data4;
+				for (i = ni*nj*nk*nm-1; i >= ni*nj*nk; i--) {
+			            l_data4[i] = 1;
+				}
+				for (; i >= 0; i--) {
+				    l_data4[i] = 1;
+			            l_data3[i] = 1;
+				}
+				k = 0;
+				for (; k < nk; k++) {
+					j = 0;
+					for (; j < nj; j++) {
+						i = 0;
+						for (; i < ni; i++) {
+							if (i == 0 || j == 0 || k == 0) l_data3[i+j*ni+k*ni*nj] = 0;
+							if (i == ni-1 || j == nj-1 || k == nk-1) l_data3[i+j*ni+k*ni*nj] = 0;
+						}
+					}
+				}
+			}
+		break;
+		
+		case a_ui:
+			{
+				unsigned int * l_data3 = (unsigned int *) data3;
+				unsigned int * l_data4 = (unsigned int *) data4;
+				for (i = ni*nj*nk*nm-1; i >= ni*nj*nk; i--) {
+			            l_data4[i] = 1;
+				}
+				for (; i >= 0; i--) {
+				    l_data4[i] = 1;
+			            l_data3[i] = 1;
+				}
+				k = 0;
+				for (; k < nk; k++) {
+					j = 0;
+					for (; j < nj; j++) {
+						i = 0;
+						for (; i < ni; i++) {
+							if (i == 0 || j == 0 || k == 0) l_data3[i+j*ni+k*ni*nj] = 0;
+							if (i == ni-1 || j == nj-1 || k == nk-1) l_data3[i+j*ni+k*ni*nj] = 0;
+						}
+					}
+				}
+			}
+		break;
+		
 	}
       }
 
 //      !Transfers data from host to device
       void data_transfer_h2d() {
 	a_err ret= CL_SUCCESS; 
-            ret |= accel_copy_h2d((void *) dev_data3, (void *) data3, sizeof(unsigned long)*ni*nj*nk, true);
-            ret |= accel_copy_h2d((void *) dev_data4, (void *) data4, sizeof(unsigned long)*ni*nj*nk*nm, true);
-            ret |= accel_copy_d2d((void *) dev_data3_2, (void *) dev_data3, sizeof(unsigned long)*ni*nj*nk, true);
+            ret |= accel_copy_h2d( dev_data3, data3, g_typesize*ni*nj*nk, true);
+            ret |= accel_copy_h2d( dev_data4, data4, g_typesize*ni*nj*nk*nm, true);
+            ret |= accel_copy_d2d( dev_data3_2, dev_data3, g_typesize*ni*nj*nk, true);
 } 
 
       void deallocate_() {
@@ -95,14 +236,13 @@ int ni, nj, nk, nm;
       } //end subroutine gpu_initialize
 
  int main(int argc, char **argv) { 
-            int tx, ty, tz, gx, gy, gz, istat, i;
+            int tx, ty, tz, gx, gy, gz, istat, i, l_type;
             a_dim3 dimgrid, dimblock, dimarray, arr_start, arr_end; //TODO move into CUDA backend, replace with generic struct
             char args[32];
-            unsigned long sum_dot_gpu;
-            unsigned long *dev_, *dev2; 
+
             i = argc; 
-            if (i < 8) { 
-                  printf("<ni><nj><nk><nm><tblockx><tblocky><tblockz>"); 
+            if (i < 9) { 
+                  printf("<ni><nj><nk><nm><tblockx><tblocky><tblockz><type>"); 
                   return(1); //stop
             } 
             ni = atoi(argv[1]);
@@ -114,6 +254,14 @@ int ni, nj, nk, nm;
             tx = atoi(argv[5]);
             ty = atoi(argv[6]);
             tz = atoi(argv[7]);
+
+	    l_type = atoi(argv[8]);
+	    set_type(l_type);
+//For simplicity when testing across all types, these are kept as void
+// and explicitly cast for the few calls they are necessary, based on g_type
+            void * sum_dot_gpu, * zero;
+		sum_dot_gpu = malloc(g_typesize);
+		zero = malloc(g_typesize);
 		//TODO make timer initialization automatic
             #ifdef WITH_TIMERS
 	    accelTimersInit();
@@ -159,12 +307,32 @@ int ni, nj, nk, nm;
             printf("gx:\t%d\n", gx); //print *,"gx:",gx
             printf("gy:\t%d\n", gy); //print *,"gy:",gy
             printf("gz:\t%d\n", gz); //print *,"gz:",gz
-		unsigned long zero = 0;
+switch(g_type) {
+	case a_db:
+		*(double*)zero = 0;
+	break;
+
+	case a_fl:
+		*(float*)zero = 0;
+	break;
+
+	case a_ul:
+		*(unsigned long*)zero = 0;
+	break;
+
+	case a_in:
+		*(int *)zero = 0;
+	break;
+
+	case a_ui:
+		*(unsigned int *)zero = 0;
+	break;
+}
 	    dimarray[0] = ni, dimarray[1] = nj, dimarray[2] = nk;
 	    arr_start[0] = arr_start[1] = arr_start[2] = 1;
 	    arr_end[0] = ni-2, arr_end[1] = nj-2, arr_end[2] = nk-2;
 for (i = 0; i < 10; i++) { //do i=1,10
-	istat =	accel_copy_h2d((void *) reduction, (void *) &zero, sizeof(unsigned long), true);
+	istat =	accel_copy_h2d( reduction, zero, g_typesize, true);
 		//Validate grid and block sizes (if too big, shrink the z-dim and add iterations)
 		for(;accel_validate_worksize(&dimgrid, &dimblock) != 0 && dimblock[2] > 1; dimgrid[2] <<=1, dimblock[2] >>=1);
 		// Z-scaling won't be enough, abort
@@ -175,16 +343,36 @@ for (i = 0; i < 10; i++) { //do i=1,10
 		
 
 		//Call the entire reduction
-		a_err ret = accel_dotProd(&dimgrid, &dimblock, dev_data3, dev_data3_2, &dimarray, &arr_start, &arr_end, reduction, a_ul, true);
+		a_err ret = accel_dotProd(&dimgrid, &dimblock, dev_data3, dev_data3_2, &dimarray, &arr_start, &arr_end, reduction, g_type, true);
 		fprintf(stderr, "Kernel Status: %d\n", ret);
 
 //           kernel_reduction3<<<dimgrid,dimblock,tx*ty*tz*sizeof(double)>>>(dev_data3, //call kernel_reduction3<<<dimgrid,dimblock,tx*ty*tz*8>>>(dev_data3 & //TODO move into CUDA backend, make "accel_reduce"
 //           dev_data3_2, ni, nj, nk, 2, 2, 2, nj-1, ni-1, nk-1, gz, reduction, tx*ty*tz); //& ,dev_data3_2,ni,nj,nk,2,2,2,nj-1,ni-1,nk-1,gz,reduction,tx*ty*tz) //TODO - see previous
 //            istat = cudaThreadSynchronize(); //cudathreadsynchronize()// TODO move into CUDA backend
 	//	printf("cudaThreadSynchronize error code:%d\n", istat);            
-		istat = accel_copy_d2h((void *) &sum_dot_gpu, (void *) reduction, sizeof(unsigned long), false);
-            printf("Test Reduction:\t%d\n", sum_dot_gpu); //print *, "Test Reduction:",sum_dot_gpu
-            //printf("Test Reduction:\t%d\n", sum_dot_gpu); //print *, "Test Reduction:",sum_dot_gpu
+		istat = accel_copy_d2h(sum_dot_gpu, reduction, g_typesize, false);
+switch(g_type) {
+	case a_db:
+		printf("Test Reduction:\t%f\n", *(double*)sum_dot_gpu); //print *, "Test Reduction:",sum_dot_gpu
+	break;
+
+	case a_fl:
+		printf("Test Reduction:\t%f\n", *(float*)sum_dot_gpu); //print *, "Test Reduction:",sum_dot_gpu
+	break;
+
+	case a_ul:
+		printf("Test Reduction:\t%d\n", *(unsigned long*)sum_dot_gpu); //print *, "Test Reduction:",sum_dot_gpu
+	break;
+
+	case a_in:
+		printf("Test Reduction:\t%d\n", *(int*)sum_dot_gpu); //print *, "Test Reduction:",sum_dot_gpu
+	break;
+
+	case a_ui:
+		printf("Test Reduction:\t%d\n", *(unsigned int*)sum_dot_gpu); //print *, "Test Reduction:",sum_dot_gpu
+	break;
+}
+	    //printf("Test Reduction:\t%d\n", sum_dot_gpu); //print *, "Test Reduction:",sum_dot_gpu
 	    //accelTimersFlush();
             } //end do
             deallocate_(); //call deallocate_i
