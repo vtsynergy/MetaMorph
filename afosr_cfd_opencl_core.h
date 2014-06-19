@@ -51,6 +51,26 @@ extern "C" {
 		cl_kernel kernel_dotProd_ul;
 		cl_kernel kernel_dotProd_in;
 		cl_kernel kernel_dotProd_ui;
+		cl_kernel kernel_transpose_2d_face_db;
+		cl_kernel kernel_transpose_2d_face_fl;
+		cl_kernel kernel_transpose_2d_face_ul;
+		cl_kernel kernel_transpose_2d_face_in;
+		cl_kernel kernel_transpose_2d_face_ui;
+		cl_kernel kernel_pack_2d_face_db;
+		cl_kernel kernel_pack_2d_face_fl;
+		cl_kernel kernel_pack_2d_face_ul;
+		cl_kernel kernel_pack_2d_face_in;
+		cl_kernel kernel_pack_2d_face_ui;
+		cl_kernel kernel_unpack_2d_face_db;
+		cl_kernel kernel_unpack_2d_face_fl;
+		cl_kernel kernel_unpack_2d_face_ul;
+		cl_kernel kernel_unpack_2d_face_in;
+		cl_kernel kernel_unpack_2d_face_ui;
+
+		cl_mem constant_face_size;
+		cl_mem constant_face_stride;
+		cl_mem constant_face_child_size;
+
 	} accelOpenCLStackFrame;
 	//TODO these shouldn't need to be exposed to the user, unless there's a CUDA call we need to emulate
 	void accelOpenCLPushStackFrame(accelOpenCLStackFrame * frame);
@@ -73,7 +93,9 @@ extern "C" {
 
 	cl_int opencl_dotProd(size_t (* grid_size)[3], size_t (* block_size)[3], void * data1, void * data2, size_t (* array_size)[3], size_t (* arr_start)[3], size_t (* arr_end)[3], void * reduced_val, accel_type_id type, int async, cl_event * event); 
 	cl_int opencl_reduce(size_t (* grid_size)[3], size_t (* block_size)[3], void * data, size_t (* array_size)[3], size_t (* arr_start)[3], size_t (* arr_end)[3], void * reduced_val, accel_type_id type, int async, cl_event * event); 
-
+	cl_int opencl_transpose_2d_face(size_t (* grid_size)[3], size_t (* block_size)[3], void *indata, void *outdata, size_t (* dim_xy)[3], accel_type_id type, int async, cl_event * event);
+	cl_int opencl_pack_2d_face(size_t (* grid_size)[3], size_t (* block_size)[3], void *packed_buf, void *buf, accel_2d_face_indexed *face, int *remain_dim, accel_type_id type, int async, cl_event * event_k1, cl_event * event_c1, cl_event *event_c2, cl_event *event_c3);
+	cl_int opencl_unpack_2d_face(size_t (* grid_size)[3], size_t (* block_size)[3], void *packed_buf, void *buf, accel_2d_face_indexed *face, int *remain_dim, accel_type_id type, int async, cl_event * event_k1, cl_event * event_c1, cl_event *event_c2, cl_event *event_c3);
 
 #ifdef __OPENCLCC__
 }

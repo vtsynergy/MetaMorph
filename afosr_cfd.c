@@ -46,6 +46,36 @@ void accelOpenCLFallBack() {
 }
 #endif
 
+//Unexposed convenience function to get the byte width of a selected type
+size_t get_atype_size(accel_type_id type) {
+	switch (type) {
+		case a_db:
+			return sizeof(double);
+		break;
+
+		case a_fl:
+			return sizeof(float);
+		break;
+
+		case a_ul:
+			return sizeof(unsigned long);
+		break;
+
+		case a_in:
+			return sizeof(int);
+		break;
+		
+		case a_ui:
+			return sizeof(unsigned int);
+		break;
+
+		default:
+			fprintf(stderr, "Error: no size retreivable for selected type [%d]!\n", type);
+			return (size_t)-1;
+		break;
+	}
+}
+
 //TODO - Validate attempted allocation sizes against maximum supported by the device
 // particularly for OpenCL (AMD 7970 doesn't support 512 512 512 reduce size
 a_err accel_alloc(void ** ptr, size_t size) {
@@ -488,7 +518,7 @@ a_err accel_dotProd(a_dim3 * grid_size, a_dim3 * block_size, void * data1, void 
 	#ifdef WITH_TIMERS
 	accelTimerQueueFrame * frame = malloc (sizeof(accelTimerQueueFrame));
 	frame->mode = run_mode;
-	frame->size = (*array_size)[0]*(*array_size)[1]*(*array_size)[2]*sizeof(double);
+	frame->size = (*array_size)[0]*(*array_size)[1]*(*array_size)[2]*get_atype_size(type);
 	#endif
 	switch(run_mode) {
 		default:
@@ -541,7 +571,7 @@ a_err accel_reduce(a_dim3 * grid_size, a_dim3 * block_size, void * data, a_dim3 
 	#ifdef WITH_TIMERS
 	accelTimerQueueFrame * frame = malloc (sizeof(accelTimerQueueFrame));
 	frame->mode = run_mode;
-	frame->size = (*array_size)[0]*(*array_size)[1]*(*array_size)[2]*sizeof(double);
+	frame->size = (*array_size)[0]*(*array_size)[1]*(*array_size)[2]*get_atype_size(type);
 	#endif
 	switch(run_mode) {
 		default:
@@ -583,3 +613,225 @@ a_err accel_reduce(a_dim3 * grid_size, a_dim3 * block_size, void * data, a_dim3 
 	#endif
 	return(ret);
 }
+
+accel_2d_face_indexed * accel_get_face_index(int s, int c, int *si, int *st) {
+	//Unlike Kaixi's, we return a pointer copy, to ease Fortran implementation
+	accel_2d_face_indexed * face = malloc(sizeof(accel_2d_face_indexed));
+	//We create our own copy of size and stride arrays to prevent
+	// issues if the user unexpectedly reuses or frees the original pointer
+	size_t sz = sizeof(int)*c;
+	face->size = malloc(sz);
+	face->stride = malloc(sz);
+	memcpy((void*) face->size, (const void *)si, sz);
+	memcpy((void*) face->stride, (const void *)st, sz);
+
+	face->start = s;
+	face->count = c;
+}
+
+//Simple deallocator for an accel_2d_face_indexed type
+// Assumes face, face->size, and ->stride are unfreed
+//This is the only way a user should release a face returned
+// from accel_get_face_index, and should not be used
+// if the face was assembled by hand.
+int accel_free_face_index(accel_2d_face_indexed * face) {
+	free(face->size);
+	free(face->stride);
+	free(face);
+}
+
+a_err accel_transpose_2d_face(a_dim3 * grid_size, a_dim3 * block_size, void *indata, void *outdata, a_dim3 * dim_xy, accel_type_id type, a_bool async) {
+	a_err ret;
+	#ifdef WITH_TIMERS
+	accelTimerQueueFrame * frame = malloc (sizeof(accelTimerQueueFrame));
+	frame->mode = run_mode;
+	frame->size = (*dim_xy)[0]*(*dim_xy)[1]*get_atype_size(type);
+	#endif
+	switch(run_mode) {
+		default:
+		case accelModePreferGeneric:
+			//TODO implement a generic reduce
+			break;
+
+		#ifdef WITH_CUDA
+		case accelModePreferCUDA: {
+						#ifdef WITH_TIMERS
+						  ret = (a_err) cuda_transpose_2d_face(grid_size, block_size, indata, outdata, dim_xy, type, async, &(frame->event.cuda));
+						#else
+						  ret = (a_err) cuda_transpose_2d_face(grid_size, block_size, indata, outdata, dim_xy, type, async, NULL);
+						#endif
+						  break;
+					  }
+		#endif
+
+		#ifdef WITH_OPENCL
+		case accelModePreferOpenCL:
+					  //Make sure some context exists..
+					  if (accel_context == NULL) accelOpenCLFallBack();
+					  #ifdef WITH_TIMERS
+					  ret = (a_err) opencl_transpose_2d_face(grid_size, block_size, indata, outdata, dim_xy, type, async, &(frame->event.opencl));
+					  #else
+					  ret = (a_err) opencl_transpose_2d_face(grid_size, block_size, indata, outdata, dim_xy, type, async, NULL);
+					  #endif
+					  break;
+		#endif
+
+		#ifdef WITH_OPENMP
+		case accelModePreferOpenMP:
+					  //TODO implement OpenMP reduce
+					  break;
+		#endif
+	}
+	#ifdef WITH_TIMERS
+	accelTimerEnqueue(frame, &(accelBuiltinQueues[k_transpose_2d_face]));
+	#endif
+	return(ret);
+}
+//TODO fix frame->size to reflect face size
+a_err accel_pack_2d_face(a_dim3 * grid_size, a_dim3 * block_size, void *packed_buf, void *buf, accel_2d_face_indexed *face, accel_type_id type, a_bool async) {
+	a_err ret;
+	#ifdef WITH_TIMERS
+	//TODO: Add another queue for copies into constant memory
+	//TODO: Hoist copies into constant memory out of the cores to here
+	accelTimerQueueFrame * frame_k1 = malloc (sizeof(accelTimerQueueFrame));
+	accelTimerQueueFrame * frame_c1 = malloc (sizeof(accelTimerQueueFrame));
+	accelTimerQueueFrame * frame_c2 = malloc (sizeof(accelTimerQueueFrame));
+	accelTimerQueueFrame * frame_c3 = malloc (sizeof(accelTimerQueueFrame));
+	frame_k1->mode = run_mode;
+	frame_c1->mode = run_mode;
+	frame_c2->mode = run_mode;
+	frame_c3->mode = run_mode;
+//	frame->size = (*dim_xy)[0]*(*dim_xy)[1]*get_atype_size(type);
+	#endif
+
+	//figure out what the aggregate size of all descendant branches are
+	int *remain_dim = (int *)malloc(sizeof(int)*face->count);
+	int i;
+	remain_dim[face->count-1] = 1;
+	//This loop is backwards from Kaixi's to compute the child size in O(n)
+	// rather than O(n^2) by recognizing that the size of nodes higher in the tree
+	// is just the size of a child multiplied by the number of children, applied
+	// upwards from the leaves
+	for (i = face->count-2; i >= 0; i--) {
+		remain_dim[i] = remain_dim[i+1]*face->size[i+1];
+	}	
+	
+	switch(run_mode) {
+		default:
+		case accelModePreferGeneric:
+			//TODO implement a generic reduce
+			break;
+
+		#ifdef WITH_CUDA
+		case accelModePreferCUDA: {
+						#ifdef WITH_TIMERS
+						  ret = (a_err) cuda_pack_2d_face(grid_size, block_size, packed_buf, buf, face, remain_dim, type, async, &(frame_k1->event.cuda), &(frame_c1->event.cuda), &(frame_c2->event.cuda), &(frame_c3->event.cuda));
+						#else
+						  ret = (a_err) cuda_pack_2d_face(grid_size, block_size, packed_buf, buf, face, remain_dim, type, async, NULL, NULL, NULL, NULL);
+						#endif
+						  break;
+					  }
+		#endif
+
+		#ifdef WITH_OPENCL
+		case accelModePreferOpenCL:
+					  //Make sure some context exists..
+					  if (accel_context == NULL) accelOpenCLFallBack();
+					  #ifdef WITH_TIMERS
+					  ret = (a_err) opencl_pack_2d_face(grid_size, block_size, packed_buf, buf, face, remain_dim, type, async, &(frame_k1->event.opencl), &(frame_c1->event.opencl), &(frame_c2->event.opencl), &(frame_c3->event.opencl));
+					  #else
+					  ret = (a_err) opencl_pack_2d_face(grid_size, block_size, packed_buf, buf, face, remain_dim, type, async, NULL, NULL, NULL, NULL);
+					  #endif
+					  break;
+		#endif
+
+		#ifdef WITH_OPENMP
+		case accelModePreferOpenMP:
+					  //TODO implement OpenMP reduce
+					  break;
+		#endif
+	}
+	#ifdef WITH_TIMERS
+	//TODO Add queue c_H2Dc for copies into constant memory
+	accelTimerEnqueue(frame_k1, &(accelBuiltinQueues[k_pack_2d_face]));
+	accelTimerEnqueue(frame_c1, &(accelBuiltinQueues[c_H2Dc]));
+	accelTimerEnqueue(frame_c2, &(accelBuiltinQueues[c_H2Dc]));
+	accelTimerEnqueue(frame_c3, &(accelBuiltinQueues[c_H2Dc]));
+	#endif
+	return(ret);
+}
+
+//TODO fix frame->size to reflect face size
+a_err accel_unpack_2d_face(a_dim3 * grid_size, a_dim3 * block_size, void *packed_buf, void *buf, accel_2d_face_indexed *face, accel_type_id type, a_bool async) {
+	a_err ret;
+	#ifdef WITH_TIMERS
+	//TODO: Add another queue for copies into constant memory
+	//TODO: Hoist copies into constant memory out of the cores to here
+	accelTimerQueueFrame * frame_k1 = malloc (sizeof(accelTimerQueueFrame));
+	accelTimerQueueFrame * frame_c1 = malloc (sizeof(accelTimerQueueFrame));
+	accelTimerQueueFrame * frame_c2 = malloc (sizeof(accelTimerQueueFrame));
+	accelTimerQueueFrame * frame_c3 = malloc (sizeof(accelTimerQueueFrame));
+	frame_k1->mode = run_mode;
+	frame_c1->mode = run_mode;
+	frame_c2->mode = run_mode;
+	frame_c3->mode = run_mode;
+//	frame->size = (*dim_xy)[0]*(*dim_xy)[1]*get_atype_size(type);
+	#endif
+
+	//figure out what the aggregate size of all descendant branches are
+	int *remain_dim = (int *)malloc(sizeof(int)*face->count);
+	int i;
+	remain_dim[face->count-1] = 1;
+	//This loop is backwards from Kaixi's to compute the child size in O(n)
+	// rather than O(n^2) by recognizing that the size of nodes higher in the tree
+	// is just the size of a child multiplied by the number of children, applied
+	// upwards from the leaves
+	for (i = face->count-2; i >= 0; i--) {
+		remain_dim[i] = remain_dim[i+1]*face->size[i+1];
+	}	
+	
+	switch(run_mode) {
+		default:
+		case accelModePreferGeneric:
+			//TODO implement a generic reduce
+			break;
+
+		#ifdef WITH_CUDA
+		case accelModePreferCUDA: {
+						#ifdef WITH_TIMERS
+						  ret = (a_err) cuda_unpack_2d_face(grid_size, block_size, packed_buf, buf, face, remain_dim, type, async, &(frame_k1->event.cuda), &(frame_c1->event.cuda), &(frame_c2->event.cuda), &(frame_c3->event.cuda));
+						#else
+						  ret = (a_err) cuda_unpack_2d_face(grid_size, block_size, packed_buf, buf, face, remain_dim, type, async, NULL, NULL, NULL, NULL);
+						#endif
+						  break;
+					  }
+		#endif
+
+		#ifdef WITH_OPENCL
+		case accelModePreferOpenCL:
+					  //Make sure some context exists..
+					  if (accel_context == NULL) accelOpenCLFallBack();
+					  #ifdef WITH_TIMERS
+					  ret = (a_err) opencl_unpack_2d_face(grid_size, block_size, packed_buf, buf, face, remain_dim, type, async, &(frame_k1->event.opencl), &(frame_c1->event.opencl), &(frame_c2->event.opencl), &(frame_c3->event.opencl));
+					  #else
+					  ret = (a_err) opencl_unpack_2d_face(grid_size, block_size, packed_buf, buf, face, remain_dim, type, async, NULL, NULL, NULL, NULL);
+					  #endif
+					  break;
+		#endif
+
+		#ifdef WITH_OPENMP
+		case accelModePreferOpenMP:
+					  //TODO implement OpenMP reduce
+					  break;
+		#endif
+	}
+	#ifdef WITH_TIMERS
+	//TODO Add queue c_H2Dc for copies into constant memory
+	accelTimerEnqueue(frame_k1, &(accelBuiltinQueues[k_pack_2d_face]));
+	accelTimerEnqueue(frame_c1, &(accelBuiltinQueues[c_H2Dc]));
+	accelTimerEnqueue(frame_c2, &(accelBuiltinQueues[c_H2Dc]));
+	accelTimerEnqueue(frame_c3, &(accelBuiltinQueues[c_H2Dc]));
+	#endif
+	return(ret);
+}
+

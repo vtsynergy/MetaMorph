@@ -189,6 +189,110 @@ __global__ void kernel_reduction3(T *phi,
 	if(tid == 0) atomicAdd_wrapper<T>(reduction,psum[0]);
 }
 
+//"constant" buffers for face indexing in pack/unpack kernels
+__constant__ int c_face_size[AFOSR_FACE_MAX_DEPTH];
+__constant__ int c_face_stride[AFOSR_FACE_MAX_DEPTH];
+//Size of all children (>= level+1) so at level 0, child_size = total_num_face_elements
+__constant__ int c_face_child_size[AFOSR_FACE_MAX_DEPTH];
+
+//Helper function to compute the integer read offset for buffer packing
+//TODO: Add support for multi-dimensional grid/block
+__device__ int get_pack_index (int tid, int * a, int start, int count) {
+        int pos;
+        int i, j, k, l;
+        for(i = 0; i < count; i++)
+            a[tid%blockDim.x + i * blockDim.x] = 0;
+
+        for(i = 0; i < count; i++)
+        {
+            k = 0;
+            for(j = 0; j < i; j++)
+            {
+                k += a[tid%blockDim.x  + j * blockDim.x] * c_face_child_size[j];
+            }
+            l = c_face_child_size[i];
+            for(j = 0; j < c_face_size[i]; j++)
+            {
+                if (tid - k < l)
+                    break;
+                else 
+                    l += c_face_child_size[i];
+            }
+            a[tid%blockDim.x  + i * blockDim.x] = j;
+        }
+        pos = start;
+        for(i = 0; i < count; i++)
+        {
+            pos += a[tid%blockDim.x  + i * blockDim.x] * c_face_stride[i];
+        }
+	return pos;
+}
+
+//TODO: add support for multiple elements per thread
+template <typename T>
+__global__ void kernel_pack(T *packed_buf, T *buf, int size, int start, int count)
+{
+	//TODO: Expand for multi-dimensional grid/block
+	const int tid = threadIdx.x + blockDim.x * blockIdx.x;
+	extern __shared__ int a[];
+	if (tid < size)	packed_buf[tid] = buf[get_pack_index(tid, a, start, count)];
+}
+
+//TODO: add support for multiple elements per thread
+template <typename T>
+__global__ void kernel_unpack(T *packed_buf, T *buf, int size, int start, int count)
+{
+	//TODO: Expand for multi-dimensional grid/block
+	const int tid = threadIdx.x + blockDim.x * blockIdx.x;
+	extern __shared__ int a[];
+	if (tid < size) buf[get_pack_index(tid, a, start, count)] = packed_buf[tid];
+}
+
+//TODO: Expand to multiple transpose elements per thread
+//#define TRANSPOSE_TILE_DIM (16)
+//#define TRANSPOSE_BLOCK_ROWS (16)
+template <typename T>
+__global__ void kernel_transpose_2d(T *odata, T *idata, int width, int height)
+{
+    __shared__ T tile[TRANSPOSE_TILE_DIM][TRANSPOSE_TILE_DIM+1];
+
+    int blockIdx_x, blockIdx_y;
+
+    // do diagonal reordering
+    if (width == height)
+    {
+        blockIdx_y = blockIdx.x;
+        blockIdx_x = (blockIdx.x+blockIdx.y)%gridDim.x;
+    }
+    else
+    {
+        int bid = blockIdx.x + gridDim.x*blockIdx.y;
+        blockIdx_y = bid%gridDim.y;
+        blockIdx_x = ((bid/gridDim.y)+blockIdx_y)%gridDim.x;
+    }
+
+    int xIndex_in = blockIdx_x * TRANSPOSE_TILE_DIM + threadIdx.x;
+    int yIndex_in = blockIdx_y * TRANSPOSE_TILE_DIM + threadIdx.y;
+    int index_in = xIndex_in + (yIndex_in)*width;
+
+    int xIndex_out = blockIdx_y * TRANSPOSE_TILE_DIM + threadIdx.x;
+    int yIndex_out = blockIdx_x * TRANSPOSE_TILE_DIM + threadIdx.y;
+    int index_out = xIndex_out + (yIndex_out)*height;
+
+    if(xIndex_in < width && yIndex_in < height)
+        tile[threadIdx.y][threadIdx.x] = idata[index_in];
+
+    __syncthreads();
+
+    if(xIndex_out < width && yIndex_out < height)
+        odata[index_out] = tile[threadIdx.x][threadIdx.y];
+
+}
+
+/// END KERNELS
+
+
+/// BEGIN HOST WRAPPERS
 
 cudaError_t cuda_dotProd(size_t (* grid_size)[3], size_t (* block_size)[3], void * data1, void * data2, size_t (* array_size)[3], size_t (* arr_start)[3], size_t (* arr_end)[3], void * reduced_val, accel_type_id type, int async, cudaEvent_t ((*event)[2])) {
 	cudaError_t ret = cudaSuccess;
@@ -291,3 +395,214 @@ cudaError_t cuda_reduce(size_t (* grid_size)[3], size_t (* block_size)[3], void 
 	//TODO consider derailing for an explictly 2D/1D reduce..
 	return(ret);
 }
+
+cudaError_t cuda_transpose_2d_face(size_t (* grid_size)[3], size_t (*block_size)[3], void  *indata, void *outdata, size_t (*dim_xy)[3], accel_type_id type, int async, cudaEvent_t ((*event)[2]))
+{
+	cudaError_t ret = cudaSuccess;
+//	size_t smem_len = (*block_size)[0] * (*block_size)[1] * (*block_size)[2];
+//TODO: Update to actually use user-provided grid/block once multi-element-per-thread
+// scaling is added
+//	dim3 grid = dim3((*grid_size)[0], (*grid_size)[1], 1);
+//	dim3 block = dim3((*block_size)[0], (*block_size)[1], (*block_size)[2]);
+	dim3 grid = dim3(((*dim_xy)[0]+TRANSPOSE_TILE_DIM-1)/TRANSPOSE_TILE_DIM, ((*dim_xy)[1]+TRANSPOSE_TILE_DIM-1)/TRANSPOSE_TILE_DIM, 1);
+	dim3 block = dim3(TRANSPOSE_TILE_DIM, TRANSPOSE_TILE_BLOCK_ROWS, 1);
+	if (event != NULL) {
+		cudaEventCreate(&(*event)[0]);
+		cudaEventRecord((*event)[0], 0);
+	}
+	switch (type) {
+		case a_db:
+			kernel_transpose_2d<double><<<grid, block>>>((double*)outdata, (double*)indata, (*dim_xy)[0], (*dim_xy)[1]);
+		break;
+
+		case a_fl:
+			kernel_transpose_2d<float><<<grid, block>>>((float*)outdata, (float*)indata, (*dim_xy)[0], (*dim_xy)[1]);
+		break;
+
+		case a_ul:
+			kernel_transpose_2d<unsigned long><<<grid, block>>>((unsigned long*)outdata, (unsigned long*)indata, (*dim_xy)[0], (*dim_xy)[1]);
+		break;
+
+		case a_in:
+			kernel_transpose_2d<int><<<grid, block>>>((int*)outdata, (int*)indata, (*dim_xy)[0], (*dim_xy)[1]);
+		break;
+
+		case a_ui:
+			kernel_transpose_2d<unsigned int><<<grid, block>>>((unsigned int*)outdata, (unsigned int*)indata, (*dim_xy)[0], (*dim_xy)[1]);
+		break;
+
+		default:
+			fprintf(stderr, "Error: function 'cuda_transpose_2d_face' not implemented for selected type!\n");
+		break;
+	}
+	if (event != NULL) {
+		cudaEventCreate(&(*event)[1]);
+		cudaEventRecord((*event)[1], 0);
+	}
+	if (!async) ret = cudaThreadSynchronize();
+	//TODO consider derailing for an explictly 2D/1D reduce..
+	return(ret);
+}
+
+cudaError_t cuda_pack_2d_face(size_t (* grid_size)[3], size_t (* block_size)[3], void *packed_buf, void *buf, accel_2d_face_indexed *face, int *remain_dim, accel_type_id type, int async, cudaEvent_t ((*event_k1)[2]), cudaEvent_t ((*event_c1)[2]), cudaEvent_t ((*event_c2)[2]), cudaEvent_t ((*event_c3)[2]))
+{
+	cudaError_t ret = cudaSuccess;
+	size_t smem_size = face->count*256*sizeof(int);
+//TODO: Update to actually use user-provided grid/block once multi-element-per-thread
+// scaling is added
+//	dim3 grid = dim3((*grid_size)[0], (*grid_size)[1], 1);
+//	dim3 block = dim3((*block_size)[0], (*block_size)[1], (*block_size)[2]);
+	
+	//copy required piece of the face struct into constant memory
+	if (event_c1 != NULL) {
+		cudaEventCreate(&(*event_c1)[0]);
+		cudaEventRecord((*event_c1)[0], 0);
+	}
+	cudaMemcpyToSymbol(c_face_size, face->size, face->count*sizeof(int));
+	if (event_c1 != NULL) {
+		cudaEventCreate(&(*event_c1)[1]);
+		cudaEventRecord((*event_c1)[1], 0);
+	}
+
+	if (event_c2 != NULL) {
+		cudaEventCreate(&(*event_c2)[0]);
+		cudaEventRecord((*event_c2)[0], 0);
+	}
+	cudaMemcpyToSymbol(c_face_stride, face->stride, face->count*sizeof(int));
+	if (event_c2 != NULL) {
+		cudaEventCreate(&(*event_c2)[1]);
+		cudaEventRecord((*event_c2)[1], 0);
+	}
+
+	if (event_c3 != NULL) {
+		cudaEventCreate(&(*event_c3)[0]);
+		cudaEventRecord((*event_c3)[0], 0);
+	}
+	cudaMemcpyToSymbol(c_face_child_size, remain_dim, face->count*sizeof(int));
+	if (event_c3 != NULL) {
+		cudaEventCreate(&(*event_c3)[1]);
+		cudaEventRecord((*event_c3)[1], 0);
+	}
+//TODO: Create a grid/block similar to Kaixi's look at mpi_wrap.c to figure out how size is computed
+	if (event_k1 != NULL) {
+		cudaEventCreate(&(*event_k1)[0]);
+		cudaEventRecord((*event_k1)[0], 0);
+	}
+	dim3 grid = dim3((remain_dim[0] + 256 -1)/256, 1, 1);
+	dim3 block = dim3(256, 1, 1);
+	switch (type) {
+		case a_db:
+			kernel_pack<double><<<grid, block, smem_size>>>((double *)packed_buf, (double *)buf, remain_dim[0], face->start, face->count);
+		break;
+
+		case a_fl:
+			kernel_pack<float><<<grid, block, smem_size>>>((float *)packed_buf, (float *)buf, remain_dim[0], face->start, face->count);
+		break;
+
+		case a_ul:
+			kernel_pack<unsigned long><<<grid, block, smem_size>>>((unsigned long *)packed_buf, (unsigned long *)buf, remain_dim[0], face->start, face->count);
+		break;
+
+		case a_in:
+			kernel_pack<int><<<grid, block, smem_size>>>((int *)packed_buf, (int *)buf, remain_dim[0], face->start, face->count);
+		break;
+
+		case a_ui:
+			kernel_pack<unsigned int><<<grid, block, smem_size>>>((unsigned int *)packed_buf, (unsigned int *)buf, remain_dim[0], face->start, face->count);
+		break;
+
+		default:
+			fprintf(stderr, "Error: function 'cuda_pack_2d_face' not implemented for selected type!\n");
+		break;
+	}
+	if (event_k1 != NULL) {
+		cudaEventCreate(&(*event_k1)[1]);
+		cudaEventRecord((*event_k1)[1], 0);
+	}
+	if (!async) ret = cudaThreadSynchronize();
+	//TODO consider derailing for an explictly 2D/1D reduce..
+	return(ret);
+
+}
+
+cudaError_t cuda_unpack_2d_face(size_t (* grid_size)[3], size_t (* block_size)[3], void *packed_buf, void *buf, accel_2d_face_indexed *face, int *remain_dim, accel_type_id type, int async, cudaEvent_t ((*event_k1)[2]), cudaEvent_t ((*event_c1)[2]), cudaEvent_t ((*event_c2)[2]), cudaEvent_t ((*event_c3)[2]))
+{
+	cudaError_t ret = cudaSuccess;
+	size_t smem_size = face->count*256*sizeof(int);
+//TODO: Update to actually use user-provided grid/block once multi-element-per-thread
+// scaling is added
+//	dim3 grid = dim3((*grid_size)[0], (*grid_size)[1], 1);
+//	dim3 block = dim3((*block_size)[0], (*block_size)[1], (*block_size)[2]);
+	
+	//copy required piece of the face struct into constant memory
+	if (event_c1 != NULL) {
+		cudaEventCreate(&(*event_c1)[0]);
+		cudaEventRecord((*event_c1)[0], 0);
+	}
+	cudaMemcpyToSymbol(c_face_size, face->size, face->count*sizeof(int));
+	if (event_c1 != NULL) {
+		cudaEventCreate(&(*event_c1)[1]);
+		cudaEventRecord((*event_c1)[1], 0);
+	}
+
+	if (event_c2 != NULL) {
+		cudaEventCreate(&(*event_c2)[0]);
+		cudaEventRecord((*event_c2)[0], 0);
+	}
+	cudaMemcpyToSymbol(c_face_stride, face->stride, face->count*sizeof(int));
+	if (event_c2 != NULL) {
+		cudaEventCreate(&(*event_c2)[1]);
+		cudaEventRecord((*event_c2)[1], 0);
+	}
+
+	if (event_c3 != NULL) {
+		cudaEventCreate(&(*event_c3)[0]);
+		cudaEventRecord((*event_c3)[0], 0);
+	}
+	cudaMemcpyToSymbol(c_face_child_size, remain_dim, face->count*sizeof(int));
+	if (event_c3 != NULL) {
+		cudaEventCreate(&(*event_c3)[1]);
+		cudaEventRecord((*event_c3)[1], 0);
+	}
+//TODO: Create a grid/block similar to Kaixi's look at mpi_wrap.c to figure out how size is computed
+	if (event_k1 != NULL) {
+		cudaEventCreate(&(*event_k1)[0]);
+		cudaEventRecord((*event_k1)[0], 0);
+	}
+	dim3 grid = dim3((remain_dim[0] + 256 -1)/256, 1, 1);
+	dim3 block = dim3(256, 1, 1);
+	switch (type) {
+		case a_db:
+			kernel_unpack<double><<<grid, block, smem_size>>>((double *)packed_buf, (double *)buf, remain_dim[0], face->start, face->count);
+		break;
+
+		case a_fl:
+			kernel_unpack<float><<<grid, block, smem_size>>>((float *)packed_buf, (float *)buf, remain_dim[0], face->start, face->count);
+		break;
+
+		case a_ul:
+			kernel_unpack<unsigned long><<<grid, block, smem_size>>>((unsigned long *)packed_buf, (unsigned long *)buf, remain_dim[0], face->start, face->count);
+		break;
+
+		case a_in:
+			kernel_unpack<int><<<grid, block, smem_size>>>((int *)packed_buf, (int *)buf, remain_dim[0], face->start, face->count);
+		break;
+
+		case a_ui:
+			kernel_unpack<unsigned int><<<grid, block, smem_size>>>((unsigned int *)packed_buf, (unsigned int *)buf, remain_dim[0], face->start, face->count);
+		break;
+
+		default:
+			fprintf(stderr, "Error: function 'cuda_unpack_2d_face' not implemented for selected type!\n");
+		break;
+	}
+	if (event_k1 != NULL) {
+		cudaEventCreate(&(*event_k1)[1]);
+		cudaEventRecord((*event_k1)[1], 0);
+	}
+	if (!async) ret = cudaThreadSynchronize();
+	//TODO consider derailing for an explictly 2D/1D reduce..
+	return(ret);
+
+}
+

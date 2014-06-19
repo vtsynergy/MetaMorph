@@ -14,7 +14,14 @@
  * Created as part of the AFOSR-BRI <<INSERT PROJECT NAME AND ##>>
  * Virginia Polytechnic Institue and State University, 2013-2014
  *
- * Authors: Paul Sathre
+ * Authors: Paul Sathre (C API, core libs, timers, Fortran API,
+		Fortran/C gluecode, OpenCL context management
+		stack,
+ * 
+ *          Sriram Chivukula (dot-product/reduce prototypes)
+ *
+ *	    Kaixi Hou (transpose prototypes, pack/unpack
+		prototypes, MPI exchange prototypes)
  */
 
 #ifndef AFOSR_CFD_H
@@ -37,6 +44,29 @@ typedef enum {
 	a_uc = 9
 } accel_type_id;
 
+//Define Marshaling option bitmasks
+#define AFOSR_MARSH_OPT_NONE (0)
+#define AFOSR_MARSH_OPT_TRANSPOSE (1)
+
+//Define limits to the face struture
+#define AFOSR_FACE_MAX_DEPTH (10)
+
+//FIXME Transpose shouldn't use hardcoded constants
+//FIXME even if it does, OpenCL will need to pass them during compilation
+//Define limits to transpose
+#define TRANSPOSE_TILE_DIM (16)
+#define TRANSPOSE_TILE_BLOCK_ROWS (16)
+//This needs to be here so cores can all use the face struct
+// for optimized pack/unpack operations
+//Does not include Kaixi's LIB_MARSHALLING_<TYPE> macros, we use accel_type_id instead
+typedef struct {
+	int start; //Starting offset in uni-dimensional buffer
+	int count; //The size of size and stride buffers (number of tree levels)
+	int *size; // The number of samples at each tree level
+	int *stride; //The distance between samples at each tree level
+} accel_2d_face_indexed;
+accel_2d_face_indexed * accel_get_face_index(int s, int c, int *si, int *st);
+int accel_free_face_index(accel_2d_face_indexed * face);
 
 
 //These are global controls over which accelerator "cores" are
@@ -126,6 +156,7 @@ a_err accel_reduce(a_dim3 * grid_size, a_dim3 * block_size, void * data, a_dim3 
 a_err accel_copy_h2d(void * dst, void * src, size_t size, a_bool async);
 a_err accel_copy_d2h(void * dst, void * src, size_t size, a_bool async);
 a_err accel_copy_d2d(void * dst, void * src, size_t size, a_bool async);
+a_err accel_transpose_2d_face(a_dim3 * grid_size, a_dim3 * block_size, void *indata, void *outdata, a_dim3 * dim_xy, accel_type_id type, a_bool async);
 
 //Separate from which core libraries are compiled in, the users
 // should decide whether to compiler with different metrics

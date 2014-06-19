@@ -89,11 +89,15 @@ void copyStackNodeToFrame(accelOpenCLStackNode * t, accelOpenCLStackFrame ** fra
 
 	//From here out, we have hazards
 	//Copy all the parameters - REALLY HAZARDOUS
+
+	//Top-level context info
 	(*frame)->platform = t->frame.platform;
 	(*frame)->device = t->frame.device;
 	(*frame)->context = t->frame.context;
 	(*frame)->queue = t->frame.queue;
 	(*frame)->program_opencl_core = t->frame.program_opencl_core;
+
+	//Kernels
 	(*frame)->kernel_reduce_db = t->frame.kernel_reduce_db;
 	(*frame)->kernel_reduce_fl = t->frame.kernel_reduce_fl;
 	(*frame)->kernel_reduce_ul = t->frame.kernel_reduce_ul;
@@ -104,6 +108,26 @@ void copyStackNodeToFrame(accelOpenCLStackNode * t, accelOpenCLStackFrame ** fra
 	(*frame)->kernel_dotProd_ul = t->frame.kernel_dotProd_ul;
 	(*frame)->kernel_dotProd_in = t->frame.kernel_dotProd_in;
 	(*frame)->kernel_dotProd_ui = t->frame.kernel_dotProd_ui;
+	(*frame)->kernel_transpose_2d_face_db = t->frame.kernel_transpose_2d_face_db;
+	(*frame)->kernel_transpose_2d_face_fl = t->frame.kernel_transpose_2d_face_fl;
+	(*frame)->kernel_transpose_2d_face_ul = t->frame.kernel_transpose_2d_face_ul;
+	(*frame)->kernel_transpose_2d_face_in = t->frame.kernel_transpose_2d_face_in;
+	(*frame)->kernel_transpose_2d_face_ui = t->frame.kernel_transpose_2d_face_ui;
+	(*frame)->kernel_pack_2d_face_db = t->frame.kernel_pack_2d_face_db;
+	(*frame)->kernel_pack_2d_face_fl = t->frame.kernel_pack_2d_face_fl;
+	(*frame)->kernel_pack_2d_face_ul = t->frame.kernel_pack_2d_face_ul;
+	(*frame)->kernel_pack_2d_face_in = t->frame.kernel_pack_2d_face_in;
+	(*frame)->kernel_pack_2d_face_ui = t->frame.kernel_pack_2d_face_ui;
+	(*frame)->kernel_unpack_2d_face_db = t->frame.kernel_unpack_2d_face_db;
+	(*frame)->kernel_unpack_2d_face_fl = t->frame.kernel_unpack_2d_face_fl;
+	(*frame)->kernel_unpack_2d_face_ul = t->frame.kernel_unpack_2d_face_ul;
+	(*frame)->kernel_unpack_2d_face_in = t->frame.kernel_unpack_2d_face_in;
+	(*frame)->kernel_unpack_2d_face_ui = t->frame.kernel_unpack_2d_face_ui;
+	
+	//Internal buffers
+	(*frame)->constant_face_size = t->frame.constant_face_size;
+	(*frame)->constant_face_stride = t->frame.constant_face_stride;
+	(*frame)->constant_face_child_size = t->frame.constant_face_child_size;
 
 	//This should be the end of the hazards;
 }
@@ -111,11 +135,14 @@ void copyStackNodeToFrame(accelOpenCLStackNode * t, accelOpenCLStackFrame ** fra
 //ASSUME HAZARD POINTERS ARE ALREADY SET FOR node BY THE CALLING METHOD
 void copyStackFrameToNode(accelOpenCLStackFrame * f, accelOpenCLStackNode ** node) {
 
+	//Top-level context info
 	(*node)->frame.platform = f->platform;
 	(*node)->frame.device = f->device;
 	(*node)->frame.context = f->context;
 	(*node)->frame.queue = f->queue;
 	(*node)->frame.program_opencl_core = f->program_opencl_core;
+
+	//Kernels
 	(*node)->frame.kernel_reduce_db = f->kernel_reduce_db;
 	(*node)->frame.kernel_reduce_fl = f->kernel_reduce_fl;
 	(*node)->frame.kernel_reduce_ul = f->kernel_reduce_ul;
@@ -126,7 +153,26 @@ void copyStackFrameToNode(accelOpenCLStackFrame * f, accelOpenCLStackNode ** nod
 	(*node)->frame.kernel_dotProd_ul = f->kernel_dotProd_ul;
 	(*node)->frame.kernel_dotProd_in = f->kernel_dotProd_in;
 	(*node)->frame.kernel_dotProd_ui = f->kernel_dotProd_ui;
+	(*node)->frame.kernel_transpose_2d_face_db = f->kernel_transpose_2d_face_db;
+	(*node)->frame.kernel_transpose_2d_face_fl = f->kernel_transpose_2d_face_fl;
+	(*node)->frame.kernel_transpose_2d_face_ul = f->kernel_transpose_2d_face_ul;
+	(*node)->frame.kernel_transpose_2d_face_in = f->kernel_transpose_2d_face_in;
+	(*node)->frame.kernel_transpose_2d_face_ui = f->kernel_transpose_2d_face_ui;
+	(*node)->frame.kernel_pack_2d_face_db = f->kernel_pack_2d_face_db;
+	(*node)->frame.kernel_pack_2d_face_fl = f->kernel_pack_2d_face_fl;
+	(*node)->frame.kernel_pack_2d_face_ul = f->kernel_pack_2d_face_ul;
+	(*node)->frame.kernel_pack_2d_face_in = f->kernel_pack_2d_face_in;
+	(*node)->frame.kernel_pack_2d_face_ui = f->kernel_pack_2d_face_ui;
+	(*node)->frame.kernel_unpack_2d_face_db = f->kernel_unpack_2d_face_db;
+	(*node)->frame.kernel_unpack_2d_face_fl = f->kernel_unpack_2d_face_fl;
+	(*node)->frame.kernel_unpack_2d_face_ul = f->kernel_unpack_2d_face_ul;
+	(*node)->frame.kernel_unpack_2d_face_in = f->kernel_unpack_2d_face_in;
+	(*node)->frame.kernel_unpack_2d_face_ui = f->kernel_unpack_2d_face_ui;
 
+	//Internal Buffers
+	(*node)->frame.constant_face_size = f->constant_face_size;
+	(*node)->frame.constant_face_stride = f->constant_face_stride;
+	(*node)->frame.constant_face_child_size = f->constant_face_child_size;
 }
 
 //For this push to be both exposed and safe from hazards, it must make a copy of the frame
@@ -207,10 +253,21 @@ cl_int accelOpenCLInitStackFrame(accelOpenCLStackFrame ** frame, cl_int device) 
 	}
 	(*frame)->program_opencl_core = clCreateProgramWithSource((*frame)->context, 1, &accelCLProgSrc, &accelCLProgLen, NULL);
 	// Add this debug string if needed: -g -s\"./afosr_cfd_opencl_core.cl\"
+	char * args = NULL;
 	if (getenv("AFOSR_MODE") != NULL) {
-		if (strcmp(getenv("AFOSR_MODE"), "OpenCL") == 0) ret |= clBuildProgram((*frame)->program_opencl_core, 1, &((*frame)->device), "-I .", NULL, NULL);
-		else if (strcmp(getenv("AFOSR_MODE"), "OpenCL_DEBUG") == 0) ret |= clBuildProgram((*frame)->program_opencl_core, 1, &((*frame)->device), "-I . -g -cl-opt-disable", NULL, NULL);
+		if (strcmp(getenv("AFOSR_MODE"), "OpenCL") == 0) {
+			size_t needed = snprintf(NULL, 0, "-I . -D TRANSPOSE_TILE_DIM=(%d) -D TRANSPOSE_TILE_BLOCK_ROWS=(%d)", TRANSPOSE_TILE_DIM, TRANSPOSE_TILE_BLOCK_ROWS);
+			args = (char *)malloc(needed);
+			snprintf(args, needed, "-I . -D TRANSPOSE_TILE_DIM=(%d) -D TRANSPOSE_TILE_BLOCK_ROWS=(%d)", TRANSPOSE_TILE_DIM, TRANSPOSE_TILE_BLOCK_ROWS);
+			ret |= clBuildProgram((*frame)->program_opencl_core, 1, &((*frame)->device), args, NULL, NULL);
+		}
+		else if (strcmp(getenv("AFOSR_MODE"), "OpenCL_DEBUG") == 0) {
+			size_t needed = snprintf(NULL, 0, "-I . -D TRANSPOSE_TILE_DIM=(%d) -D TRANSPOSE_TILE_BLOCK_ROWS=(%d) -g -cl-opt-disable", TRANSPOSE_TILE_DIM, TRANSPOSE_TILE_BLOCK_ROWS);
+			args = (char *)malloc(needed);
+			snprintf(args, needed, "-I . -D TRANSPOSE_TILE_DIM=(%d) -D TRANSPOSE_TILE_BLOCK_ROWS=(%d) -g -cl-opt-disable", TRANSPOSE_TILE_DIM, TRANSPOSE_TILE_BLOCK_ROWS);
+		}
 	}
+	ret |= clBuildProgram((*frame)->program_opencl_core, 1, &((*frame)->device), args, NULL, NULL);
 	//Let us know if there's any errors in the build process
 	if (ret != CL_SUCCESS) {fprintf(stderr, "Error in clBuildProgram: %d!\n", ret); ret = CL_SUCCESS;}
 	//Stub to get build log
@@ -230,7 +287,26 @@ cl_int accelOpenCLInitStackFrame(accelOpenCLStackFrame ** frame, cl_int device) 
 	(*frame)->kernel_dotProd_ul = clCreateKernel((*frame)->program_opencl_core, "kernel_dotProd_ul", NULL);
 	(*frame)->kernel_dotProd_in = clCreateKernel((*frame)->program_opencl_core, "kernel_dotProd_in", NULL);
 	(*frame)->kernel_dotProd_ui = clCreateKernel((*frame)->program_opencl_core, "kernel_dotProd_ui", NULL);
+	(*frame)->kernel_transpose_2d_face_db = clCreateKernel((*frame)->program_opencl_core, "kernel_transpose_2d_db", NULL);
+	(*frame)->kernel_transpose_2d_face_fl = clCreateKernel((*frame)->program_opencl_core, "kernel_transpose_2d_fl", NULL);
+	(*frame)->kernel_transpose_2d_face_ul = clCreateKernel((*frame)->program_opencl_core, "kernel_transpose_2d_ul", NULL);
+	(*frame)->kernel_transpose_2d_face_in = clCreateKernel((*frame)->program_opencl_core, "kernel_transpose_2d_in", NULL);
+	(*frame)->kernel_transpose_2d_face_ui = clCreateKernel((*frame)->program_opencl_core, "kernel_transpose_2d_ui", NULL);
+	(*frame)->kernel_pack_2d_face_db = clCreateKernel((*frame)->program_opencl_core, "kernel_pack_db", NULL);
+	(*frame)->kernel_pack_2d_face_fl = clCreateKernel((*frame)->program_opencl_core, "kernel_pack_fl", NULL);
+	(*frame)->kernel_pack_2d_face_ul = clCreateKernel((*frame)->program_opencl_core, "kernel_pack_ul", NULL);
+	(*frame)->kernel_pack_2d_face_in = clCreateKernel((*frame)->program_opencl_core, "kernel_pack_in", NULL);
+	(*frame)->kernel_pack_2d_face_ui = clCreateKernel((*frame)->program_opencl_core, "kernel_pack_ui", NULL);
+	(*frame)->kernel_unpack_2d_face_db = clCreateKernel((*frame)->program_opencl_core, "kernel_unpack_db", NULL);
+	(*frame)->kernel_unpack_2d_face_fl = clCreateKernel((*frame)->program_opencl_core, "kernel_unpack_fl", NULL);
+	(*frame)->kernel_unpack_2d_face_ul = clCreateKernel((*frame)->program_opencl_core, "kernel_unpack_ul", NULL);
+	(*frame)->kernel_unpack_2d_face_in = clCreateKernel((*frame)->program_opencl_core, "kernel_unpack_in", NULL);
+	(*frame)->kernel_unpack_2d_face_ui = clCreateKernel((*frame)->program_opencl_core, "kernel_unpack_ui", NULL);
 
+	//Allocate any internal buffers necessary for kernel functions
+	(*frame)->constant_face_size = clCreateBuffer((*frame)->context, CL_MEM_READ_ONLY, sizeof(cl_int)*AFOSR_FACE_MAX_DEPTH, NULL, NULL);
+	(*frame)->constant_face_stride = clCreateBuffer((*frame)->context, CL_MEM_READ_ONLY, sizeof(cl_int)*AFOSR_FACE_MAX_DEPTH, NULL, NULL);
+	(*frame)->constant_face_child_size = clCreateBuffer((*frame)->context, CL_MEM_READ_ONLY, sizeof(cl_int)*AFOSR_FACE_MAX_DEPTH, NULL, NULL);
 }
 
 //calls all the necessary CLRelease* calls for frame members
@@ -242,6 +318,7 @@ cl_int accelOpenCLInitStackFrame(accelOpenCLStackFrame ** frame, cl_int device) 
 //	 (more specifically, copying a frame to a node doesn't need to be hazard-aware, as the node cannot be shared unless copied inside the hazard-aware accelOpenCLPushStackFrame. Pop, Top, and copyStackNodeToFrame are all hazard aware and provide a thread-private copy back to the caller.)
 cl_int accelOpenCLDestroyStackFrame(accelOpenCLStackFrame * frame) {
 
+	//Release Kernels
 	clReleaseKernel(frame->kernel_reduce_db);
 	clReleaseKernel(frame->kernel_reduce_fl);
 	clReleaseKernel(frame->kernel_reduce_ul);
@@ -252,6 +329,28 @@ cl_int accelOpenCLDestroyStackFrame(accelOpenCLStackFrame * frame) {
 	clReleaseKernel(frame->kernel_dotProd_ul);
 	clReleaseKernel(frame->kernel_dotProd_in);
 	clReleaseKernel(frame->kernel_dotProd_ui);
+	clReleaseKernel(frame->kernel_transpose_2d_face_db);
+	clReleaseKernel(frame->kernel_transpose_2d_face_fl);
+	clReleaseKernel(frame->kernel_transpose_2d_face_ul);
+	clReleaseKernel(frame->kernel_transpose_2d_face_in);
+	clReleaseKernel(frame->kernel_transpose_2d_face_ui);
+	clReleaseKernel(frame->kernel_pack_2d_face_db);
+	clReleaseKernel(frame->kernel_pack_2d_face_fl);
+	clReleaseKernel(frame->kernel_pack_2d_face_ul);
+	clReleaseKernel(frame->kernel_pack_2d_face_in);
+	clReleaseKernel(frame->kernel_pack_2d_face_ui);
+	clReleaseKernel(frame->kernel_unpack_2d_face_db);
+	clReleaseKernel(frame->kernel_unpack_2d_face_fl);
+	clReleaseKernel(frame->kernel_unpack_2d_face_ul);
+	clReleaseKernel(frame->kernel_unpack_2d_face_in);
+	clReleaseKernel(frame->kernel_unpack_2d_face_ui);
+
+	//Release Internal Buffers
+	clReleaseMemObject(frame->constant_face_size);
+	clReleaseMemObject(frame->constant_face_stride);
+	clReleaseMemObject(frame->constant_face_child_size);
+
+	//Release remaining context info
 	clReleaseProgram(frame->program_opencl_core);
 	clReleaseCommandQueue(frame->queue);
 	clReleaseContext(frame->context);
@@ -496,6 +595,197 @@ cl_int opencl_reduce(size_t (* grid_size)[3], size_t (* block_size)[3], void * d
 			fprintf(stderr, "Error: unexpected type, cannot set shared memory size in 'opencl_reduce'!\n");
 	}
 	ret |= clEnqueueNDRangeKernel(frame->queue, kern, 3, NULL, grid, block, 0, NULL, event);
+	
+	//TODO find a way to make explicit sync optional
+	if (!async) ret |= clFinish(frame->queue);
+	//printf("CHECK THIS! %d\n", ret);
+	//free the copy of the top stack frame, DO NOT release it's members
+	free(frame);
+
+	return(ret);
+}
+
+cl_int opencl_transpose_2d_face(size_t (* grid_size)[3], size_t (* block_size)[3], void * indata, void *outdata, size_t (* dim_xy)[3], accel_type_id type, int async, cl_event * event) {
+	cl_int ret;
+	cl_kernel kern;
+	cl_int smem_len =  (*block_size)[0] * (*block_size)[1] * (*block_size)[2];
+// TODO update to use user provided grid/block once multi-element per thread scaling is added
+//	size_t grid[3] = {(*grid_size)[0]*(*block_size)[0], (*grid_size)[1]*(*block_size)[1], (*block_size)[2]};
+//	size_t block[3] = {(*block_size)[0], (*block_size)[1], (*block_size)[2]};
+	size_t grid[3] = {((*dim_xy)[0]+TRANSPOSE_TILE_DIM-1)/TRANSPOSE_TILE_DIM, ((*dim_xy)[1]+TRANSPOSE_TILE_DIM-1)/TRANSPOSE_TILE_DIM, 1};
+	size_t block[3] = {TRANSPOSE_TILE_DIM, TRANSPOSE_TILE_BLOCK_ROWS, 1};
+	//TODO as the frame grows larger with more kernels, this overhead will start to add up
+	// Need a better (safe) way of accessing the stack for kernel launches
+	//before enqueuing, get a copy of the top stack frame
+	accelOpenCLStackFrame * frame = accelOpenCLTopStackFrame();
+	
+	switch (type) {
+		case a_db:
+			kern = frame->kernel_transpose_2d_face_db;
+			break;
+
+		case a_fl:
+			kern = frame->kernel_transpose_2d_face_fl;
+			break;
+
+		case a_ul:
+			kern = frame->kernel_transpose_2d_face_ul;
+			break;
+
+		case a_in:
+			kern = frame->kernel_transpose_2d_face_in;
+			break;
+
+		case a_ui:
+			kern = frame->kernel_transpose_2d_face_ui;
+			break;
+
+		default:
+			fprintf(stderr, "Error: Function 'opencl_transpose_2d_face' not implemented for selected type!\n");
+			return -1;
+			break;
+
+	}
+	ret =  clSetKernelArg(kern, 0, sizeof(cl_mem *), &outdata);
+	ret |= clSetKernelArg(kern, 1, sizeof(cl_mem *), &indata);
+	ret |= clSetKernelArg(kern, 2, sizeof(cl_int), &(*dim_xy)[0]);
+	ret |= clSetKernelArg(kern, 3, sizeof(cl_int), &(*dim_xy)[1]);
+	ret |= clEnqueueNDRangeKernel(frame->queue, kern, 2, NULL, grid, block, 0, NULL, event);
+	
+	//TODO find a way to make explicit sync optional
+	if (!async) ret |= clFinish(frame->queue);
+	//free the copy of the top stack frame, DO NOT release it's members
+	free(frame);
+
+	return(ret);
+}
+
+cl_int opencl_pack_2d_face(size_t (* grid_size)[3], size_t (* block_size)[3], void *packed_buf, void *buf, accel_2d_face_indexed *face, int *remain_dim, accel_type_id type, int async, cl_event * event_k1, cl_event * event_c1, cl_event *event_c2, cl_event *event_c3) {
+	cl_int ret;
+	cl_kernel kern;
+	cl_int smem_size =  face->count*256*sizeof(int);
+	//before enqueuing, get a copy of the top stack frame
+	accelOpenCLStackFrame * frame = accelOpenCLTopStackFrame();
+
+	//copy required pieces of the face struct into constant memory
+	ret = clEnqueueWriteBuffer(frame->queue, frame->constant_face_size, ((async) ? CL_FALSE : CL_TRUE), 0, sizeof(cl_int)*face->count, face->size, 0, NULL, event_c1);
+	ret |= clEnqueueWriteBuffer(frame->queue, frame->constant_face_stride, ((async) ? CL_FALSE : CL_TRUE), 0, sizeof(cl_int)*face->count, face->stride, 0, NULL, event_c2);
+	ret |= clEnqueueWriteBuffer(frame->queue, frame->constant_face_child_size, ((async) ? CL_FALSE : CL_TRUE), 0, sizeof(cl_int)*face->count, remain_dim, 0, NULL, event_c2);
+//TODO update to use user-provided grid/block once multi-element per thread scaling is added
+//	size_t grid[3] = {(*grid_size)[0]*(*block_size)[0], (*grid_size)[1]*(*block_size)[1], (*block_size)[2]};
+//	size_t block[3] = {(*block_size)[0], (*block_size)[1], (*block_size)[2]};
+	size_t grid[3] = {(remain_dim[0]+256-1)/256, 1, 1};
+	size_t block[3] = {256, 1, 1};
+//TODO Timing needs to be made consistent with CUDA (ie the event should return time for copying to constant memory and the kernel
+	
+	switch (type) {
+		case a_db:
+			kern = frame->kernel_pack_2d_face_db;
+			break;
+
+		case a_fl:
+			kern = frame->kernel_pack_2d_face_fl;
+			break;
+
+		case a_ul:
+			kern = frame->kernel_pack_2d_face_ul;
+			break;
+
+		case a_in:
+			kern = frame->kernel_pack_2d_face_in;
+			break;
+
+		case a_ui:
+			kern = frame->kernel_pack_2d_face_ui;
+			break;
+
+		default:
+			fprintf(stderr, "Error: Function 'opencl_pack_2d_face' not implemented for selected type!\n");
+			return -1;
+			break;
+
+	}
+	//printf("Grid: %d %d %d\n", grid[0], grid[1], grid[2]);
+	//printf("Block: %d %d %d\n", block[0], block[1], block[2]);
+	//printf("Size: %d %d %d\n", (*array_size)[0], (*array_size)[1], (*array_size)[2]);
+	//printf("Start: %d %d %d\n", (*arr_start)[0], (*arr_start)[1], (*arr_start)[2]);
+	//printf("End: %d %d %d\n", (*arr_end)[1], (*arr_end)[0], (*arr_end)[2]);
+	//printf("SMEM: %d\n", smem_len);
+
+	ret =  clSetKernelArg(kern, 0, sizeof(cl_mem *), &packed_buf);
+	ret |= clSetKernelArg(kern, 1, sizeof(cl_mem *), &buf);
+	ret |= clSetKernelArg(kern, 2, sizeof(cl_int), &remain_dim[0]);
+	ret |= clSetKernelArg(kern, 3, sizeof(cl_int), &(face->start));
+	ret |= clSetKernelArg(kern, 4, sizeof(cl_int), &(face->count));
+	ret |= clEnqueueNDRangeKernel(frame->queue, kern, 1, NULL, grid, block, 0, NULL, event_k1);
+	
+	//TODO find a way to make explicit sync optional
+	if (!async) ret |= clFinish(frame->queue);
+	//printf("CHECK THIS! %d\n", ret);
+	//free the copy of the top stack frame, DO NOT release it's members
+	free(frame);
+
+	return(ret);
+}
+
+cl_int opencl_unpack_2d_face(size_t (* grid_size)[3], size_t (* block_size)[3], void *packed_buf, void *buf, accel_2d_face_indexed *face, int *remain_dim, accel_type_id type, int async, cl_event * event_k1, cl_event * event_c1, cl_event *event_c2, cl_event *event_c3) {
+	cl_int ret;
+	cl_kernel kern;
+	cl_int smem_size =  face->count*256*sizeof(int);
+	//before enqueuing, get a copy of the top stack frame
+	accelOpenCLStackFrame * frame = accelOpenCLTopStackFrame();
+
+	//copy required pieces of the face struct into constant memory
+	ret = clEnqueueWriteBuffer(frame->queue, frame->constant_face_size, ((async) ? CL_FALSE : CL_TRUE), 0, sizeof(cl_int)*face->count, face->size, 0, NULL, event_c1);
+	ret |= clEnqueueWriteBuffer(frame->queue, frame->constant_face_stride, ((async) ? CL_FALSE : CL_TRUE), 0, sizeof(cl_int)*face->count, face->stride, 0, NULL, event_c2);
+	ret |= clEnqueueWriteBuffer(frame->queue, frame->constant_face_child_size, ((async) ? CL_FALSE : CL_TRUE), 0, sizeof(cl_int)*face->count, remain_dim, 0, NULL, event_c2);
+//TODO update to use user-provided grid/block once multi-element per thread scaling is added
+//	size_t grid[3] = {(*grid_size)[0]*(*block_size)[0], (*grid_size)[1]*(*block_size)[1], (*block_size)[2]};
+//	size_t block[3] = {(*block_size)[0], (*block_size)[1], (*block_size)[2]};
+	size_t grid[3] = {(remain_dim[0]+256-1)/256, 1, 1};
+	size_t block[3] = {256, 1, 1};
+//TODO Timing needs to be made consistent with CUDA (ie the event should return time for copying to constant memory and the kernel
+	
+	switch (type) {
+		case a_db:
+			kern = frame->kernel_unpack_2d_face_db;
+			break;
+
+		case a_fl:
+			kern = frame->kernel_unpack_2d_face_fl;
+			break;
+
+		case a_ul:
+			kern = frame->kernel_unpack_2d_face_ul;
+			break;
+
+		case a_in:
+			kern = frame->kernel_unpack_2d_face_in;
+			break;
+
+		case a_ui:
+			kern = frame->kernel_unpack_2d_face_ui;
+			break;
+
+		default:
+			fprintf(stderr, "Error: Function 'opencl_unpack_2d_face' not implemented for selected type!\n");
+			return -1;
+			break;
+
+	}
+	//printf("Grid: %d %d %d\n", grid[0], grid[1], grid[2]);
+	//printf("Block: %d %d %d\n", block[0], block[1], block[2]);
+	//printf("Size: %d %d %d\n", (*array_size)[0], (*array_size)[1], (*array_size)[2]);
+	//printf("Start: %d %d %d\n", (*arr_start)[0], (*arr_start)[1], (*arr_start)[2]);
+	//printf("End: %d %d %d\n", (*arr_end)[1], (*arr_end)[0], (*arr_end)[2]);
+	//printf("SMEM: %d\n", smem_len);
+
+	ret =  clSetKernelArg(kern, 0, sizeof(cl_mem *), &packed_buf);
+	ret |= clSetKernelArg(kern, 1, sizeof(cl_mem *), &buf);
+	ret |= clSetKernelArg(kern, 2, sizeof(cl_int), &remain_dim[0]);
+	ret |= clSetKernelArg(kern, 3, sizeof(cl_int), &(face->start));
+	ret |= clSetKernelArg(kern, 4, sizeof(cl_int), &(face->count));
+	ret |= clEnqueueNDRangeKernel(frame->queue, kern, 1, NULL, grid, block, 0, NULL, event_k1);
 	
 	//TODO find a way to make explicit sync optional
 	if (!async) ret |= clFinish(frame->queue);

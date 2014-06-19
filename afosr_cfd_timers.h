@@ -73,8 +73,12 @@ typedef enum accelTimerQueueEnum {
 	c_H2D,
 	c_H2H,
 	c_D2D,
+	c_H2Dc, //Host to Device copies into __constant memory (cudaMemcpyToSymbol and CL_MEM_READ_ONLY)
 	k_reduce,
 	k_dotProd,
+	k_transpose_2d_face,
+	k_pack_2d_face,
+	k_unpack_2d_face,
 	//Special value used just to determine the size of the enum automagically
 	// only works if we don't set explicit values for anything, and let it start from 0
 	queue_count

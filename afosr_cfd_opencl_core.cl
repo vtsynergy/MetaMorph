@@ -479,7 +479,7 @@ __kernel void kernel_reduce_in(__global int *phi,
 }
 
 
-__kernel void kernel_reduce(__global unsigned int *phi,
+__kernel void kernel_reduce_ui(__global unsigned int *phi,
 		int i, int j, int k,
 		int sx, int sy, int sz,
 		int ex, int ey, int ez, 
@@ -512,6 +512,294 @@ __kernel void kernel_reduce(__global unsigned int *phi,
 
 	if(tid == 0) atomic_add(reduction,psum[0]);
 }
+//TODO make sure these defines are sent down from the host
+#define TRANSPOSE_TILE_DIM (16)
+#define TRANSPOSE_BLOCK_ROWS (16)
+
+__kernel void kernel_transpose_2d_db(__global double *odata, __global double *idata, int width, int height)
+{
+    __local double tile[TRANSPOSE_TILE_DIM][TRANSPOSE_TILE_DIM+1];
+
+    int blockIdx_x, blockIdx_y;
+
+    // do diagonal reordering
+    if (width == height)
+    {
+        blockIdx_y = get_group_id(0);
+        blockIdx_x = (get_group_id(0)+get_group_id(1))%get_num_groups(0);
+    }
+    else
+    {
+        int bid = get_group_id(0) + get_num_groups(0)*get_group_id(1);
+        blockIdx_y = bid%get_num_groups(1);
+        blockIdx_x = ((bid/get_num_groups(1))+blockIdx_y)%get_num_groups(0);
+    }
+
+    int xIndex_in = blockIdx_x * TRANSPOSE_TILE_DIM + get_local_id(0);
+    int yIndex_in = blockIdx_y * TRANSPOSE_TILE_DIM + get_local_id(1);
+    int index_in = xIndex_in + (yIndex_in)*width;
+
+    int xIndex_out = blockIdx_y * TRANSPOSE_TILE_DIM + get_local_id(0);
+    int yIndex_out = blockIdx_x * TRANSPOSE_TILE_DIM + get_local_id(1);
+    int index_out = xIndex_out + (yIndex_out)*height;
+
+    if(xIndex_in < width && yIndex_in < height)
+        tile[get_local_id(1)][get_local_id(0)] = idata[index_in];
+
+    barrier(CLK_LOCAL_MEM_FENCE | CLK_GLOBAL_MEM_FENCE);
+
+    if(xIndex_out < width && yIndex_out < height)
+        odata[index_out] = tile[get_local_id(0)][get_local_id(1)];
+
+}
+
+__kernel void kernel_transpose_2d_fl(__global float *odata, __global float *idata, int width, int height)
+{
+    __local float tile[TRANSPOSE_TILE_DIM][TRANSPOSE_TILE_DIM+1];
+
+    int blockIdx_x, blockIdx_y;
+
+    // do diagonal reordering
+    if (width == height)
+    {
+        blockIdx_y = get_group_id(0);
+        blockIdx_x = (get_group_id(0)+get_group_id(1))%get_num_groups(0);
+    }
+    else
+    {
+        int bid = get_group_id(0) + get_num_groups(0)*get_group_id(1);
+        blockIdx_y = bid%get_num_groups(1);
+        blockIdx_x = ((bid/get_num_groups(1))+blockIdx_y)%get_num_groups(0);
+    }
+
+    int xIndex_in = blockIdx_x * TRANSPOSE_TILE_DIM + get_local_id(0);
+    int yIndex_in = blockIdx_y * TRANSPOSE_TILE_DIM + get_local_id(1);
+    int index_in = xIndex_in + (yIndex_in)*width;
+
+    int xIndex_out = blockIdx_y * TRANSPOSE_TILE_DIM + get_local_id(0);
+    int yIndex_out = blockIdx_x * TRANSPOSE_TILE_DIM + get_local_id(1);
+    int index_out = xIndex_out + (yIndex_out)*height;
+
+    if(xIndex_in < width && yIndex_in < height)
+        tile[get_local_id(1)][get_local_id(0)] = idata[index_in];
+
+    barrier(CLK_LOCAL_MEM_FENCE | CLK_GLOBAL_MEM_FENCE);
+
+    if(xIndex_out < width && yIndex_out < height)
+        odata[index_out] = tile[get_local_id(0)][get_local_id(1)];
+
+}
+
+__kernel void kernel_transpose_2d_ul(__global unsigned long *odata, __global unsigned long *idata, int width, int height)
+{
+    __local unsigned long tile[TRANSPOSE_TILE_DIM][TRANSPOSE_TILE_DIM+1];
+
+    int blockIdx_x, blockIdx_y;
+
+    // do diagonal reordering
+    if (width == height)
+    {
+        blockIdx_y = get_group_id(0);
+        blockIdx_x = (get_group_id(0)+get_group_id(1))%get_num_groups(0);
+    }
+    else
+    {
+        int bid = get_group_id(0) + get_num_groups(0)*get_group_id(1);
+        blockIdx_y = bid%get_num_groups(1);
+        blockIdx_x = ((bid/get_num_groups(1))+blockIdx_y)%get_num_groups(0);
+    }
+
+    int xIndex_in = blockIdx_x * TRANSPOSE_TILE_DIM + get_local_id(0);
+    int yIndex_in = blockIdx_y * TRANSPOSE_TILE_DIM + get_local_id(1);
+    int index_in = xIndex_in + (yIndex_in)*width;
+
+    int xIndex_out = blockIdx_y * TRANSPOSE_TILE_DIM + get_local_id(0);
+    int yIndex_out = blockIdx_x * TRANSPOSE_TILE_DIM + get_local_id(1);
+    int index_out = xIndex_out + (yIndex_out)*height;
+
+    if(xIndex_in < width && yIndex_in < height)
+        tile[get_local_id(1)][get_local_id(0)] = idata[index_in];
+
+    barrier(CLK_LOCAL_MEM_FENCE | CLK_GLOBAL_MEM_FENCE);
+
+    if(xIndex_out < width && yIndex_out < height)
+        odata[index_out] = tile[get_local_id(0)][get_local_id(1)];
+
+}
+
+__kernel void kernel_transpose_2d_in(__global int *odata, __global int *idata, int width, int height)
+{
+    __local int tile[TRANSPOSE_TILE_DIM][TRANSPOSE_TILE_DIM+1];
+
+    int blockIdx_x, blockIdx_y;
+
+    // do diagonal reordering
+    if (width == height)
+    {
+        blockIdx_y = get_group_id(0);
+        blockIdx_x = (get_group_id(0)+get_group_id(1))%get_num_groups(0);
+    }
+    else
+    {
+        int bid = get_group_id(0) + get_num_groups(0)*get_group_id(1);
+        blockIdx_y = bid%get_num_groups(1);
+        blockIdx_x = ((bid/get_num_groups(1))+blockIdx_y)%get_num_groups(0);
+    }
+
+    int xIndex_in = blockIdx_x * TRANSPOSE_TILE_DIM + get_local_id(0);
+    int yIndex_in = blockIdx_y * TRANSPOSE_TILE_DIM + get_local_id(1);
+    int index_in = xIndex_in + (yIndex_in)*width;
+
+    int xIndex_out = blockIdx_y * TRANSPOSE_TILE_DIM + get_local_id(0);
+    int yIndex_out = blockIdx_x * TRANSPOSE_TILE_DIM + get_local_id(1);
+    int index_out = xIndex_out + (yIndex_out)*height;
+
+    if(xIndex_in < width && yIndex_in < height)
+        tile[get_local_id(1)][get_local_id(0)] = idata[index_in];
+
+    barrier(CLK_LOCAL_MEM_FENCE | CLK_GLOBAL_MEM_FENCE);
+
+    if(xIndex_out < width && yIndex_out < height)
+        odata[index_out] = tile[get_local_id(0)][get_local_id(1)];
+
+}
+
+__kernel void kernel_transpose_2d_ui(__global unsigned int *odata, __global unsigned int *idata, int width, int height)
+{
+    __local unsigned int tile[TRANSPOSE_TILE_DIM][TRANSPOSE_TILE_DIM+1];
+
+    int blockIdx_x, blockIdx_y;
+
+    // do diagonal reordering
+    if (width == height)
+    {
+        blockIdx_y = get_group_id(0);
+        blockIdx_x = (get_group_id(0)+get_group_id(1))%get_num_groups(0);
+    }
+    else
+    {
+        int bid = get_group_id(0) + get_num_groups(0)*get_group_id(1);
+        blockIdx_y = bid%get_num_groups(1);
+        blockIdx_x = ((bid/get_num_groups(1))+blockIdx_y)%get_num_groups(0);
+    }
+
+    int xIndex_in = blockIdx_x * TRANSPOSE_TILE_DIM + get_local_id(0);
+    int yIndex_in = blockIdx_y * TRANSPOSE_TILE_DIM + get_local_id(1);
+    int index_in = xIndex_in + (yIndex_in)*width;
+
+    int xIndex_out = blockIdx_y * TRANSPOSE_TILE_DIM + get_local_id(0);
+    int yIndex_out = blockIdx_x * TRANSPOSE_TILE_DIM + get_local_id(1);
+    int index_out = xIndex_out + (yIndex_out)*height;
+
+    if(xIndex_in < width && yIndex_in < height)
+        tile[get_local_id(1)][get_local_id(0)] = idata[index_in];
+
+    barrier(CLK_LOCAL_MEM_FENCE | CLK_GLOBAL_MEM_FENCE);
+
+    if(xIndex_out < width && yIndex_out < height)
+        odata[index_out] = tile[get_local_id(0)][get_local_id(1)];
+
+}
+int get_pack_index (int tid, __local int * a, int start, int count, __constant int * c_face_size, __constant int * c_face_stride, __constant int * c_face_child_size) {
+        int i, j, k, l;
+        int pos;
+        for(i = 0; i < count; i++)
+            a[tid%get_local_size(0) + i * get_local_size(0)] = 0;
+
+        for(i = 0; i < count; i++)
+        {
+            k = 0;
+            for(j = 0; j < i; j++)
+            {
+                k += a[tid%get_local_size(0) + j * get_local_size(0)] * c_face_child_size[j];
+            }
+            l = c_face_child_size[i];
+            for(j = 0; j < c_face_size[i]; j++)
+            {
+                if (tid - k < l)
+                    break;
+                else 
+                    l += c_face_child_size[i];
+            }
+            a[tid%get_local_size(0) + i * get_local_size(0)] = j;
+        }
+        pos = start;
+        for(i = 0; i < count; i++)
+        {
+            pos += a[tid%get_local_size(0) + i * get_local_size(0)] * c_face_stride[i];
+        }
+	return pos;
+}
+
+__kernel void kernel_pack_db(__global double *packed_buf, __global double *buf, int size, int start, int count, __constant int * c_face_size, __constant int * c_face_stride, __constant int * c_face_child_size, __local int *a)
+{
+	//TODO expand for multi-dimensional grid/block
+    const int tid = get_local_id(0) + get_local_size(0) * get_group_id(0);
+    if(tid < size) packed_buf[tid] = buf[get_pack_index(tid, a, start, count, c_face_size, c_face_stride, c_face_child_size)];
+}
+
+__kernel void kernel_pack_fl(__global float *packed_buf, __global float *buf, int size, int start, int count, __constant int * c_face_size, __constant int * c_face_stride, __constant int * c_face_child_size, __local int *a)
+{
+	//TODO expand for multi-dimensional grid/block
+    const int tid = get_local_id(0) + get_local_size(0) * get_group_id(0);
+    if(tid < size) packed_buf[tid] = buf[get_pack_index(tid, a, start, count, c_face_size, c_face_stride, c_face_child_size)];
+}
+
+__kernel void kernel_pack_ul(__global unsigned long *packed_buf, __global unsigned long *buf, int size, int start, int count, __constant int * c_face_size, __constant int * c_face_stride, __constant int * c_face_child_size, __local int *a)
+{
+	//TODO expand for multi-dimensional grid/block
+    const int tid = get_local_id(0) + get_local_size(0) * get_group_id(0);
+    if(tid < size) packed_buf[tid] = buf[get_pack_index(tid, a, start, count, c_face_size, c_face_stride, c_face_child_size)];
+}
+
+__kernel void kernel_pack_in(__global int *packed_buf, __global int *buf, int size, int start, int count, __constant int * c_face_size, __constant int * c_face_stride, __constant int * c_face_child_size, __local int *a)
+{
+	//TODO expand for multi-dimensional grid/block
+    const int tid = get_local_id(0) + get_local_size(0) * get_group_id(0);
+    if(tid < size) packed_buf[tid] = buf[get_pack_index(tid, a, start, count, c_face_size, c_face_stride, c_face_child_size)];
+}
+
+__kernel void kernel_pack_ui(__global unsigned int *packed_buf, __global unsigned int *buf, int size, int start, int count, __constant int * c_face_size, __constant int * c_face_stride, __constant int * c_face_child_size, __local int *a)
+{
+	//TODO expand for multi-dimensional grid/block
+    const int tid = get_local_id(0) + get_local_size(0) * get_group_id(0);
+    if(tid < size) packed_buf[tid] = buf[get_pack_index(tid, a, start, count, c_face_size, c_face_stride, c_face_child_size)];
+}
 
 
+
+__kernel void kernel_unpack_db(__global double *packed_buf, __global double *buf, int size, int start, int count, __constant int * c_face_size, __constant int * c_face_stride, __constant int * c_face_child_size, __local int *a)
+{
+	//TODO expand for multi-dimensional grid/block
+    const int tid = get_local_id(0) + get_local_size(0) * get_group_id(0);
+    if(tid < size) buf[get_pack_index(tid, a, start, count, c_face_size, c_face_stride, c_face_child_size)] = packed_buf[tid];
+}
+
+__kernel void kernel_unpack_fl(__global float *packed_buf, __global float *buf, int size, int start, int count, __constant int * c_face_size, __constant int * c_face_stride, __constant int * c_face_child_size, __local int *a)
+{
+	//TODO expand for multi-dimensional grid/block
+    const int tid = get_local_id(0) + get_local_size(0) * get_group_id(0);
+    if(tid < size) buf[get_pack_index(tid, a, start, count, c_face_size, c_face_stride, c_face_child_size)] = packed_buf[tid];
+}
+
+__kernel void kernel_unpack_ul(__global unsigned long *packed_buf, __global unsigned long *buf, int size, int start, int count, __constant int * c_face_size, __constant int * c_face_stride, __constant int * c_face_child_size, __local int *a)
+{
+	//TODO expand for multi-dimensional grid/block
+    const int tid = get_local_id(0) + get_local_size(0) * get_group_id(0);
+    if(tid < size) buf[get_pack_index(tid, a, start, count, c_face_size, c_face_stride, c_face_child_size)] = packed_buf[tid];
+}
+
+__kernel void kernel_unpack_in(__global int *packed_buf, __global int *buf, int size, int start, int count, __constant int * c_face_size, __constant int * c_face_stride, __constant int * c_face_child_size, __local int *a)
+{
+	//TODO expand for multi-dimensional grid/block
+    const int tid = get_local_id(0) + get_local_size(0) * get_group_id(0);
+    if(tid < size) buf[get_pack_index(tid, a, start, count, c_face_size, c_face_stride, c_face_child_size)] = packed_buf[tid];
+}
+
+__kernel void kernel_unpack_ui(__global unsigned int *packed_buf, __global unsigned int *buf, int size, int start, int count, __constant int * c_face_size, __constant int * c_face_stride, __constant int * c_face_child_size, __local int *a)
+{
+	//TODO expand for multi-dimensional grid/block
+    const int tid = get_local_id(0) + get_local_size(0) * get_group_id(0);
+    if(tid < size) buf[get_pack_index(tid, a, start, count, c_face_size, c_face_stride, c_face_child_size)] = packed_buf[tid];
+}
 

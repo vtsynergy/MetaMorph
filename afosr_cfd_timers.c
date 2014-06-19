@@ -93,6 +93,12 @@ a_err accelTimersInit() {
 	accelBuiltinQueues[c_D2D].head->next = NULL;
 	accelBuiltinQueues[c_D2D].name = "Device to Device transfer";
 
+	//Init the host-to-device (constant) copy queue
+	accelBuiltinQueues[c_H2Dc].head = accelBuiltinQueues[c_H2Dc].tail = malloc(sizeof(accelTimerQueueNode));
+	accelBuiltinQueues[c_H2Dc].head->mode = -1;
+	accelBuiltinQueues[c_H2Dc].head->next = NULL;
+	accelBuiltinQueues[c_H2Dc].name = "Host to Constant transfer";
+
 	//Init the Reduction kernel queue
 	accelBuiltinQueues[k_reduce].head = accelBuiltinQueues[k_reduce].tail = malloc(sizeof(accelTimerQueueNode));
 	accelBuiltinQueues[k_reduce].head->mode = -1;
@@ -104,6 +110,24 @@ a_err accelTimersInit() {
 	accelBuiltinQueues[k_dotProd].head->mode = -1;
 	accelBuiltinQueues[k_dotProd].head->next = NULL;
 	accelBuiltinQueues[k_dotProd].name = "Dot Product kernel call";
+
+	//Init the Dot Product kernel queue
+	accelBuiltinQueues[k_transpose_2d_face].head = accelBuiltinQueues[k_transpose_2d_face].tail = malloc(sizeof(accelTimerQueueNode));
+	accelBuiltinQueues[k_transpose_2d_face].head->mode = -1;
+	accelBuiltinQueues[k_transpose_2d_face].head->next = NULL;
+	accelBuiltinQueues[k_transpose_2d_face].name = "Transpose 2DFace kernel call";
+
+	//Init the Dot Product kernel queue
+	accelBuiltinQueues[k_pack_2d_face].head = accelBuiltinQueues[k_pack_2d_face].tail = malloc(sizeof(accelTimerQueueNode));
+	accelBuiltinQueues[k_pack_2d_face].head->mode = -1;
+	accelBuiltinQueues[k_pack_2d_face].head->next = NULL;
+	accelBuiltinQueues[k_pack_2d_face].name = "Pack 2DFace kernel call";
+
+	//Init the Dot Product kernel queue
+	accelBuiltinQueues[k_unpack_2d_face].head = accelBuiltinQueues[k_unpack_2d_face].tail = malloc(sizeof(accelTimerQueueNode));
+	accelBuiltinQueues[k_unpack_2d_face].head->mode = -1;
+	accelBuiltinQueues[k_unpack_2d_face].head->next = NULL;
+	accelBuiltinQueues[k_unpack_2d_face].name = "Unpack 2DFace kernel call";
 }
 
 //Workhorse that loops over a queue until it receives an empty signal
