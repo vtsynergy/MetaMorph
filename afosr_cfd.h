@@ -151,12 +151,71 @@ a_err accel_free(void * ptr);
 a_err choose_accel(int accel, accel_preferred_mode mode);
 a_err get_accel(int * accel, accel_preferred_mode * mode);
 a_err accel_validate_worksize(a_dim3 * grid_size, a_dim3 * block_size);
+
+//Some OpenCL implementations (may) not provide the CL_CALLBACK convention
+#ifdef WITH_OPENCL
+	#ifndef CL_CALLBACK
+		#define CL_CALLBACK
+	#endif
+#endif
+typedef union accel_callback {
+	#ifdef WITH_CUDA
+		void (CUDART_CB * cudaCallback)(cudaStream_t stream, cudaError_t status, void *data);
+	#endif //WITH_CUDA
+	#ifdef WITH_OPENCL
+		void (CL_CALLBACK * openclCallback)(cl_event event, cl_int status, void * data);
+	#endif //WITH_OPENCL
+} accel_callback;
+
+#ifdef WITH_CUDA
+	typedef struct cuda_callback_payload {
+		cudaStream_t stream;
+		cudaError_t status;
+		void * data;
+	} cuda_callback_payload;
+#endif //WITH_CUDA
+
+#ifdef WITH_CUDA
+	typedef struct opencl_callback_payload {
+		cl_event event;
+		cl_int status;
+		void * data;
+	} opencl_callback_payload;
+#endif //WITH_OPENCL
+
+typedef union accel_callback_payload {
+	#ifdef WITH_CUDA
+		cuda_callback_payload cuda_pl;
+	#endif //WITH_CUDA
+	#ifdef WITH_OPENCL
+		opencl_callback_payload opencl_pl;
+	#endif //WITH_OPENCL
+} accel_callback_payload;
+
+
+//Kernels and transfers with callbacks
+a_err accel_dotProd(a_dim3 * grid_size, a_dim3 * block_size, void * data1, void * data2, a_dim3 * array_size, a_dim3 * array_start, a_dim3 * array_end, void * reduction_var, accel_type_id type, a_bool async, accel_callback call, accel_callback_payload call_pl);
+a_err accel_reduce(a_dim3 * grid_size, a_dim3 * block_size, void * data, a_dim3 * array_size, a_dim3 * array_start, a_dim3 * array_end, void * reduction_var, accel_type_id type, a_bool async, accel_callback call, accel_callback_payload call_pl);
+a_err accel_copy_h2d(void * dst, void * src, size_t size, a_bool async, accel_callback call, accel_callback_payload call_pl);
+a_err accel_copy_d2h(void * dst, void * src, size_t size, a_bool async, accel_callback call, accel_callback_payload call_pl);
+a_err accel_copy_d2d(void * dst, void * src, size_t size, a_bool async, accel_callback call, accel_callback_payload call_pl);
+a_err accel_transpose_2d_face(a_dim3 * grid_size, a_dim3 * block_size, void *indata, void *outdata, a_dim3 * dim_xy, accel_type_id type, a_bool async, accel_callback call, accel_callback_payload call_pl);
+a_err accel_pack_2d_face(a_dim3 * grid_size, a_dim3 * block_size, void *packed_buf, void *buf, accel_2d_face_indexed *face, accel_type_id type, a_bool async, accel_callback call, accel_callback_payload call_pl);
+a_err accel_unpack_2d_face(a_dim3 * grid_size, a_dim3 * block_size, void *packed_buf, void *buf, accel_2d_face_indexed *face, accel_type_id type, a_bool async, accel_callback call, accel_callback_payload call_pl);
+
+//Reduced-complexity calls
 a_err accel_dotProd(a_dim3 * grid_size, a_dim3 * block_size, void * data1, void * data2, a_dim3 * array_size, a_dim3 * array_start, a_dim3 * array_end, void * reduction_var, accel_type_id type, a_bool async);
 a_err accel_reduce(a_dim3 * grid_size, a_dim3 * block_size, void * data, a_dim3 * array_size, a_dim3 * array_start, a_dim3 * array_end, void * reduction_var, accel_type_id type, a_bool async);
 a_err accel_copy_h2d(void * dst, void * src, size_t size, a_bool async);
 a_err accel_copy_d2h(void * dst, void * src, size_t size, a_bool async);
 a_err accel_copy_d2d(void * dst, void * src, size_t size, a_bool async);
 a_err accel_transpose_2d_face(a_dim3 * grid_size, a_dim3 * block_size, void *indata, void *outdata, a_dim3 * dim_xy, accel_type_id type, a_bool async);
+a_err accel_pack_2d_face(a_dim3 * grid_size, a_dim3 * block_size, void *packed_buf, void *buf, accel_2d_face_indexed *face, accel_type_id type, a_bool async);
+a_err accel_unpack_2d_face(a_dim3 * grid_size, a_dim3 * block_size, void *packed_buf, void *buf, accel_2d_face_indexed *face, accel_type_id type, a_bool async);
+
+
+//Globally-set mode
+accel_preferred_mode run_mode = accelModePreferGeneric;
 
 //Separate from which core libraries are compiled in, the users
 // should decide whether to compiler with different metrics
@@ -174,6 +233,13 @@ a_err accel_transpose_2d_face(a_dim3 * grid_size, a_dim3 * block_size, void *ind
 #ifdef WITH_FORTRAN
 	#ifndef AFOSR_CFD_FORTRAN_COMPAT_H
 		#include "afosr_cfd_fortran_compat.h"
+	#endif
+#endif
+
+//MPI functions need access to all top-level calls and types
+#ifdef WITH_MPI
+	#ifndef AFOSR_CFD_MPI_H
+		#include "afosr_cfd_mpi.h"
 	#endif
 #endif
 

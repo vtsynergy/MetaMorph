@@ -512,9 +512,6 @@ __kernel void kernel_reduce_ui(__global unsigned int *phi,
 
 	if(tid == 0) atomic_add(reduction,psum[0]);
 }
-//TODO make sure these defines are sent down from the host
-#define TRANSPOSE_TILE_DIM (16)
-#define TRANSPOSE_BLOCK_ROWS (16)
 
 __kernel void kernel_transpose_2d_db(__global double *odata, __global double *idata, int width, int height)
 {

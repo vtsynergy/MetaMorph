@@ -26,7 +26,6 @@
 #include "afosr_cfd.h"
 
 
-accel_preferred_mode run_mode = accelModePreferGeneric;
 
 #ifdef WITH_OPENCL
 cl_context accel_context = NULL;
@@ -149,6 +148,9 @@ a_err accel_free(void * ptr) {
 //}
 //Workhorse for both sync and async variants
 a_err accel_copy_h2d(void * dst, void * src, size_t size, a_bool async) {
+	return accel_copy_h2d(dst, src, size, async, NULL, NULL);
+}
+a_err accel_copy_h2d(void * dst, void * src, size_t size, a_bool async, accel_callback call, accel_callback_payload call_pl) {
 	a_err ret;
 	#ifdef WITH_TIMERS
 	accelTimerQueueFrame * frame = malloc (sizeof(accelTimerQueueFrame));
