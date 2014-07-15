@@ -128,12 +128,16 @@ typedef struct HPRecType {
 } HPRecType;
 //Shared HP variables
 #ifdef WITH_OPENCL
-	extern cl_context accel_context;
-	extern cl_command_queue accel_queue;
-	extern cl_device_id accel_device;
+//These are not needed if they're declared in afosr_cfd.c
+//	extern cl_context accel_context;
+//	extern cl_command_queue accel_queue;
+//	extern cl_device_id accel_device;
 #endif
 
 typedef enum {
+	//A special-purpose mode which indicates none has been declared
+	// used by sentinel nodes in the timer plugin queues
+	accelModeUnset = -1,
 	accelModePreferGeneric = 0,
 	#ifdef WITH_CUDA
 	accelModePreferCUDA = 1,
@@ -167,18 +171,25 @@ typedef union accel_callback {
 	#endif //WITH_OPENCL
 } accel_callback;
 
+//FIXME: As soon as the MPI implementation is finished, if
+// payloads are still not needed, remove this code
+
 #ifdef WITH_CUDA
 	typedef struct cuda_callback_payload {
-		cudaStream_t stream;
-		cudaError_t status;
+//Unneeded, stream is always 0 (for now)
+//		cudaStream_t stream;
+//Unneeded, errors are managed in the library function responsible for setting the callback
+//		cudaError_t status;
 		void * data;
 	} cuda_callback_payload;
 #endif //WITH_CUDA
 
-#ifdef WITH_CUDA
+#ifdef WITH_OPENCL
 	typedef struct opencl_callback_payload {
-		cl_event event;
-		cl_int status;
+//Unneeded, the event is provided by the library function responsible for setting the callback
+//		cl_event event;
+//Unneeded, the status *MUST* always be CL_COMPLETE
+//		cl_int status;
 		void * data;
 	} opencl_callback_payload;
 #endif //WITH_OPENCL
@@ -192,18 +203,22 @@ typedef union accel_callback_payload {
 	#endif //WITH_OPENCL
 } accel_callback_payload;
 
+//FIXME: If custom payloads are not needed, clean up the code above
 
-//Kernels and transfers with callbacks
-a_err accel_dotProd(a_dim3 * grid_size, a_dim3 * block_size, void * data1, void * data2, a_dim3 * array_size, a_dim3 * array_start, a_dim3 * array_end, void * reduction_var, accel_type_id type, a_bool async, accel_callback call, accel_callback_payload call_pl);
-a_err accel_reduce(a_dim3 * grid_size, a_dim3 * block_size, void * data, a_dim3 * array_size, a_dim3 * array_start, a_dim3 * array_end, void * reduction_var, accel_type_id type, a_bool async, accel_callback call, accel_callback_payload call_pl);
-a_err accel_copy_h2d(void * dst, void * src, size_t size, a_bool async, accel_callback call, accel_callback_payload call_pl);
-a_err accel_copy_d2h(void * dst, void * src, size_t size, a_bool async, accel_callback call, accel_callback_payload call_pl);
-a_err accel_copy_d2d(void * dst, void * src, size_t size, a_bool async, accel_callback call, accel_callback_payload call_pl);
-a_err accel_transpose_2d_face(a_dim3 * grid_size, a_dim3 * block_size, void *indata, void *outdata, a_dim3 * dim_xy, accel_type_id type, a_bool async, accel_callback call, accel_callback_payload call_pl);
-a_err accel_pack_2d_face(a_dim3 * grid_size, a_dim3 * block_size, void *packed_buf, void *buf, accel_2d_face_indexed *face, accel_type_id type, a_bool async, accel_callback call, accel_callback_payload call_pl);
-a_err accel_unpack_2d_face(a_dim3 * grid_size, a_dim3 * block_size, void *packed_buf, void *buf, accel_2d_face_indexed *face, accel_type_id type, a_bool async, accel_callback call, accel_callback_payload call_pl);
+//Kernels and transfers with callback params, necessary for MPI helpers
+// These are **NOT** intended to be used externally, only by the library itself
+// The callback/payload structure is not built for user-specified callbacks
+a_err accel_dotProd_cb(a_dim3 * grid_size, a_dim3 * block_size, void * data1, void * data2, a_dim3 * array_size, a_dim3 * array_start, a_dim3 * array_end, void * reduction_var, accel_type_id type, a_bool async, accel_callback *call, void *call_pl);
+a_err accel_reduce_cb(a_dim3 * grid_size, a_dim3 * block_size, void * data, a_dim3 * array_size, a_dim3 * array_start, a_dim3 * array_end, void * reduction_var, accel_type_id type, a_bool async, accel_callback *call, void *call_pl);
+a_err accel_copy_h2d_cb(void * dst, void * src, size_t size, a_bool async, accel_callback *call, void *call_pl);
+a_err accel_copy_d2h_cb(void * dst, void * src, size_t size, a_bool async, accel_callback *call, void *call_pl);
+a_err accel_copy_d2d_cb(void * dst, void * src, size_t size, a_bool async, accel_callback *call, void *call_pl);
+a_err accel_transpose_2d_face_cb(a_dim3 * grid_size, a_dim3 * block_size, void *indata, void *outdata, a_dim3 * dim_xy, accel_type_id type, a_bool async, accel_callback *call, void *call_pl);
+a_err accel_pack_2d_face_cb(a_dim3 * grid_size, a_dim3 * block_size, void *packed_buf, void *buf, accel_2d_face_indexed *face, accel_type_id type, a_bool async, accel_callback *call, void *call_pl);
+a_err accel_unpack_2d_face_cb(a_dim3 * grid_size, a_dim3 * block_size, void *packed_buf, void *buf, accel_2d_face_indexed *face, accel_type_id type, a_bool async, accel_callback *call, void *call_pl);
 
 //Reduced-complexity calls
+// These are the ones applications built on top of the library should use
 a_err accel_dotProd(a_dim3 * grid_size, a_dim3 * block_size, void * data1, void * data2, a_dim3 * array_size, a_dim3 * array_start, a_dim3 * array_end, void * reduction_var, accel_type_id type, a_bool async);
 a_err accel_reduce(a_dim3 * grid_size, a_dim3 * block_size, void * data, a_dim3 * array_size, a_dim3 * array_start, a_dim3 * array_end, void * reduction_var, accel_type_id type, a_bool async);
 a_err accel_copy_h2d(void * dst, void * src, size_t size, a_bool async);
@@ -214,8 +229,6 @@ a_err accel_pack_2d_face(a_dim3 * grid_size, a_dim3 * block_size, void *packed_b
 a_err accel_unpack_2d_face(a_dim3 * grid_size, a_dim3 * block_size, void *packed_buf, void *buf, accel_2d_face_indexed *face, accel_type_id type, a_bool async);
 
 
-//Globally-set mode
-accel_preferred_mode run_mode = accelModePreferGeneric;
 
 //Separate from which core libraries are compiled in, the users
 // should decide whether to compiler with different metrics

@@ -24,6 +24,7 @@
 
 #ifndef AFOSR_CFD_MPI_H
 #define AFOSR_CFD_MPI_H
+#include <mpi.h>
 
 //Include afosr_cfd.h to grab necessary pieces from the library,
 // cores, other plugins, and headers required by cores
@@ -67,10 +68,11 @@ typedef struct {
 	void *host_packed_buf;
 	void *dev_packed_buf;
 	size_t buf_size;
-	a_dim3 *grid_size;
-	a_dim3 *block_size;
+	a_dim3 grid_size;
+	a_dim3 block_size;
 	accel_type_id type;
 	accel_2d_face_indexed *face;
+	void *dev_buf;
 } recv_and_unpack_record;
 
 //Union needed to simplify queue node implementation
@@ -94,20 +96,39 @@ typedef enum {
 typedef struct recordQueueNode {
 	request_record_type type;
 	request_record record;
-	recordQueueNode *next;
+	struct recordQueueNode *next;
 } recordQueueNode;
 
-recordQueueNode record_queue;
-recordQueueNode *record_queue_tail;
+//The data elements needed for the send_packed callback
+// for the initial D2H copy
+//Allows invoking the MPI_Isend and registering the request
+// to clean up the temp host memory after Isend completes
+typedef struct sp_callback_payload {
+	void * host_packed_buf;
+	size_t buf_leng;
+	MPI_Datatype mpi_type;
+	int dst_rank;
+	int tag;
+	MPI_Request *req;
+}sp_callback_payload;
 
+typedef struct sap_callback_payload {
+	void * host_packed_buf;
+	void * dev_packed_buf;
+	size_t buf_leng;
+	MPI_Datatype mpi_type;
+	int dst_rank;
+	int tag;
+	MPI_Request *req;
+}sap_callback_payload;
 
+typedef struct rap_callback_payload {
+	void * host_packed_buf;
+	void * packed_buf;
+}rap_callback_payload;
+
+void init_record_queue();
 //Helper functions for async transfers
-void init_record_queue() {
-	record_queue.type = sentinel;
-	//No need to set the record, it won't be looked at
-	record_queue.next = NULL;
-	record_queue_tail = &record_queue;
-}
 
 //The enqueue function
 void register_mpi_request(request_record_type type, request_record * request); 
@@ -118,6 +139,11 @@ void help_mpi_request();
 //A "forced wait until all requests finish" helper
 // Meant to be used with accel_flush and accel_finish
 void finish_mpi_requests();
+
+void rp_helper(request_record *rp_request);
+void sp_helper(request_record *sp_request);
+void rap_helper(request_record *rap_request);
+void sap_helper(request_record *sap_request);
 
 //FIXME: Paul 2014.06.30 - HOST ONLY TRANSFERS AREN'T OUR JOB
 // all library-implemented transfers assume device buffers!!
@@ -135,4 +161,5 @@ a_err accel_mpi_pack_and_send_face();
 //A wrapper that, provided a face, will receive a buffer, and unpack it
 a_err accel_mpi_recv_and_unpack_face();
 
+extern accel_preferred_mode run_mode;
 #endif //AFOSR_CFD_MPI_H

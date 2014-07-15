@@ -40,7 +40,7 @@ red_test_notimers: libafosr_cfd_notimers.so
 	gcc red_bootstrapper.c -I ./ -D WITH_CUDA -D WITH_OPENCL -D WITH_OPENMP -D WITH_FORTRAN -L ./ -L /usr/local/cuda/lib64 -lafosr_cfd_notimers -lafosr_cfd_opencl_core -lafosr_cfd_cuda_core -o red_test_notimers
 
 red_test: libafosr_cfd.so
-	gcc red_bootstrapper.c -I ./ -D WITH_CUDA -D WITH_OPENCL -D WITH_OPENMP -D WITH_TIMERS -D WITH_FORTRAN -D WITH_MPI -L ./ -L /usr/local/cuda/lib64 -lafosr_cfd -lafosr_cfd_opencl_core -lafosr_cfd_cuda_core -o red_test
+	OMPI_CC=gcc-4.8 /usr/bin/mpicc red_bootstrapper.c -I ./ -D WITH_CUDA -D WITH_OPENCL -D WITH_OPENMP -D WITH_TIMERS -D WITH_FORTRAN -D WITH_MPI -L ./ -L /usr/local/cuda/lib64 -lafosr_cfd  -o red_test
 
 libafosr_cfd_nocuda_notimers.so: libafosr_cfd_opencl_core.so afosr_cfd.c
 	gcc afosr_cfd.c afosr_cfd_fortran_compat.c -fPIC -shared -D WITH_OPENCL -D WITH_OPENMP -D WITH_FORTRAN -I ./ -L ./ -L /usr/local/cuda/lib64 -lafosr_cfd_opencl_core -lOpenCL -o libafosr_cfd_nocuda_notimers.so
@@ -52,7 +52,8 @@ libafosr_cfd_notimers.so: libafosr_cfd_cuda_core.so libafosr_cfd_opencl_core.so 
 	gcc afosr_cfd.c afosr_cfd_fortran_compat.c  -fPIC -shared -D WITH_CUDA -D WITH_OPENCL -D WITH_OPENMP -D WITH_FORTRAN -I ./ -L ./ -L /usr/local/cuda/lib64 -lafosr_cfd_opencl_core -lafosr_cfd_cuda_core -lOpenCL -lcudart -o libafosr_cfd_notimers.so
 
 libafosr_cfd.so: libafosr_cfd_cuda_core.so libafosr_cfd_opencl_core.so afosr_cfd.c
-	gcc afosr_cfd.c afosr_cfd_timers.c afosr_cfd_fortran_compat.c -fPIC -shared -D WITH_CUDA -D WITH_OPENCL -D WITH_OPENMP -D WITH_TIMERS -D WITH_FORTRAN -D WITH_MPI -I ./ -L ./ -L /usr/local/cuda/lib64 -lafosr_cfd_opencl_core -lafosr_cfd_cuda_core -lOpenCL -lcudart -o libafosr_cfd.so
+	OMPI_CC=gcc-4.8 /usr/bin/mpicc afosr_cfd.c afosr_cfd_timers.c afosr_cfd_fortran_compat.c afosr_cfd_mpi.c -fPIC -shared -D WITH_CUDA -D WITH_OPENCL -D WITH_OPENMP -D WITH_TIMERS -D WITH_FORTRAN -D WITH_MPI -I ./ -L ./ -L /usr/local/cuda/lib64 -lafosr_cfd_opencl_core -lafosr_cfd_cuda_core -lOpenCL -lcudart -o libafosr_cfd.so
+	#gcc afosr_cfd.c afosr_cfd_timers.c afosr_cfd_fortran_compat.c  -fPIC -shared -D WITH_CUDA -D WITH_OPENCL -D WITH_OPENMP -D WITH_TIMERS -D WITH_FORTRAN -I ./ -L ./ -L /usr/local/cuda/lib64 -lafosr_cfd_opencl_core -lafosr_cfd_cuda_core -lOpenCL -lcudart -o libafosr_cfd.so
 
 #I can only get it to provide correct results with the debugging symbols..
 #  Something to do with volatiles and sync on the shared memory regions

@@ -1,11 +1,13 @@
 #include "afosr_cfd_timers.h"
 
+accelTimerQueue accelBuiltinQueues[queue_count];
+
 
 //Take a copy of the frame and shove it on to the selected queue
 // Do nothing else with the frame, the caller should handle releasing it
 a_err accelTimerEnqueue(accelTimerQueueFrame * frame, accelTimerQueue * queue) {
 	//allocate a new node - still in the thread-private allocated state
-	accelTimerQueueNode * newnode = malloc(sizeof(accelTimerQueueNode));
+	accelTimerQueueNode * newnode =(accelTimerQueueNode*) malloc(sizeof(accelTimerQueueNode));
 	//initialize the new node
 //	printf("ENQUEUE %x\n", newnode);
 	newnode->event = frame->event;
@@ -70,62 +72,63 @@ a_err accelTimersInit() {
 	// are added to the enum
 
 	//Init the device-to-host copy queue
-	accelBuiltinQueues[c_D2H].head = accelBuiltinQueues[c_D2H].tail = malloc(sizeof(accelTimerQueueNode));
-	accelBuiltinQueues[c_D2H].head->mode = -1;
+	accelBuiltinQueues[c_D2H].head = accelBuiltinQueues[c_D2H].tail = (accelTimerQueueNode*) malloc(sizeof(accelTimerQueueNode));
+	accelBuiltinQueues[c_D2H].head->mode = accelModeUnset;
 	accelBuiltinQueues[c_D2H].head->next = NULL;
 	accelBuiltinQueues[c_D2H].name = "Device to Host transfer"; 
 
 	//Init the host-to-device copy queue
-	accelBuiltinQueues[c_H2D].head = accelBuiltinQueues[c_H2D].tail = malloc(sizeof(accelTimerQueueNode));
-	accelBuiltinQueues[c_H2D].head->mode = -1;
+	accelBuiltinQueues[c_H2D].head = accelBuiltinQueues[c_H2D].tail = (accelTimerQueueNode*) malloc(sizeof(accelTimerQueueNode));
+
+	accelBuiltinQueues[c_H2D].head->mode = accelModeUnset;
 	accelBuiltinQueues[c_H2D].head->next = NULL;
 	accelBuiltinQueues[c_H2D].name = "Host to Device transfer";
 
 	//Init the host-to-host copy queue
-	accelBuiltinQueues[c_H2H].head = accelBuiltinQueues[c_H2H].tail = malloc(sizeof(accelTimerQueueNode));
-	accelBuiltinQueues[c_H2H].head->mode = -1;
+	accelBuiltinQueues[c_H2H].head = accelBuiltinQueues[c_H2H].tail = (accelTimerQueueNode*) malloc(sizeof(accelTimerQueueNode));
+	accelBuiltinQueues[c_H2H].head->mode = accelModeUnset;
 	accelBuiltinQueues[c_H2H].head->next = NULL;
 	accelBuiltinQueues[c_H2H].name = "Host to Host transfer";
 
 	//Init the device-to-device copy queue
-	accelBuiltinQueues[c_D2D].head = accelBuiltinQueues[c_D2D].tail = malloc(sizeof(accelTimerQueueNode));
-	accelBuiltinQueues[c_D2D].head->mode = -1;
+	accelBuiltinQueues[c_D2D].head = accelBuiltinQueues[c_D2D].tail = (accelTimerQueueNode*) malloc(sizeof(accelTimerQueueNode));
+	accelBuiltinQueues[c_D2D].head->mode = accelModeUnset;
 	accelBuiltinQueues[c_D2D].head->next = NULL;
 	accelBuiltinQueues[c_D2D].name = "Device to Device transfer";
 
 	//Init the host-to-device (constant) copy queue
-	accelBuiltinQueues[c_H2Dc].head = accelBuiltinQueues[c_H2Dc].tail = malloc(sizeof(accelTimerQueueNode));
-	accelBuiltinQueues[c_H2Dc].head->mode = -1;
+	accelBuiltinQueues[c_H2Dc].head = accelBuiltinQueues[c_H2Dc].tail = (accelTimerQueueNode*) malloc(sizeof(accelTimerQueueNode));
+	accelBuiltinQueues[c_H2Dc].head->mode = accelModeUnset;
 	accelBuiltinQueues[c_H2Dc].head->next = NULL;
 	accelBuiltinQueues[c_H2Dc].name = "Host to Constant transfer";
 
 	//Init the Reduction kernel queue
-	accelBuiltinQueues[k_reduce].head = accelBuiltinQueues[k_reduce].tail = malloc(sizeof(accelTimerQueueNode));
-	accelBuiltinQueues[k_reduce].head->mode = -1;
+	accelBuiltinQueues[k_reduce].head = accelBuiltinQueues[k_reduce].tail = (accelTimerQueueNode*) malloc(sizeof(accelTimerQueueNode));
+	accelBuiltinQueues[k_reduce].head->mode = accelModeUnset;
 	accelBuiltinQueues[k_reduce].head->next = NULL;
 	accelBuiltinQueues[k_reduce].name = "Reduction kernel call";
 
 	//Init the Dot Product kernel queue
-	accelBuiltinQueues[k_dotProd].head = accelBuiltinQueues[k_dotProd].tail = malloc(sizeof(accelTimerQueueNode));
-	accelBuiltinQueues[k_dotProd].head->mode = -1;
+	accelBuiltinQueues[k_dotProd].head = accelBuiltinQueues[k_dotProd].tail = (accelTimerQueueNode*) malloc(sizeof(accelTimerQueueNode));
+	accelBuiltinQueues[k_dotProd].head->mode = accelModeUnset;
 	accelBuiltinQueues[k_dotProd].head->next = NULL;
 	accelBuiltinQueues[k_dotProd].name = "Dot Product kernel call";
 
 	//Init the Dot Product kernel queue
-	accelBuiltinQueues[k_transpose_2d_face].head = accelBuiltinQueues[k_transpose_2d_face].tail = malloc(sizeof(accelTimerQueueNode));
-	accelBuiltinQueues[k_transpose_2d_face].head->mode = -1;
+	accelBuiltinQueues[k_transpose_2d_face].head = accelBuiltinQueues[k_transpose_2d_face].tail = (accelTimerQueueNode*) malloc(sizeof(accelTimerQueueNode));
+	accelBuiltinQueues[k_transpose_2d_face].head->mode = accelModeUnset;
 	accelBuiltinQueues[k_transpose_2d_face].head->next = NULL;
 	accelBuiltinQueues[k_transpose_2d_face].name = "Transpose 2DFace kernel call";
 
 	//Init the Dot Product kernel queue
-	accelBuiltinQueues[k_pack_2d_face].head = accelBuiltinQueues[k_pack_2d_face].tail = malloc(sizeof(accelTimerQueueNode));
-	accelBuiltinQueues[k_pack_2d_face].head->mode = -1;
+	accelBuiltinQueues[k_pack_2d_face].head = accelBuiltinQueues[k_pack_2d_face].tail = (accelTimerQueueNode*) malloc(sizeof(accelTimerQueueNode));
+	accelBuiltinQueues[k_pack_2d_face].head->mode = accelModeUnset;
 	accelBuiltinQueues[k_pack_2d_face].head->next = NULL;
 	accelBuiltinQueues[k_pack_2d_face].name = "Pack 2DFace kernel call";
 
 	//Init the Dot Product kernel queue
-	accelBuiltinQueues[k_unpack_2d_face].head = accelBuiltinQueues[k_unpack_2d_face].tail = malloc(sizeof(accelTimerQueueNode));
-	accelBuiltinQueues[k_unpack_2d_face].head->mode = -1;
+	accelBuiltinQueues[k_unpack_2d_face].head = accelBuiltinQueues[k_unpack_2d_face].tail = (accelTimerQueueNode*) malloc(sizeof(accelTimerQueueNode));
+	accelBuiltinQueues[k_unpack_2d_face].head->mode = accelModeUnset;
 	accelBuiltinQueues[k_unpack_2d_face].head->next = NULL;
 	accelBuiltinQueues[k_unpack_2d_face].name = "Unpack 2DFace kernel call";
 }
@@ -135,7 +138,7 @@ a_err accelTimersInit() {
 //TODO figure out how to handle encountered events which have not completed
 // (do we put them back on the queue? register a callback? force the command_queue to finish?
 void flushWorker(accelTimerQueue * queue, int level) {
-	accelTimerQueueFrame * frame = malloc(sizeof(accelTimerQueueFrame));
+	accelTimerQueueFrame * frame = (accelTimerQueueFrame*) malloc(sizeof(accelTimerQueueFrame));
 	int val;
 	unsigned long start, end, count = 0;
 	size_t size = 0;
@@ -173,7 +176,7 @@ void flushWorker(accelTimerQueue * queue, int level) {
 		if (level >= 2) {
 			//Individual call times/bandwidths
 			//TODO come up with a reasonable, generic bandwidth calculation.
-			fprintf(stderr, "%s [%d] on [%d]bytes took [%f]ms, with [%f]MB/s approximate bandwidth.\n", queue->name, count, frame->size, temp_t, (frame->size > 0 && temp_t > 0) ? frame->size*.001/temp_t : 0.0);
+			fprintf(stderr, "%s [%lu] on [%lu]bytes took [%f]ms, with [%f]MB/s approximate bandwidth.\n", queue->name, count, frame->size, temp_t, (frame->size > 0 && temp_t > 0) ? frame->size*.001/temp_t : 0.0);
 		}
 
 		if (level == 3) {

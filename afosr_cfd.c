@@ -25,6 +25,8 @@
 
 #include "afosr_cfd.h"
 
+//Globally-set mode
+accel_preferred_mode run_mode = accelModePreferGeneric;
 
 
 #ifdef WITH_OPENCL
@@ -148,12 +150,12 @@ a_err accel_free(void * ptr) {
 //}
 //Workhorse for both sync and async variants
 a_err accel_copy_h2d(void * dst, void * src, size_t size, a_bool async) {
-	return accel_copy_h2d(dst, src, size, async, NULL, NULL);
+	return accel_copy_h2d_cb(dst, src, size, async, (accel_callback*)NULL, NULL);
 }
-a_err accel_copy_h2d(void * dst, void * src, size_t size, a_bool async, accel_callback call, accel_callback_payload call_pl) {
+a_err accel_copy_h2d_cb(void * dst, void * src, size_t size, a_bool async, accel_callback *call, void *call_pl) {
 	a_err ret;
 	#ifdef WITH_TIMERS
-	accelTimerQueueFrame * frame = malloc (sizeof(accelTimerQueueFrame));
+	accelTimerQueueFrame * frame = (accelTimerQueueFrame *)malloc (sizeof(accelTimerQueueFrame));
 	frame->mode = run_mode;
 	frame->size = size;
 	#endif
@@ -178,6 +180,8 @@ a_err accel_copy_h2d(void * dst, void * src, size_t size, a_bool async, accel_ca
 			cudaEventCreate(&(frame->event.cuda[1]));
 			cudaEventRecord(frame->event.cuda[1], 0);
 			#endif
+			//If a callback is provided, register it immediately after the transfer
+			if ((void*)call != NULL && call_pl != NULL) cudaStreamAddCallback(0, call->cudaCallback, call_pl, 0);
 			break;
 		#endif
 
@@ -187,9 +191,14 @@ a_err accel_copy_h2d(void * dst, void * src, size_t size, a_bool async, accel_ca
 			if (accel_context == NULL) accelOpenCLFallBack();
 			#ifdef WITH_TIMERS
 			ret = clEnqueueWriteBuffer(accel_queue, (cl_mem) dst, ((async) ? CL_FALSE : CL_TRUE), 0, size, src, 0, NULL, &(frame->event.opencl));
+			//If timers exist, use their event to add the callback
+			if ((void*)call != NULL && call_pl != NULL) clSetEventCallback(frame->event.opencl, CL_COMPLETE, call->openclCallback, call_pl);
 			#else
-			ret = clEnqueueWriteBuffer(accel_queue, (cl_mem) dst, ((async) ? CL_FALSE : CL_TRUE), 0, size, src, 0, NULL, NULL);
-			#endif
+			//If timers don't exist, get the event via a locally-scoped event to add to the callback
+			cl_event cb_event;
+			ret = clEnqueueWriteBuffer(accel_queue, (cl_mem) dst, ((async) ? CL_FALSE : CL_TRUE), 0, size, src, 0, NULL, &cb_event);
+			if ((void*)call != NULL && call_pl != NULL) clSetEventCallback(cb_event, CL_COMPLETE, call->openclCallback, call_pl);
+			 #endif
 			break;
 		#endif
 
@@ -210,10 +219,13 @@ a_err accel_copy_h2d(void * dst, void * src, size_t size, a_bool async, accel_ca
 //	return accel_copy_d2h(dst, src, size, true);
 //}
 //Workhorse for both sync and async copies
-a_err accel_copy_d2h(void * dst, void * src, size_t size, a_bool async) {
+a_err accel_copy_d2h(void *dst, void *src, size_t size, a_bool async) {
+	return accel_copy_d2h_cb(dst, src, size, async, (accel_callback*)NULL, NULL);
+}
+a_err accel_copy_d2h_cb(void * dst, void * src, size_t size, a_bool async, accel_callback *call, void *call_pl) {
 	a_err ret;
 	#ifdef WITH_TIMERS
-	accelTimerQueueFrame * frame = malloc (sizeof(accelTimerQueueFrame));
+	accelTimerQueueFrame * frame = (accelTimerQueueFrame*)malloc (sizeof(accelTimerQueueFrame));
 	frame->mode = run_mode;
 	frame->size = size;
 	#endif
@@ -270,10 +282,13 @@ a_err accel_copy_d2h(void * dst, void * src, size_t size, a_bool async) {
 //	return (dst, src, size, true);
 //}
 //Workhorse for both sync and async copies
-a_err accel_copy_d2d(void * dst, void * src, size_t size, a_bool async) {
+a_err accel_copy_d2d(void *dst, void *src, size_t size, a_bool async) {
+	return accel_copy_d2d_cb(dst, src, size, async, (accel_callback*)NULL, NULL);
+}
+a_err accel_copy_d2d_cb(void * dst, void * src, size_t size, a_bool async, accel_callback *call, void *call_pl) {
 	a_err ret;
 	#ifdef WITH_TIMERS
-	accelTimerQueueFrame * frame = malloc (sizeof(accelTimerQueueFrame));
+	accelTimerQueueFrame * frame = (accelTimerQueueFrame*)malloc (sizeof(accelTimerQueueFrame));
 	frame->mode = run_mode;
 	frame->size = size;
 	#endif
@@ -491,11 +506,11 @@ a_err accel_validate_worksize(a_dim3 * grid_size, a_dim3 * block_size) {
 			ret = clGetDeviceInfo(accel_device, CL_DEVICE_MAX_WORK_GROUP_SIZE, sizeof(size_t), &max_wg_size, NULL);
 			ret |= clGetDeviceInfo(accel_device, CL_DEVICE_MAX_WORK_ITEM_SIZES, sizeof(size_t)*3, &max_wg_dim_sizes, NULL);
 			if ((*block_size)[0] * (*block_size)[1] * (*block_size)[2] > max_wg_size)
-				{fprintf(stderr, "Error: Maximum block volume is: %d\nRequested block volume of: %d (%d * %d * %d) not supported!\n", max_wg_size, (*block_size)[0] * (*block_size)[1] * (*block_size)[2], (*block_size)[0], (*block_size)[1], (*block_size)[2]); ret |= -1;}
+				{fprintf(stderr, "Error: Maximum block volume is: %lu\nRequested block volume of: %lu (%lu * %lu * %lu) not supported!\n", max_wg_size, (*block_size)[0] * (*block_size)[1] * (*block_size)[2], (*block_size)[0], (*block_size)[1], (*block_size)[2]); ret |= -1;}
 			
-			if ((*block_size)[0] > max_wg_dim_sizes[0]) {fprintf(stderr, "Error: Maximum block size for dimension 0 is: %d\nRequested 0th dimension size of: %d not supported\n!", max_wg_dim_sizes[0], (*block_size)[0]); ret |= -1;}
-			if ((*block_size)[1] > max_wg_dim_sizes[1]) {fprintf(stderr, "Error: Maximum block size for dimension 1 is: %d\nRequested 1st dimension size of: %d not supported\n!", max_wg_dim_sizes[1], (*block_size)[1]); ret |= -1;}
-			if ((*block_size)[2] > max_wg_dim_sizes[2]) {fprintf(stderr, "Error: Maximum block size for dimension 2 is: %d\nRequested 2nd dimension size of: %d not supported\n!", max_wg_dim_sizes[2], (*block_size)[2]); ret |= -1;}
+			if ((*block_size)[0] > max_wg_dim_sizes[0]) {fprintf(stderr, "Error: Maximum block size for dimension 0 is: %lu\nRequested 0th dimension size of: %lu not supported\n!", max_wg_dim_sizes[0], (*block_size)[0]); ret |= -1;}
+			if ((*block_size)[1] > max_wg_dim_sizes[1]) {fprintf(stderr, "Error: Maximum block size for dimension 1 is: %lu\nRequested 1st dimension size of: %lu not supported\n!", max_wg_dim_sizes[1], (*block_size)[1]); ret |= -1;}
+			if ((*block_size)[2] > max_wg_dim_sizes[2]) {fprintf(stderr, "Error: Maximum block size for dimension 2 is: %lu\nRequested 2nd dimension size of: %lu not supported\n!", max_wg_dim_sizes[2], (*block_size)[2]); ret |= -1;}
 			return(ret);
 		break;
 		#endif
@@ -516,9 +531,12 @@ a_err accel_validate_worksize(a_dim3 * grid_size, a_dim3 * block_size) {
 //}
 //Workhorse for both sync and async dot products
 a_err accel_dotProd(a_dim3 * grid_size, a_dim3 * block_size, void * data1, void * data2, a_dim3 * array_size, a_dim3 * array_start, a_dim3 * array_end, void * reduction_var, accel_type_id type, a_bool async) {
+	return accel_dotProd_cb(grid_size, block_size, data1, data2, array_size, array_start, array_end, reduction_var, type, async, (accel_callback*)NULL, NULL);
+}
+a_err accel_dotProd_cb(a_dim3 * grid_size, a_dim3 * block_size, void * data1, void * data2, a_dim3 * array_size, a_dim3 * array_start, a_dim3 * array_end, void * reduction_var, accel_type_id type, a_bool async, accel_callback *call, void *call_pl) {
 	a_err ret;
 	#ifdef WITH_TIMERS
-	accelTimerQueueFrame * frame = malloc (sizeof(accelTimerQueueFrame));
+	accelTimerQueueFrame * frame = (accelTimerQueueFrame*)malloc (sizeof(accelTimerQueueFrame));
 	frame->mode = run_mode;
 	frame->size = (*array_size)[0]*(*array_size)[1]*(*array_size)[2]*get_atype_size(type);
 	#endif
@@ -569,9 +587,12 @@ a_err accel_dotProd(a_dim3 * grid_size, a_dim3 * block_size, void * data1, void 
 //}
 //Workhorse for both sync and async reductions
 a_err accel_reduce(a_dim3 * grid_size, a_dim3 * block_size, void * data, a_dim3 * array_size, a_dim3 * array_start, a_dim3 * array_end, void * reduction_var, accel_type_id type, a_bool async) {
+	return accel_reduce_cb(grid_size, block_size, data, array_size, array_start, array_end, reduction_var, type, async, (accel_callback*)NULL, NULL);
+}
+a_err accel_reduce_cb(a_dim3 * grid_size, a_dim3 * block_size, void * data, a_dim3 * array_size, a_dim3 * array_start, a_dim3 * array_end, void * reduction_var, accel_type_id type, a_bool async, accel_callback *call, void *call_pl) {
 	a_err ret;
 	#ifdef WITH_TIMERS
-	accelTimerQueueFrame * frame = malloc (sizeof(accelTimerQueueFrame));
+	accelTimerQueueFrame * frame = (accelTimerQueueFrame*)malloc (sizeof(accelTimerQueueFrame));
 	frame->mode = run_mode;
 	frame->size = (*array_size)[0]*(*array_size)[1]*(*array_size)[2]*get_atype_size(type);
 	#endif
@@ -618,12 +639,12 @@ a_err accel_reduce(a_dim3 * grid_size, a_dim3 * block_size, void * data, a_dim3 
 
 accel_2d_face_indexed * accel_get_face_index(int s, int c, int *si, int *st) {
 	//Unlike Kaixi's, we return a pointer copy, to ease Fortran implementation
-	accel_2d_face_indexed * face = malloc(sizeof(accel_2d_face_indexed));
+	accel_2d_face_indexed * face = (accel_2d_face_indexed*)malloc(sizeof(accel_2d_face_indexed));
 	//We create our own copy of size and stride arrays to prevent
 	// issues if the user unexpectedly reuses or frees the original pointer
 	size_t sz = sizeof(int)*c;
-	face->size = malloc(sz);
-	face->stride = malloc(sz);
+	face->size = (int*)malloc(sz);
+	face->stride = (int*)malloc(sz);
 	memcpy((void*) face->size, (const void *)si, sz);
 	memcpy((void*) face->stride, (const void *)st, sz);
 
@@ -643,9 +664,12 @@ int accel_free_face_index(accel_2d_face_indexed * face) {
 }
 
 a_err accel_transpose_2d_face(a_dim3 * grid_size, a_dim3 * block_size, void *indata, void *outdata, a_dim3 * dim_xy, accel_type_id type, a_bool async) {
+	return accel_transpose_2d_face_cb(grid_size, block_size, indata, outdata, dim_xy, type, async, (accel_callback*)NULL, NULL);
+}
+a_err accel_transpose_2d_face_cb(a_dim3 * grid_size, a_dim3 * block_size, void *indata, void *outdata, a_dim3 * dim_xy, accel_type_id type, a_bool async, accel_callback *call, void *call_pl) {
 	a_err ret;
 	#ifdef WITH_TIMERS
-	accelTimerQueueFrame * frame = malloc (sizeof(accelTimerQueueFrame));
+	accelTimerQueueFrame * frame = (accelTimerQueueFrame*)malloc (sizeof(accelTimerQueueFrame));
 	frame->mode = run_mode;
 	frame->size = (*dim_xy)[0]*(*dim_xy)[1]*get_atype_size(type);
 	#endif
@@ -691,14 +715,17 @@ a_err accel_transpose_2d_face(a_dim3 * grid_size, a_dim3 * block_size, void *ind
 }
 //TODO fix frame->size to reflect face size
 a_err accel_pack_2d_face(a_dim3 * grid_size, a_dim3 * block_size, void *packed_buf, void *buf, accel_2d_face_indexed *face, accel_type_id type, a_bool async) {
+	return accel_pack_2d_face_cb(grid_size, block_size, packed_buf, buf, face, type, async, (accel_callback*)NULL, NULL);
+} 
+a_err accel_pack_2d_face_cb(a_dim3 * grid_size, a_dim3 * block_size, void *packed_buf, void *buf, accel_2d_face_indexed *face, accel_type_id type, a_bool async, accel_callback *call, void *call_pl) {
 	a_err ret;
 	#ifdef WITH_TIMERS
 	//TODO: Add another queue for copies into constant memory
 	//TODO: Hoist copies into constant memory out of the cores to here
-	accelTimerQueueFrame * frame_k1 = malloc (sizeof(accelTimerQueueFrame));
-	accelTimerQueueFrame * frame_c1 = malloc (sizeof(accelTimerQueueFrame));
-	accelTimerQueueFrame * frame_c2 = malloc (sizeof(accelTimerQueueFrame));
-	accelTimerQueueFrame * frame_c3 = malloc (sizeof(accelTimerQueueFrame));
+	accelTimerQueueFrame * frame_k1 = (accelTimerQueueFrame*)malloc (sizeof(accelTimerQueueFrame));
+	accelTimerQueueFrame * frame_c1 = (accelTimerQueueFrame*)malloc (sizeof(accelTimerQueueFrame));
+	accelTimerQueueFrame * frame_c2 = (accelTimerQueueFrame*)malloc (sizeof(accelTimerQueueFrame));
+	accelTimerQueueFrame * frame_c3 = (accelTimerQueueFrame*)malloc (sizeof(accelTimerQueueFrame));
 	frame_k1->mode = run_mode;
 	frame_c1->mode = run_mode;
 	frame_c2->mode = run_mode;
@@ -765,14 +792,17 @@ a_err accel_pack_2d_face(a_dim3 * grid_size, a_dim3 * block_size, void *packed_b
 
 //TODO fix frame->size to reflect face size
 a_err accel_unpack_2d_face(a_dim3 * grid_size, a_dim3 * block_size, void *packed_buf, void *buf, accel_2d_face_indexed *face, accel_type_id type, a_bool async) {
+	return accel_unpack_2d_face_cb(grid_size, block_size, packed_buf, buf, face, type, async, (accel_callback*)NULL, NULL);
+}
+a_err accel_unpack_2d_face_cb(a_dim3 * grid_size, a_dim3 * block_size, void *packed_buf, void *buf, accel_2d_face_indexed *face, accel_type_id type, a_bool async, accel_callback *call, void *call_pl) {
 	a_err ret;
 	#ifdef WITH_TIMERS
 	//TODO: Add another queue for copies into constant memory
 	//TODO: Hoist copies into constant memory out of the cores to here
-	accelTimerQueueFrame * frame_k1 = malloc (sizeof(accelTimerQueueFrame));
-	accelTimerQueueFrame * frame_c1 = malloc (sizeof(accelTimerQueueFrame));
-	accelTimerQueueFrame * frame_c2 = malloc (sizeof(accelTimerQueueFrame));
-	accelTimerQueueFrame * frame_c3 = malloc (sizeof(accelTimerQueueFrame));
+	accelTimerQueueFrame * frame_k1 = (accelTimerQueueFrame*)malloc (sizeof(accelTimerQueueFrame));
+	accelTimerQueueFrame * frame_c1 = (accelTimerQueueFrame*)malloc (sizeof(accelTimerQueueFrame));
+	accelTimerQueueFrame * frame_c2 = (accelTimerQueueFrame*)malloc (sizeof(accelTimerQueueFrame));
+	accelTimerQueueFrame * frame_c3 = (accelTimerQueueFrame*)malloc (sizeof(accelTimerQueueFrame));
 	frame_k1->mode = run_mode;
 	frame_c1->mode = run_mode;
 	frame_c2->mode = run_mode;

@@ -256,7 +256,7 @@ int ni, nj, nk, nm;
             tz = atoi(argv[7]);
 
 	    l_type = atoi(argv[8]);
-	    set_type(l_type);
+	    set_type((accel_type_id)l_type);
 //For simplicity when testing across all types, these are kept as void
 // and explicitly cast for the few calls they are necessary, based on g_type
             void * sum_dot_gpu, * zero;
@@ -361,7 +361,7 @@ switch(g_type) {
 	break;
 
 	case a_ul:
-		printf("Test Reduction:\t%d\n", *(unsigned long*)sum_dot_gpu); //print *, "Test Reduction:",sum_dot_gpu
+		printf("Test Reduction:\t%lu\n", *(unsigned long*)sum_dot_gpu); //print *, "Test Reduction:",sum_dot_gpu
 	break;
 
 	case a_in:

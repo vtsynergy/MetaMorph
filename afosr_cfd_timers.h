@@ -68,7 +68,7 @@ typedef struct accelTimerQueue {
 //A convenience structure to tie logically-named queues to possibly-changing indicies in the Queue array
 // This way we can add a new type of timer (for a kernel or copy or whatever) and potentially change indicies without needing to change a bunch of hardcoded constants.
 
-typedef enum accelTimerQueueEnum {
+enum accelTimerQueueEnum {
 	c_D2H,
 	c_H2D,
 	c_H2H,
@@ -90,6 +90,5 @@ a_err accelTimersInit();
 a_err accelTimersFlush();
 a_err accelTimersFinish();
 
-accelTimerQueue accelBuiltinQueues[queue_count];
-
+extern accelTimerQueue accelBuiltinQueues[];
 #endif //AFOSR_CFD_TIMERS_H
