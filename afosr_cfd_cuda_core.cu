@@ -255,6 +255,7 @@ template <typename T>
 __global__ void kernel_transpose_2d(T *odata, T *idata, int width, int height)
 {
     __shared__ T tile[TRANSPOSE_TILE_DIM][TRANSPOSE_TILE_DIM+1];
+    //__shared__ T tile[TRANSPOSE_TILE_DIM][TRANSPOSE_TILE_DIM];
 
     int blockIdx_x, blockIdx_y;
 
@@ -280,12 +281,14 @@ __global__ void kernel_transpose_2d(T *odata, T *idata, int width, int height)
     int index_out = xIndex_out + (yIndex_out)*height;
 
     if(xIndex_in < width && yIndex_in < height)
+        //tile[threadIdx.y+1][threadIdx.x] = idata[index_in];
         tile[threadIdx.y][threadIdx.x] = idata[index_in];
 
     __syncthreads();
 
     if(xIndex_out < width && yIndex_out < height)
-        odata[index_out] = tile[threadIdx.x][threadIdx.y];
+        //odata[index_out] = tile[threadIdx.x][threadIdx.y];
+        odata[index_out] = tile[threadIdx.x][threadIdx.y+1];
 
 }
 
@@ -363,23 +366,23 @@ cudaError_t cuda_reduce(size_t (* grid_size)[3], size_t (* block_size)[3], void 
 	switch (type) {
 		case a_db:
 
-			kernel_reduction3<double><<<grid,block,smem_len*sizeof(double)>>>((double*)data, (*array_size)[0], (*array_size)[1], (*array_size)[2], (*arr_start)[0], (*arr_start)[1], (*arr_start)[2], (*arr_end)[2], (*arr_end)[1], (*arr_end)[2], (*grid_size)[2], (double*)reduced_val, (*block_size)[0] * (*block_size)[1] * (*block_size)[2]);
+			kernel_reduction3<double><<<grid,block,smem_len*sizeof(double)>>>((double*)data, (*array_size)[0], (*array_size)[1], (*array_size)[2], (*arr_start)[0], (*arr_start)[1], (*arr_start)[2], (*arr_end)[0], (*arr_end)[1], (*arr_end)[2], (*grid_size)[2], (double*)reduced_val, (*block_size)[0] * (*block_size)[1] * (*block_size)[2]);
 		break;
 
 		case a_fl:
-			kernel_reduction3<float><<<grid,block,smem_len*sizeof(float)>>>((float*)data, (*array_size)[0], (*array_size)[1], (*array_size)[2], (*arr_start)[0], (*arr_start)[1], (*arr_start)[2], (*arr_end)[2], (*arr_end)[1], (*arr_end)[2], (*grid_size)[2], (float*)reduced_val, (*block_size)[0] * (*block_size)[1] * (*block_size)[2]);
+			kernel_reduction3<float><<<grid,block,smem_len*sizeof(float)>>>((float*)data, (*array_size)[0], (*array_size)[1], (*array_size)[2], (*arr_start)[0], (*arr_start)[1], (*arr_start)[2], (*arr_end)[0], (*arr_end)[1], (*arr_end)[2], (*grid_size)[2], (float*)reduced_val, (*block_size)[0] * (*block_size)[1] * (*block_size)[2]);
 		break;
 
 		case a_ul:
-			kernel_reduction3<unsigned long long><<<grid,block,smem_len*sizeof(unsigned long long)>>>((unsigned long long*)data, (*array_size)[0], (*array_size)[1], (*array_size)[2], (*arr_start)[0], (*arr_start)[1], (*arr_start)[2], (*arr_end)[2], (*arr_end)[1], (*arr_end)[2], (*grid_size)[2], (unsigned long long*)reduced_val, (*block_size)[0] * (*block_size)[1] * (*block_size)[2]);
+			kernel_reduction3<unsigned long long><<<grid,block,smem_len*sizeof(unsigned long long)>>>((unsigned long long*)data, (*array_size)[0], (*array_size)[1], (*array_size)[2], (*arr_start)[0], (*arr_start)[1], (*arr_start)[2], (*arr_end)[0], (*arr_end)[1], (*arr_end)[2], (*grid_size)[2], (unsigned long long*)reduced_val, (*block_size)[0] * (*block_size)[1] * (*block_size)[2]);
 		break;
 
 		case a_in:
-			kernel_reduction3<int><<<grid,block,smem_len*sizeof(int)>>>((int*)data, (*array_size)[0], (*array_size)[1], (*array_size)[2], (*arr_start)[0], (*arr_start)[1], (*arr_start)[2], (*arr_end)[2], (*arr_end)[1], (*arr_end)[2], (*grid_size)[2], (int*)reduced_val, (*block_size)[0] * (*block_size)[1] * (*block_size)[2]);
+			kernel_reduction3<int><<<grid,block,smem_len*sizeof(int)>>>((int*)data, (*array_size)[0], (*array_size)[1], (*array_size)[2], (*arr_start)[0], (*arr_start)[1], (*arr_start)[2], (*arr_end)[0], (*arr_end)[1], (*arr_end)[2], (*grid_size)[2], (int*)reduced_val, (*block_size)[0] * (*block_size)[1] * (*block_size)[2]);
 		break;
 
 		case a_ui:
-			kernel_reduction3<unsigned int><<<grid,block,smem_len*sizeof(unsigned int)>>>((unsigned int*)data, (*array_size)[0], (*array_size)[1], (*array_size)[2], (*arr_start)[0], (*arr_start)[1], (*arr_start)[2], (*arr_end)[2], (*arr_end)[1], (*arr_end)[2], (*grid_size)[2], (unsigned int*)reduced_val, (*block_size)[0] * (*block_size)[1] * (*block_size)[2]);
+			kernel_reduction3<unsigned int><<<grid,block,smem_len*sizeof(unsigned int)>>>((unsigned int*)data, (*array_size)[0], (*array_size)[1], (*array_size)[2], (*arr_start)[0], (*arr_start)[1], (*arr_start)[2], (*arr_end)[0], (*arr_end)[1], (*arr_end)[2], (*grid_size)[2], (unsigned int*)reduced_val, (*block_size)[0] * (*block_size)[1] * (*block_size)[2]);
 		break;
 
 		default:
@@ -488,27 +491,27 @@ cudaError_t cuda_pack_2d_face(size_t (* grid_size)[3], size_t (* block_size)[3],
 		cudaEventCreate(&(*event_k1)[0]);
 		cudaEventRecord((*event_k1)[0], 0);
 	}
-	dim3 grid = dim3((remain_dim[0] + 256 -1)/256, 1, 1);
+	dim3 grid = dim3((face->size[0]*face->size[1]*face->size[2] + 256 -1)/256, 1, 1);
 	dim3 block = dim3(256, 1, 1);
 	switch (type) {
 		case a_db:
-			kernel_pack<double><<<grid, block, smem_size>>>((double *)packed_buf, (double *)buf, remain_dim[0], face->start, face->count);
+			kernel_pack<double><<<grid, block, smem_size>>>((double *)packed_buf, (double *)buf, face->size[0]*face->size[1]*face->size[2], face->start, face->count);
 		break;
 
 		case a_fl:
-			kernel_pack<float><<<grid, block, smem_size>>>((float *)packed_buf, (float *)buf, remain_dim[0], face->start, face->count);
+			kernel_pack<float><<<grid, block, smem_size>>>((float *)packed_buf, (float *)buf, face->size[0]*face->size[1]*face->size[2], face->start, face->count);
 		break;
 
 		case a_ul:
-			kernel_pack<unsigned long><<<grid, block, smem_size>>>((unsigned long *)packed_buf, (unsigned long *)buf, remain_dim[0], face->start, face->count);
+			kernel_pack<unsigned long><<<grid, block, smem_size>>>((unsigned long *)packed_buf, (unsigned long *)buf, face->size[0]*face->size[1]*face->size[2], face->start, face->count);
 		break;
 
 		case a_in:
-			kernel_pack<int><<<grid, block, smem_size>>>((int *)packed_buf, (int *)buf, remain_dim[0], face->start, face->count);
+			kernel_pack<int><<<grid, block, smem_size>>>((int *)packed_buf, (int *)buf, face->size[0]*face->size[1]*face->size[2], face->start, face->count);
 		break;
 
 		case a_ui:
-			kernel_pack<unsigned int><<<grid, block, smem_size>>>((unsigned int *)packed_buf, (unsigned int *)buf, remain_dim[0], face->start, face->count);
+			kernel_pack<unsigned int><<<grid, block, smem_size>>>((unsigned int *)packed_buf, (unsigned int *)buf, face->size[0]*face->size[1]*face->size[2], face->start, face->count);
 		break;
 
 		default:
@@ -569,27 +572,27 @@ cudaError_t cuda_unpack_2d_face(size_t (* grid_size)[3], size_t (* block_size)[3
 		cudaEventCreate(&(*event_k1)[0]);
 		cudaEventRecord((*event_k1)[0], 0);
 	}
-	dim3 grid = dim3((remain_dim[0] + 256 -1)/256, 1, 1);
+	dim3 grid = dim3((face->size[0]*face->size[1]*face->size[2] + 256 -1)/256, 1, 1);
 	dim3 block = dim3(256, 1, 1);
 	switch (type) {
 		case a_db:
-			kernel_unpack<double><<<grid, block, smem_size>>>((double *)packed_buf, (double *)buf, remain_dim[0], face->start, face->count);
+			kernel_unpack<double><<<grid, block, smem_size>>>((double *)packed_buf, (double *)buf, face->size[0]*face->size[1]*face->size[2], face->start, face->count);
 		break;
 
 		case a_fl:
-			kernel_unpack<float><<<grid, block, smem_size>>>((float *)packed_buf, (float *)buf, remain_dim[0], face->start, face->count);
+			kernel_unpack<float><<<grid, block, smem_size>>>((float *)packed_buf, (float *)buf, face->size[0]*face->size[1]*face->size[2], face->start, face->count);
 		break;
 
 		case a_ul:
-			kernel_unpack<unsigned long><<<grid, block, smem_size>>>((unsigned long *)packed_buf, (unsigned long *)buf, remain_dim[0], face->start, face->count);
+			kernel_unpack<unsigned long><<<grid, block, smem_size>>>((unsigned long *)packed_buf, (unsigned long *)buf, face->size[0]*face->size[1]*face->size[2], face->start, face->count);
 		break;
 
 		case a_in:
-			kernel_unpack<int><<<grid, block, smem_size>>>((int *)packed_buf, (int *)buf, remain_dim[0], face->start, face->count);
+			kernel_unpack<int><<<grid, block, smem_size>>>((int *)packed_buf, (int *)buf, face->size[0]*face->size[1]*face->size[2], face->start, face->count);
 		break;
 
 		case a_ui:
-			kernel_unpack<unsigned int><<<grid, block, smem_size>>>((unsigned int *)packed_buf, (unsigned int *)buf, remain_dim[0], face->start, face->count);
+			kernel_unpack<unsigned int><<<grid, block, smem_size>>>((unsigned int *)packed_buf, (unsigned int *)buf, face->size[0]*face->size[1]*face->size[2], face->start, face->count);
 		break;
 
 		default:

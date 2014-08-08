@@ -49,21 +49,21 @@ int ni, nj, nk, nm;
 //      !This does the host and device data allocations.
 	void data_allocate(int i, int j, int k, int m) {
             a_err istat = 0; 
-            printf("ni:\t%d\n", ni); //print *,"ni:",ni
-            printf("nj:\t%d\n", nj); //print *,"nj:",nj
-            printf("nk:\t%d\n", nk); //print *,"nk:",nk
+            //printf("ni:\t%d\n", ni); //print *,"ni:",ni
+            //printf("nj:\t%d\n", nj); //print *,"nj:",nj
+            //printf("nk:\t%d\n", nk); //print *,"nk:",nk
             data3 = malloc(g_typesize*ni*nj*nk);
 	    data4 = malloc(g_typesize*ni*nj*nk*nm);
-            printf("Status:\t%d\n", istat); //NOOP for output compatibility //print *,"Status:",istat
+            //printf("Status:\t%d\n", istat); //NOOP for output compatibility //print *,"Status:",istat
             istat = accel_alloc( &dev_data3, g_typesize*ni*nj*nk);
-            printf("Status:\t%d\n", istat);
+            //printf("Status:\t%d\n", istat);
 	    istat = accel_alloc( &dev_data3_2, g_typesize*ni*nj*nk);
-            printf("Status:\t%d\n", istat);
+            //printf("Status:\t%d\n", istat);
 	    istat = accel_alloc( &dev_data4, g_typesize*ni*nj*nk*nm); 
-            printf("Status:\t%d\n", istat);
+            //printf("Status:\t%d\n", istat);
 	    istat = accel_alloc( &reduction, g_typesize);
-            printf("Status:\t%d\n", istat);
-            printf("Data Allocated\n"); 
+            //printf("Status:\t%d\n", istat);
+            //printf("Data Allocated\n"); 
       } 
 
 //      !initilialize the host side data that has to be reduced here.
@@ -230,7 +230,7 @@ int ni, nj, nk, nm;
 //            ! Tell me which GPU I use
 		accel_preferred_mode mode;
             istat = get_accel(&deviceused, &mode); //TODO make "get_accel"
-            printf("Device used\t%d\n", deviceused); //print *, 'Device used', deviceused
+ //           printf("Device used\t%d\n", deviceused); //print *, 'Device used', deviceused
 		
 
       } //end subroutine gpu_initialize
@@ -271,7 +271,7 @@ int ni, nj, nk, nm;
             data_allocate(ni,nj,nk,nm); //call data_allocate(ni,nj,nk,nm) 
             data_initialize(); //call data_initialize 
             data_transfer_h2d(); //call data_transfer_h2d 
-            printf("Performing reduction\n"); //print *,'Performing reduction'
+            printf("Performing dot-product\n"); //print *,'Performing reduction'
             //dev_data3 = 1.0
 //!            tx = 8
 //!            ty = 8
@@ -280,13 +280,13 @@ int ni, nj, nk, nm;
 //!            gy = 0
 //!            gz = 0
             dimblock[0] = tx, dimblock[1] = ty, dimblock[2] = tz; // dimblock = {tx,ty,tz}; //TODO move into CUDA backend, replace with generic struct
-            printf("ni:\t%d\n", ni); //print *,"ni:",ni
-            printf("nj:\t%d\n", nj); //print *,"nj:",nj
-            printf("nk:\t%d\n", nk); //print *,"nk:",nk
-            printf("gyr:\t%d\n", (nj-2)%ty); //print *,"gyr:",modulo(ni-2,ty)
+            //printf("ni:\t%d\n", ni); //print *,"ni:",ni
+            //printf("nj:\t%d\n", nj); //print *,"nj:",nj
+            //printf("nk:\t%d\n", nk); //print *,"nk:",nk
+            //printf("gyr:\t%d\n", (nj-2)%ty); //print *,"gyr:",modulo(ni-2,ty)
 
-            printf("gxr:\t%d\n", (ni-2)%tx); //print *,"gxr:",modulo(ni-2,tx)
-            printf("gzr:\t%d\n", (nk-2)%tz); //print *,"gzr:",modulo(nk-2,tz)
+            //printf("gxr:\t%d\n", (ni-2)%tx); //print *,"gxr:",modulo(ni-2,tx)
+            //printf("gzr:\t%d\n", (nk-2)%tz); //print *,"gzr:",modulo(nk-2,tz)
             if ((nj-2)%ty != 0)  //if(modulo(ni-2,ty).ne.0)then
                   gy = (nj-2)/ty +1;
             else
@@ -304,9 +304,9 @@ int ni, nj, nk, nm;
             //end if
 	    //CUDA doesn't support dimgrid[2] != 1, but we use this to pass the number of slab iterations the kernel needs to run internally
             dimgrid[0] = gx, dimgrid[1] = gy, dimgrid[2] = gz; //dimgrid = {gx,gy,1}; // TODO move into CUDA backend, replace with generic struct
-            printf("gx:\t%d\n", gx); //print *,"gx:",gx
-            printf("gy:\t%d\n", gy); //print *,"gy:",gy
-            printf("gz:\t%d\n", gz); //print *,"gz:",gz
+            //printf("gx:\t%d\n", gx); //print *,"gx:",gx
+            //printf("gy:\t%d\n", gy); //print *,"gy:",gy
+            //printf("gz:\t%d\n", gz); //print *,"gz:",gz
 switch(g_type) {
 	case a_db:
 		*(double*)zero = 0;
@@ -331,7 +331,7 @@ switch(g_type) {
 	    dimarray[0] = ni, dimarray[1] = nj, dimarray[2] = nk;
 	    arr_start[0] = arr_start[1] = arr_start[2] = 1;
 	    arr_end[0] = ni-2, arr_end[1] = nj-2, arr_end[2] = nk-2;
-for (i = 0; i < 10; i++) { //do i=1,10
+for (i = 0; i < 1; i++) { //do i=1,10
 	istat =	accel_copy_h2d( reduction, zero, g_typesize, true);
 		//Validate grid and block sizes (if too big, shrink the z-dim and add iterations)
 		for(;accel_validate_worksize(&dimgrid, &dimblock) != 0 && dimblock[2] > 1; dimgrid[2] <<=1, dimblock[2] >>=1);
@@ -344,7 +344,7 @@ for (i = 0; i < 10; i++) { //do i=1,10
 
 		//Call the entire reduction
 		a_err ret = accel_dotProd(&dimgrid, &dimblock, dev_data3, dev_data3_2, &dimarray, &arr_start, &arr_end, reduction, g_type, true);
-		fprintf(stderr, "Kernel Status: %d\n", ret);
+		//fprintf(stderr, "Kernel Status: %d\n", ret);
 
 //           kernel_reduction3<<<dimgrid,dimblock,tx*ty*tz*sizeof(double)>>>(dev_data3, //call kernel_reduction3<<<dimgrid,dimblock,tx*ty*tz*8>>>(dev_data3 & //TODO move into CUDA backend, make "accel_reduce"
 //           dev_data3_2, ni, nj, nk, 2, 2, 2, nj-1, ni-1, nk-1, gz, reduction, tx*ty*tz); //& ,dev_data3_2,ni,nj,nk,2,2,2,nj-1,ni-1,nk-1,gz,reduction,tx*ty*tz) //TODO - see previous
@@ -353,23 +353,23 @@ for (i = 0; i < 10; i++) { //do i=1,10
 		istat = accel_copy_d2h(sum_dot_gpu, reduction, g_typesize, false);
 switch(g_type) {
 	case a_db:
-		printf("Test Reduction:\t%f\n", *(double*)sum_dot_gpu); //print *, "Test Reduction:",sum_dot_gpu
+		printf("Test Dot-Product:\t%s\n", (*(double*)sum_dot_gpu == (double)((ni-2)*(nj-2)*(nk-2)) ? "PASSED" : "FAILED")); //print *, "Test Reduction:",sum_dot_gpu
 	break;
 
 	case a_fl:
-		printf("Test Reduction:\t%f\n", *(float*)sum_dot_gpu); //print *, "Test Reduction:",sum_dot_gpu
+		printf("Test Dot-Product:\t%f\n", *(float*)sum_dot_gpu); //print *, "Test Reduction:",sum_dot_gpu
 	break;
 
 	case a_ul:
-		printf("Test Reduction:\t%lu\n", *(unsigned long*)sum_dot_gpu); //print *, "Test Reduction:",sum_dot_gpu
+		printf("Test Dot-Product:\t%lu\n", *(unsigned long*)sum_dot_gpu); //print *, "Test Reduction:",sum_dot_gpu
 	break;
 
 	case a_in:
-		printf("Test Reduction:\t%d\n", *(int*)sum_dot_gpu); //print *, "Test Reduction:",sum_dot_gpu
+		printf("Test Dot-Product:\t%d\n", *(int*)sum_dot_gpu); //print *, "Test Reduction:",sum_dot_gpu
 	break;
 
 	case a_ui:
-		printf("Test Reduction:\t%d\n", *(unsigned int*)sum_dot_gpu); //print *, "Test Reduction:",sum_dot_gpu
+		printf("Test Dot-Product:\t%d\n", *(unsigned int*)sum_dot_gpu); //print *, "Test Reduction:",sum_dot_gpu
 	break;
 }
 	    //printf("Test Reduction:\t%d\n", sum_dot_gpu); //print *, "Test Reduction:",sum_dot_gpu

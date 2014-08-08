@@ -176,7 +176,7 @@ void flushWorker(accelTimerQueue * queue, int level) {
 		if (level >= 2) {
 			//Individual call times/bandwidths
 			//TODO come up with a reasonable, generic bandwidth calculation.
-			fprintf(stderr, "%s [%lu] on [%lu]bytes took [%f]ms, with [%f]MB/s approximate bandwidth.\n", queue->name, count, frame->size, temp_t, (frame->size > 0 && temp_t > 0) ? frame->size*.001/temp_t : 0.0);
+			fprintf(stderr, "\t%s [%lu] on [%lu]bytes took [%f]ms, with [%f]MB/s approximate bandwidth.\n", queue->name, count, frame->size, temp_t, (frame->size > 0 && temp_t > 0) ? frame->size*.001/temp_t : 0.0);
 		}
 
 		if (level == 3) {
@@ -210,12 +210,16 @@ a_err accelTimersFlush() {
 		}
 
 		else if (strcmp(getenv("AFOSR_TIMER_LEVEL"), "1") == 0) {
+			fprintf(stderr, "***TIMER LEVEL 1 FLUSH START***\n");
 			for(i = 0; i < queue_count; i++) flushWorker(&accelBuiltinQueues[i], 1);
+			fprintf(stderr, "***TIMER LEVEL 1 FLUSH END***\n");
 			//Aggregate just averages
 		}
 
 		else if (strcmp(getenv("AFOSR_TIMER_LEVEL"), "2") == 0) {
+			fprintf(stderr, "***TIMER LEVEL 2 FLUSH START***\n");
 			for(i = 0; i < queue_count; i++) flushWorker(&accelBuiltinQueues[i], 2);
+			fprintf(stderr, "***TIMER LEVEL 2 FLUSH END***\n");
 			//Display all individual nodes, with bandwidth (for transfers)
 		}
 

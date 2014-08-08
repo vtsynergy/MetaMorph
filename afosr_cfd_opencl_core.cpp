@@ -266,6 +266,13 @@ cl_int accelOpenCLInitStackFrame(accelOpenCLStackFrame ** frame, cl_int device) 
 			args = (char *)malloc(needed);
 			snprintf(args, needed, "-I . -D TRANSPOSE_TILE_DIM=(%d) -D TRANSPOSE_TILE_BLOCK_ROWS=(%d) -g -cl-opt-disable", TRANSPOSE_TILE_DIM, TRANSPOSE_TILE_BLOCK_ROWS);
 		}
+	} else {
+		//Do the same as if AFOSR_MODE was set as OpenCL
+		size_t needed = snprintf(NULL, 0, "-I . -D TRANSPOSE_TILE_DIM=(%d) -D TRANSPOSE_TILE_BLOCK_ROWS=(%d)", TRANSPOSE_TILE_DIM, TRANSPOSE_TILE_BLOCK_ROWS);
+		args = (char *)malloc(needed);
+		snprintf(args, needed, "-I . -D TRANSPOSE_TILE_DIM=(%d) -D TRANSPOSE_TILE_BLOCK_ROWS=(%d)", TRANSPOSE_TILE_DIM, TRANSPOSE_TILE_BLOCK_ROWS);
+	//	ret |= clBuildProgram((*frame)->program_opencl_core, 1, &((*frame)->device), args, NULL, NULL);
+
 	}
 	ret |= clBuildProgram((*frame)->program_opencl_core, 1, &((*frame)->device), args, NULL, NULL);
 	//Let us know if there's any errors in the build process
@@ -614,6 +621,8 @@ cl_int opencl_transpose_2d_face(size_t (* grid_size)[3], size_t (* block_size)[3
 //	size_t block[3] = {(*block_size)[0], (*block_size)[1], (*block_size)[2]};
 	size_t grid[3] = {((*dim_xy)[0]+TRANSPOSE_TILE_DIM-1)/TRANSPOSE_TILE_DIM, ((*dim_xy)[1]+TRANSPOSE_TILE_DIM-1)/TRANSPOSE_TILE_DIM, 1};
 	size_t block[3] = {TRANSPOSE_TILE_DIM, TRANSPOSE_TILE_BLOCK_ROWS, 1};
+	grid[0] *=block[0];
+	grid[1] *=block[1];
 	//TODO as the frame grows larger with more kernels, this overhead will start to add up
 	// Need a better (safe) way of accessing the stack for kernel launches
 	//before enqueuing, get a copy of the top stack frame
@@ -663,6 +672,7 @@ cl_int opencl_transpose_2d_face(size_t (* grid_size)[3], size_t (* block_size)[3
 cl_int opencl_pack_2d_face(size_t (* grid_size)[3], size_t (* block_size)[3], void *packed_buf, void *buf, accel_2d_face_indexed *face, int *remain_dim, accel_type_id type, int async, cl_event * event_k1, cl_event * event_c1, cl_event *event_c2, cl_event *event_c3) {
 	cl_int ret;
 	cl_kernel kern;
+	cl_int size = face->size[0]*face->size[1]*face->size[2];
 	cl_int smem_size =  face->count*256*sizeof(int);
 	//before enqueuing, get a copy of the top stack frame
 	accelOpenCLStackFrame * frame = accelOpenCLTopStackFrame();
@@ -674,7 +684,7 @@ cl_int opencl_pack_2d_face(size_t (* grid_size)[3], size_t (* block_size)[3], vo
 //TODO update to use user-provided grid/block once multi-element per thread scaling is added
 //	size_t grid[3] = {(*grid_size)[0]*(*block_size)[0], (*grid_size)[1]*(*block_size)[1], (*block_size)[2]};
 //	size_t block[3] = {(*block_size)[0], (*block_size)[1], (*block_size)[2]};
-	size_t grid[3] = {(remain_dim[0]+256-1)/256, 1, 1};
+	size_t grid[3] = {((size+256-1)/256)<<8, 1, 1};
 	size_t block[3] = {256, 1, 1};
 //TODO Timing needs to be made consistent with CUDA (ie the event should return time for copying to constant memory and the kernel
 	
@@ -714,9 +724,13 @@ cl_int opencl_pack_2d_face(size_t (* grid_size)[3], size_t (* block_size)[3], vo
 
 	ret =  clSetKernelArg(kern, 0, sizeof(cl_mem *), &packed_buf);
 	ret |= clSetKernelArg(kern, 1, sizeof(cl_mem *), &buf);
-	ret |= clSetKernelArg(kern, 2, sizeof(cl_int), &remain_dim[0]);
+	ret |= clSetKernelArg(kern, 2, sizeof(cl_int), &size);
 	ret |= clSetKernelArg(kern, 3, sizeof(cl_int), &(face->start));
 	ret |= clSetKernelArg(kern, 4, sizeof(cl_int), &(face->count));
+	ret |= clSetKernelArg(kern, 5, sizeof(cl_mem *), &frame->constant_face_size);
+	ret |= clSetKernelArg(kern, 6, sizeof(cl_mem *), &frame->constant_face_stride);
+	ret |= clSetKernelArg(kern, 7, sizeof(cl_mem *), &frame->constant_face_child_size);
+	ret |= clSetKernelArg(kern, 8, smem_size, NULL);
 	ret |= clEnqueueNDRangeKernel(frame->queue, kern, 1, NULL, grid, block, 0, NULL, event_k1);
 	
 	//TODO find a way to make explicit sync optional
@@ -731,6 +745,7 @@ cl_int opencl_pack_2d_face(size_t (* grid_size)[3], size_t (* block_size)[3], vo
 cl_int opencl_unpack_2d_face(size_t (* grid_size)[3], size_t (* block_size)[3], void *packed_buf, void *buf, accel_2d_face_indexed *face, int *remain_dim, accel_type_id type, int async, cl_event * event_k1, cl_event * event_c1, cl_event *event_c2, cl_event *event_c3) {
 	cl_int ret;
 	cl_kernel kern;
+	cl_int size = face->size[0]*face->size[1]*face->size[2];
 	cl_int smem_size =  face->count*256*sizeof(int);
 	//before enqueuing, get a copy of the top stack frame
 	accelOpenCLStackFrame * frame = accelOpenCLTopStackFrame();
@@ -742,7 +757,7 @@ cl_int opencl_unpack_2d_face(size_t (* grid_size)[3], size_t (* block_size)[3], 
 //TODO update to use user-provided grid/block once multi-element per thread scaling is added
 //	size_t grid[3] = {(*grid_size)[0]*(*block_size)[0], (*grid_size)[1]*(*block_size)[1], (*block_size)[2]};
 //	size_t block[3] = {(*block_size)[0], (*block_size)[1], (*block_size)[2]};
-	size_t grid[3] = {(remain_dim[0]+256-1)/256, 1, 1};
+	size_t grid[3] = {((size+256-1)/256)<<8, 1, 1};
 	size_t block[3] = {256, 1, 1};
 //TODO Timing needs to be made consistent with CUDA (ie the event should return time for copying to constant memory and the kernel
 	
@@ -782,9 +797,13 @@ cl_int opencl_unpack_2d_face(size_t (* grid_size)[3], size_t (* block_size)[3], 
 
 	ret =  clSetKernelArg(kern, 0, sizeof(cl_mem *), &packed_buf);
 	ret |= clSetKernelArg(kern, 1, sizeof(cl_mem *), &buf);
-	ret |= clSetKernelArg(kern, 2, sizeof(cl_int), &remain_dim[0]);
+	ret |= clSetKernelArg(kern, 2, sizeof(cl_int), &size);
 	ret |= clSetKernelArg(kern, 3, sizeof(cl_int), &(face->start));
 	ret |= clSetKernelArg(kern, 4, sizeof(cl_int), &(face->count));
+	ret |= clSetKernelArg(kern, 5, sizeof(cl_mem *), &frame->constant_face_size);
+	ret |= clSetKernelArg(kern, 6, sizeof(cl_mem *), &frame->constant_face_stride);
+	ret |= clSetKernelArg(kern, 7, sizeof(cl_mem *), &frame->constant_face_child_size);
+	ret |= clSetKernelArg(kern, 8, smem_size, NULL);
 	ret |= clEnqueueNDRangeKernel(frame->queue, kern, 1, NULL, grid, block, 0, NULL, event_k1);
 	
 	//TODO find a way to make explicit sync optional

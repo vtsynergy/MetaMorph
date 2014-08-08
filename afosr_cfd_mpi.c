@@ -465,7 +465,7 @@ a_err accel_mpi_pack_and_send_face(a_dim3 *grid_size, a_dim3 *block_size, int ds
 					accel_pack_2d_face_cb(grid_size, block_size, packed_buf, buf, face, type, 1, call, call_pl);
 					//MPI_Isend(packed_buf, size, mpi_type, dst_rank, tag, MPI_COMM_WORLD, req);
 				} else {
-					error |= accel_pack_2d_face(grid_size, block_size, packeD_buf, buf, face, type, 0);
+					error |= accel_pack_2d_face(grid_size, block_size, packed_buf, buf, face, type, 0);
 					MPI_Send(packed_buf, size, mpi_type, dst_rank, tag, MPI_COMM_WORLD);
 					accel_free(packed_buf);
 				}
@@ -509,7 +509,7 @@ a_err accel_mpi_pack_and_send_face(a_dim3 *grid_size, a_dim3 *block_size, int ds
 	} else {
 		error |= accel_pack_2d_face(grid_size, block_size, packed_buf, buf, face, type, 0);
 		error |= accel_copy_d2h(packed_buf_host, packed_buf, size*type_size, 0);
-		MPI_Send(packed_buf_host, size, MPI_DOUBLE, dst_rank, tag, MPI_COMM_WORLD);
+		MPI_Send(packed_buf_host, size, mpi_type, dst_rank, tag, MPI_COMM_WORLD);
 		accel_free(packed_buf);
 		free(packed_buf_host);
 	}

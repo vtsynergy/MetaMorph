@@ -442,7 +442,7 @@ a_err get_accel(int * accel, accel_preferred_mode * mode) {
 		default:
 		case accelModePreferGeneric:
 			//TODO implement a generic response for which device was runtime selected
-			fprintf(stderr, "Generic Device Query not yet implemented!\n");
+			//fprintf(stderr, "Generic Device Query not yet implemented!\n");
 			*mode = accelModePreferGeneric;
 			break;
 
@@ -459,7 +459,7 @@ a_err get_accel(int * accel, accel_preferred_mode * mode) {
 			if (accel_context == NULL) accelOpenCLFallBack();
 			//TODO implement appropriate response for OpenCL device number
 			//TODO implement this based on accelOpenCLTopStackFrame
-			fprintf(stderr, "OpenCL Device Query not yet implemented!\n");
+			//fprintf(stderr, "OpenCL Device Query not yet implemented!\n");
 			*mode = accelModePreferOpenCL;
 			break;
 		#endif
@@ -735,7 +735,7 @@ a_err accel_pack_2d_face_cb(a_dim3 * grid_size, a_dim3 * block_size, void *packe
 
 	//figure out what the aggregate size of all descendant branches are
 	int *remain_dim = (int *)malloc(sizeof(int)*face->count);
-	int i;
+	int i,j;
 	remain_dim[face->count-1] = 1;
 	//This loop is backwards from Kaixi's to compute the child size in O(n)
 	// rather than O(n^2) by recognizing that the size of nodes higher in the tree
@@ -743,7 +743,16 @@ a_err accel_pack_2d_face_cb(a_dim3 * grid_size, a_dim3 * block_size, void *packe
 	// upwards from the leaves
 	for (i = face->count-2; i >= 0; i--) {
 		remain_dim[i] = remain_dim[i+1]*face->size[i+1];
-	}	
+	//	printf("Remain_dim[%d]: %d\n", i, remain_dim[i]);
+	}
+
+//	for(i = 0; i < face->count; i++){
+//		remain_dim[i] = 1;
+//		for(j=i+1; j < face->count; j++) {
+//			remain_dim[i] *=face->size[j];
+//		}
+//			printf("Remain_dim[%d]: %d\n", i, remain_dim[i]);
+//	}	
 	
 	switch(run_mode) {
 		default:
