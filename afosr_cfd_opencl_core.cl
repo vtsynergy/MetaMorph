@@ -541,11 +541,12 @@ __kernel void kernel_transpose_2d_db(__global double *odata, __global double *id
     int index_out = xIndex_out + (yIndex_out)*height;
 
     if(xIndex_in < width && yIndex_in < height)
-        tile[get_local_id(1)][get_local_id(0)] = idata[index_in];
+        tile[get_local_id(1)][get_local_id(0)] =  idata[index_in];
 
     barrier(CLK_LOCAL_MEM_FENCE | CLK_GLOBAL_MEM_FENCE);
 
-    if(xIndex_out < width && yIndex_out < height)
+    //if(xIndex_out < width && yIndex_out < height)
+    if(xIndex_out < height && yIndex_out < width)
         odata[index_out] = tile[get_local_id(0)][get_local_id(1)];
 
 }
@@ -582,7 +583,7 @@ __kernel void kernel_transpose_2d_fl(__global float *odata, __global float *idat
 
     barrier(CLK_LOCAL_MEM_FENCE | CLK_GLOBAL_MEM_FENCE);
 
-    if(xIndex_out < width && yIndex_out < height)
+    if(xIndex_out < height && yIndex_out < width)
         odata[index_out] = tile[get_local_id(0)][get_local_id(1)];
 
 }
@@ -619,7 +620,7 @@ __kernel void kernel_transpose_2d_ul(__global unsigned long *odata, __global uns
 
     barrier(CLK_LOCAL_MEM_FENCE | CLK_GLOBAL_MEM_FENCE);
 
-    if(xIndex_out < width && yIndex_out < height)
+    if(xIndex_out < height && yIndex_out < width)
         odata[index_out] = tile[get_local_id(0)][get_local_id(1)];
 
 }
@@ -656,7 +657,7 @@ __kernel void kernel_transpose_2d_in(__global int *odata, __global int *idata, i
 
     barrier(CLK_LOCAL_MEM_FENCE | CLK_GLOBAL_MEM_FENCE);
 
-    if(xIndex_out < width && yIndex_out < height)
+    if(xIndex_out < height && yIndex_out < width)
         odata[index_out] = tile[get_local_id(0)][get_local_id(1)];
 
 }
@@ -693,7 +694,7 @@ __kernel void kernel_transpose_2d_ui(__global unsigned int *odata, __global unsi
 
     barrier(CLK_LOCAL_MEM_FENCE | CLK_GLOBAL_MEM_FENCE);
 
-    if(xIndex_out < width && yIndex_out < height)
+    if(xIndex_out < height && yIndex_out < width)
         odata[index_out] = tile[get_local_id(0)][get_local_id(1)];
 
 }

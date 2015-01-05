@@ -1,4 +1,5 @@
 #include "afosr_cfd_fortran.F03"
+!#include <sys/time.h>
 !      include 'afosr_cfd_fortran.f03'
       
       module data_
@@ -150,16 +151,32 @@
             use afosr_cfd_c
             implicit none
             integer::istat
+            integer::iter
+            integer:: elapsed
+            external:: elapsed
+            real(C_DOUBLE):: stime, etime
+
 !            dev_data3(:,:,:) = data3(:,:,:)
+!TODO add timing loops
             if (g_type.EQ.0) then
             istat = accel_copy_h2d(dev_data3_db, data3_db, ni*nj*nk, 1)
             istat = accel_copy_h2d(dev_data4_db, data4_db, ni*nj*nk*nm, 1)
             istat = accel_copy_d2d(dev_data3_2_db, dev_data3_db, ni*nj*nk, 1)
             endif
             if (g_type.EQ.1) then
-            istat = accel_copy_h2d(dev_data3_fl, data3_fl, ni*nj*nk, 1)
-            istat = accel_copy_h2d(dev_data4_fl, data4_fl, ni*nj*nk*nm, 1)
-            istat = accel_copy_d2d(dev_data3_2_fl, dev_data3_fl, ni*nj*nk, 1)
+            istat = elapsed(stime)
+            do iter = 0, 999
+            istat = accel_copy_h2d(dev_data3_fl, data3_fl, ni*nj*nk, 0)
+            enddo
+            istat = elapsed(etime)
+            print *, "H2D time: ", (etime-stime)/(1000.0)
+            istat = accel_copy_h2d(dev_data4_fl, data4_fl, ni*nj*nk*nm, 0)
+            istat = elapsed(stime)
+            do iter = 0, 999
+            istat = accel_copy_d2d(dev_data3_2_fl, dev_data3_fl, ni*nj*nk, 0)
+            enddo
+            istat = elapsed(etime)
+            print *, "D2D time: ", (etime-stime)/(1000.0)
             endif
             if (g_type.EQ.4) then
             istat = accel_copy_h2d(dev_data3_in, data3_in, ni*nj*nk, 1)
@@ -230,11 +247,14 @@
             use afosr_cfd_c
             implicit none
             integer :: tx, ty, tz, gx, gy, gz
-            integer::istat,i
+            integer::istat,i, iter
+            integer:: elapsed
+            external:: elapsed
             character(len=32)::args
             real(C_DOUBLE), TARGET, dimension(1)::sum_dot_gpu_db, zero_db
             real(C_FLOAT), TARGET, dimension(1)::sum_dot_gpu_fl, zero_fl
             integer(C_INT), TARGET, dimension(1)::sum_dot_gpu_in, zero_in
+            real(C_DOUBLE):: etime, stime
             i = command_argument_count() 
             if(i.lt.8) then
                   print *,"<ni><nj><nk><nm><tblockx><tblocky><tblockz>t"
@@ -283,35 +303,36 @@
 
             print *,"gxr:",modulo(ni-2,tx)
             print *,"gzr:",modulo(nk-2,tz)
-            if(modulo(nj-2,ty).ne.0)then
-                  gy = (nj-2)/ty +1
+            if(modulo(nj,ty).ne.0)then
+                  gy = (nj)/ty +1
             else
-                  gy = (nj-2)/ty
+                  gy = (nj)/ty
             end if
-            if(modulo(ni-2,tx).ne.0)then
-                  gx = (ni-2)/tx +1
+            if(modulo(ni,tx).ne.0)then
+                  gx = (ni)/tx +1
             else
-                  gx = (ni-2)/tx
+                  gx = (ni)/tx
             end if
-            if(modulo(nk-2,tz).ne.0)then
-                  gz = (nk-2)/tz +1
+            if(modulo(nk,tz).ne.0)then
+                  gz = (nk)/tz +1
             else
-                  gz = (nk-2)/tz
+                  gz = (nk)/tz
             end if
 !            dimgrid = dim3(gx,gy,1)
             print *,"gx:",gx
             print *,"gy:",gy
             print *,"gz:",gz
-            do i=1,10
+!            do i=1,10
 !            reduction = 0.0
            zero_db = 0.0
            zero_fl = 0.0
            zero_in = 0.0
            if (g_type.EQ.0) then
            istat = accel_copy_h2d(reduction_db, zero_db, 1, 1)
+!TODO add timing loop
            istat = accel_dotprod((/gx, gy, gz*tz/),(/tx, ty, 1/), &
-            dev_data3_db, dev_data3_2_db, (/ni, nj, nk/), (/2, 2, 2/), &
-            (/ni-1, nj-1, nk-1/), reduction_db, 0)
+            dev_data3_db, dev_data3_2_db, (/ni, nj, nk/), (/1, 1, 1/), &
+            (/ni, nj, nk/), reduction_db, 0)
 !           istat = accel_dotprod(int(gx,kind=C_SIZE_T),int(gy,kind=C_SIZE_T),&
 !            & int(gz,kind=C_SIZE_T),int(tx,kind=C_SIZE_T),int(ty,kind=C_SIZE_T),&
 !            & int(tz,kind=C_SIZE_T),dev_data3, dev_data3_2, int(ni,kind=C_SIZE_T),&
@@ -329,9 +350,14 @@
            endif
            if (g_type.EQ.1) then
            istat = accel_copy_h2d(reduction_fl, zero_fl, 1, 1)
+           istat = elapsed(stime)
+           do iter = 0, 999
            istat = accel_dotprod((/gx, gy, gz*tz/),(/tx, ty, 1/), &
-            dev_data3_fl, dev_data3_2_fl, (/ni, nj, nk/), (/2, 2, 2/), &
-            (/ni-1, nj-1, nk-1/), reduction_fl, 0)
+            dev_data3_fl, dev_data3_2_fl, (/ni, nj, nk/), (/1, 1, 1/), &
+            (/ni, nj, nk/), reduction_fl, 0)
+           enddo
+           istat = elapsed(etime)
+            print *, "Kern time: ", (etime-stime)/(1000.0)
 !           istat = accel_dotprod(int(gx,kind=C_SIZE_T),int(gy,kind=C_SIZE_T),&
 !            & int(gz,kind=C_SIZE_T),int(tx,kind=C_SIZE_T),int(ty,kind=C_SIZE_T),&
 !            & int(tz,kind=C_SIZE_T),dev_data3, dev_data3_2, int(ni,kind=C_SIZE_T),&
@@ -346,6 +372,12 @@
            istat = accel_copy_d2h(sum_dot_gpu_fl, reduction_fl, 1, 0)
             
             print *, "Test Reduction:",sum_dot_gpu_fl
+           istat = elapsed(stime)
+           do iter = 0, 999
+           istat = accel_copy_d2h(data3_fl, dev_data3_fl, ni*nj*nk, 0)
+           enddo
+           istat = elapsed(etime)
+           print *, "D2H time: ", (etime-stime)/(1000.0)
            endif
            if (g_type.EQ.4) then
            istat = accel_copy_h2d(reduction_in, zero_in, 1, 1)
@@ -367,7 +399,7 @@
             
             print *, "Test Reduction:",sum_dot_gpu_in
            endif
-            end do
+!            end do
             call deallocate_
 #ifdef WITH_TIMERS
            istat = accel_timers_finish()

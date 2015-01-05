@@ -15,6 +15,14 @@
  */
 #include "afosr_cfd_fortran_compat.h"
 
+int elapsed_(double *sec ){
+	extern int gettimeofday();
+	struct timeval t;
+
+	int stat = gettimeofday(&t, NULL);
+	*sec = (double)(t.tv_sec*1000000.0+t.tv_usec);
+	return (stat);
+}
 int accel_alloc_c_(void ** ptr, size_t * size) { return (int) accel_alloc(ptr, *size); }
 int accel_free_c_(void * ptr) { return (int) accel_free(ptr); }
 int choose_accel_c_(int * accel, int * mode) { return (int) choose_accel(*accel, (accel_preferred_mode) (*mode)); }

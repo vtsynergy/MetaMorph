@@ -286,9 +286,9 @@ __global__ void kernel_transpose_2d(T *odata, T *idata, int width, int height)
 
     __syncthreads();
 
-    if(xIndex_out < width && yIndex_out < height)
+    if(xIndex_out < height && yIndex_out < width)
         //odata[index_out] = tile[threadIdx.x][threadIdx.y];
-        odata[index_out] = tile[threadIdx.x][threadIdx.y+1];
+        odata[index_out] = tile[threadIdx.x][threadIdx.y];
 
 }
 

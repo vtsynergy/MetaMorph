@@ -615,7 +615,7 @@ cl_int opencl_reduce(size_t (* grid_size)[3], size_t (* block_size)[3], void * d
 cl_int opencl_transpose_2d_face(size_t (* grid_size)[3], size_t (* block_size)[3], void * indata, void *outdata, size_t (* dim_xy)[3], accel_type_id type, int async, cl_event * event) {
 	cl_int ret;
 	cl_kernel kern;
-	cl_int smem_len =  (*block_size)[0] * (*block_size)[1] * (*block_size)[2];
+	//cl_int smem_len = (*block_size)[0] * (*block_size)[1] * (*block_size)[2];
 // TODO update to use user provided grid/block once multi-element per thread scaling is added
 //	size_t grid[3] = {(*grid_size)[0]*(*block_size)[0], (*grid_size)[1]*(*block_size)[1], (*block_size)[2]};
 //	size_t block[3] = {(*block_size)[0], (*block_size)[1], (*block_size)[2]};

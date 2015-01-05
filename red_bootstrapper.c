@@ -4,6 +4,7 @@
 
 #include <stdio.h>
 #include <stdlib.h>
+#include <sys/time.h>
 #include "afosr_cfd.h"
 
 //global for the current type
@@ -203,9 +204,24 @@ int ni, nj, nk, nm;
 //      !Transfers data from host to device
       void data_transfer_h2d() {
 	a_err ret= CL_SUCCESS; 
-            ret |= accel_copy_h2d( dev_data3, data3, g_typesize*ni*nj*nk, true);
-            ret |= accel_copy_h2d( dev_data4, data4, g_typesize*ni*nj*nk*nm, true);
-            ret |= accel_copy_d2d( dev_data3_2, dev_data3, g_typesize*ni*nj*nk, true);
+	//TODO add timing loops
+	int iter;
+	struct timeval start, end;
+
+	gettimeofday(&start, NULL);
+	for (iter = 0; iter < 1000; iter++)
+            ret |= accel_copy_h2d( dev_data3, data3, g_typesize*ni*nj*nk, false);
+	gettimeofday(&end, NULL);
+	printf("D2H time: %f\n", ((end.tv_sec-start.tv_sec)*1000000.0+(end.tv_usec-start.tv_usec))/(1000));
+
+            ret |= accel_copy_h2d( dev_data4, data4, g_typesize*ni*nj*nk*nm, false);
+
+	gettimeofday(&start, NULL);
+	for (iter = 0; iter < 1000; iter++)
+            ret |= accel_copy_d2d( dev_data3_2, dev_data3, g_typesize*ni*nj*nk, false);
+	gettimeofday(&end, NULL);
+	printf("D2D time: %f\n", ((end.tv_sec-start.tv_sec)*1000000.0+(end.tv_usec-start.tv_usec))/(1000));
+	
 } 
 
       void deallocate_() {
@@ -287,20 +303,20 @@ int ni, nj, nk, nm;
 
             //printf("gxr:\t%d\n", (ni-2)%tx); //print *,"gxr:",modulo(ni-2,tx)
             //printf("gzr:\t%d\n", (nk-2)%tz); //print *,"gzr:",modulo(nk-2,tz)
-            if ((nj-2)%ty != 0)  //if(modulo(ni-2,ty).ne.0)then
-                  gy = (nj-2)/ty +1;
+            if ((nj)%ty != 0)  //if(modulo(ni-2,ty).ne.0)then
+                  gy = (nj)/ty +1;
             else
-                  gy = (nj-2)/ty;
+                  gy = (nj)/ty;
             //end if
-            if ((ni-2)%tx != 0) //if(modulo(nj-2,tx).ne.0)then
-                  gx = (ni-2)/tx +1;
+            if ((ni)%tx != 0) //if(modulo(nj-2,tx).ne.0)then
+                  gx = (ni)/tx +1;
             else
-                  gx = (ni-2)/tx;
+                  gx = (ni)/tx;
             //end if
-            if ((nk-2)%tz != 0) //if(modulo(nk-2,tz).ne.0)then
-                  gz = (nk-2)/tz +1;
+            if ((nk)%tz != 0) //if(modulo(nk-2,tz).ne.0)then
+                  gz = (nk)/tz +1;
             else
-                  gz = (nk-2)/tz;
+                  gz = (nk)/tz;
             //end if
 	    //CUDA doesn't support dimgrid[2] != 1, but we use this to pass the number of slab iterations the kernel needs to run internally
             dimgrid[0] = gx, dimgrid[1] = gy, dimgrid[2] = gz; //dimgrid = {gx,gy,1}; // TODO move into CUDA backend, replace with generic struct
@@ -329,9 +345,9 @@ switch(g_type) {
 	break;
 }
 	    dimarray[0] = ni, dimarray[1] = nj, dimarray[2] = nk;
-	    arr_start[0] = arr_start[1] = arr_start[2] = 1;
-	    arr_end[0] = ni-2, arr_end[1] = nj-2, arr_end[2] = nk-2;
-for (i = 0; i < 1; i++) { //do i=1,10
+	    arr_start[0] = arr_start[1] = arr_start[2] = 0;
+	    arr_end[0] = ni-1, arr_end[1] = nj-1, arr_end[2] = nk-1;
+//for (i = 0; i < 1; i++) { //do i=1,10
 	istat =	accel_copy_h2d( reduction, zero, g_typesize, true);
 		//Validate grid and block sizes (if too big, shrink the z-dim and add iterations)
 		for(;accel_validate_worksize(&dimgrid, &dimblock) != 0 && dimblock[2] > 1; dimgrid[2] <<=1, dimblock[2] >>=1);
@@ -343,8 +359,16 @@ for (i = 0; i < 1; i++) { //do i=1,10
 		
 
 		//Call the entire reduction
-		a_err ret = accel_dotProd(&dimgrid, &dimblock, dev_data3, dev_data3_2, &dimarray, &arr_start, &arr_end, reduction, g_type, true);
+		//TODO add timer loop
+		int iter;
+		struct timeval start, end;
+		a_err ret;
+		gettimeofday(&start, NULL);
+		for (iter = 0; iter < 1000; iter++)
+			ret = accel_dotProd(&dimgrid, &dimblock, dev_data3, dev_data3_2, &dimarray, &arr_start, &arr_end, reduction, g_type, false);
+		gettimeofday(&end, NULL);
 		//fprintf(stderr, "Kernel Status: %d\n", ret);
+		printf("Kern time: %f\n", ((end.tv_sec-start.tv_sec)*1000000.0+(end.tv_usec-start.tv_usec))/(1000));
 
 //           kernel_reduction3<<<dimgrid,dimblock,tx*ty*tz*sizeof(double)>>>(dev_data3, //call kernel_reduction3<<<dimgrid,dimblock,tx*ty*tz*8>>>(dev_data3 & //TODO move into CUDA backend, make "accel_reduce"
 //           dev_data3_2, ni, nj, nk, 2, 2, 2, nj-1, ni-1, nk-1, gz, reduction, tx*ty*tz); //& ,dev_data3_2,ni,nj,nk,2,2,2,nj-1,ni-1,nk-1,gz,reduction,tx*ty*tz) //TODO - see previous
@@ -372,9 +396,16 @@ switch(g_type) {
 		printf("Test Dot-Product:\t%d\n", *(unsigned int*)sum_dot_gpu); //print *, "Test Reduction:",sum_dot_gpu
 	break;
 }
+
+	//TODO add a copy-back timer loop
+	gettimeofday(&start, NULL);
+	for (iter = 0; iter < 1000; iter++)
+		accel_copy_d2h(data3, dev_data3, g_typesize*ni*nj*nk, false);
+	gettimeofday(&end, NULL);
+	printf("D2H time: %f\n", ((end.tv_sec-start.tv_sec)*1000000.0+(end.tv_usec-start.tv_usec))/(1000));
 	    //printf("Test Reduction:\t%d\n", sum_dot_gpu); //print *, "Test Reduction:",sum_dot_gpu
 	    //accelTimersFlush();
-            } //end do
+//            } //end do
             deallocate_(); //call deallocate_i
 	    #ifdef WITH_TIMERS
 	    accelTimersFinish();

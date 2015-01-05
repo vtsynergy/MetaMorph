@@ -21,6 +21,8 @@
 	#include "afosr_cfd.h"
 #endif
 
+#include <sys/time.h>
+int elapsed_(double *sec);
 int accel_alloc_c_(void ** ptr, size_t * size);
 int accel_free_c_(void * ptr);
 int choose_accel_c_(int * accel, int * mode);

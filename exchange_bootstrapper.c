@@ -202,6 +202,7 @@ void data_initialize(int ni, int nj, int nk) {
 
 //            ! Initialize GPU
            istat = choose_accel(idevice, (rank & 1 ? accelModePreferOpenCL : accelModePreferCUDA)); //TODO make "choose_accel"
+     //      istat = choose_accel(idevice, accelModePreferCUDA); //TODO make "choose_accel"3
       //      istat = choose_accel(idevice, accelModePreferGeneric); //TODO make "choose_accel"
 
 //            ! cudaChooseDevice
@@ -209,7 +210,7 @@ void data_initialize(int ni, int nj, int nk) {
 		accel_preferred_mode mode;
             istat = get_accel(&deviceused, &mode); //TODO make "get_accel"
             printf("Device used\t%d\n", deviceused); //print *, 'Device used', deviceused
-		
+	//Test	
 
       } //end subroutine gpu_initialize
 int check_face_sum(void * sum, int a, int b, int c) {
@@ -448,7 +449,7 @@ switch(g_type) {
 		//printf("**********\n");
 		//check_dims(dimgrid_red, dimblock_red, trans_dim);
 		//TODO Figure out what's wrong with transpose and re-enable	
-//	ret = accel_transpose_2d_face(NULL, NULL, dev_face[face_id], dev_face[(face_id & 1) ? face_id-1 : face_id+1], &trans_dim, g_type, async);
+	ret = accel_transpose_2d_face(NULL, NULL, dev_face[face_id], dev_face[(face_id & 1) ? face_id-1 : face_id+1], &trans_dim, g_type, async);
 		printf("Transpose error: %d\n", ret);
 		//printf("**AFTER***\n");
 		//check_buffer(face[face_id], dev_face[(face_id & 1) ? face_id-1 : face_id+1], face_spec->size[0]*face_spec->size[1]*face_spec->size[2]);
@@ -472,7 +473,7 @@ switch(g_type) {
 
 		//transpose the face back
 		//TODO figure out what's wrong with transpose and re-enable
-	//	ret = accel_transpose_2d_face(&dimgrid_red, &dimblock_red, dev_face[(face_id & 1) ? face_id-1 : face_id+1], dev_face[face_id], &rtrans_dim, g_type, async);
+		ret = accel_transpose_2d_face(&dimgrid_red, &dimblock_red, dev_face[(face_id & 1) ? face_id-1 : face_id+1], dev_face[face_id], &rtrans_dim, g_type, async);
 		//check_buffer(face[face_id], dev_face[face_id], face_spec->size[0]*face_spec->size[1]*face_spec->size[2]);
 		//reduce the specified sums to ensure the reverse transpose worked too
 		accel_copy_h2d(reduction, zero, g_typesize, async);
@@ -487,6 +488,8 @@ switch(g_type) {
 	
 		//send the packed face to proc1
 		ret = accel_mpi_packed_face_send(1, dev_face[face_id], trans_dim[0]*trans_dim[1], i, &request, g_type, async);
+
+
 		//receive and unpack the face
 		//TODO set a_dim3 structs - i believe these are fine
 		//TODO set the face_spec - believe these are fine

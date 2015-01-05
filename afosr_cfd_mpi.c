@@ -131,7 +131,7 @@ void sp_helper(request_record * sp_request) {
 
 //Compound transfers, reliant on other library functions
 //Essentially a wrapper for a contiguous buffer send
-a_err accel_mpi_packed_face_send(int dst_rank, void *packed_buf, size_t buf_leng, int tag, MPI_Request *req, accel_type_id type, int async) {
+a_err accel_mpi_packed_face_send(int dst_rank, void *packed_buf, void *packed_buf_host, size_t buf_leng, int tag, MPI_Request *req, accel_type_id type, int async) {
 	a_err error;
 	size_t type_size;
 	MPI_Datatype mpi_type;
@@ -187,7 +187,8 @@ a_err accel_mpi_packed_face_send(int dst_rank, void *packed_buf, size_t buf_leng
 	#endif //WITH_MPI_GPU_DIRECT
 	//otherwise..
 	//allocate a host buffer
-	void *packed_buf_host = malloc(buf_leng*type_size);
+	//FIXME: user app is now responsible for this
+	//void *packed_buf_host = malloc(buf_leng*type_size);
 	
 	//Do the send
 	//FIXME: bind the send routine to a cl_event/cu_event callback
@@ -224,7 +225,8 @@ a_err accel_mpi_packed_face_send(int dst_rank, void *packed_buf, size_t buf_leng
 		//copy into the host buffer
 		error |= accel_copy_d2h(packed_buf_host, packed_buf, buf_leng*type_size, 0);
 		MPI_Send(packed_buf_host, buf_leng, mpi_type, dst_rank, tag, MPI_COMM_WORLD);
-		free(packed_buf_host);
+		//FIXME: remove associated async frees
+		//free(packed_buf_host);
 	}
 	//Close the if/else checking if mode == CUDA
 	#ifdef WITH_MPI_GPU_DIRECT
@@ -269,7 +271,7 @@ void rp_helper(request_record * rp_request) {
 	
 
 //Essentially a wrapper for a contiguous buffer receive
-a_err accel_mpi_packed_face_recv(int src_rank, void *packed_buf, size_t buf_leng, int tag, MPI_Request *req, accel_type_id type, int async) {
+a_err accel_mpi_packed_face_recv(int src_rank, void *packed_buf, void * packed_buf_host, size_t buf_leng, int tag, MPI_Request *req, accel_type_id type, int async) {
 	a_err error;
 	MPI_Status status;
 	size_t type_size;
@@ -313,10 +315,11 @@ a_err accel_mpi_packed_face_recv(int src_rank, void *packed_buf, size_t buf_leng
 			if (run_mode == accelModePreferCUDA) {
 				//Do something
 				//FIXME: Support types other than double
+				//rintf("GPU DIRECT MODE ACTIVE!\n");
 				if(async) {
-					MPI_Irecv(packed_buf, size, mpi_type, src_rank, tag, MPI_COMM_WORLD, req);
+					MPI_Irecv(packed_buf, buf_leng, mpi_type, src_rank, tag, MPI_COMM_WORLD, req);
 				} else {
-					MPI_Recv(packed_buf, size, mpi_type, src_rank, tag, MPI_COMM_WORLD, &status);
+					MPI_Recv(packed_buf, buf_leng, mpi_type, src_rank, tag, MPI_COMM_WORLD, &status);
 				}
 			} else
 		#endif //WITH_CUDA
@@ -324,7 +327,8 @@ a_err accel_mpi_packed_face_recv(int src_rank, void *packed_buf, size_t buf_leng
 	#endif //WITH_MPI_GPU_DIRECT
 	//otherwise..	
 	//allocate a host buffer
-	void *packed_buf_host = malloc(buf_leng*type_size);
+	//FIXME: user apps now responsible for this
+	//void *packed_buf_host = malloc(buf_leng*type_size);
 	
 	//Receive into the host buffer
 	//FIXME: Add proper callback-related functionality to allow the pack and copy to be asynchronous
@@ -345,7 +349,8 @@ a_err accel_mpi_packed_face_recv(int src_rank, void *packed_buf, size_t buf_leng
 		//Copy into the device buffer
 		error |= accel_copy_h2d(packed_buf, packed_buf_host, buf_leng*type_size, 0);
 		//free the host buffer
-		free(packed_buf_host);
+		//FIXME: remove associated async frees
+		//free(packed_buf_host);
 	}
 	//Close the if/else checking if mode == CUDA
 	#ifdef WITH_MPI_GPU_DIRECT
@@ -398,12 +403,13 @@ void sap_helper(request_record * sap_request) {
 }
 
 //A wrapper that, provided a face, will pack it, then send it
-a_err accel_mpi_pack_and_send_face(a_dim3 *grid_size, a_dim3 *block_size, int dst_rank, accel_2d_face_indexed * face, void * buf, int tag, MPI_Request *req, accel_type_id type, int async) {
+a_err accel_mpi_pack_and_send_face(a_dim3 *grid_size, a_dim3 *block_size, int dst_rank, accel_2d_face_indexed * face, void * buf, void * packed_buf, void * packed_buf_host, int tag, MPI_Request *req, accel_type_id type, int async) {
 	//allocate space for a packed buffer
 	size_t size = 1;
 	int i;
 	for(i = 0; i < face->count; i++) size *= face->size[i];
-	void *packed_buf, *packed_buf_host;
+	//FIXME: User app is now responsible for allocing and managing these
+	//void *packed_buf, *packed_buf_host;
 	size_t type_size;
 	MPI_Datatype mpi_type;
 	switch (type) {
@@ -438,7 +444,9 @@ a_err accel_mpi_pack_and_send_face(a_dim3 *grid_size, a_dim3 *block_size, int ds
 			type_size = sizeof(double *);
 		break;
 	}
-	a_err error = accel_alloc(&packed_buf, size*type_size);
+	//FIXME: remove this, and any associated frees, app is now responsible
+	a_err error;
+	//a_err error = accel_alloc(&packed_buf, size*type_size);
 	// call the device pack function
 	//FIXME: add grid, block params
 	//FIXME: Add proper callback-related functionality to allwo the pack and copy to be asynchronous
@@ -467,14 +475,16 @@ a_err accel_mpi_pack_and_send_face(a_dim3 *grid_size, a_dim3 *block_size, int ds
 				} else {
 					error |= accel_pack_2d_face(grid_size, block_size, packed_buf, buf, face, type, 0);
 					MPI_Send(packed_buf, size, mpi_type, dst_rank, tag, MPI_COMM_WORLD);
-					accel_free(packed_buf);
+					//FIXME: remove associated async free
+					//accel_free(packed_buf);
 				}
 			} else 
 		#endif //WITH_CUDA
 			{
 	#endif //WITH_MPI_GPU_DIRECT
-		
-	packed_buf_host = malloc(size*type_size);
+	
+	//FIXME Remove this and associate frees, application is now responsible for host buffer	
+	//packed_buf_host = malloc(size*type_size);
 	//DO all variants via copy to host
 	//FIXME: Add proper callback-related functionality to allow the pack and copy to be asynchronous
 	if (async) {
@@ -510,8 +520,9 @@ a_err accel_mpi_pack_and_send_face(a_dim3 *grid_size, a_dim3 *block_size, int ds
 		error |= accel_pack_2d_face(grid_size, block_size, packed_buf, buf, face, type, 0);
 		error |= accel_copy_d2h(packed_buf_host, packed_buf, size*type_size, 0);
 		MPI_Send(packed_buf_host, size, mpi_type, dst_rank, tag, MPI_COMM_WORLD);
-		accel_free(packed_buf);
-		free(packed_buf_host);
+	//FIXME: remove asynchronous frees too
+	//	accel_free(packed_buf);
+	//	free(packed_buf_host);
 	}
 	//TODO: once async callback is implemented free malloced buffer	
 	//TODO: add callback for asyncs
@@ -570,12 +581,13 @@ void rap_helper(request_record *rap_request) {
 }
 
 //A wrapper that, provided a face, will receive a buffer, and unpack it
-a_err accel_mpi_recv_and_unpack_face(a_dim3 * grid_size, a_dim3 * block_size, int src_rank, accel_2d_face_indexed * face, void * buf, int tag, MPI_Request * req, accel_type_id type, int async) {
+a_err accel_mpi_recv_and_unpack_face(a_dim3 * grid_size, a_dim3 * block_size, int src_rank, accel_2d_face_indexed * face, void * buf, void * packed_buf, void * packed_buf_host, int tag, MPI_Request * req, accel_type_id type, int async) {
 	//allocate space to receive the packed buffer
 	size_t size = 1;
 	int i;
 	for(i = 0; i < face->count; i++) size *= face->size[i];
-	void *packed_buf, *packed_buf_host;
+	//FIXME: User app is now responsible for managing these
+	//void *packed_buf, *packed_buf_host;
 	size_t type_size;
 	MPI_Datatype mpi_type;
 	switch (type) {
@@ -610,7 +622,9 @@ a_err accel_mpi_recv_and_unpack_face(a_dim3 * grid_size, a_dim3 * block_size, in
 			type_size = sizeof(double *);
 		break;
 	}
-	a_err error = accel_alloc(&packed_buf, size*type_size);
+	//FIXME: remove this and associated frees
+	a_err error;
+	//a_err error = accel_alloc(&packed_buf, size*type_size);
 	MPI_Status status; //FIXME: Should this be a function param?
 	#ifdef WITH_MPI_GPU_DIRECT
 		#ifdef WITH_CUDA
@@ -643,7 +657,8 @@ a_err accel_mpi_recv_and_unpack_face(a_dim3 * grid_size, a_dim3 * block_size, in
 	#endif //WITH_MPI_GPU_DIRECT
 	
 	//Non-GPUDirect version
-	packed_buf_host = malloc(size*type_size);
+	//FIXME: Remove this and associated frees
+	//packed_buf_host = malloc(size*type_size);
 	//do a receive, if asynchronous, we need to implement a callback to launch the H2D copy
 	//FIXME: Add proper callback-related functionality to allow the pack and copy to be asynchronous
 	if (async) {
@@ -670,11 +685,13 @@ a_err accel_mpi_recv_and_unpack_face(a_dim3 * grid_size, a_dim3 * block_size, in
 		//copy the buffer to the device
 		error |= accel_copy_h2d(packed_buf, packed_buf_host, size*type_size, 0);
 		//free the host temp buffer
-		free(packed_buf_host);
+		//FIXME: remove the async frees
+		//free(packed_buf_host);
 		//Unpack on the device
 		error |= accel_unpack_2d_face(grid_size, block_size, packed_buf, buf, face, type, 0);
 		//free the device temp buffer
-		accel_free(packed_buf);
+		//FIXME: remove async frees
+		//accel_free(packed_buf);
 	}
 	//TODO: once async callback is implemented free malloced buffer
 	//TODO: add callback for asyncs
