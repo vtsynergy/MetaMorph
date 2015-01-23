@@ -7,11 +7,16 @@
 #include <stdio.h>
 #include <string.h>
 
-#ifndef AFOSR_CFD_OPENCL_CORE_H
-#define AFOSR_CFD_OPENCL_CORE_H
+#ifndef METAMORPH_OPENCL_CORE_H
+#define METAMORPH_OPENCL_CORE_H
 
-#ifndef AFOSR_CFD_H
-	#include "afosr_cfd.h"
+#ifndef METAMORPH_H
+	#include "metamorph.h"
+#endif
+
+//If the user doesn't override default threadblock size..
+#ifndef METAMORPH_OCL_DEFAULT_BLOCK
+#define METAMORPH_OCL_DEFAULT_BLOCK {16, 8, 1}
 #endif
 
 //Not sure if these C compatibility stubs will actually be needed
@@ -28,10 +33,10 @@ extern "C" {
 	//For basic CPU/GPU/MIC devices, the provided initialization calls should be sufficient and
 	// frame objects should not need to be directly modified; however, for FPGA devices which must
 	// use clBuildProgramFromBinary, the user will need to implement analogues to
-	// accelOpenCLInitStackFrame and accelOpenCLDestroyStackFrame, which appropriately create and
+	// metaOpenCLInitStackFrame and metaOpenCLDestroyStackFrame, which appropriately create and
 	// release all necessary frame members. If implemented correctly, the built-in hazard-aware
 	// stack operations shouldn't need any changes.
-	typedef struct  accelOpenCLStackFrame
+	typedef struct  metaOpenCLStackFrame
 	{
 
 		cl_platform_id platform;
@@ -71,34 +76,34 @@ extern "C" {
 		cl_mem constant_face_stride;
 		cl_mem constant_face_child_size;
 
-	} accelOpenCLStackFrame;
+	} metaOpenCLStackFrame;
 	//TODO these shouldn't need to be exposed to the user, unless there's a CUDA call we need to emulate
-	void accelOpenCLPushStackFrame(accelOpenCLStackFrame * frame);
+	void metaOpenCLPushStackFrame(metaOpenCLStackFrame * frame);
 
-	accelOpenCLStackFrame * accelOpenCLTopStackFrame();
+	metaOpenCLStackFrame * metaOpenCLTopStackFrame();
 
-	accelOpenCLStackFrame * accelOpenCLPopStackFrame();
+	metaOpenCLStackFrame * metaOpenCLPopStackFrame();
 
 	//start everything for a frame
-	cl_int accelOpenCLInitStackFrame(accelOpenCLStackFrame ** frame, cl_int device);
+	cl_int metaOpenCLInitStackFrame(metaOpenCLStackFrame ** frame, cl_int device);
 
 	//stop everything for a frame
-	cl_int accelOpenCLDestroyStackFrame(accelOpenCLStackFrame * frame);
+	cl_int metaOpenCLDestroyStackFrame(metaOpenCLStackFrame * frame);
 
 	//support initialization of a default frame as well as environment variable
 	// -based control, via $TARGET_DEVICE="Some Device Name"
-	cl_int accelOpenCLInitStackFrameDefault(accelOpenCLStackFrame ** frame);
+	cl_int metaOpenCLInitStackFrameDefault(metaOpenCLStackFrame ** frame);
 
-	size_t accelOpenCLLoadProgramSource(const char *filename, const char **progSrc);
+	size_t metaOpenCLLoadProgramSource(const char *filename, const char **progSrc);
 
-	cl_int opencl_dotProd(size_t (* grid_size)[3], size_t (* block_size)[3], void * data1, void * data2, size_t (* array_size)[3], size_t (* arr_start)[3], size_t (* arr_end)[3], void * reduced_val, accel_type_id type, int async, cl_event * event); 
-	cl_int opencl_reduce(size_t (* grid_size)[3], size_t (* block_size)[3], void * data, size_t (* array_size)[3], size_t (* arr_start)[3], size_t (* arr_end)[3], void * reduced_val, accel_type_id type, int async, cl_event * event); 
-	cl_int opencl_transpose_2d_face(size_t (* grid_size)[3], size_t (* block_size)[3], void *indata, void *outdata, size_t (* dim_xy)[3], accel_type_id type, int async, cl_event * event);
-	cl_int opencl_pack_2d_face(size_t (* grid_size)[3], size_t (* block_size)[3], void *packed_buf, void *buf, accel_2d_face_indexed *face, int *remain_dim, accel_type_id type, int async, cl_event * event_k1, cl_event * event_c1, cl_event *event_c2, cl_event *event_c3);
-	cl_int opencl_unpack_2d_face(size_t (* grid_size)[3], size_t (* block_size)[3], void *packed_buf, void *buf, accel_2d_face_indexed *face, int *remain_dim, accel_type_id type, int async, cl_event * event_k1, cl_event * event_c1, cl_event *event_c2, cl_event *event_c3);
+	cl_int opencl_dotProd(size_t (* grid_size)[3], size_t (* block_size)[3], void * data1, void * data2, size_t (* array_size)[3], size_t (* arr_start)[3], size_t (* arr_end)[3], void * reduced_val, meta_type_id type, int async, cl_event * event); 
+	cl_int opencl_reduce(size_t (* grid_size)[3], size_t (* block_size)[3], void * data, size_t (* array_size)[3], size_t (* arr_start)[3], size_t (* arr_end)[3], void * reduced_val, meta_type_id type, int async, cl_event * event); 
+	cl_int opencl_transpose_2d_face(size_t (* grid_size)[3], size_t (* block_size)[3], void *indata, void *outdata, size_t (* arr_dim_xy)[3], size_t (* tran_dim_xy)[3], meta_type_id type, int async, cl_event * event);
+	cl_int opencl_pack_2d_face(size_t (* grid_size)[3], size_t (* block_size)[3], void *packed_buf, void *buf, meta_2d_face_indexed *face, int *remain_dim, meta_type_id type, int async, cl_event * event_k1, cl_event * event_c1, cl_event *event_c2, cl_event *event_c3);
+	cl_int opencl_unpack_2d_face(size_t (* grid_size)[3], size_t (* block_size)[3], void *packed_buf, void *buf, meta_2d_face_indexed *face, int *remain_dim, meta_type_id type, int async, cl_event * event_k1, cl_event * event_c1, cl_event *event_c2, cl_event *event_c3);
 
 #ifdef __OPENCLCC__
 }
 #endif
 
-#endif //AFOSR_CFD_OPENCL_CORE_H
+#endif //METAMORPH_OPENCL_CORE_H

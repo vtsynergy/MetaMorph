@@ -513,190 +513,309 @@ __kernel void kernel_reduce_ui(__global unsigned int *phi,
 	if(tid == 0) atomic_add(reduction,psum[0]);
 }
 
-__kernel void kernel_transpose_2d_db(__global double *odata, __global double *idata, int width, int height)
+__kernel void kernel_transpose_2d_db(__global double *odata, __global double *idata, int arr_width, int arr_height, int tran_width, int tran_height, __local double * tile)
 {
-    __local double tile[TRANSPOSE_TILE_DIM][TRANSPOSE_TILE_DIM+1];
+//    __local double tile[TRANSPOSE_TILE_DIM][TRANSPOSE_TILE_DIM+1];
 
     int blockIdx_x, blockIdx_y;
+    int gridDim_x, gridDim_y;
 
     // do diagonal reordering
-    if (width == height)
-    {
-        blockIdx_y = get_group_id(0);
-        blockIdx_x = (get_group_id(0)+get_group_id(1))%get_num_groups(0);
-    }
-    else
-    {
+    //The if case degenerates to the else case, no need to have both
+    //if (width == height)
+    //{
+    //    blockIdx_y = get_group_id(0);
+    //    blockIdx_x = (get_group_id(0)+get_group_id(1))%get_num_groups(0);
+    //}
+    //else
+    //{
+	//First figure out your number among the actual grid blocks
         int bid = get_group_id(0) + get_num_groups(0)*get_group_id(1);
-        blockIdx_y = bid%get_num_groups(1);
-        blockIdx_x = ((bid/get_num_groups(1))+blockIdx_y)%get_num_groups(0);
-    }
+	//Then figure out how many logical blocks are required in each dimension
+	gridDim_x = (tran_width-1+get_local_size(0))/get_local_size(0);
+	gridDim_y = (tran_height-1+get_local_size(1))/get_local_size(1);
+	//Then how many logical and actual grid blocks
+	int logicalBlocks = gridDim_x*gridDim_y;
+	int gridBlocks = get_num_groups(0)*get_num_groups(1);
+	//Loop over all logical blocks
+	for (; bid < logicalBlocks; bid += gridBlocks) {
+	//Compute the current logical block index in each dimension
+        blockIdx_y = bid%gridDim_y;
+        blockIdx_x = ((bid/gridDim_y)+blockIdx_y)%gridDim_x;
+    //}
 
-    int xIndex_in = blockIdx_x * TRANSPOSE_TILE_DIM + get_local_id(0);
-    int yIndex_in = blockIdx_y * TRANSPOSE_TILE_DIM + get_local_id(1);
-    int index_in = xIndex_in + (yIndex_in)*width;
+    //int xIndex_in = blockIdx_x * TRANSPOSE_TILE_DIM + get_local_id(0);
+    int xIndex_in = blockIdx_x * get_local_size(0) + get_local_id(0);
+    //int yIndex_in = blockIdx_y * TRANSPOSE_TILE_DIM + get_local_id(1);
+    int yIndex_in = blockIdx_y * get_local_size(1) + get_local_id(1);
+    //int index_in = xIndex_in + (yIndex_in)*width;
+    int index_in = xIndex_in + (yIndex_in)*arr_width;
 
-    int xIndex_out = blockIdx_y * TRANSPOSE_TILE_DIM + get_local_id(0);
-    int yIndex_out = blockIdx_x * TRANSPOSE_TILE_DIM + get_local_id(1);
-    int index_out = xIndex_out + (yIndex_out)*height;
+    //int xIndex_out = blockIdx_y * TRANSPOSE_TILE_DIM + get_local_id(0);
+    int xIndex_out = blockIdx_y * get_local_size(1) + get_local_id(0);
+    //int yIndex_out = blockIdx_x * TRANSPOSE_TILE_DIM + get_local_id(1);
+    int yIndex_out = blockIdx_x * get_local_size(0) + get_local_id(1);
+    //int index_out = xIndex_out + (yIndex_out)*height;
+    int index_out = xIndex_out + (yIndex_out)*arr_height;
 
-    if(xIndex_in < width && yIndex_in < height)
-        tile[get_local_id(1)][get_local_id(0)] =  idata[index_in];
+    if(xIndex_in < tran_width && yIndex_in < tran_height)
+        //tile[get_local_id(1)][get_local_id(0)] =  idata[index_in];
+        tile[get_local_id(1)*(get_local_size(0)+1)+get_local_id(0)] =  idata[index_in];
 
     barrier(CLK_LOCAL_MEM_FENCE | CLK_GLOBAL_MEM_FENCE);
 
     //if(xIndex_out < width && yIndex_out < height)
-    if(xIndex_out < height && yIndex_out < width)
-        odata[index_out] = tile[get_local_id(0)][get_local_id(1)];
+    if(xIndex_out < tran_height && yIndex_out < tran_width)
+        //odata[index_out] = tile[get_local_id(0)][get_local_id(1)];
+        odata[index_out] = tile[get_local_id(0)+(get_local_size(0)+1)*get_local_id(1)];
 
+    //Added with the loop to ensure writes are finished before new vals go into shared memory
+    barrier(CLK_LOCAL_MEM_FENCE | CLK_GLOBAL_MEM_FENCE);
+    }
 }
 
-__kernel void kernel_transpose_2d_fl(__global float *odata, __global float *idata, int width, int height)
+__kernel void kernel_transpose_2d_fl(__global float *odata, __global float *idata, int arr_width, int arr_height, int tran_width, int tran_height, __local float * tile)
 {
-    __local float tile[TRANSPOSE_TILE_DIM][TRANSPOSE_TILE_DIM+1];
+//    __local float tile[TRANSPOSE_TILE_DIM][TRANSPOSE_TILE_DIM+1];
 
     int blockIdx_x, blockIdx_y;
+    int gridDim_x, gridDim_y;
 
     // do diagonal reordering
-    if (width == height)
-    {
-        blockIdx_y = get_group_id(0);
-        blockIdx_x = (get_group_id(0)+get_group_id(1))%get_num_groups(0);
-    }
-    else
-    {
+    //The if case degenerates to the else case, no need to have both
+    //if (width == height)
+    //{
+    //    blockIdx_y = get_group_id(0);
+    //    blockIdx_x = (get_group_id(0)+get_group_id(1))%get_num_groups(0);
+    //}
+    //else
+    //{
+	//First figure out your number among the actual grid blocks
         int bid = get_group_id(0) + get_num_groups(0)*get_group_id(1);
-        blockIdx_y = bid%get_num_groups(1);
-        blockIdx_x = ((bid/get_num_groups(1))+blockIdx_y)%get_num_groups(0);
-    }
+	//Then figure out how many logical blocks are required in each dimension
+	gridDim_x = (tran_width-1+get_local_size(0))/get_local_size(0);
+	gridDim_y = (tran_height-1+get_local_size(1))/get_local_size(1);
+	//Then how many logical and actual grid blocks
+	int logicalBlocks = gridDim_x*gridDim_y;
+	int gridBlocks = get_num_groups(0)*get_num_groups(1);
+	//Loop over all logical blocks
+	for (; bid < logicalBlocks; bid += gridBlocks) {
+	//Compute the current logical block index in each dimension
+        blockIdx_y = bid%gridDim_y;
+        blockIdx_x = ((bid/gridDim_y)+blockIdx_y)%gridDim_x;
+    //}
 
-    int xIndex_in = blockIdx_x * TRANSPOSE_TILE_DIM + get_local_id(0);
-    int yIndex_in = blockIdx_y * TRANSPOSE_TILE_DIM + get_local_id(1);
-    int index_in = xIndex_in + (yIndex_in)*width;
+    //int xIndex_in = blockIdx_x * TRANSPOSE_TILE_DIM + get_local_id(0);
+    int xIndex_in = blockIdx_x * get_local_size(0) + get_local_id(0);
+    //int yIndex_in = blockIdx_y * TRANSPOSE_TILE_DIM + get_local_id(1);
+    int yIndex_in = blockIdx_y * get_local_size(1) + get_local_id(1);
+    //int index_in = xIndex_in + (yIndex_in)*width;
+    int index_in = xIndex_in + (yIndex_in)*arr_width;
 
-    int xIndex_out = blockIdx_y * TRANSPOSE_TILE_DIM + get_local_id(0);
-    int yIndex_out = blockIdx_x * TRANSPOSE_TILE_DIM + get_local_id(1);
-    int index_out = xIndex_out + (yIndex_out)*height;
+    //int xIndex_out = blockIdx_y * TRANSPOSE_TILE_DIM + get_local_id(0);
+    int xIndex_out = blockIdx_y * get_local_size(1) + get_local_id(0);
+    //int yIndex_out = blockIdx_x * TRANSPOSE_TILE_DIM + get_local_id(1);
+    int yIndex_out = blockIdx_x * get_local_size(0) + get_local_id(1);
+    //int index_out = xIndex_out + (yIndex_out)*height;
+    int index_out = xIndex_out + (yIndex_out)*arr_height;
 
-    if(xIndex_in < width && yIndex_in < height)
-        tile[get_local_id(1)][get_local_id(0)] = idata[index_in];
+    if(xIndex_in < tran_width && yIndex_in < tran_height)
+        //tile[get_local_id(1)][get_local_id(0)] =  idata[index_in];
+        tile[get_local_id(1)*(get_local_size(0)+1)+get_local_id(0)] =  idata[index_in];
 
     barrier(CLK_LOCAL_MEM_FENCE | CLK_GLOBAL_MEM_FENCE);
 
-    if(xIndex_out < height && yIndex_out < width)
-        odata[index_out] = tile[get_local_id(0)][get_local_id(1)];
+    //if(xIndex_out < width && yIndex_out < height)
+    if(xIndex_out < tran_height && yIndex_out < tran_width)
+        //odata[index_out] = tile[get_local_id(0)][get_local_id(1)];
+        odata[index_out] = tile[get_local_id(0)+(get_local_size(0)+1)*get_local_id(1)];
 
+    //Added with the loop to ensure writes are finished before new vals go into shared memory
+    barrier(CLK_LOCAL_MEM_FENCE | CLK_GLOBAL_MEM_FENCE);
+    }
 }
 
-__kernel void kernel_transpose_2d_ul(__global unsigned long *odata, __global unsigned long *idata, int width, int height)
+__kernel void kernel_transpose_2d_ul(__global unsigned long *odata, __global unsigned long *idata, int arr_width, int arr_height, int tran_width, int tran_height, __local unsigned long * tile)
 {
-    __local unsigned long tile[TRANSPOSE_TILE_DIM][TRANSPOSE_TILE_DIM+1];
+//    __local unsigned long tile[TRANSPOSE_TILE_DIM][TRANSPOSE_TILE_DIM+1];
 
     int blockIdx_x, blockIdx_y;
+    int gridDim_x, gridDim_y;
 
     // do diagonal reordering
-    if (width == height)
-    {
-        blockIdx_y = get_group_id(0);
-        blockIdx_x = (get_group_id(0)+get_group_id(1))%get_num_groups(0);
-    }
-    else
-    {
+    //The if case degenerates to the else case, no need to have both
+    //if (width == height)
+    //{
+    //    blockIdx_y = get_group_id(0);
+    //    blockIdx_x = (get_group_id(0)+get_group_id(1))%get_num_groups(0);
+    //}
+    //else
+    //{
+	//First figure out your number among the actual grid blocks
         int bid = get_group_id(0) + get_num_groups(0)*get_group_id(1);
-        blockIdx_y = bid%get_num_groups(1);
-        blockIdx_x = ((bid/get_num_groups(1))+blockIdx_y)%get_num_groups(0);
-    }
+	//Then figure out how many logical blocks are required in each dimension
+	gridDim_x = (tran_width-1+get_local_size(0))/get_local_size(0);
+	gridDim_y = (tran_height-1+get_local_size(1))/get_local_size(1);
+	//Then how many logical and actual grid blocks
+	int logicalBlocks = gridDim_x*gridDim_y;
+	int gridBlocks = get_num_groups(0)*get_num_groups(1);
+	//Loop over all logical blocks
+	for (; bid < logicalBlocks; bid += gridBlocks) {
+	//Compute the current logical block index in each dimension
+        blockIdx_y = bid%gridDim_y;
+        blockIdx_x = ((bid/gridDim_y)+blockIdx_y)%gridDim_x;
+    //}
 
-    int xIndex_in = blockIdx_x * TRANSPOSE_TILE_DIM + get_local_id(0);
-    int yIndex_in = blockIdx_y * TRANSPOSE_TILE_DIM + get_local_id(1);
-    int index_in = xIndex_in + (yIndex_in)*width;
+    //int xIndex_in = blockIdx_x * TRANSPOSE_TILE_DIM + get_local_id(0);
+    int xIndex_in = blockIdx_x * get_local_size(0) + get_local_id(0);
+    //int yIndex_in = blockIdx_y * TRANSPOSE_TILE_DIM + get_local_id(1);
+    int yIndex_in = blockIdx_y * get_local_size(1) + get_local_id(1);
+    //int index_in = xIndex_in + (yIndex_in)*width;
+    int index_in = xIndex_in + (yIndex_in)*arr_width;
 
-    int xIndex_out = blockIdx_y * TRANSPOSE_TILE_DIM + get_local_id(0);
-    int yIndex_out = blockIdx_x * TRANSPOSE_TILE_DIM + get_local_id(1);
-    int index_out = xIndex_out + (yIndex_out)*height;
+    //int xIndex_out = blockIdx_y * TRANSPOSE_TILE_DIM + get_local_id(0);
+    int xIndex_out = blockIdx_y * get_local_size(1) + get_local_id(0);
+    //int yIndex_out = blockIdx_x * TRANSPOSE_TILE_DIM + get_local_id(1);
+    int yIndex_out = blockIdx_x * get_local_size(0) + get_local_id(1);
+    //int index_out = xIndex_out + (yIndex_out)*height;
+    int index_out = xIndex_out + (yIndex_out)*arr_height;
 
-    if(xIndex_in < width && yIndex_in < height)
-        tile[get_local_id(1)][get_local_id(0)] = idata[index_in];
+    if(xIndex_in < tran_width && yIndex_in < tran_height)
+        //tile[get_local_id(1)][get_local_id(0)] =  idata[index_in];
+        tile[get_local_id(1)*(get_local_size(0)+1)+get_local_id(0)] =  idata[index_in];
 
     barrier(CLK_LOCAL_MEM_FENCE | CLK_GLOBAL_MEM_FENCE);
 
-    if(xIndex_out < height && yIndex_out < width)
-        odata[index_out] = tile[get_local_id(0)][get_local_id(1)];
+    //if(xIndex_out < width && yIndex_out < height)
+    if(xIndex_out < tran_height && yIndex_out < tran_width)
+        //odata[index_out] = tile[get_local_id(0)][get_local_id(1)];
+        odata[index_out] = tile[get_local_id(0)+(get_local_size(0)+1)*get_local_id(1)];
 
+    //Added with the loop to ensure writes are finished before new vals go into shared memory
+    barrier(CLK_LOCAL_MEM_FENCE | CLK_GLOBAL_MEM_FENCE);
+    }
 }
 
-__kernel void kernel_transpose_2d_in(__global int *odata, __global int *idata, int width, int height)
+__kernel void kernel_transpose_2d_in(__global int *odata, __global int *idata, int arr_width, int arr_height, int tran_width, int tran_height, __local int * tile)
 {
-    __local int tile[TRANSPOSE_TILE_DIM][TRANSPOSE_TILE_DIM+1];
+//    __local int tile[TRANSPOSE_TILE_DIM][TRANSPOSE_TILE_DIM+1];
 
     int blockIdx_x, blockIdx_y;
+    int gridDim_x, gridDim_y;
 
     // do diagonal reordering
-    if (width == height)
-    {
-        blockIdx_y = get_group_id(0);
-        blockIdx_x = (get_group_id(0)+get_group_id(1))%get_num_groups(0);
-    }
-    else
-    {
+    //The if case degenerates to the else case, no need to have both
+    //if (width == height)
+    //{
+    //    blockIdx_y = get_group_id(0);
+    //    blockIdx_x = (get_group_id(0)+get_group_id(1))%get_num_groups(0);
+    //}
+    //else
+    //{
+	//First figure out your number among the actual grid blocks
         int bid = get_group_id(0) + get_num_groups(0)*get_group_id(1);
-        blockIdx_y = bid%get_num_groups(1);
-        blockIdx_x = ((bid/get_num_groups(1))+blockIdx_y)%get_num_groups(0);
-    }
+	//Then figure out how many logical blocks are required in each dimension
+	gridDim_x = (tran_width-1+get_local_size(0))/get_local_size(0);
+	gridDim_y = (tran_height-1+get_local_size(1))/get_local_size(1);
+	//Then how many logical and actual grid blocks
+	int logicalBlocks = gridDim_x*gridDim_y;
+	int gridBlocks = get_num_groups(0)*get_num_groups(1);
+	//Loop over all logical blocks
+	for (; bid < logicalBlocks; bid += gridBlocks) {
+	//Compute the current logical block index in each dimension
+        blockIdx_y = bid%gridDim_y;
+        blockIdx_x = ((bid/gridDim_y)+blockIdx_y)%gridDim_x;
+    //}
 
-    int xIndex_in = blockIdx_x * TRANSPOSE_TILE_DIM + get_local_id(0);
-    int yIndex_in = blockIdx_y * TRANSPOSE_TILE_DIM + get_local_id(1);
-    int index_in = xIndex_in + (yIndex_in)*width;
+    //int xIndex_in = blockIdx_x * TRANSPOSE_TILE_DIM + get_local_id(0);
+    int xIndex_in = blockIdx_x * get_local_size(0) + get_local_id(0);
+    //int yIndex_in = blockIdx_y * TRANSPOSE_TILE_DIM + get_local_id(1);
+    int yIndex_in = blockIdx_y * get_local_size(1) + get_local_id(1);
+    //int index_in = xIndex_in + (yIndex_in)*width;
+    int index_in = xIndex_in + (yIndex_in)*arr_width;
 
-    int xIndex_out = blockIdx_y * TRANSPOSE_TILE_DIM + get_local_id(0);
-    int yIndex_out = blockIdx_x * TRANSPOSE_TILE_DIM + get_local_id(1);
-    int index_out = xIndex_out + (yIndex_out)*height;
+    //int xIndex_out = blockIdx_y * TRANSPOSE_TILE_DIM + get_local_id(0);
+    int xIndex_out = blockIdx_y * get_local_size(1) + get_local_id(0);
+    //int yIndex_out = blockIdx_x * TRANSPOSE_TILE_DIM + get_local_id(1);
+    int yIndex_out = blockIdx_x * get_local_size(0) + get_local_id(1);
+    //int index_out = xIndex_out + (yIndex_out)*height;
+    int index_out = xIndex_out + (yIndex_out)*arr_height;
 
-    if(xIndex_in < width && yIndex_in < height)
-        tile[get_local_id(1)][get_local_id(0)] = idata[index_in];
+    if(xIndex_in < tran_width && yIndex_in < tran_height)
+        //tile[get_local_id(1)][get_local_id(0)] =  idata[index_in];
+        tile[get_local_id(1)*(get_local_size(0)+1)+get_local_id(0)] =  idata[index_in];
 
     barrier(CLK_LOCAL_MEM_FENCE | CLK_GLOBAL_MEM_FENCE);
 
-    if(xIndex_out < height && yIndex_out < width)
-        odata[index_out] = tile[get_local_id(0)][get_local_id(1)];
+    //if(xIndex_out < width && yIndex_out < height)
+    if(xIndex_out < tran_height && yIndex_out < tran_width)
+        //odata[index_out] = tile[get_local_id(0)][get_local_id(1)];
+        odata[index_out] = tile[get_local_id(0)+(get_local_size(0)+1)*get_local_id(1)];
 
+    //Added with the loop to ensure writes are finished before new vals go into shared memory
+    barrier(CLK_LOCAL_MEM_FENCE | CLK_GLOBAL_MEM_FENCE);
+    }
 }
 
-__kernel void kernel_transpose_2d_ui(__global unsigned int *odata, __global unsigned int *idata, int width, int height)
+__kernel void kernel_transpose_2d_ui(__global unsigned int *odata, __global unsigned int *idata, int arr_width, int arr_height, int tran_width, int tran_height, __local unsigned int * tile)
 {
-    __local unsigned int tile[TRANSPOSE_TILE_DIM][TRANSPOSE_TILE_DIM+1];
+//    __local unsigned int tile[TRANSPOSE_TILE_DIM][TRANSPOSE_TILE_DIM+1];
 
     int blockIdx_x, blockIdx_y;
+    int gridDim_x, gridDim_y;
 
     // do diagonal reordering
-    if (width == height)
-    {
-        blockIdx_y = get_group_id(0);
-        blockIdx_x = (get_group_id(0)+get_group_id(1))%get_num_groups(0);
-    }
-    else
-    {
+    //The if case degenerates to the else case, no need to have both
+    //if (width == height)
+    //{
+    //    blockIdx_y = get_group_id(0);
+    //    blockIdx_x = (get_group_id(0)+get_group_id(1))%get_num_groups(0);
+    //}
+    //else
+    //{
+	//First figure out your number among the actual grid blocks
         int bid = get_group_id(0) + get_num_groups(0)*get_group_id(1);
-        blockIdx_y = bid%get_num_groups(1);
-        blockIdx_x = ((bid/get_num_groups(1))+blockIdx_y)%get_num_groups(0);
-    }
+	//Then figure out how many logical blocks are required in each dimension
+	gridDim_x = (tran_width-1+get_local_size(0))/get_local_size(0);
+	gridDim_y = (tran_height-1+get_local_size(1))/get_local_size(1);
+	//Then how many logical and actual grid blocks
+	int logicalBlocks = gridDim_x*gridDim_y;
+	int gridBlocks = get_num_groups(0)*get_num_groups(1);
+	//Loop over all logical blocks
+	for (; bid < logicalBlocks; bid += gridBlocks) {
+	//Compute the current logical block index in each dimension
+        blockIdx_y = bid%gridDim_y;
+        blockIdx_x = ((bid/gridDim_y)+blockIdx_y)%gridDim_x;
+    //}
 
-    int xIndex_in = blockIdx_x * TRANSPOSE_TILE_DIM + get_local_id(0);
-    int yIndex_in = blockIdx_y * TRANSPOSE_TILE_DIM + get_local_id(1);
-    int index_in = xIndex_in + (yIndex_in)*width;
+    //int xIndex_in = blockIdx_x * TRANSPOSE_TILE_DIM + get_local_id(0);
+    int xIndex_in = blockIdx_x * get_local_size(0) + get_local_id(0);
+    //int yIndex_in = blockIdx_y * TRANSPOSE_TILE_DIM + get_local_id(1);
+    int yIndex_in = blockIdx_y * get_local_size(1) + get_local_id(1);
+    //int index_in = xIndex_in + (yIndex_in)*width;
+    int index_in = xIndex_in + (yIndex_in)*arr_width;
 
-    int xIndex_out = blockIdx_y * TRANSPOSE_TILE_DIM + get_local_id(0);
-    int yIndex_out = blockIdx_x * TRANSPOSE_TILE_DIM + get_local_id(1);
-    int index_out = xIndex_out + (yIndex_out)*height;
+    //int xIndex_out = blockIdx_y * TRANSPOSE_TILE_DIM + get_local_id(0);
+    int xIndex_out = blockIdx_y * get_local_size(1) + get_local_id(0);
+    //int yIndex_out = blockIdx_x * TRANSPOSE_TILE_DIM + get_local_id(1);
+    int yIndex_out = blockIdx_x * get_local_size(0) + get_local_id(1);
+    //int index_out = xIndex_out + (yIndex_out)*height;
+    int index_out = xIndex_out + (yIndex_out)*arr_height;
 
-    if(xIndex_in < width && yIndex_in < height)
-        tile[get_local_id(1)][get_local_id(0)] = idata[index_in];
+    if(xIndex_in < tran_width && yIndex_in < tran_height)
+        //tile[get_local_id(1)][get_local_id(0)] =  idata[index_in];
+        tile[get_local_id(1)*(get_local_size(0)+1)+get_local_id(0)] =  idata[index_in];
 
     barrier(CLK_LOCAL_MEM_FENCE | CLK_GLOBAL_MEM_FENCE);
 
-    if(xIndex_out < height && yIndex_out < width)
-        odata[index_out] = tile[get_local_id(0)][get_local_id(1)];
+    //if(xIndex_out < width && yIndex_out < height)
+    if(xIndex_out < tran_height && yIndex_out < tran_width)
+        //odata[index_out] = tile[get_local_id(0)][get_local_id(1)];
+        odata[index_out] = tile[get_local_id(0)+(get_local_size(0)+1)*get_local_id(1)];
 
+    //Added with the loop to ensure writes are finished before new vals go into shared memory
+    barrier(CLK_LOCAL_MEM_FENCE | CLK_GLOBAL_MEM_FENCE);
+    }
 }
 int get_pack_index (int tid, __local int * a, int start, int count, __constant int * c_face_size, __constant int * c_face_stride, __constant int * c_face_child_size) {
         int i, j, k, l;
@@ -731,73 +850,93 @@ int get_pack_index (int tid, __local int * a, int start, int count, __constant i
 
 __kernel void kernel_pack_db(__global double *packed_buf, __global double *buf, int size, int start, int count, __constant int * c_face_size, __constant int * c_face_stride, __constant int * c_face_child_size, __local int *a)
 {
-	//TODO expand for multi-dimensional grid/block
-    const int tid = get_local_id(0) + get_local_size(0) * get_group_id(0);
-    if(tid < size) packed_buf[tid] = buf[get_pack_index(tid, a, start, count, c_face_size, c_face_stride, c_face_child_size)];
+    int idx = get_global_id(0);
+    const int nthreads = get_global_size(0);
+    // this loop handles both nthreads > size and nthreads < size
+    for (; idx < size; idx += nthreads)
+	packed_buf[idx] = buf[get_pack_index(idx, a, start, count, c_face_size, c_face_stride, c_face_child_size)];
 }
 
 __kernel void kernel_pack_fl(__global float *packed_buf, __global float *buf, int size, int start, int count, __constant int * c_face_size, __constant int * c_face_stride, __constant int * c_face_child_size, __local int *a)
 {
-	//TODO expand for multi-dimensional grid/block
-    const int tid = get_local_id(0) + get_local_size(0) * get_group_id(0);
-    if(tid < size) packed_buf[tid] = buf[get_pack_index(tid, a, start, count, c_face_size, c_face_stride, c_face_child_size)];
+    int idx = get_global_id(0);
+    const int nthreads = get_global_size(0);
+    // this loop handles both nthreads > size and nthreads < size
+    for (; idx < size; idx += nthreads)
+	packed_buf[idx] = buf[get_pack_index(idx, a, start, count, c_face_size, c_face_stride, c_face_child_size)];
 }
 
 __kernel void kernel_pack_ul(__global unsigned long *packed_buf, __global unsigned long *buf, int size, int start, int count, __constant int * c_face_size, __constant int * c_face_stride, __constant int * c_face_child_size, __local int *a)
 {
-	//TODO expand for multi-dimensional grid/block
-    const int tid = get_local_id(0) + get_local_size(0) * get_group_id(0);
-    if(tid < size) packed_buf[tid] = buf[get_pack_index(tid, a, start, count, c_face_size, c_face_stride, c_face_child_size)];
+    int idx = get_global_id(0);
+    const int nthreads = get_global_size(0);
+    // this loop handles both nthreads > size and nthreads < size
+    for (; idx < size; idx += nthreads)
+	packed_buf[idx] = buf[get_pack_index(idx, a, start, count, c_face_size, c_face_stride, c_face_child_size)];
 }
 
 __kernel void kernel_pack_in(__global int *packed_buf, __global int *buf, int size, int start, int count, __constant int * c_face_size, __constant int * c_face_stride, __constant int * c_face_child_size, __local int *a)
 {
-	//TODO expand for multi-dimensional grid/block
-    const int tid = get_local_id(0) + get_local_size(0) * get_group_id(0);
-    if(tid < size) packed_buf[tid] = buf[get_pack_index(tid, a, start, count, c_face_size, c_face_stride, c_face_child_size)];
+    int idx = get_global_id(0);
+    const int nthreads = get_global_size(0);
+    // this loop handles both nthreads > size and nthreads < size
+    for (; idx < size; idx += nthreads)
+	packed_buf[idx] = buf[get_pack_index(idx, a, start, count, c_face_size, c_face_stride, c_face_child_size)];
 }
 
 __kernel void kernel_pack_ui(__global unsigned int *packed_buf, __global unsigned int *buf, int size, int start, int count, __constant int * c_face_size, __constant int * c_face_stride, __constant int * c_face_child_size, __local int *a)
 {
-	//TODO expand for multi-dimensional grid/block
-    const int tid = get_local_id(0) + get_local_size(0) * get_group_id(0);
-    if(tid < size) packed_buf[tid] = buf[get_pack_index(tid, a, start, count, c_face_size, c_face_stride, c_face_child_size)];
+    int idx = get_global_id(0);
+    const int nthreads = get_global_size(0);
+    // this loop handles both nthreads > size and nthreads < size
+    for (; idx < size; idx += nthreads)
+	packed_buf[idx] = buf[get_pack_index(idx, a, start, count, c_face_size, c_face_stride, c_face_child_size)];
 }
 
 
 
 __kernel void kernel_unpack_db(__global double *packed_buf, __global double *buf, int size, int start, int count, __constant int * c_face_size, __constant int * c_face_stride, __constant int * c_face_child_size, __local int *a)
 {
-	//TODO expand for multi-dimensional grid/block
-    const int tid = get_local_id(0) + get_local_size(0) * get_group_id(0);
-    if(tid < size) buf[get_pack_index(tid, a, start, count, c_face_size, c_face_stride, c_face_child_size)] = packed_buf[tid];
+    int idx = get_global_id(0);
+    const int nthreads = get_global_size(0);
+    // this loop handles both nthreads > size and nthreads < size
+    for (; idx < size; idx += nthreads)
+    	buf[get_pack_index(idx, a, start, count, c_face_size, c_face_stride, c_face_child_size)] = packed_buf[idx];
 }
 
 __kernel void kernel_unpack_fl(__global float *packed_buf, __global float *buf, int size, int start, int count, __constant int * c_face_size, __constant int * c_face_stride, __constant int * c_face_child_size, __local int *a)
 {
-	//TODO expand for multi-dimensional grid/block
-    const int tid = get_local_id(0) + get_local_size(0) * get_group_id(0);
-    if(tid < size) buf[get_pack_index(tid, a, start, count, c_face_size, c_face_stride, c_face_child_size)] = packed_buf[tid];
+    int idx = get_global_id(0);
+    const int nthreads = get_global_size(0);
+    // this loop handles both nthreads > size and nthreads < size
+    for (; idx < size; idx += nthreads)
+    	buf[get_pack_index(idx, a, start, count, c_face_size, c_face_stride, c_face_child_size)] = packed_buf[idx];
 }
 
 __kernel void kernel_unpack_ul(__global unsigned long *packed_buf, __global unsigned long *buf, int size, int start, int count, __constant int * c_face_size, __constant int * c_face_stride, __constant int * c_face_child_size, __local int *a)
 {
-	//TODO expand for multi-dimensional grid/block
-    const int tid = get_local_id(0) + get_local_size(0) * get_group_id(0);
-    if(tid < size) buf[get_pack_index(tid, a, start, count, c_face_size, c_face_stride, c_face_child_size)] = packed_buf[tid];
+    int idx = get_global_id(0);
+    const int nthreads = get_global_size(0);
+    // this loop handles both nthreads > size and nthreads < size
+    for (; idx < size; idx += nthreads)
+    	buf[get_pack_index(idx, a, start, count, c_face_size, c_face_stride, c_face_child_size)] = packed_buf[idx];
 }
 
 __kernel void kernel_unpack_in(__global int *packed_buf, __global int *buf, int size, int start, int count, __constant int * c_face_size, __constant int * c_face_stride, __constant int * c_face_child_size, __local int *a)
 {
-	//TODO expand for multi-dimensional grid/block
-    const int tid = get_local_id(0) + get_local_size(0) * get_group_id(0);
-    if(tid < size) buf[get_pack_index(tid, a, start, count, c_face_size, c_face_stride, c_face_child_size)] = packed_buf[tid];
+    int idx = get_global_id(0);
+    const int nthreads = get_global_size(0);
+    // this loop handles both nthreads > size and nthreads < size
+    for (; idx < size; idx += nthreads)
+    	buf[get_pack_index(idx, a, start, count, c_face_size, c_face_stride, c_face_child_size)] = packed_buf[idx];
 }
 
 __kernel void kernel_unpack_ui(__global unsigned int *packed_buf, __global unsigned int *buf, int size, int start, int count, __constant int * c_face_size, __constant int * c_face_stride, __constant int * c_face_child_size, __local int *a)
 {
-	//TODO expand for multi-dimensional grid/block
-    const int tid = get_local_id(0) + get_local_size(0) * get_group_id(0);
-    if(tid < size) buf[get_pack_index(tid, a, start, count, c_face_size, c_face_stride, c_face_child_size)] = packed_buf[tid];
+    int idx = get_global_id(0);
+    const int nthreads = get_global_size(0);
+    // this loop handles both nthreads > size and nthreads < size
+    for (; idx < size; idx += nthreads)
+    	buf[get_pack_index(idx, a, start, count, c_face_size, c_face_stride, c_face_child_size)] = packed_buf[idx];
 }
 

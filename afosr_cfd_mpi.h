@@ -22,14 +22,14 @@
  * plugin internally, and transparently.
 */
 
-#ifndef AFOSR_CFD_MPI_H
-#define AFOSR_CFD_MPI_H
+#ifndef METAMORPH_MPI_H
+#define METAMORPH_MPI_H
 #include <mpi.h>
 
-//Include afosr_cfd.h to grab necessary pieces from the library,
+//Include metamorph.h to grab necessary pieces from the library,
 // cores, other plugins, and headers required by cores
-#ifndef AFOSR_CFD_H
-	#include "afosr_cfd.h"
+#ifndef METAMORPH_H
+	#include "metamorph.h"
 #endif
 
 //Any special concerns
@@ -70,8 +70,8 @@ typedef struct {
 	size_t buf_size;
 	a_dim3 grid_size;
 	a_dim3 block_size;
-	accel_type_id type;
-	accel_2d_face_indexed *face;
+	meta_type_id type;
+	meta_2d_face_indexed *face;
 	void *dev_buf;
 } recv_and_unpack_record;
 
@@ -85,6 +85,7 @@ typedef union {
 
 //Enum which tells the node consumer what type of record to treat the union as
 typedef enum {
+	uninit = -1,
 	sentinel,
 	sp_rec,
 	rp_rec,
@@ -137,7 +138,7 @@ void register_mpi_request(request_record_type type, request_record * request);
 void help_mpi_request();
 
 //A "forced wait until all requests finish" helper
-// Meant to be used with accel_flush and accel_finish
+// Meant to be used with meta_flush and meta_finish
 void finish_mpi_requests();
 
 void rp_helper(request_record *rp_request);
@@ -150,16 +151,16 @@ void sap_helper(request_record *sap_request);
 
 //Compound transfers, reliant on other library functions
 //Essentially a wrapper for a contiguous buffer send
-a_err accel_mpi_packed_face_send();
+a_err meta_mpi_packed_face_send();
 
 //Essentially a wrapper for a contiguous buffer receive
-a_err accel_mpi_packed_face_recv();
+a_err meta_mpi_packed_face_recv();
 
 //A wrapper that, provided a face, will pack it, then send it
-a_err accel_mpi_pack_and_send_face();
+a_err meta_mpi_pack_and_send_face();
 
 //A wrapper that, provided a face, will receive a buffer, and unpack it
-a_err accel_mpi_recv_and_unpack_face();
+a_err meta_mpi_recv_and_unpack_face();
 
-extern accel_preferred_mode run_mode;
-#endif //AFOSR_CFD_MPI_H
+extern meta_preferred_mode run_mode;
+#endif //METAMORPH_MPI_H

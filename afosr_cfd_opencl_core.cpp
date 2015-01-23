@@ -1,4 +1,4 @@
-#include "afosr_cfd_opencl_core.h"
+#include "metamorph_opencl_core.h"
 
 //Warning, none of these variables are threadsafe, so only one thread should ever
 // perform the one-time scan!!
@@ -7,21 +7,21 @@ cl_platform_id * platforms = NULL;
 cl_device_id * devices = NULL;
 
 
-typedef struct accelOpenCLStackNode
+typedef struct metaOpenCLStackNode
 {
-	accelOpenCLStackFrame frame;
-	struct accelOpenCLStackNode * next;
-} accelOpenCLStackNode;
+	metaOpenCLStackFrame frame;
+	struct metaOpenCLStackNode * next;
+} metaOpenCLStackNode;
 
-accelOpenCLStackNode * CLStack = NULL;
+metaOpenCLStackNode * CLStack = NULL;
 
 
-const char *accelCLProgSrc;
-size_t accelCLProgLen;
+const char *metaCLProgSrc;
+size_t metaCLProgLen;
 
 
 //Returns the first id in the device array of the desired device, or -1 if no such device is present
-int accelOpenCLGetDeviceID(char * desired, cl_device_id * devices, int numDevices) {
+int metaOpenCLGetDeviceID(char * desired, cl_device_id * devices, int numDevices) {
 	char buff[128];
 	int i;
 	for (i = 0; i < numDevices; i++) {
@@ -36,7 +36,7 @@ int accelOpenCLGetDeviceID(char * desired, cl_device_id * devices, int numDevice
 //This is not threadsafe, and I'm not sure we'll ever make it safe
 //If we need to though, it would likely be sufficient to CAS the num_platforms int or platforms pointer
 // first to a hazard flag (like -1) to claim it, then to the actual pointer.
-void accelOpenCLQueryDevices() {
+void metaOpenCLQueryDevices() {
 	int i;
 	num_platforms = 0, num_devices = 0;
 	cl_uint temp_uint, temp_uint2;
@@ -67,7 +67,7 @@ void accelOpenCLQueryDevices() {
 	//free(platforms);
 }
 
-size_t accelOpenCLLoadProgramSource(const char *filename, const char **progSrc) {
+size_t metaOpenCLLoadProgramSource(const char *filename, const char **progSrc) {
 	FILE *f = fopen(filename, "r");
 	fseek(f, 0, SEEK_END);
 	size_t len = (size_t) ftell(f);
@@ -81,11 +81,11 @@ size_t accelOpenCLLoadProgramSource(const char *filename, const char **progSrc) 
 
 
 //This should not be exposed to the user, just the top and pop functions built on top of it
-//for thread-safety, returns a new accelOpenCLStackNode, which is a direct copy
+//for thread-safety, returns a new metaOpenCLStackNode, which is a direct copy
 // of the top at some point in time.
 // this way, the user can still use top, without having to manage hazard pointers themselves
 //ASSUME HAZARD POINTERS ARE ALREADY SET FOR t BY THE CALLING METHOD
-void copyStackNodeToFrame(accelOpenCLStackNode * t, accelOpenCLStackFrame ** frame) {
+void copyStackNodeToFrame(metaOpenCLStackNode * t, metaOpenCLStackFrame ** frame) {
 
 	//From here out, we have hazards
 	//Copy all the parameters - REALLY HAZARDOUS
@@ -133,7 +133,7 @@ void copyStackNodeToFrame(accelOpenCLStackNode * t, accelOpenCLStackFrame ** fra
 }
 
 //ASSUME HAZARD POINTERS ARE ALREADY SET FOR node BY THE CALLING METHOD
-void copyStackFrameToNode(accelOpenCLStackFrame * f, accelOpenCLStackNode ** node) {
+void copyStackFrameToNode(metaOpenCLStackFrame * f, metaOpenCLStackNode ** node) {
 
 	//Top-level context info
 	(*node)->frame.platform = f->platform;
@@ -179,24 +179,24 @@ void copyStackFrameToNode(accelOpenCLStackFrame * f, accelOpenCLStackNode ** nod
 // such that the user never has access to the pointer to the frame that's actually on the shared stack
 // object
 //This CAS-based push should be threadsafe
-//WARNING assumes all parameters of accelOpenCLStackNode are set, except "next"
-void accelOpenCLPushStackFrame(accelOpenCLStackFrame * frame) {
+//WARNING assumes all parameters of metaOpenCLStackNode are set, except "next"
+void metaOpenCLPushStackFrame(metaOpenCLStackFrame * frame) {
 	//copy the frame, this is still the thread-private "allocated" state
-	accelOpenCLStackNode * newNode = (accelOpenCLStackNode *) malloc (sizeof(accelOpenCLStackNode));
+	metaOpenCLStackNode * newNode = (metaOpenCLStackNode *) malloc (sizeof(metaOpenCLStackNode));
 	copyStackFrameToNode(frame, &newNode);
 
 
 	//grab the old node
-	accelOpenCLStackNode * old = CLStack;
+	metaOpenCLStackNode * old = CLStack;
 	//I think this is where hazards start..
 	newNode->next = old;
 	CLStack = newNode;
 
 }
 
-accelOpenCLStackFrame * accelOpenCLTopStackFrame() { 
-	accelOpenCLStackFrame * frame = (accelOpenCLStackFrame * ) malloc(sizeof(accelOpenCLStackFrame));
-	accelOpenCLStackNode * t = CLStack; //Hazards start
+metaOpenCLStackFrame * metaOpenCLTopStackFrame() { 
+	metaOpenCLStackFrame * frame = (metaOpenCLStackFrame * ) malloc(sizeof(metaOpenCLStackFrame));
+	metaOpenCLStackNode * t = CLStack; //Hazards start
 	//so set a hazard pointer
 	//then copy the node
 	copyStackNodeToFrame(t, &frame);
@@ -205,9 +205,9 @@ accelOpenCLStackFrame * accelOpenCLTopStackFrame() {
 	return(frame);
 }
 
-accelOpenCLStackFrame * accelOpenCLPopStackFrame() {
-	accelOpenCLStackFrame * frame = (accelOpenCLStackFrame *) malloc(sizeof(accelOpenCLStackFrame));
-	accelOpenCLStackNode * t = CLStack; //Hazards start
+metaOpenCLStackFrame * metaOpenCLPopStackFrame() {
+	metaOpenCLStackFrame * frame = (metaOpenCLStackFrame *) malloc(sizeof(metaOpenCLStackFrame));
+	metaOpenCLStackNode * t = CLStack; //Hazards start
 	//so set a hazard pointer
 	//then copy the node
 	copyStackNodeToFrame(t, &frame);
@@ -222,20 +222,20 @@ accelOpenCLStackFrame * accelOpenCLPopStackFrame() {
 
 
 
-cl_int accelOpenCLInitStackFrame(accelOpenCLStackFrame ** frame, cl_int device) {
+cl_int metaOpenCLInitStackFrame(metaOpenCLStackFrame ** frame, cl_int device) {
 	cl_int ret = CL_SUCCESS;
 	//First, make sure we've run the one-time query to initialize the device array
 	//TODO, fix synchronization on the one-time device query.
 	if (platforms == NULL || devices == NULL || (((long) platforms) == -1)) {
 		//try to perform the scan, else wait while somebody else finishes it.
-		accelOpenCLQueryDevices();
+		metaOpenCLQueryDevices();
 	}
 
 	//Hack to allow choose device to set mode to OpenCL, but still pick a default
-	if (device == -1) return accelOpenCLInitStackFrameDefault(frame);
+	if (device == -1) return metaOpenCLInitStackFrameDefault(frame);
 
 
-	*frame = (accelOpenCLStackFrame *) malloc(sizeof(accelOpenCLStackFrame));
+	*frame = (metaOpenCLStackFrame *) malloc(sizeof(metaOpenCLStackFrame));
 	//TODO use the device array to do reverse lookup to figure out which platform to attach to the frame
 	//TODO retrofit to take an integer parameter indexing into the device array
 	//TODO ensure the device array has been initialized by somebody (even if I have to do it) before executing this blook
@@ -248,26 +248,26 @@ cl_int accelOpenCLInitStackFrame(accelOpenCLStackFrame ** frame, cl_int device) 
 	//create the context and add it to the frame
 	(*frame)->context = clCreateContext(NULL, 1, &((*frame)->device), NULL, NULL, NULL);
 	(*frame)->queue = clCreateCommandQueue((*frame)->context, (*frame)->device, CL_QUEUE_PROFILING_ENABLE, NULL);
-	if (accelCLProgLen == 0) {
-		accelCLProgLen = accelOpenCLLoadProgramSource("afosr_cfd_opencl_core.cl", &accelCLProgSrc);
+	if (metaCLProgLen == 0) {
+		metaCLProgLen = metaOpenCLLoadProgramSource("metamorph_opencl_core.cl", &metaCLProgSrc);
 	}
-	(*frame)->program_opencl_core = clCreateProgramWithSource((*frame)->context, 1, &accelCLProgSrc, &accelCLProgLen, NULL);
-	// Add this debug string if needed: -g -s\"./afosr_cfd_opencl_core.cl\"
+	(*frame)->program_opencl_core = clCreateProgramWithSource((*frame)->context, 1, &metaCLProgSrc, &metaCLProgLen, NULL);
+	// Add this debug string if needed: -g -s\"./metamorph_opencl_core.cl\"
 	char * args = NULL;
-	if (getenv("AFOSR_MODE") != NULL) {
-		if (strcmp(getenv("AFOSR_MODE"), "OpenCL") == 0) {
+	if (getenv("METAMORPH_MODE") != NULL) {
+		if (strcmp(getenv("METAMORPH_MODE"), "OpenCL") == 0) {
 			size_t needed = snprintf(NULL, 0, "-I . -D TRANSPOSE_TILE_DIM=(%d) -D TRANSPOSE_TILE_BLOCK_ROWS=(%d)", TRANSPOSE_TILE_DIM, TRANSPOSE_TILE_BLOCK_ROWS);
 			args = (char *)malloc(needed);
 			snprintf(args, needed, "-I . -D TRANSPOSE_TILE_DIM=(%d) -D TRANSPOSE_TILE_BLOCK_ROWS=(%d)", TRANSPOSE_TILE_DIM, TRANSPOSE_TILE_BLOCK_ROWS);
 			ret |= clBuildProgram((*frame)->program_opencl_core, 1, &((*frame)->device), args, NULL, NULL);
 		}
-		else if (strcmp(getenv("AFOSR_MODE"), "OpenCL_DEBUG") == 0) {
+		else if (strcmp(getenv("METAMORPH_MODE"), "OpenCL_DEBUG") == 0) {
 			size_t needed = snprintf(NULL, 0, "-I . -D TRANSPOSE_TILE_DIM=(%d) -D TRANSPOSE_TILE_BLOCK_ROWS=(%d) -g -cl-opt-disable", TRANSPOSE_TILE_DIM, TRANSPOSE_TILE_BLOCK_ROWS);
 			args = (char *)malloc(needed);
 			snprintf(args, needed, "-I . -D TRANSPOSE_TILE_DIM=(%d) -D TRANSPOSE_TILE_BLOCK_ROWS=(%d) -g -cl-opt-disable", TRANSPOSE_TILE_DIM, TRANSPOSE_TILE_BLOCK_ROWS);
 		}
 	} else {
-		//Do the same as if AFOSR_MODE was set as OpenCL
+		//Do the same as if METAMORPH_MODE was set as OpenCL
 		size_t needed = snprintf(NULL, 0, "-I . -D TRANSPOSE_TILE_DIM=(%d) -D TRANSPOSE_TILE_BLOCK_ROWS=(%d)", TRANSPOSE_TILE_DIM, TRANSPOSE_TILE_BLOCK_ROWS);
 		args = (char *)malloc(needed);
 		snprintf(args, needed, "-I . -D TRANSPOSE_TILE_DIM=(%d) -D TRANSPOSE_TILE_BLOCK_ROWS=(%d)", TRANSPOSE_TILE_DIM, TRANSPOSE_TILE_BLOCK_ROWS);
@@ -311,9 +311,9 @@ cl_int accelOpenCLInitStackFrame(accelOpenCLStackFrame ** frame, cl_int device) 
 	(*frame)->kernel_unpack_2d_face_ui = clCreateKernel((*frame)->program_opencl_core, "kernel_unpack_ui", NULL);
 
 	//Allocate any internal buffers necessary for kernel functions
-	(*frame)->constant_face_size = clCreateBuffer((*frame)->context, CL_MEM_READ_ONLY, sizeof(cl_int)*AFOSR_FACE_MAX_DEPTH, NULL, NULL);
-	(*frame)->constant_face_stride = clCreateBuffer((*frame)->context, CL_MEM_READ_ONLY, sizeof(cl_int)*AFOSR_FACE_MAX_DEPTH, NULL, NULL);
-	(*frame)->constant_face_child_size = clCreateBuffer((*frame)->context, CL_MEM_READ_ONLY, sizeof(cl_int)*AFOSR_FACE_MAX_DEPTH, NULL, NULL);
+	(*frame)->constant_face_size = clCreateBuffer((*frame)->context, CL_MEM_READ_ONLY, sizeof(cl_int)*METAMORPH_FACE_MAX_DEPTH, NULL, NULL);
+	(*frame)->constant_face_stride = clCreateBuffer((*frame)->context, CL_MEM_READ_ONLY, sizeof(cl_int)*METAMORPH_FACE_MAX_DEPTH, NULL, NULL);
+	(*frame)->constant_face_child_size = clCreateBuffer((*frame)->context, CL_MEM_READ_ONLY, sizeof(cl_int)*METAMORPH_FACE_MAX_DEPTH, NULL, NULL);
 }
 
 //calls all the necessary CLRelease* calls for frame members
@@ -322,8 +322,8 @@ cl_int accelOpenCLInitStackFrame(accelOpenCLStackFrame ** frame, cl_int device) 
 //	free any stack nodes
 //	free program source
 //	implement any thread safety, frames should always be thread private, only the stack should be shared, and all franes must be copied to or from stack nodes using the hazard-aware copy methods.
-//	 (more specifically, copying a frame to a node doesn't need to be hazard-aware, as the node cannot be shared unless copied inside the hazard-aware accelOpenCLPushStackFrame. Pop, Top, and copyStackNodeToFrame are all hazard aware and provide a thread-private copy back to the caller.)
-cl_int accelOpenCLDestroyStackFrame(accelOpenCLStackFrame * frame) {
+//	 (more specifically, copying a frame to a node doesn't need to be hazard-aware, as the node cannot be shared unless copied inside the hazard-aware metaOpenCLPushStackFrame. Pop, Top, and copyStackNodeToFrame are all hazard aware and provide a thread-private copy back to the caller.)
+cl_int metaOpenCLDestroyStackFrame(metaOpenCLStackFrame * frame) {
 
 	//Release Kernels
 	clReleaseKernel(frame->kernel_reduce_db);
@@ -374,12 +374,12 @@ cl_int accelOpenCLDestroyStackFrame(accelOpenCLStackFrame * frame) {
 // via the "TARGET_DEVICE" string environemnt variable, which must match
 // EXACTLY the device name reported to the OpenCL runtime.
 //TODO implement a reasonable passthrough for any errors which OpenCL may throw.
-cl_int accelOpenCLInitStackFrameDefault(accelOpenCLStackFrame ** frame) {
+cl_int metaOpenCLInitStackFrameDefault(metaOpenCLStackFrame ** frame) {
 	cl_int ret = CL_SUCCESS;
 	//First, make sure we've run the one-time query to initialize the device array
 	if (platforms == NULL || devices == NULL || (((long) platforms) == -1)) {
 		//try to perform the scan, else wait while somebody else finishes it.
-		accelOpenCLQueryDevices();
+		metaOpenCLQueryDevices();
 	}
 
 	//Simply print the names of all devices, to assist later environment-variable device selection
@@ -397,7 +397,7 @@ cl_int accelOpenCLInitStackFrameDefault(accelOpenCLStackFrame ** frame) {
 	int gpuID =-1;
 
 	if (getenv("TARGET_DEVICE") != NULL) {
-		gpuID = accelOpenCLGetDeviceID(getenv("TARGET_DEVICE"), &devices[0], num_devices);
+		gpuID = metaOpenCLGetDeviceID(getenv("TARGET_DEVICE"), &devices[0], num_devices);
 		if (gpuID < 0) fprintf(stderr, "Device \"%s\" not found.\nDefaulting to first device found.\n", getenv("TARGET_DEVICE"));
 	} else {
 		fprintf(stderr, "Environment variable TARGET_DEVICE not set.\nDefaulting to first device found.\n");
@@ -409,7 +409,7 @@ cl_int accelOpenCLInitStackFrameDefault(accelOpenCLStackFrame ** frame) {
 	fprintf(stderr, "Selected Device %d: %s\n", gpuID, buff);
 
 	//Now that we've picked a reasonable default, fill in the details for the frame object
-	accelOpenCLInitStackFrame(frame, gpuID); 
+	metaOpenCLInitStackFrame(frame, gpuID); 
 
 	return(ret);
 }
@@ -424,14 +424,28 @@ cl_int accelOpenCLInitStackFrameDefault(accelOpenCLStackFrame ** frame) {
 //  ! i,j,k are the array dimensions
 //  ! len_ is number of threads in a threadblock.
 //  !      This can be computed in the kernel itself.
-cl_int opencl_dotProd(size_t (* grid_size)[3], size_t (* block_size)[3], void * data1, void * data2, size_t (* array_size)[3], size_t (* arr_start)[3], size_t (* arr_end)[3], void * reduced_val, accel_type_id type, int async, cl_event * event) {
+cl_int opencl_dotProd(size_t (* grid_size)[3], size_t (* block_size)[3], void * data1, void * data2, size_t (* array_size)[3], size_t (* arr_start)[3], size_t (* arr_end)[3], void * reduced_val, meta_type_id type, int async, cl_event * event) {
 	cl_int ret;
 	cl_kernel kern;
-	cl_int smem_len =  (*block_size)[0] * (*block_size)[1] * (*block_size)[2];
-	size_t grid[3] = {(*grid_size)[0]*(*block_size)[0], (*grid_size)[1]*(*block_size)[1], (*block_size)[2]};
-	size_t block[3] = {(*block_size)[0], (*block_size)[1], (*block_size)[2]};
+	cl_int smem_len;
+	size_t grid[3];
+	size_t block[3] = METAMORPH_OCL_DEFAULT_BLOCK;
+	//Allow for auto-selected grid/block size if either is not specified
+	if (grid_size == NULL || block_size == NULL) {
+		grid[0] = (((*arr_end)[0]-(*arr_start)[0]+(block[0]-1))/block[0])*block[0];
+		grid[1] = (((*arr_end)[1]-(*arr_start)[1]+(block[1]-1))/block[1])*block[1];
+		grid[0] = (((*arr_end)[2]-(*arr_start)[2]+(block[2]-1))/block[2])*block[2];
+	} else {
+		grid[0] = (*grid_size)[0]*(*block_size)[0];
+		grid[1] = (*grid_size)[1]*(*block_size)[1];
+		grid[2] = (*block_size)[2];
+		block[0] = (*block_size)[0];
+		block[1] = (*block_size)[1];
+		block[2] = (*block_size)[2];
+	}
+	smem_len =  block[0] * block[1] * block[2];
 	//before enqueuing, get a copy of the top stack frame
-	accelOpenCLStackFrame * frame = accelOpenCLTopStackFrame();
+	metaOpenCLStackFrame * frame = metaOpenCLTopStackFrame();
 
 	switch (type) {
 		case a_db:
@@ -519,15 +533,28 @@ cl_int opencl_dotProd(size_t (* grid_size)[3], size_t (* block_size)[3], void * 
 }
 
 
-cl_int opencl_reduce(size_t (* grid_size)[3], size_t (* block_size)[3], void * data, size_t (* array_size)[3], size_t (* arr_start)[3], size_t (* arr_end)[3], void * reduced_val, accel_type_id type, int async, cl_event * event) {
+cl_int opencl_reduce(size_t (* grid_size)[3], size_t (* block_size)[3], void * data, size_t (* array_size)[3], size_t (* arr_start)[3], size_t (* arr_end)[3], void * reduced_val, meta_type_id type, int async, cl_event * event) {
 	cl_int ret;
 	cl_kernel kern;
-	cl_int smem_len =  (*block_size)[0] * (*block_size)[1] * (*block_size)[2];
-	size_t grid[3] = {(*grid_size)[0]*(*block_size)[0], (*grid_size)[1]*(*block_size)[1], (*block_size)[2]};
-	size_t block[3] = {(*block_size)[0], (*block_size)[1], (*block_size)[2]};
-
+	cl_int smem_len;
+	size_t grid[3];
+	size_t block[3] = METAMORPH_OCL_DEFAULT_BLOCK;;
+	//Allow for auto-selected grid/block size if either is not specified
+	if (grid_size == NULL || block_size == NULL) {
+		grid[0] = (((*arr_end)[0]-(*arr_start)[0]+(block[0]-1))/block[0])*block[0];
+		grid[1] = (((*arr_end)[1]-(*arr_start)[1]+(block[1]-1))/block[1])*block[1];
+		grid[2] = (((*arr_end)[2]-(*arr_start)[2]+(block[2]-1))/block[2])*block[2];
+	} else {
+		grid[0] = (*grid_size)[0]*(*block_size)[0];
+		grid[1] = (*grid_size)[1]*(*block_size)[1];
+		grid[2] = (*block_size)[2];
+		block[0] = (*block_size)[0];
+		block[1] = (*block_size)[1];
+		block[2] = (*block_size)[2];
+	}
+	smem_len =  block[0] * block[1] * block[2];
 	//before enqueuing, get a copy of the top stack frame
-	accelOpenCLStackFrame * frame = accelOpenCLTopStackFrame();
+	metaOpenCLStackFrame * frame = metaOpenCLTopStackFrame();
 	
 	switch (type) {
 		case a_db:
@@ -612,21 +639,36 @@ cl_int opencl_reduce(size_t (* grid_size)[3], size_t (* block_size)[3], void * d
 	return(ret);
 }
 
-cl_int opencl_transpose_2d_face(size_t (* grid_size)[3], size_t (* block_size)[3], void * indata, void *outdata, size_t (* dim_xy)[3], accel_type_id type, int async, cl_event * event) {
+cl_int opencl_transpose_2d_face(size_t (* grid_size)[3], size_t (* block_size)[3], void * indata, void *outdata, size_t (* arr_dim_xy)[3], size_t (* tran_dim_xy)[3], meta_type_id type, int async, cl_event * event) {
 	cl_int ret;
 	cl_kernel kern;
+	cl_int smem_len;
+	size_t grid[3];
+	size_t block[3] = {TRANSPOSE_TILE_DIM, TRANSPOSE_TILE_BLOCK_ROWS, 1};
 	//cl_int smem_len = (*block_size)[0] * (*block_size)[1] * (*block_size)[2];
 // TODO update to use user provided grid/block once multi-element per thread scaling is added
 //	size_t grid[3] = {(*grid_size)[0]*(*block_size)[0], (*grid_size)[1]*(*block_size)[1], (*block_size)[2]};
-//	size_t block[3] = {(*block_size)[0], (*block_size)[1], (*block_size)[2]};
-	size_t grid[3] = {((*dim_xy)[0]+TRANSPOSE_TILE_DIM-1)/TRANSPOSE_TILE_DIM, ((*dim_xy)[1]+TRANSPOSE_TILE_DIM-1)/TRANSPOSE_TILE_DIM, 1};
-	size_t block[3] = {TRANSPOSE_TILE_DIM, TRANSPOSE_TILE_BLOCK_ROWS, 1};
-	grid[0] *=block[0];
-	grid[1] *=block[1];
+//	size_t block[3] = {(*block_size)[0], (*block_size)[1], (*block_size)[2]};\
+	//FIXME: make this smart enough to rescale the threadblock (and thus shared memory - e.g. bank conflicts) w.r.t. double vs. float
+	if (grid_size == NULL || block_size == NULL) {
+		//FIXME: reconcile TILE_DIM/BLOCK_ROWS
+		grid[0] = (((*tran_dim_xy)[0]+block[0]-1)/block[0])*block[0];
+		grid[1] = (((*tran_dim_xy)[1]+block[1]-1)/block[1])*block[1];
+		grid[2] = 1;
+	} else {
+		grid[0] = (*grid_size)[0]*(*block_size)[0];
+		grid[1] = (*grid_size)[1]*(*block_size)[1];
+		grid[2] = (*block_size)[2];
+		block[0] = (*block_size)[0];
+		block[1] = (*block_size)[1];
+		block[2] = (*block_size)[2];
+	}
+	//The +1 here is to avoid bank conflicts with 32 floats or 16 doubles and is required by the kernel logic
+	smem_len = (block[0]+1)*block[1]*block[2];
 	//TODO as the frame grows larger with more kernels, this overhead will start to add up
 	// Need a better (safe) way of accessing the stack for kernel launches
 	//before enqueuing, get a copy of the top stack frame
-	accelOpenCLStackFrame * frame = accelOpenCLTopStackFrame();
+	metaOpenCLStackFrame * frame = metaOpenCLTopStackFrame();
 	
 	switch (type) {
 		case a_db:
@@ -657,8 +699,35 @@ cl_int opencl_transpose_2d_face(size_t (* grid_size)[3], size_t (* block_size)[3
 	}
 	ret =  clSetKernelArg(kern, 0, sizeof(cl_mem *), &outdata);
 	ret |= clSetKernelArg(kern, 1, sizeof(cl_mem *), &indata);
-	ret |= clSetKernelArg(kern, 2, sizeof(cl_int), &(*dim_xy)[0]);
-	ret |= clSetKernelArg(kern, 3, sizeof(cl_int), &(*dim_xy)[1]);
+	ret |= clSetKernelArg(kern, 2, sizeof(cl_int), &(*arr_dim_xy)[0]);
+	ret |= clSetKernelArg(kern, 3, sizeof(cl_int), &(*arr_dim_xy)[1]);
+	ret |= clSetKernelArg(kern, 4, sizeof(cl_int), &(*tran_dim_xy)[0]);
+	ret |= clSetKernelArg(kern, 5, sizeof(cl_int), &(*tran_dim_xy)[1]);
+	switch (type) {
+		case a_db:
+			ret |= clSetKernelArg(kern, 6, smem_len*sizeof(cl_double), NULL);
+			break;
+
+		case a_fl:
+			ret |= clSetKernelArg(kern, 6, smem_len*sizeof(cl_float), NULL);
+			break;
+
+		case a_ul:
+			ret |= clSetKernelArg(kern, 6, smem_len*sizeof(cl_ulong), NULL);
+			break;
+
+		case a_in:
+			ret |= clSetKernelArg(kern, 6, smem_len*sizeof(cl_int), NULL);
+			break;
+
+		case a_ui:
+			ret |= clSetKernelArg(kern, 6, smem_len*sizeof(cl_uint), NULL);
+			break;
+
+		//Shouldn't be reachable, but cover our bases
+		default:
+			fprintf(stderr, "Error: unexpected type, cannot set shared memory size in 'opencl_transpose_2d_face'!\n");
+	}
 	ret |= clEnqueueNDRangeKernel(frame->queue, kern, 2, NULL, grid, block, 0, NULL, event);
 	
 	//TODO find a way to make explicit sync optional
@@ -669,13 +738,15 @@ cl_int opencl_transpose_2d_face(size_t (* grid_size)[3], size_t (* block_size)[3
 	return(ret);
 }
 
-cl_int opencl_pack_2d_face(size_t (* grid_size)[3], size_t (* block_size)[3], void *packed_buf, void *buf, accel_2d_face_indexed *face, int *remain_dim, accel_type_id type, int async, cl_event * event_k1, cl_event * event_c1, cl_event *event_c2, cl_event *event_c3) {
+cl_int opencl_pack_2d_face(size_t (* grid_size)[3], size_t (* block_size)[3], void *packed_buf, void *buf, meta_2d_face_indexed *face, int *remain_dim, meta_type_id type, int async, cl_event * event_k1, cl_event * event_c1, cl_event *event_c2, cl_event *event_c3) {
 	cl_int ret;
 	cl_kernel kern;
 	cl_int size = face->size[0]*face->size[1]*face->size[2];
-	cl_int smem_size =  face->count*256*sizeof(int);
+	cl_int smem_size;
+	size_t grid[3];
+	size_t block[3] = {256, 1, 1};
 	//before enqueuing, get a copy of the top stack frame
-	accelOpenCLStackFrame * frame = accelOpenCLTopStackFrame();
+	metaOpenCLStackFrame * frame = metaOpenCLTopStackFrame();
 
 	//copy required pieces of the face struct into constant memory
 	ret = clEnqueueWriteBuffer(frame->queue, frame->constant_face_size, ((async) ? CL_FALSE : CL_TRUE), 0, sizeof(cl_int)*face->count, face->size, 0, NULL, event_c1);
@@ -684,8 +755,19 @@ cl_int opencl_pack_2d_face(size_t (* grid_size)[3], size_t (* block_size)[3], vo
 //TODO update to use user-provided grid/block once multi-element per thread scaling is added
 //	size_t grid[3] = {(*grid_size)[0]*(*block_size)[0], (*grid_size)[1]*(*block_size)[1], (*block_size)[2]};
 //	size_t block[3] = {(*block_size)[0], (*block_size)[1], (*block_size)[2]};
-	size_t grid[3] = {((size+256-1)/256)<<8, 1, 1};
-	size_t block[3] = {256, 1, 1};
+	if (grid_size == NULL || block_size == NULL) {
+		grid[0] = ((size+block[0]-1)/block[0])*block[0];
+		grid[1] = 1;
+		grid[2] = 1;
+	} else {
+		grid[0] = (*grid_size)[0]*(*block_size)[0];
+		grid[1] = (*grid_size)[1]*(*block_size)[1];
+		grid[2] = (*block_size)[2];
+		block[0] = (*block_size)[0];
+		block[1] = (*block_size)[1];
+		block[2] = (*block_size)[2];
+	}
+	smem_size =  face->count*block[0]*sizeof(int);
 //TODO Timing needs to be made consistent with CUDA (ie the event should return time for copying to constant memory and the kernel
 	
 	switch (type) {
@@ -742,13 +824,16 @@ cl_int opencl_pack_2d_face(size_t (* grid_size)[3], size_t (* block_size)[3], vo
 	return(ret);
 }
 
-cl_int opencl_unpack_2d_face(size_t (* grid_size)[3], size_t (* block_size)[3], void *packed_buf, void *buf, accel_2d_face_indexed *face, int *remain_dim, accel_type_id type, int async, cl_event * event_k1, cl_event * event_c1, cl_event *event_c2, cl_event *event_c3) {
+cl_int opencl_unpack_2d_face(size_t (* grid_size)[3], size_t (* block_size)[3], void *packed_buf, void *buf, meta_2d_face_indexed *face, int *remain_dim, meta_type_id type, int async, cl_event * event_k1, cl_event * event_c1, cl_event *event_c2, cl_event *event_c3) {
+
 	cl_int ret;
 	cl_kernel kern;
 	cl_int size = face->size[0]*face->size[1]*face->size[2];
-	cl_int smem_size =  face->count*256*sizeof(int);
+	cl_int smem_size;
+	size_t grid[3];
+	size_t block[3] = {256, 1, 1};
 	//before enqueuing, get a copy of the top stack frame
-	accelOpenCLStackFrame * frame = accelOpenCLTopStackFrame();
+	metaOpenCLStackFrame * frame = metaOpenCLTopStackFrame();
 
 	//copy required pieces of the face struct into constant memory
 	ret = clEnqueueWriteBuffer(frame->queue, frame->constant_face_size, ((async) ? CL_FALSE : CL_TRUE), 0, sizeof(cl_int)*face->count, face->size, 0, NULL, event_c1);
@@ -757,8 +842,19 @@ cl_int opencl_unpack_2d_face(size_t (* grid_size)[3], size_t (* block_size)[3], 
 //TODO update to use user-provided grid/block once multi-element per thread scaling is added
 //	size_t grid[3] = {(*grid_size)[0]*(*block_size)[0], (*grid_size)[1]*(*block_size)[1], (*block_size)[2]};
 //	size_t block[3] = {(*block_size)[0], (*block_size)[1], (*block_size)[2]};
-	size_t grid[3] = {((size+256-1)/256)<<8, 1, 1};
-	size_t block[3] = {256, 1, 1};
+	if (grid_size == NULL || block_size == NULL) {
+		grid[0] = ((size+block[0]-1)/block[0])*block[0];
+		grid[1] = 1;
+		grid[2] = 1;
+	} else {
+		grid[0] = (*grid_size)[0]*(*block_size)[0];
+		grid[1] = (*grid_size)[1]*(*block_size)[1];
+		grid[2] = (*block_size)[2];
+		block[0] = (*block_size)[0];
+		block[1] = (*block_size)[1];
+		block[2] = (*block_size)[2];
+	}
+	smem_size =  face->count*block[0]*sizeof(int);
 //TODO Timing needs to be made consistent with CUDA (ie the event should return time for copying to constant memory and the kernel
 	
 	switch (type) {

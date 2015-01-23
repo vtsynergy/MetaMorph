@@ -3,12 +3,12 @@
  * None of this file should be active at all if WITH_TIMERS is not defined
  * i.e. it should only be #included in a conditional-compile block
  */
-#ifndef AFOSR_CFD_TIMERS_H
-#define AFOSR_CFD_TIMERS_H
+#ifndef METAMORPH_TIMERS_H
+#define METAMORPH_TIMERS_H
 
-//Include afosr_cfd.h to grab the properly-defined enum for modes
-#ifndef AFOSR_CFD_H
-	#include "afosr_cfd.h"
+//Include metamorph.h to grab the properly-defined enum for modes
+#ifndef METAMORPH_H
+	#include "metamorph.h"
 #endif
 
 //Any special concerns for 
@@ -21,7 +21,7 @@
 #ifdef WITH_OPENMP
 #endif
 
-typedef union accelTimerEvent {
+typedef union metaTimerEvent {
 	#ifdef WITH_CUDA
 	cudaEvent_t cuda[2];
 	#endif 
@@ -31,44 +31,44 @@ typedef union accelTimerEvent {
 	#ifdef WITH_OPENMP
 	struct timeval openmp;
 	#endif
-} accelTimerEvent;
+} metaTimerEvent;
 
-typedef struct accelTimerQueueFrame {
+typedef struct metaTimerQueueFrame {
 //CUDA needs 2 events to use cudaEventElapsedTime
 //OpenCL only needs one, if using the event returned from an API call
 //OpenMP will either need 1 or 2, depending on if we keep start/end or just elapsed
-accelTimerEvent event;
+metaTimerEvent event;
 //size_t size[6];
-//Hijack accel_preferred_mode enum to advise the user of the frame/node how to interpret event
-accel_preferred_mode mode; 
+//Hijack meta_preferred_mode enum to advise the user of the frame/node how to interpret event
+meta_preferred_mode mode; 
 size_t size;
 //TODO add level 3 items
-} accelTimerQueueFrame;
+} metaTimerQueueFrame;
 
 //TODO refactor code to use a frame internally, so that the frame can be changed
 // without having to modify the QueueNode to match
-typedef struct accelTimerQueueNode {
+typedef struct metaTimerQueueNode {
 //CUDA needs 2 events to use cudaEventElapsedTime
 //OpenCL only needs one, if using the event returned from an API call
 //OpenMP will either need 1 or 2, depending on if we keep start/end or just elapsed
-accelTimerEvent event;
+metaTimerEvent event;
 //size_t size[6];
-//Hijack accel_preferred_mode enum to advise the user of the frame/node how to interpret event
-accel_preferred_mode mode;
+//Hijack meta_preferred_mode enum to advise the user of the frame/node how to interpret event
+meta_preferred_mode mode;
 size_t size;
-struct accelTimerQueueNode * next;
-} accelTimerQueueNode;
+struct metaTimerQueueNode * next;
+} metaTimerQueueNode;
 
 
-typedef struct accelTimerQueue {
+typedef struct metaTimerQueue {
 	const char * name;
-	accelTimerQueueNode * head, *tail;
-}accelTimerQueue;
+	metaTimerQueueNode * head, *tail;
+}metaTimerQueue;
 
 //A convenience structure to tie logically-named queues to possibly-changing indicies in the Queue array
 // This way we can add a new type of timer (for a kernel or copy or whatever) and potentially change indicies without needing to change a bunch of hardcoded constants.
 
-enum accelTimerQueueEnum {
+enum metaTimerQueueEnum {
 	c_D2H,
 	c_H2D,
 	c_H2H,
@@ -84,11 +84,11 @@ enum accelTimerQueueEnum {
 	queue_count
 };
 
-a_err accelTimerEnqueue(accelTimerQueueFrame * frame, accelTimerQueue * queue);
-a_err accelTimerDequeue(accelTimerQueueFrame ** frame, accelTimerQueue * queue);
-a_err accelTimersInit();
-a_err accelTimersFlush();
-a_err accelTimersFinish();
+a_err metaTimerEnqueue(metaTimerQueueFrame * frame, metaTimerQueue * queue);
+a_err metaTimerDequeue(metaTimerQueueFrame ** frame, metaTimerQueue * queue);
+a_err metaTimersInit();
+a_err metaTimersFlush();
+a_err metaTimersFinish();
 
-extern accelTimerQueue accelBuiltinQueues[];
-#endif //AFOSR_CFD_TIMERS_H
+extern metaTimerQueue metaBuiltinQueues[];
+#endif //METAMORPH_TIMERS_H

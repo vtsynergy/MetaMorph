@@ -1,6 +1,6 @@
 #include <stdio.h>
 
-#include "afosr_cfd_cuda_core.cuh"
+#include "metamorph_cuda_core.cuh"
 
 // non-specialized class template
 template <typename T>
@@ -190,10 +190,10 @@ __global__ void kernel_reduction3(T *phi,
 }
 
 //"constant" buffers for face indexing in pack/unpack kernels
-__constant__ int c_face_size[AFOSR_FACE_MAX_DEPTH];
-__constant__ int c_face_stride[AFOSR_FACE_MAX_DEPTH];
+__constant__ int c_face_size[METAMORPH_FACE_MAX_DEPTH];
+__constant__ int c_face_stride[METAMORPH_FACE_MAX_DEPTH];
 //Size of all children (>= level+1) so at level 0, child_size = total_num_face_elements
-__constant__ int c_face_child_size[AFOSR_FACE_MAX_DEPTH];
+__constant__ int c_face_child_size[METAMORPH_FACE_MAX_DEPTH];
 
 //Helper function to compute the integer read offset for buffer packing
 //TODO: Add support for multi-dimensional grid/block
@@ -228,68 +228,96 @@ __device__ int get_pack_index (int tid, int * a, int start, int count) {
 	return pos;
 }
 
-//TODO: add support for multiple elements per thread
 template <typename T>
 __global__ void kernel_pack(T *packed_buf, T *buf, int size, int start, int count)
 {
-	//TODO: Expand for multi-dimensional grid/block
-	const int tid = threadIdx.x + blockDim.x * blockIdx.x;
+	int idx = threadIdx.x + blockDim.x * blockIdx.x;
+	int nthreads = gridDim.x * blockDim.x;
 	extern __shared__ int a[];
-	if (tid < size)	packed_buf[tid] = buf[get_pack_index(tid, a, start, count)];
+	// this loop handles both nthreads > size and nthreads < size
+	for (; idx < size; idx += nthreads)
+		packed_buf[idx] = buf[get_pack_index(idx, a, start, count)];
 }
 
-//TODO: add support for multiple elements per thread
 template <typename T>
 __global__ void kernel_unpack(T *packed_buf, T *buf, int size, int start, int count)
 {
-	//TODO: Expand for multi-dimensional grid/block
-	const int tid = threadIdx.x + blockDim.x * blockIdx.x;
+	int idx = threadIdx.x + blockDim.x * blockIdx.x;
+	int nthreads = gridDim.x * blockDim.x;
 	extern __shared__ int a[];
-	if (tid < size) buf[get_pack_index(tid, a, start, count)] = packed_buf[tid];
+	// this loop handles both nthreads > size and nthreads < size
+	for (; idx < size; idx += nthreads)
+		buf[get_pack_index(idx, a, start, count)] = packed_buf[idx];
 }
 
 //TODO: Expand to multiple transpose elements per thread
 //#define TRANSPOSE_TILE_DIM (16)
 //#define TRANSPOSE_BLOCK_ROWS (16)
 template <typename T>
-__global__ void kernel_transpose_2d(T *odata, T *idata, int width, int height)
+__global__ void kernel_transpose_2d(T *odata, T *idata, int arr_width, int arr_height, int tran_width, int tran_height)
 {
-    __shared__ T tile[TRANSPOSE_TILE_DIM][TRANSPOSE_TILE_DIM+1];
+    SharedMem<T> shared;
+	T * tile = shared.getPointer();
+    //__shared__ T tile[TRANSPOSE_TILE_DIM][TRANSPOSE_TILE_DIM+1];
     //__shared__ T tile[TRANSPOSE_TILE_DIM][TRANSPOSE_TILE_DIM];
 
     int blockIdx_x, blockIdx_y;
+    int gridDim_x, gridDim_y;
 
-    // do diagonal reordering
-    if (width == height)
-    {
-        blockIdx_y = blockIdx.x;
-        blockIdx_x = (blockIdx.x+blockIdx.y)%gridDim.x;
-    }
-    else
-    {
+// do diagonal reordering
+    //The if case degenerates to the else case, no need to have both
+    //if (width == height)
+    //{
+    //    blockIdx_y = blockIdx.x;
+    //    blockIdx_x = (blockIdx.x+blockIdx.y)%gridDim.x;
+    //}
+    //else
+    //{
+	//First figure out your number among the actual grid blocks
         int bid = blockIdx.x + gridDim.x*blockIdx.y;
-        blockIdx_y = bid%gridDim.y;
-        blockIdx_x = ((bid/gridDim.y)+blockIdx_y)%gridDim.x;
-    }
+	//Then figure out how many logical blocks are required in each dimension
+	gridDim_x = (tran_width-1+blockDim.x)/blockDim.x;
+	gridDim_y = (tran_height-1+blockDim.y)/blockDim.y;
+	//Then how many logical and actual grid blocks
+	int logicalBlocks = gridDim_x*gridDim_y;
+	int gridBlocks = gridDim.x*gridDim.y;
+	//Loop over all logical blocks
+	for (; bid < logicalBlocks; bid += gridBlocks) {
+	//Compute the current logical block index in each dimension
+        blockIdx_y = bid%gridDim_y;
+        blockIdx_x = ((bid/gridDim_y)+blockIdx_y)%gridDim_x;
+    //}
 
-    int xIndex_in = blockIdx_x * TRANSPOSE_TILE_DIM + threadIdx.x;
-    int yIndex_in = blockIdx_y * TRANSPOSE_TILE_DIM + threadIdx.y;
-    int index_in = xIndex_in + (yIndex_in)*width;
+    //int xIndex_in = blockIdx_x * TRANSPOSE_TILE_DIM + threadIdx.x;
+    int xIndex_in = blockIdx_x * blockDim.x + threadIdx.x;
+    //int yIndex_in = blockIdx_y * TRANSPOSE_TILE_DIM + threadIdx.y;
+    int yIndex_in = blockIdx_y * blockDim.y + threadIdx.y;
+    //int index_in = xIndex_in + (yIndex_in)*width;
+    int index_in = xIndex_in + (yIndex_in)*arr_width;
 
-    int xIndex_out = blockIdx_y * TRANSPOSE_TILE_DIM + threadIdx.x;
-    int yIndex_out = blockIdx_x * TRANSPOSE_TILE_DIM + threadIdx.y;
-    int index_out = xIndex_out + (yIndex_out)*height;
+    //int xIndex_out = blockIdx_y * TRANSPOSE_TILE_DIM + threadIdx.x;
+    int xIndex_out = blockIdx_y * blockDim.y + threadIdx.x;
+    //int yIndex_out = blockIdx_x * TRANSPOSE_TILE_DIM + threadIdx.y;
+    int yIndex_out = blockIdx_x * blockDim.x + threadIdx.y;
+    //int index_out = xIndex_out + (yIndex_out)*height;
+    int index_out = xIndex_out + (yIndex_out)*arr_height;
 
-    if(xIndex_in < width && yIndex_in < height)
+    //The blockDim.x+1 in R/W steps is to avoid bank conflicts if blockDim.x==16 or 32
+    if(xIndex_in < tran_width && yIndex_in < tran_height)
         //tile[threadIdx.y+1][threadIdx.x] = idata[index_in];
-        tile[threadIdx.y][threadIdx.x] = idata[index_in];
+	tile[threadIdx.x+(blockDim.x+1)*threadIdx.y] = idata[index_in];
+        //tile[threadIdx.y][threadIdx.x] = idata[index_in];
 
     __syncthreads();
 
-    if(xIndex_out < height && yIndex_out < width)
+    if(xIndex_out < tran_height && yIndex_out < tran_width)
         //odata[index_out] = tile[threadIdx.x][threadIdx.y];
-        odata[index_out] = tile[threadIdx.x][threadIdx.y];
+	odata[index_out] = tile[threadIdx.x+(blockDim.x+1)*threadIdx.y];
+        //odata[index_out] = tile[threadIdx.x][threadIdx.y];
 
+    //Added when the loop was added to ensure writes are finished before new vals go into shared memory
+    __syncthreads();
+    }
 }
 
 /// END KERNELS
@@ -297,18 +325,21 @@ __global__ void kernel_transpose_2d(T *odata, T *idata, int width, int height)
 
 /// BEGIN HOST WRAPPERS
 
-cudaError_t cuda_dotProd(size_t (* grid_size)[3], size_t (* block_size)[3], void * data1, void * data2, size_t (* array_size)[3], size_t (* arr_start)[3], size_t (* arr_end)[3], void * reduced_val, accel_type_id type, int async, cudaEvent_t ((*event)[2])) {
+cudaError_t cuda_dotProd(size_t (* grid_size)[3], size_t (* block_size)[3], void * data1, void * data2, size_t (* array_size)[3], size_t (* arr_start)[3], size_t (* arr_end)[3], void * reduced_val, meta_type_id type, int async, cudaEvent_t ((*event)[2])) {
 	cudaError_t ret = cudaSuccess;
-	size_t smem_len =  (*block_size)[0] * (*block_size)[1] * (*block_size)[2];
-	dim3 grid = dim3((*grid_size)[0], (*grid_size)[1], 1);
-	dim3 block = dim3((*block_size)[0], (*block_size)[1], (*block_size)[2]);
-	//Lingering debugging output
-	//printf("Grid: %d %d %d\n", grid.x, grid.y, grid.z);
-	//printf("Block: %d %d %d\n", block.x, block.y, block.z);
-	//printf("Size: %d %d %d\n", (*array_size)[0], (*array_size)[1], (*array_size)[2]);
-	//printf("Start: %d %d %d\n", (*arr_start)[0], (*arr_start)[1], (*arr_start)[2]);
-	//printf("End: %d %d %d\n", (*arr_end)[1], (*arr_end)[0], (*arr_end)[2]);
-	//printf("SMEM: %d\n", smem_size);
+	size_t smem_len;
+	dim3 grid;
+	dim3 block;
+	//Allow for auto-selected grid/block size if either is not specified
+	if (grid_size == NULL || block_size == NULL) {
+		block = METAMORPH_CUDA_DEFAULT_BLOCK;
+		//do not subtract 1 from blocx for the case when end == start
+		grid = dim3((((*arr_end)[0]-(*arr_start)[0]+(block.x-1))/block.x), (((*arr_end)[1]-(*arr_start)[1]+(block.y-1))/block.y), (((*arr_end)[2]-(*arr_start)[2]+(block.z-1))/block.z));
+	} else {
+		grid = dim3((*grid_size)[0], (*grid_size)[1], 1);
+		block = dim3((*block_size)[0], (*block_size)[1], (*block_size)[2]);
+	}
+	smem_len = block.x * block.y * block.z;
 	if (event != NULL) {
 		cudaEventCreate(&(*event)[0]);
 		cudaEventRecord((*event)[0], 0);
@@ -347,18 +378,20 @@ cudaError_t cuda_dotProd(size_t (* grid_size)[3], size_t (* block_size)[3], void
 }
 
 
-cudaError_t cuda_reduce(size_t (* grid_size)[3], size_t (* block_size)[3], void * data, size_t (* array_size)[3], size_t (* arr_start)[3], size_t (* arr_end)[3], void * reduced_val, accel_type_id type, int async, cudaEvent_t ((*event)[2])) {
+cudaError_t cuda_reduce(size_t (* grid_size)[3], size_t (* block_size)[3], void * data, size_t (* array_size)[3], size_t (* arr_start)[3], size_t (* arr_end)[3], void * reduced_val, meta_type_id type, int async, cudaEvent_t ((*event)[2])) {
 	cudaError_t ret = cudaSuccess;
-	size_t smem_len = (*block_size)[0] * (*block_size)[1] * (*block_size)[2];
-	dim3 grid = dim3((*grid_size)[0], (*grid_size)[1], 1);
-	dim3 block = dim3((*block_size)[0], (*block_size)[1], (*block_size)[2]);
-	//Lingering debugging output
-	//printf("Grid: %d %d %d\n", grid.x, grid.y, grid.z);
-	//printf("Block: %d %d %d\n", block.x, block.y, block.z);
-	//printf("Size: %d %d %d\n", (*array_size)[0], (*array_size)[1], (*array_size)[2]);
-	//printf("Start: %d %d %d\n", (*arr_start)[0], (*arr_start)[1], (*arr_start)[2]);
-	//printf("End: %d %d %d\n", (*arr_end)[1], (*arr_end)[0], (*arr_end)[2]);
-	//printf("SMEM: %d\n", smem_size);
+	size_t smem_len;
+	dim3 grid;
+	dim3 block;
+	//Allow for auto-selected grid/block size if either is not specified
+	if (grid_size == NULL || block_size == NULL) {
+		block = METAMORPH_CUDA_DEFAULT_BLOCK;
+		grid = dim3((((*arr_end)[0]-(*arr_start)[0]+(block.x-1))/block.x), (((*arr_end)[1]-(*arr_start)[1]+(block.y-1))/block.y), (((*arr_end)[2]-(*arr_start)[2]+(block.z-1))/block.z));
+	} else {
+		grid = dim3((*grid_size)[0], (*grid_size)[1], 1);
+		block = dim3((*block_size)[0], (*block_size)[1], (*block_size)[2]);
+	}
+	smem_len = block.x * block.y * block.z;
 	if (event != NULL) {
 		cudaEventCreate(&(*event)[0]);
 		cudaEventRecord((*event)[0], 0);
@@ -399,39 +432,51 @@ cudaError_t cuda_reduce(size_t (* grid_size)[3], size_t (* block_size)[3], void 
 	return(ret);
 }
 
-cudaError_t cuda_transpose_2d_face(size_t (* grid_size)[3], size_t (*block_size)[3], void  *indata, void *outdata, size_t (*dim_xy)[3], accel_type_id type, int async, cudaEvent_t ((*event)[2]))
+cudaError_t cuda_transpose_2d_face(size_t (* grid_size)[3], size_t (*block_size)[3], void  *indata, void *outdata, size_t (*arr_dim_xy)[3], size_t (*tran_dim_xy)[3], meta_type_id type, int async, cudaEvent_t ((*event)[2]))
 {
 	cudaError_t ret = cudaSuccess;
+	size_t smem_len;
+	dim3 grid, block;
 //	size_t smem_len = (*block_size)[0] * (*block_size)[1] * (*block_size)[2];
 //TODO: Update to actually use user-provided grid/block once multi-element-per-thread
 // scaling is added
 //	dim3 grid = dim3((*grid_size)[0], (*grid_size)[1], 1);
 //	dim3 block = dim3((*block_size)[0], (*block_size)[1], (*block_size)[2]);
-	dim3 grid = dim3(((*dim_xy)[0]+TRANSPOSE_TILE_DIM-1)/TRANSPOSE_TILE_DIM, ((*dim_xy)[1]+TRANSPOSE_TILE_DIM-1)/TRANSPOSE_TILE_DIM, 1);
-	dim3 block = dim3(TRANSPOSE_TILE_DIM, TRANSPOSE_TILE_BLOCK_ROWS, 1);
+	//FIXME: make this smart enough to rescale the threadblock (and thus shared memory - e.g. bank conflicts) w.r. double vs. float
+	if (grid_size == NULL || block_size == NULL) {
+		//FIXME: reconcile TILE_DIM/BLOCK_ROWS
+		block = dim3(TRANSPOSE_TILE_DIM, TRANSPOSE_TILE_BLOCK_ROWS, 1);
+		grid = dim3(((*tran_dim_xy)[0]+block.x-1)/block.x, ((*tran_dim_xy)[1]+block.y-1)/block.y, 1);
+	
+	} else {
+		grid = dim3((*grid_size)[0], (*grid_size)[1], 1);
+		block = dim3((*block_size)[0], (*block_size)[1], (*block_size)[2]);
+	}
+	//The +1 here is to avoid bank conflicts with 32 floats or 16 doubles and is required by the kernel logic
+	smem_len = (block.x+1) * block.y * block.z;
 	if (event != NULL) {
 		cudaEventCreate(&(*event)[0]);
 		cudaEventRecord((*event)[0], 0);
 	}
 	switch (type) {
 		case a_db:
-			kernel_transpose_2d<double><<<grid, block>>>((double*)outdata, (double*)indata, (*dim_xy)[0], (*dim_xy)[1]);
+			kernel_transpose_2d<double><<<grid, block, smem_len*sizeof(double)>>>((double*)outdata, (double*)indata, (*arr_dim_xy)[0], (*arr_dim_xy)[1], (*tran_dim_xy)[0], (*tran_dim_xy)[1]);
 		break;
 
 		case a_fl:
-			kernel_transpose_2d<float><<<grid, block>>>((float*)outdata, (float*)indata, (*dim_xy)[0], (*dim_xy)[1]);
+			kernel_transpose_2d<float><<<grid, block, smem_len*sizeof(float)>>>((float*)outdata, (float*)indata, (*arr_dim_xy)[0], (*arr_dim_xy)[1], (*tran_dim_xy)[0], (*tran_dim_xy)[1]);
 		break;
 
 		case a_ul:
-			kernel_transpose_2d<unsigned long><<<grid, block>>>((unsigned long*)outdata, (unsigned long*)indata, (*dim_xy)[0], (*dim_xy)[1]);
+			kernel_transpose_2d<unsigned long><<<grid, block, smem_len*sizeof(unsigned long)>>>((unsigned long*)outdata, (unsigned long*)indata, (*arr_dim_xy)[0], (*arr_dim_xy)[1], (*tran_dim_xy)[0], (*tran_dim_xy)[1]);
 		break;
 
 		case a_in:
-			kernel_transpose_2d<int><<<grid, block>>>((int*)outdata, (int*)indata, (*dim_xy)[0], (*dim_xy)[1]);
+			kernel_transpose_2d<int><<<grid, block, smem_len*sizeof(int)>>>((int*)outdata, (int*)indata, (*arr_dim_xy)[0], (*arr_dim_xy)[1], (*tran_dim_xy)[0], (*tran_dim_xy)[1]);
 		break;
 
 		case a_ui:
-			kernel_transpose_2d<unsigned int><<<grid, block>>>((unsigned int*)outdata, (unsigned int*)indata, (*dim_xy)[0], (*dim_xy)[1]);
+			kernel_transpose_2d<unsigned int><<<grid, block, smem_len*sizeof(unsigned int)>>>((unsigned int*)outdata, (unsigned int*)indata, (*arr_dim_xy)[0], (*arr_dim_xy)[1], (*tran_dim_xy)[0], (*tran_dim_xy)[1]);
 		break;
 
 		default:
@@ -447,10 +492,11 @@ cudaError_t cuda_transpose_2d_face(size_t (* grid_size)[3], size_t (*block_size)
 	return(ret);
 }
 
-cudaError_t cuda_pack_2d_face(size_t (* grid_size)[3], size_t (* block_size)[3], void *packed_buf, void *buf, accel_2d_face_indexed *face, int *remain_dim, accel_type_id type, int async, cudaEvent_t ((*event_k1)[2]), cudaEvent_t ((*event_c1)[2]), cudaEvent_t ((*event_c2)[2]), cudaEvent_t ((*event_c3)[2]))
+cudaError_t cuda_pack_2d_face(size_t (* grid_size)[3], size_t (* block_size)[3], void *packed_buf, void *buf, meta_2d_face_indexed *face, int *remain_dim, meta_type_id type, int async, cudaEvent_t ((*event_k1)[2]), cudaEvent_t ((*event_c1)[2]), cudaEvent_t ((*event_c2)[2]), cudaEvent_t ((*event_c3)[2]))
 {
 	cudaError_t ret = cudaSuccess;
-	size_t smem_size = face->count*256*sizeof(int);
+	size_t smem_size;
+	dim3 grid, block;
 //TODO: Update to actually use user-provided grid/block once multi-element-per-thread
 // scaling is added
 //	dim3 grid = dim3((*grid_size)[0], (*grid_size)[1], 1);
@@ -491,8 +537,15 @@ cudaError_t cuda_pack_2d_face(size_t (* grid_size)[3], size_t (* block_size)[3],
 		cudaEventCreate(&(*event_k1)[0]);
 		cudaEventRecord((*event_k1)[0], 0);
 	}
-	dim3 grid = dim3((face->size[0]*face->size[1]*face->size[2] + 256 -1)/256, 1, 1);
-	dim3 block = dim3(256, 1, 1);
+	//FIXME: specify a unique macro for each default blocksize
+	if (grid_size == NULL || block_size == NULL) {
+		block = dim3(256, 1, 1);
+		grid = dim3((face->size[0]*face->size[1]*face->size[2] + block.x -1)/block.x, 1, 1);
+	} else {
+		block = dim3((*block_size)[0], (*block_size)[1], (*block_size)[2]);
+		grid = dim3((*grid_size)[0], (*grid_size)[1], 1);
+	}
+	smem_size = face->count*block.x*sizeof(int);
 	switch (type) {
 		case a_db:
 			kernel_pack<double><<<grid, block, smem_size>>>((double *)packed_buf, (double *)buf, face->size[0]*face->size[1]*face->size[2], face->start, face->count);
@@ -528,10 +581,11 @@ cudaError_t cuda_pack_2d_face(size_t (* grid_size)[3], size_t (* block_size)[3],
 
 }
 
-cudaError_t cuda_unpack_2d_face(size_t (* grid_size)[3], size_t (* block_size)[3], void *packed_buf, void *buf, accel_2d_face_indexed *face, int *remain_dim, accel_type_id type, int async, cudaEvent_t ((*event_k1)[2]), cudaEvent_t ((*event_c1)[2]), cudaEvent_t ((*event_c2)[2]), cudaEvent_t ((*event_c3)[2]))
+cudaError_t cuda_unpack_2d_face(size_t (* grid_size)[3], size_t (* block_size)[3], void *packed_buf, void *buf, meta_2d_face_indexed *face, int *remain_dim, meta_type_id type, int async, cudaEvent_t ((*event_k1)[2]), cudaEvent_t ((*event_c1)[2]), cudaEvent_t ((*event_c2)[2]), cudaEvent_t ((*event_c3)[2]))
 {
 	cudaError_t ret = cudaSuccess;
-	size_t smem_size = face->count*256*sizeof(int);
+	size_t smem_size;
+	dim3 grid, block;
 //TODO: Update to actually use user-provided grid/block once multi-element-per-thread
 // scaling is added
 //	dim3 grid = dim3((*grid_size)[0], (*grid_size)[1], 1);
@@ -572,8 +626,15 @@ cudaError_t cuda_unpack_2d_face(size_t (* grid_size)[3], size_t (* block_size)[3
 		cudaEventCreate(&(*event_k1)[0]);
 		cudaEventRecord((*event_k1)[0], 0);
 	}
-	dim3 grid = dim3((face->size[0]*face->size[1]*face->size[2] + 256 -1)/256, 1, 1);
-	dim3 block = dim3(256, 1, 1);
+	//FIXME: specify a unique macro for each default blocksize
+	if (grid_size == NULL || block_size == NULL) {
+		block = dim3(256, 1, 1);
+		grid = dim3((face->size[0]*face->size[1]*face->size[2] + block.x -1)/block.x, 1, 1);
+	} else {
+		block = dim3((*block_size)[0], (*block_size)[1], (*block_size)[2]);
+		grid = dim3((*grid_size)[0], (*grid_size)[1], 1);
+	}
+	smem_size = face->count*block.x*sizeof(int);
 	switch (type) {
 		case a_db:
 			kernel_unpack<double><<<grid, block, smem_size>>>((double *)packed_buf, (double *)buf, face->size[0]*face->size[1]*face->size[2], face->start, face->count);

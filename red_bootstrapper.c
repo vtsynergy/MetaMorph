@@ -5,14 +5,14 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <sys/time.h>
-#include "afosr_cfd.h"
+#include "metamorph.h"
 
 //global for the current type
-accel_type_id g_type;
+meta_type_id g_type;
 size_t g_typesize;
 
 //Sets the benchmark's global configuration for one of the supported data types
-void set_type(accel_type_id type) {
+void set_type(meta_type_id type) {
 	switch (type) {
 		case a_db:
 		g_typesize=sizeof(double);
@@ -56,13 +56,13 @@ int ni, nj, nk, nm;
             data3 = malloc(g_typesize*ni*nj*nk);
 	    data4 = malloc(g_typesize*ni*nj*nk*nm);
             //printf("Status:\t%d\n", istat); //NOOP for output compatibility //print *,"Status:",istat
-            istat = accel_alloc( &dev_data3, g_typesize*ni*nj*nk);
+            istat = meta_alloc( &dev_data3, g_typesize*ni*nj*nk);
             //printf("Status:\t%d\n", istat);
-	    istat = accel_alloc( &dev_data3_2, g_typesize*ni*nj*nk);
+	    istat = meta_alloc( &dev_data3_2, g_typesize*ni*nj*nk);
             //printf("Status:\t%d\n", istat);
-	    istat = accel_alloc( &dev_data4, g_typesize*ni*nj*nk*nm); 
+	    istat = meta_alloc( &dev_data4, g_typesize*ni*nj*nk*nm); 
             //printf("Status:\t%d\n", istat);
-	    istat = accel_alloc( &reduction, g_typesize);
+	    istat = meta_alloc( &reduction, g_typesize);
             //printf("Status:\t%d\n", istat);
             //printf("Data Allocated\n"); 
       } 
@@ -210,41 +210,41 @@ int ni, nj, nk, nm;
 
 	gettimeofday(&start, NULL);
 	for (iter = 0; iter < 1000; iter++)
-            ret |= accel_copy_h2d( dev_data3, data3, g_typesize*ni*nj*nk, false);
+            ret |= meta_copy_h2d( dev_data3, data3, g_typesize*ni*nj*nk, false);
 	gettimeofday(&end, NULL);
 	printf("D2H time: %f\n", ((end.tv_sec-start.tv_sec)*1000000.0+(end.tv_usec-start.tv_usec))/(1000));
 
-            ret |= accel_copy_h2d( dev_data4, data4, g_typesize*ni*nj*nk*nm, false);
+            ret |= meta_copy_h2d( dev_data4, data4, g_typesize*ni*nj*nk*nm, false);
 
 	gettimeofday(&start, NULL);
 	for (iter = 0; iter < 1000; iter++)
-            ret |= accel_copy_d2d( dev_data3_2, dev_data3, g_typesize*ni*nj*nk, false);
+            ret |= meta_copy_d2d( dev_data3_2, dev_data3, g_typesize*ni*nj*nk, false);
 	gettimeofday(&end, NULL);
 	printf("D2D time: %f\n", ((end.tv_sec-start.tv_sec)*1000000.0+(end.tv_usec-start.tv_usec))/(1000));
 	
 } 
 
       void deallocate_() {
-            accel_free(dev_data3); 
+            meta_free(dev_data3); 
             free(data3); 
-            accel_free(dev_data3_2); 
-            accel_free(dev_data4);
+            meta_free(dev_data3_2); 
+            meta_free(dev_data4);
             free(data4); 
-	    accel_free(reduction); 
+	    meta_free(reduction); 
       } 
       void gpu_initialize() {
 
-		//-1 is only supported with accelModePreferOpenCL
+		//-1 is only supported with metaModePreferOpenCL
 		// as a trigger to list all devices and select one
 		//for CUDA use idevice = 0
             int istat, deviceused, idevice = -1; //integer::istat, deviceused, idevice
 
 //            ! Initialize GPU
-            istat = choose_accel(idevice, accelModePreferGeneric); //TODO make "choose_accel"
+            istat = choose_accel(idevice, metaModePreferGeneric); //TODO make "choose_accel"
 
 //            ! cudaChooseDevice
 //            ! Tell me which GPU I use
-		accel_preferred_mode mode;
+		meta_preferred_mode mode;
             istat = get_accel(&deviceused, &mode); //TODO make "get_accel"
  //           printf("Device used\t%d\n", deviceused); //print *, 'Device used', deviceused
 		
@@ -272,7 +272,7 @@ int ni, nj, nk, nm;
             tz = atoi(argv[7]);
 
 	    l_type = atoi(argv[8]);
-	    set_type((accel_type_id)l_type);
+	    set_type((meta_type_id)l_type);
 //For simplicity when testing across all types, these are kept as void
 // and explicitly cast for the few calls they are necessary, based on g_type
             void * sum_dot_gpu, * zero;
@@ -280,7 +280,7 @@ int ni, nj, nk, nm;
 		zero = malloc(g_typesize);
 		//TODO make timer initialization automatic
             #ifdef WITH_TIMERS
-	    accelTimersInit();
+	    metaTimersInit();
 	    #endif
 
             gpu_initialize(); //call gpu_initialize 
@@ -348,12 +348,12 @@ switch(g_type) {
 	    arr_start[0] = arr_start[1] = arr_start[2] = 0;
 	    arr_end[0] = ni-1, arr_end[1] = nj-1, arr_end[2] = nk-1;
 //for (i = 0; i < 1; i++) { //do i=1,10
-	istat =	accel_copy_h2d( reduction, zero, g_typesize, true);
+	istat =	meta_copy_h2d( reduction, zero, g_typesize, true);
 		//Validate grid and block sizes (if too big, shrink the z-dim and add iterations)
-		for(;accel_validate_worksize(&dimgrid, &dimblock) != 0 && dimblock[2] > 1; dimgrid[2] <<=1, dimblock[2] >>=1);
+		for(;meta_validate_worksize(&dimgrid, &dimblock) != 0 && dimblock[2] > 1; dimgrid[2] <<=1, dimblock[2] >>=1);
 		// Z-scaling won't be enough, abort
 		//TODO: Implement a way to do Y- and X-scaling
-		if (accel_validate_worksize(&dimgrid, &dimblock)) {
+		if (meta_validate_worksize(&dimgrid, &dimblock)) {
 
 		}
 		
@@ -365,16 +365,16 @@ switch(g_type) {
 		a_err ret;
 		gettimeofday(&start, NULL);
 		for (iter = 0; iter < 1000; iter++)
-			ret = accel_dotProd(&dimgrid, &dimblock, dev_data3, dev_data3_2, &dimarray, &arr_start, &arr_end, reduction, g_type, false);
+			ret = meta_dotProd(&dimgrid, &dimblock, dev_data3, dev_data3_2, &dimarray, &arr_start, &arr_end, reduction, g_type, false);
 		gettimeofday(&end, NULL);
 		//fprintf(stderr, "Kernel Status: %d\n", ret);
 		printf("Kern time: %f\n", ((end.tv_sec-start.tv_sec)*1000000.0+(end.tv_usec-start.tv_usec))/(1000));
 
-//           kernel_reduction3<<<dimgrid,dimblock,tx*ty*tz*sizeof(double)>>>(dev_data3, //call kernel_reduction3<<<dimgrid,dimblock,tx*ty*tz*8>>>(dev_data3 & //TODO move into CUDA backend, make "accel_reduce"
+//           kernel_reduction3<<<dimgrid,dimblock,tx*ty*tz*sizeof(double)>>>(dev_data3, //call kernel_reduction3<<<dimgrid,dimblock,tx*ty*tz*8>>>(dev_data3 & //TODO move into CUDA backend, make "meta_reduce"
 //           dev_data3_2, ni, nj, nk, 2, 2, 2, nj-1, ni-1, nk-1, gz, reduction, tx*ty*tz); //& ,dev_data3_2,ni,nj,nk,2,2,2,nj-1,ni-1,nk-1,gz,reduction,tx*ty*tz) //TODO - see previous
 //            istat = cudaThreadSynchronize(); //cudathreadsynchronize()// TODO move into CUDA backend
 	//	printf("cudaThreadSynchronize error code:%d\n", istat);            
-		istat = accel_copy_d2h(sum_dot_gpu, reduction, g_typesize, false);
+		istat = meta_copy_d2h(sum_dot_gpu, reduction, g_typesize, false);
 switch(g_type) {
 	case a_db:
 		printf("Test Dot-Product:\t%s\n", (*(double*)sum_dot_gpu == (double)((ni-2)*(nj-2)*(nk-2)) ? "PASSED" : "FAILED")); //print *, "Test Reduction:",sum_dot_gpu
@@ -400,14 +400,14 @@ switch(g_type) {
 	//TODO add a copy-back timer loop
 	gettimeofday(&start, NULL);
 	for (iter = 0; iter < 1000; iter++)
-		accel_copy_d2h(data3, dev_data3, g_typesize*ni*nj*nk, false);
+		meta_copy_d2h(data3, dev_data3, g_typesize*ni*nj*nk, false);
 	gettimeofday(&end, NULL);
 	printf("D2H time: %f\n", ((end.tv_sec-start.tv_sec)*1000000.0+(end.tv_usec-start.tv_usec))/(1000));
 	    //printf("Test Reduction:\t%d\n", sum_dot_gpu); //print *, "Test Reduction:",sum_dot_gpu
-	    //accelTimersFlush();
+	    //metaTimersFlush();
 //            } //end do
             deallocate_(); //call deallocate_i
 	    #ifdef WITH_TIMERS
-	    accelTimersFinish();
+	    metaTimersFinish();
 	    #endif
       } //end program main

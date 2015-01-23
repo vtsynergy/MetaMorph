@@ -19,7 +19,7 @@ do
 				do
 					for TZ in 1 2 4
 					do
-						AFOSR_TIMER_LEVEL=1 AFOSR_MODE=CUDA ./red_test $X $Y $Z 1 $TX $TY $TZ &> tempout
+						METAMORPH_TIMER_LEVEL=1 METAMORPH_MODE=CUDA ./red_test $X $Y $Z 1 $TX $TY $TZ &> tempout
 
 						LINES=(`grep "approximate" tempout | sed "s/\[/ /g" | sed "s/\]/ /g" | awk '{print $10}'`)
 						((EXPECT=(X-2)*(Y-2)*(Z-2)))
@@ -36,7 +36,7 @@ do
 							cat tempout >> validate.out
 							FAIL=0
 						fi
-						AFOSR_TIMER_LEVEL=1 AFOSR_MODE=OpenCL TARGET_DEVICE="Tesla K20c" ./red_test $X $Y $Z 1 $TX $TY $TZ &> tempout
+						METAMORPH_TIMER_LEVEL=1 METAMORPH_MODE=OpenCL TARGET_DEVICE="Tesla K20c" ./red_test $X $Y $Z 1 $TX $TY $TZ &> tempout
 
 						LINES=(`grep "approximate" tempout | sed "s/\[/ /g" | sed "s/\]/ /g" | awk '{print $10}'`)
 						((EXPECT=(X-2)*(Y-2)*(Z-2)))
@@ -53,7 +53,7 @@ do
 							cat tempout >> validate.out
 							FAIL=0
 						fi
-						AFOSR_TIMER_LEVEL=1 AFOSR_MODE=OpenCL TARGET_DEVICE="Intel(R) Core(TM) i5-2400 CPU @ 3.10GHz" ./red_test $X $Y $Z 1 $TX $TY $TZ &> tempout
+						METAMORPH_TIMER_LEVEL=1 METAMORPH_MODE=OpenCL TARGET_DEVICE="Intel(R) Core(TM) i5-2400 CPU @ 3.10GHz" ./red_test $X $Y $Z 1 $TX $TY $TZ &> tempout
 
 						LINES=(`grep "approximate" tempout | sed "s/\[/ /g" | sed "s/\]/ /g" | awk '{print $10}'`)
 						((EXPECT=(X-2)*(Y-2)*(Z-2)))
@@ -70,7 +70,7 @@ do
 							cat tempout >> validate.out
 							FAIL=0
 						fi
-						AFOSR_TIMER_LEVEL=1 AFOSR_MODE=CUDA ./red_test_fortran $X $Y $Z 1 $TX $TY $TZ &> tempout
+						METAMORPH_TIMER_LEVEL=1 METAMORPH_MODE=CUDA ./red_test_fortran $X $Y $Z 1 $TX $TY $TZ &> tempout
 
 						LINES=(`grep "approximate" tempout | sed "s/\[/ /g" | sed "s/\]/ /g" | awk '{print $10}'`)
 						((EXPECT=(X-2)*(Y-2)*(Z-2)))
@@ -87,7 +87,7 @@ do
 							cat tempout >> validate.out
 							FAIL=0
 						fi
-						AFOSR_TIMER_LEVEL=1 AFOSR_MODE=OpenCL TARGET_DEVICE="Tesla K20c" ./red_test_fortran $X $Y $Z 1 $TX $TY $TZ &> tempout
+						METAMORPH_TIMER_LEVEL=1 METAMORPH_MODE=OpenCL TARGET_DEVICE="Tesla K20c" ./red_test_fortran $X $Y $Z 1 $TX $TY $TZ &> tempout
 
 						LINES=(`grep "approximate" tempout | sed "s/\[/ /g" | sed "s/\]/ /g" | awk '{print $10}'`)
 						((EXPECT=(X-2)*(Y-2)*(Z-2)))
@@ -104,7 +104,7 @@ do
 							cat tempout >> validate.out
 							FAIL=0
 						fi
-						AFOSR_TIMER_LEVEL=1 AFOSR_MODE=OpenCL TARGET_DEVICE="Intel(R) Core(TM) i5-2400 CPU @ 3.10GHz" ./red_test_fortran $X $Y $Z 1 $TX $TY $TZ &> tempout
+						METAMORPH_TIMER_LEVEL=1 METAMORPH_MODE=OpenCL TARGET_DEVICE="Intel(R) Core(TM) i5-2400 CPU @ 3.10GHz" ./red_test_fortran $X $Y $Z 1 $TX $TY $TZ &> tempout
 
 						LINES=(`grep "approximate" tempout | sed "s/\[/ /g" | sed "s/\]/ /g" | awk '{print $10}'`)
 						((EXPECT=(X-2)*(Y-2)*(Z-2)))

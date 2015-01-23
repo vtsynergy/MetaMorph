@@ -9,7 +9,7 @@
  *  "choose best", which would be similar to Tom's CoreTSAR.
  *
  * For now, Generic, CUDA, and OpenCL are supported.
- * Generic simply uses environment variable "AFOSR_MODE" to select
+ * Generic simply uses environment variable "METAMORPH_MODE" to select
  *  a mode at runtime.
  * OpenCL mode also supports selecting the "-1st" device, which
  *  forces it to refer to environment variable "TARGET_DEVICE" to attempt
@@ -23,32 +23,32 @@
  *  multiple contexts? TODO
  */
 
-#include "afosr_cfd.h"
+#include "metamorph.h"
 
 //Globally-set mode
-accel_preferred_mode run_mode = accelModePreferGeneric;
+meta_preferred_mode run_mode = metaModePreferGeneric;
 
 
 #ifdef WITH_OPENCL
-cl_context accel_context = NULL;
-cl_command_queue accel_queue = NULL;
-cl_device_id accel_device = NULL;
+cl_context meta_context = NULL;
+cl_command_queue meta_queue = NULL;
+cl_device_id meta_device = NULL;
 
-//All this does is wrap calling accelOpenCLInitStackFrameDefault
-// and setting accel_context and accel_queue appropriately
-void accelOpenCLFallBack() {
-	accelOpenCLStackFrame * frame;
-	accelOpenCLInitStackFrameDefault(&frame);
-	accel_context = frame->context;
-	accel_queue = frame->queue;
-	accel_device = frame->device;
-	accelOpenCLPushStackFrame(frame);
+//All this does is wrap calling metaOpenCLInitStackFrameDefault
+// and setting meta_context and meta_queue appropriately
+void metaOpenCLFallBack() {
+	metaOpenCLStackFrame * frame;
+	metaOpenCLInitStackFrameDefault(&frame);
+	meta_context = frame->context;
+	meta_queue = frame->queue;
+	meta_device = frame->device;
+	metaOpenCLPushStackFrame(frame);
 	free(frame); //This is safe, it's just a copy of what should now be the bottom of the stack
 }
 #endif
 
 //Unexposed convenience function to get the byte width of a selected type
-size_t get_atype_size(accel_type_id type) {
+size_t get_atype_size(meta_type_id type) {
 	switch (type) {
 		case a_db:
 			return sizeof(double);
@@ -79,30 +79,30 @@ size_t get_atype_size(accel_type_id type) {
 
 //TODO - Validate attempted allocation sizes against maximum supported by the device
 // particularly for OpenCL (AMD 7970 doesn't support 512 512 512 reduce size
-a_err accel_alloc(void ** ptr, size_t size) {
+a_err meta_alloc(void ** ptr, size_t size) {
 	a_err ret;
 	switch(run_mode) {
 		default:
-		case accelModePreferGeneric:
+		case metaModePreferGeneric:
 			//TODO implement generic (runtime choice) allocation
 			break;
 
 		#ifdef WITH_CUDA
-		case accelModePreferCUDA:
+		case metaModePreferCUDA:
 			ret = cudaMalloc(ptr, size);
 			break;
 		#endif
 
 		#ifdef WITH_OPENCL
-		case accelModePreferOpenCL:
+		case metaModePreferOpenCL:
 			//Make sure some context exists..
-			if (accel_context == NULL) accelOpenCLFallBack();
-			*ptr = (void *) clCreateBuffer(accel_context, CL_MEM_READ_WRITE, size, NULL, (cl_int *)&ret);
+			if (meta_context == NULL) metaOpenCLFallBack();
+			*ptr = (void *) clCreateBuffer(meta_context, CL_MEM_READ_WRITE, size, NULL, (cl_int *)&ret);
 			break;
 		#endif
 
 		#ifdef WITH_OPENMP
-		case accelModePreferOpenMP:
+		case metaModePreferOpenMP:
 			//TODO implement OpenMP allocation
 			break;
 		#endif
@@ -113,30 +113,30 @@ a_err accel_alloc(void ** ptr, size_t size) {
 //TODO implement a way for this to trigger destroying an OpenCL stack frame
 // iff all cl_mems in the frame's context, as well as the frame members themselves
 // have been released.
-a_err accel_free(void * ptr) {
+a_err meta_free(void * ptr) {
 	a_err ret;
 	switch (run_mode) {
 		default:
-		case accelModePreferGeneric:
+		case metaModePreferGeneric:
 			//TODO implement generic (runtime choice) free
 			break;
 
 		#ifdef WITH_CUDA
-		case accelModePreferCUDA:
+		case metaModePreferCUDA:
 			ret = cudaFree(ptr);
 			break;
 		#endif
 
 		#ifdef WTIH_OPENCL
-		case accelModePreferOpenCL:
+		case metaModePreferOpenCL:
 			//Make sure some context exists..
-			if (accel_context == NULL) accelOpenCLFallBack();
+			if (meta_context == NULL) metaOpenCLFallBack();
 			ret = clReleaseMemObject((cl_mem)ptr);
 			break;
 		#endif
 
 		#ifdef WITH_OPENMP
-		case accelModePreferOpenMP:
+		case metaModePreferOpenMP:
 			//TODO implement OpenMP free
 			break;
 		#endif
@@ -145,28 +145,28 @@ a_err accel_free(void * ptr) {
 }
 
 //Simplified wrapper for sync copies
-//a_err accel_copy_h2d(void * dst, void * src, size_t size) {
-//	return accel_copy_h2d(dst, src, size, true);
+//a_err meta_copy_h2d(void * dst, void * src, size_t size) {
+//	return meta_copy_h2d(dst, src, size, true);
 //}
 //Workhorse for both sync and async variants
-a_err accel_copy_h2d(void * dst, void * src, size_t size, a_bool async) {
-	return accel_copy_h2d_cb(dst, src, size, async, (accel_callback*)NULL, NULL);
+a_err meta_copy_h2d(void * dst, void * src, size_t size, a_bool async) {
+	return meta_copy_h2d_cb(dst, src, size, async, (meta_callback*)NULL, NULL);
 }
-a_err accel_copy_h2d_cb(void * dst, void * src, size_t size, a_bool async, accel_callback *call, void *call_pl) {
+a_err meta_copy_h2d_cb(void * dst, void * src, size_t size, a_bool async, meta_callback *call, void *call_pl) {
 	a_err ret;
 	#ifdef WITH_TIMERS
-	accelTimerQueueFrame * frame = (accelTimerQueueFrame *)malloc (sizeof(accelTimerQueueFrame));
+	metaTimerQueueFrame * frame = (metaTimerQueueFrame *)malloc (sizeof(metaTimerQueueFrame));
 	frame->mode = run_mode;
 	frame->size = size;
 	#endif
 	switch (run_mode) {
 		default:
-		case accelModePreferGeneric:
+		case metaModePreferGeneric:
 			//TODO implement generic (runtime choice) H2D copy
 			break;
 
 		#ifdef WITH_CUDA
-		case accelModePreferCUDA:
+		case metaModePreferCUDA:
 			#ifdef WITH_TIMERS
 			cudaEventCreate(&(frame->event.cuda[0]));
 			cudaEventRecord(frame->event.cuda[0], 0);
@@ -186,57 +186,57 @@ a_err accel_copy_h2d_cb(void * dst, void * src, size_t size, a_bool async, accel
 		#endif
 
 		#ifdef WITH_OPENCL
-		case accelModePreferOpenCL:
+		case metaModePreferOpenCL:
 			//Make sure some context exists..
-			if (accel_context == NULL) accelOpenCLFallBack();
+			if (meta_context == NULL) metaOpenCLFallBack();
 			#ifdef WITH_TIMERS
-			ret = clEnqueueWriteBuffer(accel_queue, (cl_mem) dst, ((async) ? CL_FALSE : CL_TRUE), 0, size, src, 0, NULL, &(frame->event.opencl));
+			ret = clEnqueueWriteBuffer(meta_queue, (cl_mem) dst, ((async) ? CL_FALSE : CL_TRUE), 0, size, src, 0, NULL, &(frame->event.opencl));
 			//If timers exist, use their event to add the callback
 			if ((void*)call != NULL && call_pl != NULL) clSetEventCallback(frame->event.opencl, CL_COMPLETE, call->openclCallback, call_pl);
 			#else
 			//If timers don't exist, get the event via a locally-scoped event to add to the callback
 			cl_event cb_event;
-			ret = clEnqueueWriteBuffer(accel_queue, (cl_mem) dst, ((async) ? CL_FALSE : CL_TRUE), 0, size, src, 0, NULL, &cb_event);
+			ret = clEnqueueWriteBuffer(meta_queue, (cl_mem) dst, ((async) ? CL_FALSE : CL_TRUE), 0, size, src, 0, NULL, &cb_event);
 			if ((void*)call != NULL && call_pl != NULL) clSetEventCallback(cb_event, CL_COMPLETE, call->openclCallback, call_pl);
 			 #endif
 			break;
 		#endif
 
 		#ifdef WITH_OPENMP
-		case accelModePreferOpenMP:
+		case metaModePreferOpenMP:
 			//TODO implement OpenMP copy
 			break;
 		#endif
 	}
 	#ifdef WITH_TIMERS
-	accelTimerEnqueue(frame, &(accelBuiltinQueues[c_H2D]));
+	metaTimerEnqueue(frame, &(metaBuiltinQueues[c_H2D]));
 	#endif
 	return (ret);
 }
 
 //Simplified wrapper for sync copies
-//a_err accel_copy_d2h(void * dst, void * src, size_t) {
-//	return accel_copy_d2h(dst, src, size, true);
+//a_err meta_copy_d2h(void * dst, void * src, size_t) {
+//	return meta_copy_d2h(dst, src, size, true);
 //}
 //Workhorse for both sync and async copies
-a_err accel_copy_d2h(void *dst, void *src, size_t size, a_bool async) {
-	return accel_copy_d2h_cb(dst, src, size, async, (accel_callback*)NULL, NULL);
+a_err meta_copy_d2h(void *dst, void *src, size_t size, a_bool async) {
+	return meta_copy_d2h_cb(dst, src, size, async, (meta_callback*)NULL, NULL);
 }
-a_err accel_copy_d2h_cb(void * dst, void * src, size_t size, a_bool async, accel_callback *call, void *call_pl) {
+a_err meta_copy_d2h_cb(void * dst, void * src, size_t size, a_bool async, meta_callback *call, void *call_pl) {
 	a_err ret;
 	#ifdef WITH_TIMERS
-	accelTimerQueueFrame * frame = (accelTimerQueueFrame*)malloc (sizeof(accelTimerQueueFrame));
+	metaTimerQueueFrame * frame = (metaTimerQueueFrame*)malloc (sizeof(metaTimerQueueFrame));
 	frame->mode = run_mode;
 	frame->size = size;
 	#endif
 	switch (run_mode) {
 		default:
-		case accelModePreferGeneric:
+		case metaModePreferGeneric:
 			//TODO implement generic (runtime choice) H2D copy
 			break;
 
 		#ifdef WITH_CUDA
-		case accelModePreferCUDA:
+		case metaModePreferCUDA:
 			#ifdef WITH_TIMERS
 			cudaEventCreate(&(frame->event.cuda[0]));
 			cudaEventRecord(frame->event.cuda[0], 0);
@@ -254,52 +254,52 @@ a_err accel_copy_d2h_cb(void * dst, void * src, size_t size, a_bool async, accel
 		#endif
 
 		#ifdef WITH_OPENCL
-		case accelModePreferOpenCL:
+		case metaModePreferOpenCL:
 			//Make sure some context exists..
-			if (accel_context == NULL) accelOpenCLFallBack();
+			if (meta_context == NULL) metaOpenCLFallBack();
 			#ifdef WITH_TIMERS
-			ret = clEnqueueReadBuffer(accel_queue, (cl_mem) src, ((async) ? CL_FALSE : CL_TRUE), 0, size, dst, 0, NULL, &(frame->event.opencl));
+			ret = clEnqueueReadBuffer(meta_queue, (cl_mem) src, ((async) ? CL_FALSE : CL_TRUE), 0, size, dst, 0, NULL, &(frame->event.opencl));
 			#else
-			ret = clEnqueueReadBuffer(accel_queue, (cl_mem) src, ((async) ? CL_FALSE : CL_TRUE), 0, size, dst, 0, NULL, NULL);
+			ret = clEnqueueReadBuffer(meta_queue, (cl_mem) src, ((async) ? CL_FALSE : CL_TRUE), 0, size, dst, 0, NULL, NULL);
 			#endif
 			break;
 		#endif
 
 		#ifdef WITH_OPENMP
-		case accelModePreferOpenMP:
+		case metaModePreferOpenMP:
 			//TODO implement OpenMP copy
 			break;
 		#endif
 	}
 	#ifdef WITH_TIMERS
-	accelTimerEnqueue(frame, &(accelBuiltinQueues[c_D2H]));
+	metaTimerEnqueue(frame, &(metaBuiltinQueues[c_D2H]));
 	#endif
 	return (ret);
 }
 
 //Simplified wrapper for sync copies
-//a_err accel_copy_d2d(void * dst, void * src, size_t size) {
+//a_err meta_copy_d2d(void * dst, void * src, size_t size) {
 //	return (dst, src, size, true);
 //}
 //Workhorse for both sync and async copies
-a_err accel_copy_d2d(void *dst, void *src, size_t size, a_bool async) {
-	return accel_copy_d2d_cb(dst, src, size, async, (accel_callback*)NULL, NULL);
+a_err meta_copy_d2d(void *dst, void *src, size_t size, a_bool async) {
+	return meta_copy_d2d_cb(dst, src, size, async, (meta_callback*)NULL, NULL);
 }
-a_err accel_copy_d2d_cb(void * dst, void * src, size_t size, a_bool async, accel_callback *call, void *call_pl) {
+a_err meta_copy_d2d_cb(void * dst, void * src, size_t size, a_bool async, meta_callback *call, void *call_pl) {
 	a_err ret;
 	#ifdef WITH_TIMERS
-	accelTimerQueueFrame * frame = (accelTimerQueueFrame*)malloc (sizeof(accelTimerQueueFrame));
+	metaTimerQueueFrame * frame = (metaTimerQueueFrame*)malloc (sizeof(metaTimerQueueFrame));
 	frame->mode = run_mode;
 	frame->size = size;
 	#endif
 	switch (run_mode) {
 		default:
-		case accelModePreferGeneric:
+		case metaModePreferGeneric:
 			//TODO implement generic (runtime choice) H2D copy
 			break;
 
 		#ifdef WITH_CUDA
-		case accelModePreferCUDA:
+		case metaModePreferCUDA:
 			#ifdef WITH_TIMERS
 			cudaEventCreate(&(frame->event.cuda[0]));
 			cudaEventRecord(frame->event.cuda[0], 0);
@@ -317,27 +317,27 @@ a_err accel_copy_d2d_cb(void * dst, void * src, size_t size, a_bool async, accel
 		#endif
 
 		#ifdef WITH_OPENCL
-		case accelModePreferOpenCL:
+		case metaModePreferOpenCL:
 			//Make sure some context exists..
-			if (accel_context == NULL) accelOpenCLFallBack();
+			if (meta_context == NULL) metaOpenCLFallBack();
 			#ifdef WITH_TIMERS
-			ret = clEnqueueCopyBuffer(accel_queue, (cl_mem) src, (cl_mem) dst, 0, 0, size, 0, NULL, &(frame->event.opencl));
+			ret = clEnqueueCopyBuffer(meta_queue, (cl_mem) src, (cl_mem) dst, 0, 0, size, 0, NULL, &(frame->event.opencl));
 			#else
-			ret = clEnqueueCopyBuffer(accel_queue, (cl_mem) src, (cl_mem) dst, 0, 0, size, 0, NULL, NULL);
+			ret = clEnqueueCopyBuffer(meta_queue, (cl_mem) src, (cl_mem) dst, 0, 0, size, 0, NULL, NULL);
 			#endif
 			//clEnqueueCopyBuffer is by default async, so clFinish
-			if (!async) clFinish(accel_queue);
+			if (!async) clFinish(meta_queue);
 			break;
 		#endif
 
 		#ifdef WITH_OPENMP
-		case accelModePreferOpenMP:
+		case metaModePreferOpenMP:
 			//TODO implement OpenMP copy
 			break;
 		#endif
 	}
 	#ifdef WITH_TIMERS
-	accelTimerEnqueue(frame, &(accelBuiltinQueues[c_D2D]));
+	metaTimerEnqueue(frame, &(metaBuiltinQueues[c_D2D]));
 	#endif
 	return (ret);
 }
@@ -347,38 +347,38 @@ a_err accel_copy_d2d_cb(void * dst, void * src, size_t size, a_bool async, accel
 // first OpenCL command
 //TODO make this compatible with OpenCL initialization
 //TODO unpack OpenCL platform from the uint's high short, and the device from the low short
-a_err choose_accel(int accel, accel_preferred_mode mode) {
+a_err choose_accel(int accel, meta_preferred_mode mode) {
 	a_err ret;
 	run_mode = mode;
 	switch(run_mode) {
 		default:
-		case accelModePreferGeneric:
+		case metaModePreferGeneric:
 			//TODO support generic (auto-config) runtime selection
-			//TODO support "AFOSR_MODE" environment variable.
-			if (getenv("AFOSR_MODE") != NULL) {
+			//TODO support "METAMORPH_MODE" environment variable.
+			if (getenv("METAMORPH_MODE") != NULL) {
 				#ifdef WITH_CUDA
-				if (strcmp(getenv("AFOSR_MODE"), "CUDA") == 0) return choose_accel(accel, accelModePreferCUDA);
+				if (strcmp(getenv("METAMORPH_MODE"), "CUDA") == 0) return choose_accel(accel, metaModePreferCUDA);
 				#endif
 
 				#ifdef WITH_OPENCL
-				if (strcmp(getenv("AFOSR_MODE"), "OpenCL") == 0 || strcmp(getenv("AFOSR_MODE"), "OpenCL_DEBUG") == 0) return choose_accel(accel, accelModePreferOpenCL);
+				if (strcmp(getenv("METAMORPH_MODE"), "OpenCL") == 0 || strcmp(getenv("METAMORPH_MODE"), "OpenCL_DEBUG") == 0) return choose_accel(accel, metaModePreferOpenCL);
 				#endif
 
 				#ifdef WITH_OPENMP
-				if (strcmp(getenv("AFOSR_MODE"), "OpenMP") == 0) return choose_accel(accel, accelModePreferOpenMP);
+				if (strcmp(getenv("METAMORPH_MODE"), "OpenMP") == 0) return choose_accel(accel, metaModePreferOpenMP);
 				#endif
 
 				#ifdef WITH_CORETSAR
-				if (strcmp(getenv("AFOSR_MODE"), "CoreTsar") == 0) {
+				if (strcmp(getenv("METAMORPH_MODE"), "CoreTsar") == 0) {
 					fprintf(stderr, "CoreTsar mode not yet supported!\n");
 					//TODO implement whatever's required to get CoreTsar going...
 
 				}
 				#endif
 
-				fprintf(stderr, "Error: AFOSR_MODE=\"%s\" not supported with specified compiler definitions.\n", getenv("AFOSR_MODE"));
+				fprintf(stderr, "Error: METAMORPH_MODE=\"%s\" not supported with specified compiler definitions.\n", getenv("METAMORPH_MODE"));
 			}
-			fprintf(stderr, "Generic Mode only supported with \"AFOSR_MODE\" environment variable set to one of:\n");
+			fprintf(stderr, "Generic Mode only supported with \"METAMORPH_MODE\" environment variable set to one of:\n");
 			#ifdef WITH_CUDA
 			fprintf(stderr, "\"CUDA\"\n");
 			#endif
@@ -396,7 +396,7 @@ a_err choose_accel(int accel, accel_preferred_mode mode) {
 			break;
 
 		#ifdef WITH_CUDA
-		case accelModePreferCUDA:
+		case metaModePreferCUDA:
 			ret = cudaSetDevice(accel);
 			printf("CUDA Mode selected with device: %d\n", accel);
 			//TODO add a statement printing the device's name
@@ -404,15 +404,15 @@ a_err choose_accel(int accel, accel_preferred_mode mode) {
 		#endif
 
 		#ifdef WITH_OPENCL
-		case accelModePreferOpenCL:
-			{accelOpenCLStackFrame * frame;
-				accelOpenCLInitStackFrame(&frame, (cl_int) accel); //no hazards, frames are thread-private
+		case metaModePreferOpenCL:
+			{metaOpenCLStackFrame * frame;
+				metaOpenCLInitStackFrame(&frame, (cl_int) accel); //no hazards, frames are thread-private
 				//make sure this library knows what the opencl library is using internally..
-				accel_context = frame->context;
-				accel_queue = frame->queue;
-				accel_device = frame->device;
+				meta_context = frame->context;
+				meta_queue = frame->queue;
+				meta_device = frame->device;
 
-				accelOpenCLPushStackFrame(frame); //no hazards, HPs are internally managed when copying the frame to a new stack node before pushing.
+				metaOpenCLPushStackFrame(frame); //no hazards, HPs are internally managed when copying the frame to a new stack node before pushing.
 
 				//Now it's safe to free the frame
 				// But not to destroy it, as we shouldn't release the frame members
@@ -425,7 +425,7 @@ a_err choose_accel(int accel, accel_preferred_mode mode) {
 		#endif
 
 		#ifdef WITH_OPENMP
-		case accelModePreferOpenMP:
+		case metaModePreferOpenMP:
 			//TODO implement if needed
 			fprintf(stderr, "OpenMP Mode not yet implemented!\n");
 			break;
@@ -436,39 +436,39 @@ a_err choose_accel(int accel, accel_preferred_mode mode) {
 
 //TODO make this compatible with OpenCL device querying
 //TODO pack OpenCL platform into the uint's high short, and the device into the low short
-a_err get_accel(int * accel, accel_preferred_mode * mode) {
+a_err get_accel(int * accel, meta_preferred_mode * mode) {
 	a_err ret;
 	switch(run_mode) {
 		default:
-		case accelModePreferGeneric:
+		case metaModePreferGeneric:
 			//TODO implement a generic response for which device was runtime selected
 			//fprintf(stderr, "Generic Device Query not yet implemented!\n");
-			*mode = accelModePreferGeneric;
+			*mode = metaModePreferGeneric;
 			break;
 
 		#ifdef WITH_CUDA
-		case accelModePreferCUDA:
+		case metaModePreferCUDA:
 			ret = cudaGetDevice(accel);
-			*mode = accelModePreferCUDA;
+			*mode = metaModePreferCUDA;
 			break;
 		#endif
 
 		#ifdef WITH_OPENCL
-		case accelModePreferOpenCL:
+		case metaModePreferOpenCL:
 			//Make sure some context exists..
-			if (accel_context == NULL) accelOpenCLFallBack();
+			if (meta_context == NULL) metaOpenCLFallBack();
 			//TODO implement appropriate response for OpenCL device number
-			//TODO implement this based on accelOpenCLTopStackFrame
+			//TODO implement this based on metaOpenCLTopStackFrame
 			//fprintf(stderr, "OpenCL Device Query not yet implemented!\n");
-			*mode = accelModePreferOpenCL;
+			*mode = metaModePreferOpenCL;
 			break;
 		#endif
 
 		#ifdef WITH_OPENMP
-		case accelModePreferOpenMP:
+		case metaModePreferOpenMP:
 			//TODO implement appropriate response to indicate OpenMP is being used
 			fprintf(stderr, "OpenMP Device Query not yet implemented!\n");
-			*mode = accelModePreferOpenMP;
+			*mode = metaModePreferOpenMP;
 			break;
 		#endif
 	}
@@ -482,29 +482,29 @@ a_err get_accel(int * accel, accel_preferred_mode * mode) {
 // nor does it return the ideal worksize in any way
 // it just produces a STDERR comment stating which variable is out of bounds
 // what the bound is, and what the variable is currently.
-a_err accel_validate_worksize(a_dim3 * grid_size, a_dim3 * block_size) {
+a_err meta_validate_worksize(a_dim3 * grid_size, a_dim3 * block_size) {
 	a_err ret;
 	switch(run_mode) {
 		default:
-		case accelModePreferGeneric:
+		case metaModePreferGeneric:
 			//TODO the only reason we should still be here is CoreTsar
 			// Don't worry about doing anything until when/if we add that
 			break;
 
 		#ifdef WITH_CUDA
-		case accelModePreferCUDA:
+		case metaModePreferCUDA:
 			//TODO implement whatever bounds checking is needed by CUDA
 			return 0;
 			break;
 		#endif
 
 		#ifdef WITH_OPENCL
-		case accelModePreferOpenCL:
+		case metaModePreferOpenCL:
 			//Make sure some context exists..
-			if (accel_context == NULL) accelOpenCLFallBack();
+			if (meta_context == NULL) metaOpenCLFallBack();
 			size_t max_wg_size, max_wg_dim_sizes[3];
-			ret = clGetDeviceInfo(accel_device, CL_DEVICE_MAX_WORK_GROUP_SIZE, sizeof(size_t), &max_wg_size, NULL);
-			ret |= clGetDeviceInfo(accel_device, CL_DEVICE_MAX_WORK_ITEM_SIZES, sizeof(size_t)*3, &max_wg_dim_sizes, NULL);
+			ret = clGetDeviceInfo(meta_device, CL_DEVICE_MAX_WORK_GROUP_SIZE, sizeof(size_t), &max_wg_size, NULL);
+			ret |= clGetDeviceInfo(meta_device, CL_DEVICE_MAX_WORK_ITEM_SIZES, sizeof(size_t)*3, &max_wg_dim_sizes, NULL);
 			if ((*block_size)[0] * (*block_size)[1] * (*block_size)[2] > max_wg_size)
 				{fprintf(stderr, "Error: Maximum block volume is: %lu\nRequested block volume of: %lu (%lu * %lu * %lu) not supported!\n", max_wg_size, (*block_size)[0] * (*block_size)[1] * (*block_size)[2], (*block_size)[0], (*block_size)[1], (*block_size)[2]); ret |= -1;}
 			
@@ -516,7 +516,7 @@ a_err accel_validate_worksize(a_dim3 * grid_size, a_dim3 * block_size) {
 		#endif
 
 		#ifdef WITH_OPENMP
-		case accelModePreferOpenMP:
+		case metaModePreferOpenMP:
 			//TODO implement any bounds checking OpenMP may need
 			return 0;
 			break;
@@ -526,28 +526,89 @@ a_err accel_validate_worksize(a_dim3 * grid_size, a_dim3 * block_size) {
 }
 
 //Simple wrapper for synchronous kernel
-//a_err accel_dotProd(a_dim3 * grid_size, a_dim3 * block_size, a_double * data1, a_double * data2, a_dim3 * array_size, a_dim3 * array_start, a_dim3 * array_end, a_double * reduction_var) {
-//	return accel_dotProd(grid_size, block_size, data1, data2, array_size, array_start, array_end, reduction_var, true);
+//a_err meta_dotProd(a_dim3 * grid_size, a_dim3 * block_size, a_double * data1, a_double * data2, a_dim3 * array_size, a_dim3 * array_start, a_dim3 * array_end, a_double * reduction_var) {
+//	return meta_dotProd(grid_size, block_size, data1, data2, array_size, array_start, array_end, reduction_var, true);
 //}
 //Workhorse for both sync and async dot products
-a_err accel_dotProd(a_dim3 * grid_size, a_dim3 * block_size, void * data1, void * data2, a_dim3 * array_size, a_dim3 * array_start, a_dim3 * array_end, void * reduction_var, accel_type_id type, a_bool async) {
-	return accel_dotProd_cb(grid_size, block_size, data1, data2, array_size, array_start, array_end, reduction_var, type, async, (accel_callback*)NULL, NULL);
+a_err meta_dotProd(a_dim3 * grid_size, a_dim3 * block_size, void * data1, void * data2, a_dim3 * array_size, a_dim3 * array_start, a_dim3 * array_end, void * reduction_var, meta_type_id type, a_bool async) {
+	return meta_dotProd_cb(grid_size, block_size, data1, data2, array_size, array_start, array_end, reduction_var, type, async, (meta_callback*)NULL, NULL);
 }
-a_err accel_dotProd_cb(a_dim3 * grid_size, a_dim3 * block_size, void * data1, void * data2, a_dim3 * array_size, a_dim3 * array_start, a_dim3 * array_end, void * reduction_var, accel_type_id type, a_bool async, accel_callback *call, void *call_pl) {
+a_err meta_dotProd_cb(a_dim3 * grid_size, a_dim3 * block_size, void * data1, void * data2, a_dim3 * array_size, a_dim3 * array_start, a_dim3 * array_end, void * reduction_var, meta_type_id type, a_bool async, meta_callback *call, void *call_pl) {
 	a_err ret;
+
+	//FIXME? Consider adding a compiler flag "UNCHECKED_EXPLICIT" to streamline out sanity checks like this
+	//Before we do anything, sanity check the start/end/size
+	if (array_start == NULL || array_end == NULL || array_size == NULL) {
+		fprintf(stderr, "ERROR in meta_dotProd: array_start=[%p], array_end=[%p], or array_size=[%p] is NULL!\n", array_start, array_end, array_size);
+		return -1;
+	}
+	int i;
+	for (i = 0; i < 3; i ++) {
+		if ((*array_start)[i] < 0 || (*array_end)[i] < 0) {
+			fprintf(stderr, "ERROR in meta_dotProd: array_start[%d]=[%ld] or array_end[%d]=[%ld] is negative!\n", i, (*array_start)[i], i, (*array_end)[i]);
+			return -1;
+		}
+		if ((*array_size)[i] < 1) {
+			fprintf(stderr, "ERROR in meta_dotProd: array_size[%d]=[%ld] must be >=1!\n", i, (*array_size)[i]);
+			return -1;
+		}
+		if ((*array_start)[i] > (*array_end)[i]) {
+			fprintf(stderr, "ERROR in meta_dotProd: array_start[%d]=[%ld] is after array_end[%d]=[%ld]!\n", i, (*array_start)[i], i, (*array_end)[i]);
+			return -1;
+		}
+		if ((*array_end)[i] >= (*array_size)[i]) {
+			fprintf(stderr, "ERROR in meta_dotProd: array_end[%d]=[%ld] is bigger than array_size[%d]=[%ld]!\n", i, (*array_end)[i], i, (*array_size)[i]);
+			return -1;
+		}
+
+	}
+	//Ensure the block is all powers of two
+	// do not fail if not, but rescale and emit a warning
+	if (grid_size != NULL && block_size != NULL) {
+		int flag = 0;
+		size_t new_block[3];
+		size_t new_grid[3];
+		for (i = 0; i < 3; i++) {
+			new_block[i] = (*block_size)[i];
+			new_grid[i] = (*grid_size)[i];
+			//Bit-twiddle our way to the next-highest power of 2, from: (checked 2015.01.06)
+			//http://graphics.standford.edu/~seander/bithacks.html#RoundUpPowerOf2
+			new_block[i]--;
+			new_block[i] |= new_block[i] >> 1;
+			new_block[i] |= new_block[i] >> 2;
+			new_block[i] |= new_block[i] >> 4;
+			new_block[i] |= new_block[i] >> 8;
+			new_block[i] |= new_block[i] >> 16;
+			new_block[i]++;
+			if (new_block[i] != (*block_size)[i]) {
+				flag = 1; //Trip the flag to emit a warning
+				new_grid[i] = ((*block_size)[i]*(*grid_size)[i]-1+new_block[i])/new_block[i];
+			}
+		}
+		if (flag) {
+			fprintf(stderr, "WARNING in meta_dotProd: block_size={%ld, %ld, %ld} must be all powers of two!\n\tRescaled grid_size={%ld, %ld %ld}, block_size={%ld, %ld, %ld} to\n\tnew_grid={%ld, %ld, %ld}, new_block={%ld, %ld, %ld}\n", (*block_size)[0], (*block_size)[1], (*block_size)[2], (*grid_size)[0], (*grid_size)[1], (*grid_size)[2], (*block_size)[0], (*block_size)[1], (*block_size)[2], new_grid[0], new_grid[1], new_grid[2], new_block[0], new_block[1], new_block[2]);
+			(*grid_size)[0] = new_grid[0];
+			(*grid_size)[1] = new_grid[1];
+			(*grid_size)[2] = new_grid[2];
+			(*block_size)[0] = new_block[0];
+			(*block_size)[1] = new_block[1];
+			(*block_size)[2] = new_block[2];
+		}
+	}
+
 	#ifdef WITH_TIMERS
-	accelTimerQueueFrame * frame = (accelTimerQueueFrame*)malloc (sizeof(accelTimerQueueFrame));
+	metaTimerQueueFrame * frame = (metaTimerQueueFrame*)malloc (sizeof(metaTimerQueueFrame));
 	frame->mode = run_mode;
 	frame->size = (*array_size)[0]*(*array_size)[1]*(*array_size)[2]*get_atype_size(type);
 	#endif
 	switch(run_mode) {
 		default:
-		case accelModePreferGeneric:
+		case metaModePreferGeneric:
 			//TODO implement a generic reduce
 			break;
 
 		#ifdef WITH_CUDA
-		case accelModePreferCUDA: {
+		case metaModePreferCUDA: {
 						#ifdef WITH_TIMERS
 						  ret = (a_err) cuda_dotProd(grid_size, block_size, data1, data2, array_size, array_start, array_end, reduction_var, type, async, &(frame->event.cuda));
 						#else
@@ -558,9 +619,9 @@ a_err accel_dotProd_cb(a_dim3 * grid_size, a_dim3 * block_size, void * data1, vo
 		#endif
 
 		#ifdef WITH_OPENCL
-		case accelModePreferOpenCL:
+		case metaModePreferOpenCL:
 					  //Make sure some context exists..
-					  if (accel_context == NULL) accelOpenCLFallBack();
+					  if (meta_context == NULL) metaOpenCLFallBack();
 					  #ifdef WITH_TIMERS
 					  ret = (a_err) opencl_dotProd(grid_size, block_size, data1, data2, array_size, array_start, array_end, reduction_var, type, async, &(frame->event.opencl));
 					  #else
@@ -570,40 +631,101 @@ a_err accel_dotProd_cb(a_dim3 * grid_size, a_dim3 * block_size, void * data1, vo
 		#endif
 
 		#ifdef WITH_OPENMP
-		case accelModePreferOpenMP:
+		case metaModePreferOpenMP:
 					  //TODO implement OpenMP reduce
 					  break;
 		#endif
 	}
 	#ifdef WITH_TIMERS
-	accelTimerEnqueue(frame, &(accelBuiltinQueues[k_dotProd]));
+	metaTimerEnqueue(frame, &(metaBuiltinQueues[k_dotProd]));
 	#endif
 	return(ret);
 }
 
 //Simplified wrapper for synchronous kernel
-//a_err accel_reduce(a_dim3 * grid_size, a_dim3 * block_size, a_double * data, a_dim3 * array_size, a_dim3 * array_start, a_dim3 * array_end, a_double * reduction_var) {
-//	return accel_reduce(grid_size, block_size, data, array_size, array_start, array_end, reduction_var, true);
+//a_err meta_reduce(a_dim3 * grid_size, a_dim3 * block_size, a_double * data, a_dim3 * array_size, a_dim3 * array_start, a_dim3 * array_end, a_double * reduction_var) {
+//	return meta_reduce(grid_size, block_size, data, array_size, array_start, array_end, reduction_var, true);
 //}
 //Workhorse for both sync and async reductions
-a_err accel_reduce(a_dim3 * grid_size, a_dim3 * block_size, void * data, a_dim3 * array_size, a_dim3 * array_start, a_dim3 * array_end, void * reduction_var, accel_type_id type, a_bool async) {
-	return accel_reduce_cb(grid_size, block_size, data, array_size, array_start, array_end, reduction_var, type, async, (accel_callback*)NULL, NULL);
+a_err meta_reduce(a_dim3 * grid_size, a_dim3 * block_size, void * data, a_dim3 * array_size, a_dim3 * array_start, a_dim3 * array_end, void * reduction_var, meta_type_id type, a_bool async) {
+	return meta_reduce_cb(grid_size, block_size, data, array_size, array_start, array_end, reduction_var, type, async, (meta_callback*)NULL, NULL);
 }
-a_err accel_reduce_cb(a_dim3 * grid_size, a_dim3 * block_size, void * data, a_dim3 * array_size, a_dim3 * array_start, a_dim3 * array_end, void * reduction_var, accel_type_id type, a_bool async, accel_callback *call, void *call_pl) {
+a_err meta_reduce_cb(a_dim3 * grid_size, a_dim3 * block_size, void * data, a_dim3 * array_size, a_dim3 * array_start, a_dim3 * array_end, void * reduction_var, meta_type_id type, a_bool async, meta_callback *call, void *call_pl) {
 	a_err ret;
+
+	//FIXME? Consider adding a compiler flag "UNCHECKED_EXPLICIT" to streamline out sanity checks like this
+	//Before we do anything, sanity check the start/end/size
+	if (array_start == NULL || array_end == NULL || array_size == NULL) {
+		fprintf(stderr, "ERROR in meta_reduce: array_start=[%p], array_end=[%p], or array_size=[%p] is NULL!\n", array_start, array_end, array_size);
+		return -1;
+	}
+	int i;
+	for (i = 0; i < 3; i ++) {
+		if ((*array_start)[i] < 0 || (*array_end)[i] < 0) {
+			fprintf(stderr, "ERROR in meta_reduce: array_start[%d]=[%ld] or array_end[%d]=[%ld] is negative!\n", i, (*array_start)[i], i, (*array_end)[i]);
+			return -1;
+		}
+		if ((*array_size)[i] < 1) {
+			fprintf(stderr, "ERROR in meta_reduce: array_size[%d]=[%ld] must be >=1!\n", i, (*array_size)[i]);
+			return -1;
+		}
+		if ((*array_start)[i] > (*array_end)[i]) {
+			fprintf(stderr, "ERROR in meta_reduce: array_start[%d]=[%ld] is after array_end[%d]=[%ld]!\n", i, (*array_start)[i], i, (*array_end)[i]);
+			return -1;
+		}
+		if ((*array_end)[i] >= (*array_size)[i]) {
+			fprintf(stderr, "ERROR in meta_reduce: array_end[%d]=[%ld] is bigger than array_size[%d]=[%ld]!\n", i, (*array_end)[i], i, (*array_size)[i]);
+			return -1;
+		}
+
+	}
+	//Ensure the block is all powers of two
+	// do not fail if not, but rescale and emit a warning
+	if (grid_size != NULL && block_size != NULL) {
+		int flag = 0;
+		size_t new_block[3];
+		size_t new_grid[3];
+		for (i = 0; i < 3; i++) {
+			new_block[i] = (*block_size)[i];
+			new_grid[i] = (*grid_size)[i];
+			//Bit-twiddle our way to the next-highest power of 2, from: (checked 2015.01.06)
+			//http://graphics.standford.edu/~seander/bithacks.html#RoundUpPowerOf2
+			new_block[i]--;
+			new_block[i] |= new_block[i] >> 1;
+			new_block[i] |= new_block[i] >> 2;
+			new_block[i] |= new_block[i] >> 4;
+			new_block[i] |= new_block[i] >> 8;
+			new_block[i] |= new_block[i] >> 16;
+			new_block[i]++;
+			if (new_block[i] != (*block_size)[i]) {
+				flag = 1; //Trip the flag to emit a warning
+				new_grid[i] = ((*block_size)[i]*(*grid_size)[i]-1+new_block[i])/new_block[i];
+			}
+		}
+		if (flag) {
+			fprintf(stderr, "WARNING in meta_reduce: block_size={%ld, %ld, %ld} must be all powers of two!\n\tRescaled grid_size={%ld, %ld %ld}, block_size={%ld, %ld, %ld} to\n\tnew_grid={%ld, %ld, %ld}, new_block={%ld, %ld, %ld}\n", (*block_size)[0], (*block_size)[1], (*block_size)[2], (*grid_size)[0], (*grid_size)[1], (*grid_size)[2], (*block_size)[0], (*block_size)[1], (*block_size)[2], new_grid[0], new_grid[1], new_grid[2], new_block[0], new_block[1], new_block[2]);
+			(*grid_size)[0] = new_grid[0];
+			(*grid_size)[1] = new_grid[1];
+			(*grid_size)[2] = new_grid[2];
+			(*block_size)[0] = new_block[0];
+			(*block_size)[1] = new_block[1];
+			(*block_size)[2] = new_block[2];
+		}
+	}
+
 	#ifdef WITH_TIMERS
-	accelTimerQueueFrame * frame = (accelTimerQueueFrame*)malloc (sizeof(accelTimerQueueFrame));
+	metaTimerQueueFrame * frame = (metaTimerQueueFrame*)malloc (sizeof(metaTimerQueueFrame));
 	frame->mode = run_mode;
 	frame->size = (*array_size)[0]*(*array_size)[1]*(*array_size)[2]*get_atype_size(type);
 	#endif
 	switch(run_mode) {
 		default:
-		case accelModePreferGeneric:
+		case metaModePreferGeneric:
 			//TODO implement a generic reduce
 			break;
 
 		#ifdef WITH_CUDA
-		case accelModePreferCUDA: {
+		case metaModePreferCUDA: {
 						#ifdef WITH_TIMERS
 						  ret = (a_err) cuda_reduce(grid_size, block_size, data, array_size, array_start, array_end, reduction_var, type, async, &(frame->event.cuda));
 						#else
@@ -614,9 +736,9 @@ a_err accel_reduce_cb(a_dim3 * grid_size, a_dim3 * block_size, void * data, a_di
 		#endif
 
 		#ifdef WITH_OPENCL
-		case accelModePreferOpenCL:
+		case metaModePreferOpenCL:
 					  //Make sure some context exists..
-					  if (accel_context == NULL) accelOpenCLFallBack();
+					  if (meta_context == NULL) metaOpenCLFallBack();
 					  #ifdef WITH_TIMERS
 					  ret = (a_err) opencl_reduce(grid_size, block_size, data, array_size, array_start, array_end, reduction_var, type, async, &(frame->event.opencl));
 					  #else
@@ -626,20 +748,20 @@ a_err accel_reduce_cb(a_dim3 * grid_size, a_dim3 * block_size, void * data, a_di
 		#endif
 
 		#ifdef WITH_OPENMP
-		case accelModePreferOpenMP:
+		case metaModePreferOpenMP:
 					  //TODO implement OpenMP reduce
 					  break;
 		#endif
 	}
 	#ifdef WITH_TIMERS
-	accelTimerEnqueue(frame, &(accelBuiltinQueues[k_reduce]));
+	metaTimerEnqueue(frame, &(metaBuiltinQueues[k_reduce]));
 	#endif
 	return(ret);
 }
 
-accel_2d_face_indexed * accel_get_face_index(int s, int c, int *si, int *st) {
+meta_2d_face_indexed * meta_get_face_index(int s, int c, int *si, int *st) {
 	//Unlike Kaixi's, we return a pointer copy, to ease Fortran implementation
-	accel_2d_face_indexed * face = (accel_2d_face_indexed*)malloc(sizeof(accel_2d_face_indexed));
+	meta_2d_face_indexed * face = (meta_2d_face_indexed*)malloc(sizeof(meta_2d_face_indexed));
 	//We create our own copy of size and stride arrays to prevent
 	// issues if the user unexpectedly reuses or frees the original pointer
 	size_t sz = sizeof(int)*c;
@@ -652,80 +774,107 @@ accel_2d_face_indexed * accel_get_face_index(int s, int c, int *si, int *st) {
 	face->count = c;
 }
 
-//Simple deallocator for an accel_2d_face_indexed type
+//Simple deallocator for an meta_2d_face_indexed type
 // Assumes face, face->size, and ->stride are unfreed
 //This is the only way a user should release a face returned
-// from accel_get_face_index, and should not be used
+// from meta_get_face_index, and should not be used
 // if the face was assembled by hand.
-int accel_free_face_index(accel_2d_face_indexed * face) {
+int meta_free_face_index(meta_2d_face_indexed * face) {
 	free(face->size);
 	free(face->stride);
 	free(face);
 }
 
-a_err accel_transpose_2d_face(a_dim3 * grid_size, a_dim3 * block_size, void *indata, void *outdata, a_dim3 * dim_xy, accel_type_id type, a_bool async) {
-	return accel_transpose_2d_face_cb(grid_size, block_size, indata, outdata, dim_xy, type, async, (accel_callback*)NULL, NULL);
+a_err meta_transpose_2d_face(a_dim3 * grid_size, a_dim3 * block_size, void *indata, void *outdata, a_dim3 * arr_dim_xy, a_dim3 * tran_dim_xy, meta_type_id type, a_bool async) {
+	return meta_transpose_2d_face_cb(grid_size, block_size, indata, outdata, arr_dim_xy, tran_dim_xy, type, async, (meta_callback*)NULL, NULL);
 }
-a_err accel_transpose_2d_face_cb(a_dim3 * grid_size, a_dim3 * block_size, void *indata, void *outdata, a_dim3 * dim_xy, accel_type_id type, a_bool async, accel_callback *call, void *call_pl) {
+a_err meta_transpose_2d_face_cb(a_dim3 * grid_size, a_dim3 * block_size, void *indata, void *outdata, a_dim3 * arr_dim_xy, a_dim3 * tran_dim_xy, meta_type_id type, a_bool async, meta_callback *call, void *call_pl) {
 	a_err ret;
+	//FIXME? Consider adding a compiler flag "UNCHECKED_EXPLICIT" to streamline out sanity checks like this
+	//Before we do anything, sanity check that trans_dim_xy fits inside arr_dim_xy
+	if (arr_dim_xy == NULL || tran_dim_xy == NULL) {
+		fprintf(stderr, "ERROR in meta_transpose_2d_face: arr_dim_xy=[%p] or tran_dim_xy=[%p] is NULL!\n", arr_dim_xy, tran_dim_xy);
+		return -1;
+	}
+	int i;
+	for (i = 0; i < 2; i ++) {
+		if ((*arr_dim_xy)[i] < 1 || (*tran_dim_xy)[i] < 1) {
+			fprintf(stderr, "ERROR in meta_transpose_2d_face: arr_dim_xy[%d]=[%ld] and tran_dim_xy[%d]=[%ld] must be >=1!\n", i, (*arr_dim_xy)[i], i, (*tran_dim_xy)[i]);
+			return -1;
+		}
+		if ((*arr_dim_xy)[i] < (*tran_dim_xy)[i]) {
+			fprintf(stderr, "ERROR in meta_transpose_2d_face: tran_dim_xy[%d]=[%ld] must be <= arr_dim_xy[%d]=[%ld]!\n", i, (*tran_dim_xy)[i], i, (*arr_dim_xy)[i]);
+			return -1;
+		}
+
+	}
 	#ifdef WITH_TIMERS
-	accelTimerQueueFrame * frame = (accelTimerQueueFrame*)malloc (sizeof(accelTimerQueueFrame));
+	metaTimerQueueFrame * frame = (metaTimerQueueFrame*)malloc (sizeof(metaTimerQueueFrame));
 	frame->mode = run_mode;
-	frame->size = (*dim_xy)[0]*(*dim_xy)[1]*get_atype_size(type);
+	frame->size = (*tran_dim_xy)[0]*(*tran_dim_xy)[1]*get_atype_size(type);
 	#endif
 	switch(run_mode) {
 		default:
-		case accelModePreferGeneric:
+		case metaModePreferGeneric:
 			//TODO implement a generic reduce
 			break;
 
 		#ifdef WITH_CUDA
-		case accelModePreferCUDA: {
+		case metaModePreferCUDA: {
 						#ifdef WITH_TIMERS
-						  ret = (a_err) cuda_transpose_2d_face(grid_size, block_size, indata, outdata, dim_xy, type, async, &(frame->event.cuda));
+						  ret = (a_err) cuda_transpose_2d_face(grid_size, block_size, indata, outdata, arr_dim_xy, tran_dim_xy, type, async, &(frame->event.cuda));
 						#else
-						  ret = (a_err) cuda_transpose_2d_face(grid_size, block_size, indata, outdata, dim_xy, type, async, NULL);
+						  ret = (a_err) cuda_transpose_2d_face(grid_size, block_size, indata, outdata, arr_dim_xy, tran_dim_xy, type, async, NULL);
 						#endif
 						  break;
 					  }
 		#endif
 
 		#ifdef WITH_OPENCL
-		case accelModePreferOpenCL:
+		case metaModePreferOpenCL:
 					  //Make sure some context exists..
-					  if (accel_context == NULL) accelOpenCLFallBack();
+					  if (meta_context == NULL) metaOpenCLFallBack();
 					  #ifdef WITH_TIMERS
-					  ret = (a_err) opencl_transpose_2d_face(grid_size, block_size, indata, outdata, dim_xy, type, async, &(frame->event.opencl));
+					  ret = (a_err) opencl_transpose_2d_face(grid_size, block_size, indata, outdata, arr_dim_xy, tran_dim_xy, type, async, &(frame->event.opencl));
 					  #else
-					  ret = (a_err) opencl_transpose_2d_face(grid_size, block_size, indata, outdata, dim_xy, type, async, NULL);
+					  ret = (a_err) opencl_transpose_2d_face(grid_size, block_size, indata, outdata, arr_dim_xy, tran_dim_xy, type, async, NULL);
 					  #endif
 					  break;
 		#endif
 
 		#ifdef WITH_OPENMP
-		case accelModePreferOpenMP:
+		case metaModePreferOpenMP:
 					  //TODO implement OpenMP reduce
 					  break;
 		#endif
 	}
 	#ifdef WITH_TIMERS
-	accelTimerEnqueue(frame, &(accelBuiltinQueues[k_transpose_2d_face]));
+	metaTimerEnqueue(frame, &(metaBuiltinQueues[k_transpose_2d_face]));
 	#endif
 	return(ret);
 }
-//TODO fix frame->size to reflect face size
-a_err accel_pack_2d_face(a_dim3 * grid_size, a_dim3 * block_size, void *packed_buf, void *buf, accel_2d_face_indexed *face, accel_type_id type, a_bool async) {
-	return accel_pack_2d_face_cb(grid_size, block_size, packed_buf, buf, face, type, async, (accel_callback*)NULL, NULL);
+a_err meta_pack_2d_face(a_dim3 * grid_size, a_dim3 * block_size, void *packed_buf, void *buf, meta_2d_face_indexed *face, meta_type_id type, a_bool async) {
+	return meta_pack_2d_face_cb(grid_size, block_size, packed_buf, buf, face, type, async, (meta_callback*)NULL, NULL);
 } 
-a_err accel_pack_2d_face_cb(a_dim3 * grid_size, a_dim3 * block_size, void *packed_buf, void *buf, accel_2d_face_indexed *face, accel_type_id type, a_bool async, accel_callback *call, void *call_pl) {
+a_err meta_pack_2d_face_cb(a_dim3 * grid_size, a_dim3 * block_size, void *packed_buf, void *buf, meta_2d_face_indexed *face, meta_type_id type, a_bool async, meta_callback *call, void *call_pl) {
 	a_err ret;
+	//FIXME? Consider adding a compiler flag "UNCHECKED_EXPLICIT" to streamline out sanity checks like this
+	//Before we do anything, sanity check that the face is set up
+	if (face == NULL) {
+		fprintf(stderr, "ERROR in meta_pack_2d_face: face=[%p] is NULL!\n", face);
+		return -1;
+	}
+	if (face->size == NULL || face->stride == NULL) {
+		fprintf(stderr, "ERROR in meta_pack_2d_face: face->size=[%p] or face->stride=[%p] is NULL!\n", face->size, face->stride);
+		return -1;
+	}
 	#ifdef WITH_TIMERS
 	//TODO: Add another queue for copies into constant memory
 	//TODO: Hoist copies into constant memory out of the cores to here
-	accelTimerQueueFrame * frame_k1 = (accelTimerQueueFrame*)malloc (sizeof(accelTimerQueueFrame));
-	accelTimerQueueFrame * frame_c1 = (accelTimerQueueFrame*)malloc (sizeof(accelTimerQueueFrame));
-	accelTimerQueueFrame * frame_c2 = (accelTimerQueueFrame*)malloc (sizeof(accelTimerQueueFrame));
-	accelTimerQueueFrame * frame_c3 = (accelTimerQueueFrame*)malloc (sizeof(accelTimerQueueFrame));
+	metaTimerQueueFrame * frame_k1 = (metaTimerQueueFrame*)malloc (sizeof(metaTimerQueueFrame));
+	metaTimerQueueFrame * frame_c1 = (metaTimerQueueFrame*)malloc (sizeof(metaTimerQueueFrame));
+	metaTimerQueueFrame * frame_c2 = (metaTimerQueueFrame*)malloc (sizeof(metaTimerQueueFrame));
+	metaTimerQueueFrame * frame_c3 = (metaTimerQueueFrame*)malloc (sizeof(metaTimerQueueFrame));
 	frame_k1->mode = run_mode;
 	frame_c1->mode = run_mode;
 	frame_c2->mode = run_mode;
@@ -756,12 +905,12 @@ a_err accel_pack_2d_face_cb(a_dim3 * grid_size, a_dim3 * block_size, void *packe
 	
 	switch(run_mode) {
 		default:
-		case accelModePreferGeneric:
+		case metaModePreferGeneric:
 			//TODO implement a generic reduce
 			break;
 
 		#ifdef WITH_CUDA
-		case accelModePreferCUDA: {
+		case metaModePreferCUDA: {
 						#ifdef WITH_TIMERS
 						  ret = (a_err) cuda_pack_2d_face(grid_size, block_size, packed_buf, buf, face, remain_dim, type, async, &(frame_k1->event.cuda), &(frame_c1->event.cuda), &(frame_c2->event.cuda), &(frame_c3->event.cuda));
 						#else
@@ -772,9 +921,9 @@ a_err accel_pack_2d_face_cb(a_dim3 * grid_size, a_dim3 * block_size, void *packe
 		#endif
 
 		#ifdef WITH_OPENCL
-		case accelModePreferOpenCL:
+		case metaModePreferOpenCL:
 					  //Make sure some context exists..
-					  if (accel_context == NULL) accelOpenCLFallBack();
+					  if (meta_context == NULL) metaOpenCLFallBack();
 					  #ifdef WITH_TIMERS
 					  ret = (a_err) opencl_pack_2d_face(grid_size, block_size, packed_buf, buf, face, remain_dim, type, async, &(frame_k1->event.opencl), &(frame_c1->event.opencl), &(frame_c2->event.opencl), &(frame_c3->event.opencl));
 					  #else
@@ -784,34 +933,44 @@ a_err accel_pack_2d_face_cb(a_dim3 * grid_size, a_dim3 * block_size, void *packe
 		#endif
 
 		#ifdef WITH_OPENMP
-		case accelModePreferOpenMP:
+		case metaModePreferOpenMP:
 					  //TODO implement OpenMP reduce
 					  break;
 		#endif
 	}
 	#ifdef WITH_TIMERS
 	//TODO Add queue c_H2Dc for copies into constant memory
-	accelTimerEnqueue(frame_k1, &(accelBuiltinQueues[k_pack_2d_face]));
-	accelTimerEnqueue(frame_c1, &(accelBuiltinQueues[c_H2Dc]));
-	accelTimerEnqueue(frame_c2, &(accelBuiltinQueues[c_H2Dc]));
-	accelTimerEnqueue(frame_c3, &(accelBuiltinQueues[c_H2Dc]));
+	metaTimerEnqueue(frame_k1, &(metaBuiltinQueues[k_pack_2d_face]));
+	metaTimerEnqueue(frame_c1, &(metaBuiltinQueues[c_H2Dc]));
+	metaTimerEnqueue(frame_c2, &(metaBuiltinQueues[c_H2Dc]));
+	metaTimerEnqueue(frame_c3, &(metaBuiltinQueues[c_H2Dc]));
 	#endif
 	return(ret);
 }
 
 //TODO fix frame->size to reflect face size
-a_err accel_unpack_2d_face(a_dim3 * grid_size, a_dim3 * block_size, void *packed_buf, void *buf, accel_2d_face_indexed *face, accel_type_id type, a_bool async) {
-	return accel_unpack_2d_face_cb(grid_size, block_size, packed_buf, buf, face, type, async, (accel_callback*)NULL, NULL);
+a_err meta_unpack_2d_face(a_dim3 * grid_size, a_dim3 * block_size, void *packed_buf, void *buf, meta_2d_face_indexed *face, meta_type_id type, a_bool async) {
+	return meta_unpack_2d_face_cb(grid_size, block_size, packed_buf, buf, face, type, async, (meta_callback*)NULL, NULL);
 }
-a_err accel_unpack_2d_face_cb(a_dim3 * grid_size, a_dim3 * block_size, void *packed_buf, void *buf, accel_2d_face_indexed *face, accel_type_id type, a_bool async, accel_callback *call, void *call_pl) {
+a_err meta_unpack_2d_face_cb(a_dim3 * grid_size, a_dim3 * block_size, void *packed_buf, void *buf, meta_2d_face_indexed *face, meta_type_id type, a_bool async, meta_callback *call, void *call_pl) {
 	a_err ret;
+	//FIXME? Consider adding a compiler flag "UNCHECKED_EXPLICIT" to streamline out sanity checks like this
+	//Before we do anything, sanity check that the face is set up
+	if (face == NULL) {
+		fprintf(stderr, "ERROR in meta_unpack_2d_face: face=[%p] is NULL!\n", face);
+		return -1;
+	}
+	if (face->size == NULL || face->stride == NULL) {
+		fprintf(stderr, "ERROR in meta_unpack_2d_face: face->size=[%p] or face->stride=[%p] is NULL!\n", face->size, face->stride);
+		return -1;
+	}
 	#ifdef WITH_TIMERS
 	//TODO: Add another queue for copies into constant memory
 	//TODO: Hoist copies into constant memory out of the cores to here
-	accelTimerQueueFrame * frame_k1 = (accelTimerQueueFrame*)malloc (sizeof(accelTimerQueueFrame));
-	accelTimerQueueFrame * frame_c1 = (accelTimerQueueFrame*)malloc (sizeof(accelTimerQueueFrame));
-	accelTimerQueueFrame * frame_c2 = (accelTimerQueueFrame*)malloc (sizeof(accelTimerQueueFrame));
-	accelTimerQueueFrame * frame_c3 = (accelTimerQueueFrame*)malloc (sizeof(accelTimerQueueFrame));
+	metaTimerQueueFrame * frame_k1 = (metaTimerQueueFrame*)malloc (sizeof(metaTimerQueueFrame));
+	metaTimerQueueFrame * frame_c1 = (metaTimerQueueFrame*)malloc (sizeof(metaTimerQueueFrame));
+	metaTimerQueueFrame * frame_c2 = (metaTimerQueueFrame*)malloc (sizeof(metaTimerQueueFrame));
+	metaTimerQueueFrame * frame_c3 = (metaTimerQueueFrame*)malloc (sizeof(metaTimerQueueFrame));
 	frame_k1->mode = run_mode;
 	frame_c1->mode = run_mode;
 	frame_c2->mode = run_mode;
@@ -833,12 +992,12 @@ a_err accel_unpack_2d_face_cb(a_dim3 * grid_size, a_dim3 * block_size, void *pac
 	
 	switch(run_mode) {
 		default:
-		case accelModePreferGeneric:
+		case metaModePreferGeneric:
 			//TODO implement a generic reduce
 			break;
 
 		#ifdef WITH_CUDA
-		case accelModePreferCUDA: {
+		case metaModePreferCUDA: {
 						#ifdef WITH_TIMERS
 						  ret = (a_err) cuda_unpack_2d_face(grid_size, block_size, packed_buf, buf, face, remain_dim, type, async, &(frame_k1->event.cuda), &(frame_c1->event.cuda), &(frame_c2->event.cuda), &(frame_c3->event.cuda));
 						#else
@@ -849,9 +1008,9 @@ a_err accel_unpack_2d_face_cb(a_dim3 * grid_size, a_dim3 * block_size, void *pac
 		#endif
 
 		#ifdef WITH_OPENCL
-		case accelModePreferOpenCL:
+		case metaModePreferOpenCL:
 					  //Make sure some context exists..
-					  if (accel_context == NULL) accelOpenCLFallBack();
+					  if (meta_context == NULL) metaOpenCLFallBack();
 					  #ifdef WITH_TIMERS
 					  ret = (a_err) opencl_unpack_2d_face(grid_size, block_size, packed_buf, buf, face, remain_dim, type, async, &(frame_k1->event.opencl), &(frame_c1->event.opencl), &(frame_c2->event.opencl), &(frame_c3->event.opencl));
 					  #else
@@ -861,17 +1020,17 @@ a_err accel_unpack_2d_face_cb(a_dim3 * grid_size, a_dim3 * block_size, void *pac
 		#endif
 
 		#ifdef WITH_OPENMP
-		case accelModePreferOpenMP:
+		case metaModePreferOpenMP:
 					  //TODO implement OpenMP reduce
 					  break;
 		#endif
 	}
 	#ifdef WITH_TIMERS
 	//TODO Add queue c_H2Dc for copies into constant memory
-	accelTimerEnqueue(frame_k1, &(accelBuiltinQueues[k_pack_2d_face]));
-	accelTimerEnqueue(frame_c1, &(accelBuiltinQueues[c_H2Dc]));
-	accelTimerEnqueue(frame_c2, &(accelBuiltinQueues[c_H2Dc]));
-	accelTimerEnqueue(frame_c3, &(accelBuiltinQueues[c_H2Dc]));
+	metaTimerEnqueue(frame_k1, &(metaBuiltinQueues[k_pack_2d_face]));
+	metaTimerEnqueue(frame_c1, &(metaBuiltinQueues[c_H2Dc]));
+	metaTimerEnqueue(frame_c2, &(metaBuiltinQueues[c_H2Dc]));
+	metaTimerEnqueue(frame_c3, &(metaBuiltinQueues[c_H2Dc]));
 	#endif
 	return(ret);
 }

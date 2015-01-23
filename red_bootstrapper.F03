@@ -1,6 +1,6 @@
-#include "afosr_cfd_fortran.F03"
+#include "metamorph_fortran.F03"
 !#include <sys/time.h>
-!      include 'afosr_cfd_fortran.f03'
+!      include 'metamorph_fortran.f03'
       
       module data_
             use ISO_C_BINDING
@@ -34,7 +34,7 @@
       subroutine data_allocate(i,j,k,m)
             use data_
             use ISO_C_BINDING
-            use afosr_cfd_c
+            use metamorph_c
 
             implicit none
             integer,intent(in)::i,j,k,m
@@ -50,39 +50,39 @@
             allocate(data3_db(ni,nj,nk),data4_db(ni,nj,nk,nm),stat=istat)
             print *,"Status:",istat
 !            allocate(dev_data3(ni,nj,nk),dev_data3_2(ni,nj,nk),dev_data4(ni,nj,nk,nm),stat=istat)
-            istat = accel_alloc(dev_data3_db, ni*nj*nk)
+            istat = meta_alloc(dev_data3_db, ni*nj*nk)
             print *,"Status:",istat
-            istat = accel_alloc(dev_data4_db, ni*nj*nk*nm)
+            istat = meta_alloc(dev_data4_db, ni*nj*nk*nm)
             print *,"Status:",istat
-            istat = accel_alloc(dev_data3_2_db, ni*nj*nk)
+            istat = meta_alloc(dev_data3_2_db, ni*nj*nk)
             print *,"Status:",istat
-            istat = accel_alloc(reduction_db, 1)
+            istat = meta_alloc(reduction_db, 1)
             print *,"Status:",istat
             endif
             if (g_type.EQ.1) then
             allocate(data3_fl(ni,nj,nk),data4_fl(ni,nj,nk,nm),stat=istat)
             print *,"Status:",istat
 !            allocate(dev_data3(ni,nj,nk),dev_data3_2(ni,nj,nk),dev_data4(ni,nj,nk,nm),stat=istat)
-            istat = accel_alloc(dev_data3_fl, ni*nj*nk)
+            istat = meta_alloc(dev_data3_fl, ni*nj*nk)
             print *,"Status:",istat
-            istat = accel_alloc(dev_data4_fl, ni*nj*nk*nm)
+            istat = meta_alloc(dev_data4_fl, ni*nj*nk*nm)
             print *,"Status:",istat
-            istat = accel_alloc(dev_data3_2_fl, ni*nj*nk)
+            istat = meta_alloc(dev_data3_2_fl, ni*nj*nk)
             print *,"Status:",istat
-            istat = accel_alloc(reduction_fl, 1)
+            istat = meta_alloc(reduction_fl, 1)
             print *,"Status:",istat
             endif
             if (g_type.EQ.4) then
             allocate(data3_in(ni,nj,nk),data4_in(ni,nj,nk,nm),stat=istat)
             print *,"Status:",istat
 !            allocate(dev_data3(ni,nj,nk),dev_data3_2(ni,nj,nk),dev_data4(ni,nj,nk,nm),stat=istat)
-            istat = accel_alloc(dev_data3_in, ni*nj*nk)
+            istat = meta_alloc(dev_data3_in, ni*nj*nk)
             print *,"Status:",istat
-            istat = accel_alloc(dev_data4_in, ni*nj*nk*nm)
+            istat = meta_alloc(dev_data4_in, ni*nj*nk*nm)
             print *,"Status:",istat
-            istat = accel_alloc(dev_data3_2_in, ni*nj*nk)
+            istat = meta_alloc(dev_data3_2_in, ni*nj*nk)
             print *,"Status:",istat
-            istat = accel_alloc(reduction_in, 1)
+            istat = meta_alloc(reduction_in, 1)
             print *,"Status:",istat
             endif
             print *,"Data Allocated"
@@ -148,7 +148,7 @@
       subroutine data_transfer_h2d
             use data_
             use ISO_C_BINDING
-            use afosr_cfd_c
+            use metamorph_c
             implicit none
             integer::istat
             integer::iter
@@ -159,29 +159,29 @@
 !            dev_data3(:,:,:) = data3(:,:,:)
 !TODO add timing loops
             if (g_type.EQ.0) then
-            istat = accel_copy_h2d(dev_data3_db, data3_db, ni*nj*nk, 1)
-            istat = accel_copy_h2d(dev_data4_db, data4_db, ni*nj*nk*nm, 1)
-            istat = accel_copy_d2d(dev_data3_2_db, dev_data3_db, ni*nj*nk, 1)
+            istat = meta_copy_h2d(dev_data3_db, data3_db, ni*nj*nk, 1)
+            istat = meta_copy_h2d(dev_data4_db, data4_db, ni*nj*nk*nm, 1)
+            istat = meta_copy_d2d(dev_data3_2_db, dev_data3_db, ni*nj*nk, 1)
             endif
             if (g_type.EQ.1) then
             istat = elapsed(stime)
             do iter = 0, 999
-            istat = accel_copy_h2d(dev_data3_fl, data3_fl, ni*nj*nk, 0)
+            istat = meta_copy_h2d(dev_data3_fl, data3_fl, ni*nj*nk, 0)
             enddo
             istat = elapsed(etime)
             print *, "H2D time: ", (etime-stime)/(1000.0)
-            istat = accel_copy_h2d(dev_data4_fl, data4_fl, ni*nj*nk*nm, 0)
+            istat = meta_copy_h2d(dev_data4_fl, data4_fl, ni*nj*nk*nm, 0)
             istat = elapsed(stime)
             do iter = 0, 999
-            istat = accel_copy_d2d(dev_data3_2_fl, dev_data3_fl, ni*nj*nk, 0)
+            istat = meta_copy_d2d(dev_data3_2_fl, dev_data3_fl, ni*nj*nk, 0)
             enddo
             istat = elapsed(etime)
             print *, "D2D time: ", (etime-stime)/(1000.0)
             endif
             if (g_type.EQ.4) then
-            istat = accel_copy_h2d(dev_data3_in, data3_in, ni*nj*nk, 1)
-            istat = accel_copy_h2d(dev_data4_in, data4_in, ni*nj*nk*nm, 1)
-            istat = accel_copy_d2d(dev_data3_2_in, dev_data3_in, ni*nj*nk, 1)
+            istat = meta_copy_h2d(dev_data3_in, data3_in, ni*nj*nk, 1)
+            istat = meta_copy_h2d(dev_data4_in, data4_in, ni*nj*nk*nm, 1)
+            istat = meta_copy_d2d(dev_data3_2_in, dev_data3_in, ni*nj*nk, 1)
             endif
 !            dev_data4(:,:,:,:) = data4(:,:,:,:)
 !            dev_data3_2(:,:,:) = data3(:,:,:)
@@ -189,41 +189,41 @@
       subroutine deallocate_
             use data_
             use ISO_C_BINDING
-            use afosr_cfd_c
+            use metamorph_c
             implicit none
             integer::istat
 !            deallocate(dev_data3)
             if (g_type.EQ.0) then
-            istat = accel_free(dev_data3_db)
+            istat = meta_free(dev_data3_db)
             deallocate(data3_db)
 !            deallocate(dev_data3_2)
-            istat = accel_free(dev_data3_2_db)
+            istat = meta_free(dev_data3_2_db)
 !            deallocate(dev_data4)
-            istat = accel_free(dev_data4_db)
+            istat = meta_free(dev_data4_db)
             deallocate(data4_db)
             endif
             if (g_type.EQ.1) then
-            istat = accel_free(dev_data3_fl)
+            istat = meta_free(dev_data3_fl)
             deallocate(data3_fl)
 !            deallocate(dev_data3_2)
-            istat = accel_free(dev_data3_2_fl)
+            istat = meta_free(dev_data3_2_fl)
 !            deallocate(dev_data4)
-            istat = accel_free(dev_data4_fl)
+            istat = meta_free(dev_data4_fl)
             deallocate(data4_fl)
             endif
             if (g_type.EQ.4) then
-            istat = accel_free(dev_data3_in)
+            istat = meta_free(dev_data3_in)
             deallocate(data3_in)
 !            deallocate(dev_data3_2)
-            istat = accel_free(dev_data3_2_in)
+            istat = meta_free(dev_data3_2_in)
 !            deallocate(dev_data4)
-            istat = accel_free(dev_data4_in)
+            istat = meta_free(dev_data4_in)
             deallocate(data4_in)
             endif
       end subroutine deallocate_
       subroutine gpu_initialize
             use ISO_C_BINDING
-            use afosr_cfd_c
+            use metamorph_c
             implicit none
 
             integer::istat, deviceused
@@ -244,7 +244,7 @@
       program main
             use data_
             use ISO_C_BINDING
-            use afosr_cfd_c
+            use metamorph_c
             implicit none
             integer :: tx, ty, tz, gx, gy, gz
             integer::istat,i, iter
@@ -282,7 +282,7 @@
 
 
 #ifdef WITH_TIMERS
-            istat = accel_timers_init()
+            istat = meta_timers_init()
 #endif
             call gpu_initialize
             call data_allocate(ni,nj,nk,nm)
@@ -328,12 +328,12 @@
            zero_fl = 0.0
            zero_in = 0.0
            if (g_type.EQ.0) then
-           istat = accel_copy_h2d(reduction_db, zero_db, 1, 1)
+           istat = meta_copy_h2d(reduction_db, zero_db, 1, 1)
 !TODO add timing loop
-           istat = accel_dotprod((/gx, gy, gz*tz/),(/tx, ty, 1/), &
+           istat = meta_dotprod((/gx, gy, gz*tz/),(/tx, ty, 1/), &
             dev_data3_db, dev_data3_2_db, (/ni, nj, nk/), (/1, 1, 1/), &
             (/ni, nj, nk/), reduction_db, 0)
-!           istat = accel_dotprod(int(gx,kind=C_SIZE_T),int(gy,kind=C_SIZE_T),&
+!           istat = meta_dotprod(int(gx,kind=C_SIZE_T),int(gy,kind=C_SIZE_T),&
 !            & int(gz,kind=C_SIZE_T),int(tx,kind=C_SIZE_T),int(ty,kind=C_SIZE_T),&
 !            & int(tz,kind=C_SIZE_T),dev_data3, dev_data3_2, int(ni,kind=C_SIZE_T),&
 !            & int(nj,kind=C_SIZE_T),int(nk,kind=C_SIZE_T),int(2,kind=C_SIZE_T),&
@@ -344,21 +344,21 @@
 !           & ,dev_data3_2,ni,nj,nk,2,2,2,nj-1,ni-1,nk-1,gz,reduction,tx*ty*tz)
 !            istat = cudathreadsynchronize()
 !            sum_dot_gpu = reduction
-           istat = accel_copy_d2h(sum_dot_gpu_db, reduction_db, 1, 0)
+           istat = meta_copy_d2h(sum_dot_gpu_db, reduction_db, 1, 0)
             
             print *, "Test Reduction:",sum_dot_gpu_db
            endif
            if (g_type.EQ.1) then
-           istat = accel_copy_h2d(reduction_fl, zero_fl, 1, 1)
+           istat = meta_copy_h2d(reduction_fl, zero_fl, 1, 1)
            istat = elapsed(stime)
            do iter = 0, 999
-           istat = accel_dotprod((/gx, gy, gz*tz/),(/tx, ty, 1/), &
+           istat = meta_dotprod((/gx, gy, gz*tz/),(/tx, ty, 1/), &
             dev_data3_fl, dev_data3_2_fl, (/ni, nj, nk/), (/1, 1, 1/), &
             (/ni, nj, nk/), reduction_fl, 0)
            enddo
            istat = elapsed(etime)
             print *, "Kern time: ", (etime-stime)/(1000.0)
-!           istat = accel_dotprod(int(gx,kind=C_SIZE_T),int(gy,kind=C_SIZE_T),&
+!           istat = meta_dotprod(int(gx,kind=C_SIZE_T),int(gy,kind=C_SIZE_T),&
 !            & int(gz,kind=C_SIZE_T),int(tx,kind=C_SIZE_T),int(ty,kind=C_SIZE_T),&
 !            & int(tz,kind=C_SIZE_T),dev_data3, dev_data3_2, int(ni,kind=C_SIZE_T),&
 !            & int(nj,kind=C_SIZE_T),int(nk,kind=C_SIZE_T),int(2,kind=C_SIZE_T),&
@@ -369,22 +369,22 @@
 !           & ,dev_data3_2,ni,nj,nk,2,2,2,nj-1,ni-1,nk-1,gz,reduction,tx*ty*tz)
 !            istat = cudathreadsynchronize()
 !            sum_dot_gpu = reduction
-           istat = accel_copy_d2h(sum_dot_gpu_fl, reduction_fl, 1, 0)
+           istat = meta_copy_d2h(sum_dot_gpu_fl, reduction_fl, 1, 0)
             
             print *, "Test Reduction:",sum_dot_gpu_fl
            istat = elapsed(stime)
            do iter = 0, 999
-           istat = accel_copy_d2h(data3_fl, dev_data3_fl, ni*nj*nk, 0)
+           istat = meta_copy_d2h(data3_fl, dev_data3_fl, ni*nj*nk, 0)
            enddo
            istat = elapsed(etime)
            print *, "D2H time: ", (etime-stime)/(1000.0)
            endif
            if (g_type.EQ.4) then
-           istat = accel_copy_h2d(reduction_in, zero_in, 1, 1)
-           istat = accel_dotprod((/gx, gy, gz*tz/),(/tx, ty, 1/), &
+           istat = meta_copy_h2d(reduction_in, zero_in, 1, 1)
+           istat = meta_dotprod((/gx, gy, gz*tz/),(/tx, ty, 1/), &
             dev_data3_in, dev_data3_2_in, (/ni, nj, nk/), (/2, 2, 2/), &
             (/ni-1, nj-1, nk-1/), reduction_in, 0)
-!           istat = accel_dotprod(int(gx,kind=C_SIZE_T),int(gy,kind=C_SIZE_T),&
+!           istat = meta_dotprod(int(gx,kind=C_SIZE_T),int(gy,kind=C_SIZE_T),&
 !            & int(gz,kind=C_SIZE_T),int(tx,kind=C_SIZE_T),int(ty,kind=C_SIZE_T),&
 !            & int(tz,kind=C_SIZE_T),dev_data3, dev_data3_2, int(ni,kind=C_SIZE_T),&
 !            & int(nj,kind=C_SIZE_T),int(nk,kind=C_SIZE_T),int(2,kind=C_SIZE_T),&
@@ -395,13 +395,13 @@
 !           & ,dev_data3_2,ni,nj,nk,2,2,2,nj-1,ni-1,nk-1,gz,reduction,tx*ty*tz)
 !            istat = cudathreadsynchronize()
 !            sum_dot_gpu = reduction
-           istat = accel_copy_d2h(sum_dot_gpu_in, reduction_in, 1, 0)
+           istat = meta_copy_d2h(sum_dot_gpu_in, reduction_in, 1, 0)
             
             print *, "Test Reduction:",sum_dot_gpu_in
            endif
 !            end do
             call deallocate_
 #ifdef WITH_TIMERS
-           istat = accel_timers_finish()
+           istat = meta_timers_finish()
 #endif
       end program main

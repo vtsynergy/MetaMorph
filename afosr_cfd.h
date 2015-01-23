@@ -1,9 +1,9 @@
 /*
- * The core library header for the AFOSR-BRI Accelerated CFD Library
+ * The core library header for the METAMORPH-BRI Accelerated CFD Library
  *
  * Implements control over which accelerator core libraries the 
  *  application is compiled against via C Preprocessor Macros.
- * The corresponding afosr_cfd.c implements runtime control over
+ * The corresponding metamorph.c implements runtime control over
  *  which compiled-in core library functions are actually used
  *  internally.
  * Combined these provide the user simple control over which CFD
@@ -11,7 +11,7 @@
  *  and how it should choose among them for a given run (Runtime
  *  selections.)
  *
- * Created as part of the AFOSR-BRI <<INSERT PROJECT NAME AND ##>>
+ * Created as part of the METAMORPH-BRI <<INSERT PROJECT NAME AND ##>>
  * Virginia Polytechnic Institue and State University, 2013-2014
  *
  * Authors: Paul Sathre (C API, core libs, timers, Fortran API,
@@ -24,8 +24,8 @@
 		prototypes, MPI exchange prototypes)
  */
 
-#ifndef AFOSR_CFD_H
-#define AFOSR_CFD_H
+#ifndef METAMORPH_H
+#define METAMORPH_H
 
 #include <stdio.h>
 
@@ -42,14 +42,14 @@ typedef enum {
 	a_us = 7,
 	a_ch = 8,
 	a_uc = 9
-} accel_type_id;
+} meta_type_id;
 
 //Define Marshaling option bitmasks
-#define AFOSR_MARSH_OPT_NONE (0)
-#define AFOSR_MARSH_OPT_TRANSPOSE (1)
+#define METAMORPH_MARSH_OPT_NONE (0)
+#define METAMORPH_MARSH_OPT_TRANSPOSE (1)
 
 //Define limits to the face struture
-#define AFOSR_FACE_MAX_DEPTH (10)
+#define METAMORPH_FACE_MAX_DEPTH (10)
 
 //FIXME Transpose shouldn't use hardcoded constants
 //FIXME even if it does, OpenCL will need to pass them during compilation
@@ -58,15 +58,15 @@ typedef enum {
 #define TRANSPOSE_TILE_BLOCK_ROWS (16)
 //This needs to be here so cores can all use the face struct
 // for optimized pack/unpack operations
-//Does not include Kaixi's LIB_MARSHALLING_<TYPE> macros, we use accel_type_id instead
+//Does not include Kaixi's LIB_MARSHALLING_<TYPE> macros, we use meta_type_id instead
 typedef struct {
 	int start; //Starting offset in uni-dimensional buffer
 	int count; //The size of size and stride buffers (number of tree levels)
 	int *size; // The number of samples at each tree level
 	int *stride; //The distance between samples at each tree level
-} accel_2d_face_indexed;
-accel_2d_face_indexed * accel_get_face_index(int s, int c, int *si, int *st);
-int accel_free_face_index(accel_2d_face_indexed * face);
+} meta_2d_face_indexed;
+meta_2d_face_indexed * meta_get_face_index(int s, int c, int *si, int *st);
+int meta_free_face_index(meta_2d_face_indexed * face);
 
 
 //These are global controls over which accelerator "cores" are
@@ -77,19 +77,19 @@ int accel_free_face_index(accel_2d_face_indexed * face);
 // are selected, rather if none of their supported cores are selected,
 // they should just define down to a NOOP.
 #ifdef WITH_CUDA
-	#ifndef AFOSR_CFD_CUDA_CORE_H
-		#include "afosr_cfd_cuda_core.cuh"
+	#ifndef METAMORPH_CUDA_CORE_H
+		#include "metamorph_cuda_core.cuh"
 	#endif
 #endif
 
 #ifdef WITH_OPENCL
-	#ifndef AFOSR_CFD_OPENCL_CORE_H
-		#include "afosr_cfd_opencl_core.h"
+	#ifndef METAMORPH_OPENCL_CORE_H
+		#include "metamorph_opencl_core.h"
 	#endif
 #endif
 
 #ifdef WITH_OPENMP
-	#include "afosr_cfd_openmp_core.h"
+	#include "metamorph_openmp_core.h"
 #endif
 
 
@@ -128,33 +128,33 @@ typedef struct HPRecType {
 } HPRecType;
 //Shared HP variables
 #ifdef WITH_OPENCL
-//These are not needed if they're declared in afosr_cfd.c
-//	extern cl_context accel_context;
-//	extern cl_command_queue accel_queue;
-//	extern cl_device_id accel_device;
+//These are not needed if they're declared in metamorph.c
+//	extern cl_context meta_context;
+//	extern cl_command_queue meta_queue;
+//	extern cl_device_id meta_device;
 #endif
 
 typedef enum {
 	//A special-purpose mode which indicates none has been declared
 	// used by sentinel nodes in the timer plugin queues
-	accelModeUnset = -1,
-	accelModePreferGeneric = 0,
+	metaModeUnset = -1,
+	metaModePreferGeneric = 0,
 	#ifdef WITH_CUDA
-	accelModePreferCUDA = 1,
+	metaModePreferCUDA = 1,
 	#endif
 	#ifdef WITH_OPENCL
-	accelModePreferOpenCL = 2,
+	metaModePreferOpenCL = 2,
 	#endif
 	#ifdef WITH_OPENMP
-	accelModePreferOpenMP = 3
+	metaModePreferOpenMP = 3
 	#endif
-} accel_preferred_mode;
+} meta_preferred_mode;
 
-a_err accel_alloc(void ** ptr, size_t size);
-a_err accel_free(void * ptr);
-a_err choose_accel(int accel, accel_preferred_mode mode);
-a_err get_accel(int * accel, accel_preferred_mode * mode);
-a_err accel_validate_worksize(a_dim3 * grid_size, a_dim3 * block_size);
+a_err meta_alloc(void ** ptr, size_t size);
+a_err meta_free(void * ptr);
+a_err choose_accel(int accel, meta_preferred_mode mode);
+a_err get_accel(int * accel, meta_preferred_mode * mode);
+a_err meta_validate_worksize(a_dim3 * grid_size, a_dim3 * block_size);
 
 //Some OpenCL implementations (may) not provide the CL_CALLBACK convention
 #ifdef WITH_OPENCL
@@ -162,14 +162,14 @@ a_err accel_validate_worksize(a_dim3 * grid_size, a_dim3 * block_size);
 		#define CL_CALLBACK
 	#endif
 #endif
-typedef union accel_callback {
+typedef union meta_callback {
 	#ifdef WITH_CUDA
 		void (CUDART_CB * cudaCallback)(cudaStream_t stream, cudaError_t status, void *data);
 	#endif //WITH_CUDA
 	#ifdef WITH_OPENCL
 		void (CL_CALLBACK * openclCallback)(cl_event event, cl_int status, void * data);
 	#endif //WITH_OPENCL
-} accel_callback;
+} meta_callback;
 
 //FIXME: As soon as the MPI implementation is finished, if
 // payloads are still not needed, remove this code
@@ -194,39 +194,39 @@ typedef union accel_callback {
 	} opencl_callback_payload;
 #endif //WITH_OPENCL
 
-typedef union accel_callback_payload {
+typedef union meta_callback_payload {
 	#ifdef WITH_CUDA
 		cuda_callback_payload cuda_pl;
 	#endif //WITH_CUDA
 	#ifdef WITH_OPENCL
 		opencl_callback_payload opencl_pl;
 	#endif //WITH_OPENCL
-} accel_callback_payload;
+} meta_callback_payload;
 
 //FIXME: If custom payloads are not needed, clean up the code above
 
 //Kernels and transfers with callback params, necessary for MPI helpers
 // These are **NOT** intended to be used externally, only by the library itself
 // The callback/payload structure is not built for user-specified callbacks
-a_err accel_dotProd_cb(a_dim3 * grid_size, a_dim3 * block_size, void * data1, void * data2, a_dim3 * array_size, a_dim3 * array_start, a_dim3 * array_end, void * reduction_var, accel_type_id type, a_bool async, accel_callback *call, void *call_pl);
-a_err accel_reduce_cb(a_dim3 * grid_size, a_dim3 * block_size, void * data, a_dim3 * array_size, a_dim3 * array_start, a_dim3 * array_end, void * reduction_var, accel_type_id type, a_bool async, accel_callback *call, void *call_pl);
-a_err accel_copy_h2d_cb(void * dst, void * src, size_t size, a_bool async, accel_callback *call, void *call_pl);
-a_err accel_copy_d2h_cb(void * dst, void * src, size_t size, a_bool async, accel_callback *call, void *call_pl);
-a_err accel_copy_d2d_cb(void * dst, void * src, size_t size, a_bool async, accel_callback *call, void *call_pl);
-a_err accel_transpose_2d_face_cb(a_dim3 * grid_size, a_dim3 * block_size, void *indata, void *outdata, a_dim3 * dim_xy, accel_type_id type, a_bool async, accel_callback *call, void *call_pl);
-a_err accel_pack_2d_face_cb(a_dim3 * grid_size, a_dim3 * block_size, void *packed_buf, void *buf, accel_2d_face_indexed *face, accel_type_id type, a_bool async, accel_callback *call, void *call_pl);
-a_err accel_unpack_2d_face_cb(a_dim3 * grid_size, a_dim3 * block_size, void *packed_buf, void *buf, accel_2d_face_indexed *face, accel_type_id type, a_bool async, accel_callback *call, void *call_pl);
+a_err meta_dotProd_cb(a_dim3 * grid_size, a_dim3 * block_size, void * data1, void * data2, a_dim3 * array_size, a_dim3 * array_start, a_dim3 * array_end, void * reduction_var, meta_type_id type, a_bool async, meta_callback *call, void *call_pl);
+a_err meta_reduce_cb(a_dim3 * grid_size, a_dim3 * block_size, void * data, a_dim3 * array_size, a_dim3 * array_start, a_dim3 * array_end, void * reduction_var, meta_type_id type, a_bool async, meta_callback *call, void *call_pl);
+a_err meta_copy_h2d_cb(void * dst, void * src, size_t size, a_bool async, meta_callback *call, void *call_pl);
+a_err meta_copy_d2h_cb(void * dst, void * src, size_t size, a_bool async, meta_callback *call, void *call_pl);
+a_err meta_copy_d2d_cb(void * dst, void * src, size_t size, a_bool async, meta_callback *call, void *call_pl);
+a_err meta_transpose_2d_face_cb(a_dim3 * grid_size, a_dim3 * block_size, void *indata, void *outdata, a_dim3 * arr_dim_xy, a_dim3 * tran_dim_xy, meta_type_id type, a_bool async, meta_callback *call, void *call_pl);
+a_err meta_pack_2d_face_cb(a_dim3 * grid_size, a_dim3 * block_size, void *packed_buf, void *buf, meta_2d_face_indexed *face, meta_type_id type, a_bool async, meta_callback *call, void *call_pl);
+a_err meta_unpack_2d_face_cb(a_dim3 * grid_size, a_dim3 * block_size, void *packed_buf, void *buf, meta_2d_face_indexed *face, meta_type_id type, a_bool async, meta_callback *call, void *call_pl);
 
 //Reduced-complexity calls
 // These are the ones applications built on top of the library should use
-a_err accel_dotProd(a_dim3 * grid_size, a_dim3 * block_size, void * data1, void * data2, a_dim3 * array_size, a_dim3 * array_start, a_dim3 * array_end, void * reduction_var, accel_type_id type, a_bool async);
-a_err accel_reduce(a_dim3 * grid_size, a_dim3 * block_size, void * data, a_dim3 * array_size, a_dim3 * array_start, a_dim3 * array_end, void * reduction_var, accel_type_id type, a_bool async);
-a_err accel_copy_h2d(void * dst, void * src, size_t size, a_bool async);
-a_err accel_copy_d2h(void * dst, void * src, size_t size, a_bool async);
-a_err accel_copy_d2d(void * dst, void * src, size_t size, a_bool async);
-a_err accel_transpose_2d_face(a_dim3 * grid_size, a_dim3 * block_size, void *indata, void *outdata, a_dim3 * dim_xy, accel_type_id type, a_bool async);
-a_err accel_pack_2d_face(a_dim3 * grid_size, a_dim3 * block_size, void *packed_buf, void *buf, accel_2d_face_indexed *face, accel_type_id type, a_bool async);
-a_err accel_unpack_2d_face(a_dim3 * grid_size, a_dim3 * block_size, void *packed_buf, void *buf, accel_2d_face_indexed *face, accel_type_id type, a_bool async);
+a_err meta_dotProd(a_dim3 * grid_size, a_dim3 * block_size, void * data1, void * data2, a_dim3 * array_size, a_dim3 * array_start, a_dim3 * array_end, void * reduction_var, meta_type_id type, a_bool async);
+a_err meta_reduce(a_dim3 * grid_size, a_dim3 * block_size, void * data, a_dim3 * array_size, a_dim3 * array_start, a_dim3 * array_end, void * reduction_var, meta_type_id type, a_bool async);
+a_err meta_copy_h2d(void * dst, void * src, size_t size, a_bool async);
+a_err meta_copy_d2h(void * dst, void * src, size_t size, a_bool async);
+a_err meta_copy_d2d(void * dst, void * src, size_t size, a_bool async);
+a_err meta_transpose_2d_face(a_dim3 * grid_size, a_dim3 * block_size, void *indata, void *outdata, a_dim3 * arr_dim_xy, a_dim3 * tran_dim_xy, meta_type_id type, a_bool async);
+a_err meta_pack_2d_face(a_dim3 * grid_size, a_dim3 * block_size, void *packed_buf, void *buf, meta_2d_face_indexed *face, meta_type_id type, a_bool async);
+a_err meta_unpack_2d_face(a_dim3 * grid_size, a_dim3 * block_size, void *packed_buf, void *buf, meta_2d_face_indexed *face, meta_type_id type, a_bool async);
 
 
 
@@ -234,27 +234,27 @@ a_err accel_unpack_2d_face(a_dim3 * grid_size, a_dim3 * block_size, void *packed
 // should decide whether to compiler with different metrics
 // packages. First and foremost, event-based timers for their
 // respective platforms.
-//WITH_TIMERS needs to be here, so the header passthrough can give it the accel_preferred_mode enum
+//WITH_TIMERS needs to be here, so the header passthrough can give it the meta_preferred_mode enum
 #ifdef WITH_TIMERS
-	#ifndef AFOSR_CFD_TIMERS_H
-		#include "afosr_cfd_timers.h"
+	#ifndef METAMORPH_TIMERS_H
+		#include "metamorph_timers.h"
 	#endif
 #endif
 
 //Fortran compatibility plugin needs access to all top-level calls
 // and data types.
 #ifdef WITH_FORTRAN
-	#ifndef AFOSR_CFD_FORTRAN_COMPAT_H
-		#include "afosr_cfd_fortran_compat.h"
+	#ifndef METAMORPH_FORTRAN_COMPAT_H
+		#include "metamorph_fortran_compat.h"
 	#endif
 #endif
 
 //MPI functions need access to all top-level calls and types
 #ifdef WITH_MPI
-	#ifndef AFOSR_CFD_MPI_H
-		#include "afosr_cfd_mpi.h"
+	#ifndef METAMORPH_MPI_H
+		#include "metamorph_mpi.h"
 	#endif
 #endif
 
 
-#endif //AFOSR_CFD_H
+#endif //METAMORPH_H
