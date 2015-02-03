@@ -27,6 +27,32 @@
 #ifndef METAMORPH_H
 #define METAMORPH_H
 
+#ifdef __DEBUG__
+//Anything needed for a debug build
+
+	//Yell and fail if you hit something that's known to be broken
+	#define FIXME(str) { \
+		fprintf(stderr, "FIXME:" __FILE__ ":%d: " #str "!\n", __LINE__); \
+		exit(-1); \
+		}
+#endif
+
+//If not in debug mode, yell, but don't exit
+#if !defined(FIXME) && !defined(NO_FIXME)
+	#define FIXME(str) { \
+		fprintf(stderr, "FIXME:" __FILE__ ":%d: " #str "!\n", __LINE__); \
+		}
+#endif
+
+//If we're not in debug, but they did define NO_FIXME (at their own risk..
+// then just shut up about unfinished things
+#ifndef FIXME
+	#define FIXME(str) 
+#endif
+
+//TODO should fail just as hard as fixme
+#define TODO FIXME
+
 #include <stdio.h>
 
 //This needs to be here so that the cores can internally
@@ -155,6 +181,7 @@ a_err meta_free(void * ptr);
 a_err choose_accel(int accel, meta_preferred_mode mode);
 a_err get_accel(int * accel, meta_preferred_mode * mode);
 a_err meta_validate_worksize(a_dim3 * grid_size, a_dim3 * block_size);
+a_err meta_flush();
 
 //Some OpenCL implementations (may) not provide the CL_CALLBACK convention
 #ifdef WITH_OPENCL

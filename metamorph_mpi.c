@@ -94,9 +94,67 @@ void help_mpi_request() {
 
 //A "forced wait until all requests finish" helper
 // Meant to be used with meta_flush and meta_finish
-void finish_mpi_requests() {
+a_err finish_mpi_requests() {
+	printf("FINISH TRIGGERED\n");
 	//TODO: Implement "finish the world"
 	//Use MPI_Wait rather than MPI Test
+	if (record_queue.type == uninit) init_record_queue();
+	//try to peek at a node from the record queue
+	//FIXME: Make hazard-aware
+		int flag;
+		MPI_Status status;
+	while (record_queue.next != NULL) {
+		recordQueueNode *curr = record_queue.next;
+		//MPI_Wait(curr->record.rap_rec.req, &status);
+		//MPI_Test(curr->record.rap_rec.req, &flag, &status);
+		//if (flag) {
+			//If the request completed, remove the node
+			//FIXME: Hazardous!
+		//	record_queue.next = curr->next;
+		//} else {
+			//Don't do anything else, we need to remove nodes in-order
+			// so no skipping ahead
+		//	continue;
+		//}
+		do {
+			flag = 0;
+			MPI_Test(curr->record.rap_rec.req, &flag, &status);
+		}
+		while (!flag);
+		switch (curr->type) {
+			case sp_rec:
+				//do seomthing
+				sp_helper(&(curr->record));
+			break;
+	
+			case rp_rec:
+				//do something
+				rp_helper(&(curr->record));
+			break;
+	
+			case sap_rec:
+				//Do seomthing
+				sap_helper(&(curr->record));
+			break;
+	
+			case rap_rec:
+				//Do something
+				rap_helper(&(curr->record));
+			break;
+
+			default:
+				//shouldn't be reachable
+			break;
+		}
+		printf("HELPER DONE\n");
+		FIXME(Make record queue hazard-aware!);
+		//It must have finished the request, pull it off the queue
+		record_queue.next = curr->next;
+		//If this node is the last one, redirect the tail to the sentinel
+		if (record_queue_tail == curr && record_queue.next == NULL) record_queue_tail = &record_queue; 
+		FIXME(Is there anything inside a record that needs to be freed here);
+		free(curr);	
+	}
 }
 
 #ifdef WITH_CUDA
@@ -133,7 +191,8 @@ void CL_CALLBACK opencl_sp_isend_cb(cl_event event, cl_int status, void *data) {
 #endif //EITH_OPENCL
 
 void sp_helper(request_record * sp_request) {
-	free(sp_request->sp_rec.host_packed_buf);
+	printf("SP_HELPER FIRED!\n");
+	fprintf(stderr, "Would have been a SP free\n");//free(sp_request->sp_rec.host_packed_buf);
 }
 
 //Compound transfers, reliant on other library functions
@@ -244,16 +303,17 @@ a_err meta_mpi_packed_face_send(int dst_rank, void *packed_buf, void *packed_buf
 //minimal callback to free a host buffer
 #ifdef WITH_OPENCL
 void CL_CALLBACK opencl_free_host_cb(cl_event event, cl_int status, void * data) {
-	free(data);
+	fprintf(stderr, "Would have been a CBH free\n");//free(data);
 }
 #endif //WITH_OPENCL
 #ifdef WITH_CUDA
 void CUDART_CB cuda_free_host_cb(cudaStream_t stream, cudaError_t status, void *data) {
-	free(data);
+	fprintf(stderr, "Would have been a CBH free\n");//free(data);
 }
 #endif //WITH_CUDA
 
 void rp_helper(request_record * rp_request) {
+	printf("RP_HELPER FIRED!\n");
 	//async H2D copy w/ callback to free the temp host buffer
 	//set up the mode_specific pointer to our free wrapper
 	meta_callback * call = (meta_callback*) malloc(sizeof(meta_callback));
@@ -405,7 +465,8 @@ void CL_CALLBACK opencl_sap_isend_cb(cl_event event, cl_int status, void *data) 
 #endif //EITH_OPENCL
 
 void sap_helper(request_record * sap_request) {
-	if (sap_request->sap_rec.host_packed_buf != NULL) free(sap_request->sap_rec.host_packed_buf);
+	printf("SAP_HELPER FIRED!\n");
+	if (sap_request->sap_rec.host_packed_buf != NULL) fprintf(stderr, "Would have been a SAP free\n");//free(sap_request->sap_rec.host_packed_buf);
 	meta_free(sap_request->sap_rec.dev_packed_buf);
 }
 
@@ -544,7 +605,7 @@ a_err meta_mpi_pack_and_send_face(a_dim3 *grid_size, a_dim3 *block_size, int dst
 #ifdef WITH_OPENCL
 void CL_CALLBACK opencl_rap_freebufs_cb(cl_event event, cl_int status, void * data) {
 	rap_callback_payload * call_pl = (rap_callback_payload *)data;
-	if (call_pl->host_packed_buf != NULL) free(call_pl->host_packed_buf);
+	fprintf(stderr, "Would have been a RAP free\n");//if (call_pl->host_packed_buf != NULL) free(call_pl->host_packed_buf);
 	free(call_pl->packed_buf);
 	free(data);
 }
@@ -552,13 +613,15 @@ void CL_CALLBACK opencl_rap_freebufs_cb(cl_event event, cl_int status, void * da
 #ifdef WITH_CUDA
 void CUDART_CB cuda_rap_freebufs_cb(cudaStream_t stream, cudaError_t status, void *data) {
 	rap_callback_payload * call_pl = (rap_callback_payload *)data;
-	if (call_pl->host_packed_buf != NULL) free(call_pl->host_packed_buf);
-	free(call_pl->packed_buf);
+	fprintf(stderr, "Would have been a RAP free\n");//if (call_pl->host_packed_buf != NULL) free(call_pl->host_packed_buf);
+	//I'm not sure this should be removed, now that we rely on the user to provide staging buffs (to save reallocing)
+	FIXME(free(call_pl->packed_buf););
 	free(data);
 }
 #endif //WITH_CUDA
 
 void rap_helper(request_record *rap_request) {
+	printf("RAP_HELPER FIRED!\n");
 	//async H2D copy w/ callback to free the temp host buffer
 	//set up the mode_specific pointer to our free wrapper
 	meta_callback * call = (meta_callback*) malloc(sizeof(meta_callback));

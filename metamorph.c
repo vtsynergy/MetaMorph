@@ -250,6 +250,8 @@ a_err meta_copy_d2h_cb(void * dst, void * src, size_t size, a_bool async, meta_c
 			cudaEventCreate(&(frame->event.cuda[1]));
 			cudaEventRecord(frame->event.cuda[1], 0);
 			#endif
+			//If a callback is provided, register it immediately after the transfer
+			if ((void*)call != NULL && call_pl != NULL) cudaStreamAddCallback(0, call->cudaCallback, call_pl, 0);
 			break;
 		#endif
 
@@ -259,8 +261,13 @@ a_err meta_copy_d2h_cb(void * dst, void * src, size_t size, a_bool async, meta_c
 			if (meta_context == NULL) metaOpenCLFallBack();
 			#ifdef WITH_TIMERS
 			ret = clEnqueueReadBuffer(meta_queue, (cl_mem) src, ((async) ? CL_FALSE : CL_TRUE), 0, size, dst, 0, NULL, &(frame->event.opencl));
+			//If timers exist, use their event to add the callback
+			if ((void*)call != NULL && call_pl != NULL) clSetEventCallback(frame->event.opencl, CL_COMPLETE, call->openclCallback, call_pl);
 			#else
-			ret = clEnqueueReadBuffer(meta_queue, (cl_mem) src, ((async) ? CL_FALSE : CL_TRUE), 0, size, dst, 0, NULL, NULL);
+			//If timers don't exist, get the event via a locally-scoped event to add to the callback
+			cl_event cb_event;
+			ret = clEnqueueReadBuffer(meta_queue, (cl_mem) src, ((async) ? CL_FALSE : CL_TRUE), 0, size, dst, 0, NULL, &cb_event);
+			if ((void*)call != NULL && call_pl != NULL) clSetEventCallback(cb_event, CL_COMPLETE, call->openclCallback, call_pl);
 			#endif
 			break;
 		#endif
@@ -313,6 +320,8 @@ a_err meta_copy_d2d_cb(void * dst, void * src, size_t size, a_bool async, meta_c
 			cudaEventCreate(&(frame->event.cuda[1]));
 			cudaEventRecord(frame->event.cuda[1], 0);
 			#endif
+			//If a callback is provided, register it immediately after the transfer
+			if ((void*)call != NULL && call_pl != NULL) cudaStreamAddCallback(0, call->cudaCallback, call_pl, 0);
 			break;
 		#endif
 
@@ -322,8 +331,13 @@ a_err meta_copy_d2d_cb(void * dst, void * src, size_t size, a_bool async, meta_c
 			if (meta_context == NULL) metaOpenCLFallBack();
 			#ifdef WITH_TIMERS
 			ret = clEnqueueCopyBuffer(meta_queue, (cl_mem) src, (cl_mem) dst, 0, 0, size, 0, NULL, &(frame->event.opencl));
+			//If timers exist, use their event to add the callback
+			if ((void*)call != NULL && call_pl != NULL) clSetEventCallback(frame->event.opencl, CL_COMPLETE, call->openclCallback, call_pl);
 			#else
-			ret = clEnqueueCopyBuffer(meta_queue, (cl_mem) src, (cl_mem) dst, 0, 0, size, 0, NULL, NULL);
+			//If timers don't exist, get the event via a locally-scoped event to add to the callback
+			cl_event cb_event;
+			ret = clEnqueueCopyBuffer(meta_queue, (cl_mem) src, (cl_mem) dst, 0, 0, size, 0, NULL, &cb_event);
+			if ((void*)call != NULL && call_pl != NULL) clSetEventCallback(cb_event, CL_COMPLETE, call->openclCallback, call_pl);
 			#endif
 			//clEnqueueCopyBuffer is by default async, so clFinish
 			if (!async) clFinish(meta_queue);
@@ -525,6 +539,46 @@ a_err meta_validate_worksize(a_dim3 * grid_size, a_dim3 * block_size) {
 	return(ret);
 }
 
+//Flush does exactly what it sounds like - forces any
+// outstanding work to be finished before returning
+//For now it handles flushing async kernels, and finishing outstanding
+// transfers from the MPI plugin
+//It could easily handle timer dumping as well, but that might not be ideal
+a_err meta_flush() {
+	switch(run_mode) {
+		default:
+		case metaModePreferGeneric:
+			//TODO implement a generic flush?
+			break;
+
+		#ifdef WITH_CUDA
+		case metaModePreferCUDA:
+			cudaThreadSynchronize();
+			break;
+		#endif
+
+		#ifdef WITH_OPENCL
+		case metaModePreferOpenCL:
+			//Make sure some context exists..
+			if (meta_context == NULL) metaOpenCLFallBack();
+			clFinish(meta_queue);
+			break;
+		#endif
+
+		#ifdef WITH_OPENMP
+		case metaModePreferOpenMP:
+					  //TODO implement OpenMP flush?
+					  break;
+		#endif
+	}
+	//Flush all outstanding MPI work
+	// We do this after flushing the GPUs as any packing will be finished
+	#ifdef WITH_MPI
+	finish_mpi_requests();
+	#endif
+	printf("\n");	
+}
+
 //Simple wrapper for synchronous kernel
 //a_err meta_dotProd(a_dim3 * grid_size, a_dim3 * block_size, a_double * data1, a_double * data2, a_dim3 * array_size, a_dim3 * array_start, a_dim3 * array_end, a_double * reduction_var) {
 //	return meta_dotProd(grid_size, block_size, data1, data2, array_size, array_start, array_end, reduction_var, true);
@@ -586,7 +640,7 @@ a_err meta_dotProd_cb(a_dim3 * grid_size, a_dim3 * block_size, void * data1, voi
 			}
 		}
 		if (flag) {
-			fprintf(stderr, "WARNING in meta_dotProd: block_size={%ld, %ld, %ld} must be all powers of two!\n\tRescaled grid_size={%ld, %ld %ld}, block_size={%ld, %ld, %ld} to\n\tnew_grid={%ld, %ld, %ld}, new_block={%ld, %ld, %ld}\n", (*block_size)[0], (*block_size)[1], (*block_size)[2], (*grid_size)[0], (*grid_size)[1], (*grid_size)[2], (*block_size)[0], (*block_size)[1], (*block_size)[2], new_grid[0], new_grid[1], new_grid[2], new_block[0], new_block[1], new_block[2]);
+			fprintf(stderr, "WARNING in meta_dotProd: block_size={%ld, %ld, %ld} must be all powers of two!\n\tRescaled grid_size={%ld, %ld, %ld}, block_size={%ld, %ld, %ld} to\n\tnew_grid={%ld, %ld, %ld}, new_block={%ld, %ld, %ld}\n", (*block_size)[0], (*block_size)[1], (*block_size)[2], (*grid_size)[0], (*grid_size)[1], (*grid_size)[2], (*block_size)[0], (*block_size)[1], (*block_size)[2], new_grid[0], new_grid[1], new_grid[2], new_block[0], new_block[1], new_block[2]);
 			(*grid_size)[0] = new_grid[0];
 			(*grid_size)[1] = new_grid[1];
 			(*grid_size)[2] = new_grid[2];
@@ -614,6 +668,8 @@ a_err meta_dotProd_cb(a_dim3 * grid_size, a_dim3 * block_size, void * data1, voi
 						#else
 						  ret = (a_err) cuda_dotProd(grid_size, block_size, data1, data2, array_size, array_start, array_end, reduction_var, type, async, NULL);
 						#endif
+			//If a callback is provided, register it immediately after returning from enqueuing the kernel
+			if ((void*)call != NULL && call_pl != NULL) cudaStreamAddCallback(0, call->cudaCallback, call_pl, 0);
 						  break;
 					  }
 		#endif
@@ -624,8 +680,13 @@ a_err meta_dotProd_cb(a_dim3 * grid_size, a_dim3 * block_size, void * data1, voi
 					  if (meta_context == NULL) metaOpenCLFallBack();
 					  #ifdef WITH_TIMERS
 					  ret = (a_err) opencl_dotProd(grid_size, block_size, data1, data2, array_size, array_start, array_end, reduction_var, type, async, &(frame->event.opencl));
+			//If timers exist, use their event to add the callback
+			if ((void*)call != NULL && call_pl != NULL) clSetEventCallback(frame->event.opencl, CL_COMPLETE, call->openclCallback, call_pl);
 					  #else
-					  ret = (a_err) opencl_dotProd(grid_size, block_size, data1, data2, array_size, array_start, array_end, reduction_var, type, async, NULL);
+			//If timers don't exist, get the event via a locally-scoped event to add to the callback
+			cl_event cb_event;
+					  ret = (a_err) opencl_dotProd(grid_size, block_size, data1, data2, array_size, array_start, array_end, reduction_var, type, async, &cb_event);
+			if ((void*)call != NULL && call_pl != NULL) clSetEventCallback(cb_event, CL_COMPLETE, call->openclCallback, call_pl);
 					  #endif
 					  break;
 		#endif
@@ -703,7 +764,7 @@ a_err meta_reduce_cb(a_dim3 * grid_size, a_dim3 * block_size, void * data, a_dim
 			}
 		}
 		if (flag) {
-			fprintf(stderr, "WARNING in meta_reduce: block_size={%ld, %ld, %ld} must be all powers of two!\n\tRescaled grid_size={%ld, %ld %ld}, block_size={%ld, %ld, %ld} to\n\tnew_grid={%ld, %ld, %ld}, new_block={%ld, %ld, %ld}\n", (*block_size)[0], (*block_size)[1], (*block_size)[2], (*grid_size)[0], (*grid_size)[1], (*grid_size)[2], (*block_size)[0], (*block_size)[1], (*block_size)[2], new_grid[0], new_grid[1], new_grid[2], new_block[0], new_block[1], new_block[2]);
+			fprintf(stderr, "WARNING in meta_reduce: block_size={%ld, %ld, %ld} must be all powers of two!\n\tRescaled grid_size={%ld, %ld, %ld}, block_size={%ld, %ld, %ld} to\n\tnew_grid={%ld, %ld, %ld}, new_block={%ld, %ld, %ld}\n", (*block_size)[0], (*block_size)[1], (*block_size)[2], (*grid_size)[0], (*grid_size)[1], (*grid_size)[2], (*block_size)[0], (*block_size)[1], (*block_size)[2], new_grid[0], new_grid[1], new_grid[2], new_block[0], new_block[1], new_block[2]);
 			(*grid_size)[0] = new_grid[0];
 			(*grid_size)[1] = new_grid[1];
 			(*grid_size)[2] = new_grid[2];
@@ -731,6 +792,8 @@ a_err meta_reduce_cb(a_dim3 * grid_size, a_dim3 * block_size, void * data, a_dim
 						#else
 						  ret = (a_err) cuda_reduce(grid_size, block_size, data, array_size, array_start, array_end, reduction_var, type, async, NULL);
 						#endif
+			//If a callback is provided, register it immediately after returning from enqueuing the kernel
+			if ((void*)call != NULL && call_pl != NULL) cudaStreamAddCallback(0, call->cudaCallback, call_pl, 0);
 						  break;
 					  }
 		#endif
@@ -741,8 +804,13 @@ a_err meta_reduce_cb(a_dim3 * grid_size, a_dim3 * block_size, void * data, a_dim
 					  if (meta_context == NULL) metaOpenCLFallBack();
 					  #ifdef WITH_TIMERS
 					  ret = (a_err) opencl_reduce(grid_size, block_size, data, array_size, array_start, array_end, reduction_var, type, async, &(frame->event.opencl));
+			//If timers exist, use their event to add the callback
+			if ((void*)call != NULL && call_pl != NULL) clSetEventCallback(frame->event.opencl, CL_COMPLETE, call->openclCallback, call_pl);
 					  #else
-					  ret = (a_err) opencl_reduce(grid_size, block_size, data, array_size, array_start, array_end, reduction_var, type, async, NULL);
+			//If timers don't exist, get the event via a locally-scoped event to add to the callback
+			cl_event cb_event;
+					  ret = (a_err) opencl_reduce(grid_size, block_size, data, array_size, array_start, array_end, reduction_var, type, async, &cb_event);
+			if ((void*)call != NULL && call_pl != NULL) clSetEventCallback(cb_event, CL_COMPLETE, call->openclCallback, call_pl);
 					  #endif
 					  break;
 		#endif
@@ -826,6 +894,8 @@ a_err meta_transpose_2d_face_cb(a_dim3 * grid_size, a_dim3 * block_size, void *i
 						#else
 						  ret = (a_err) cuda_transpose_2d_face(grid_size, block_size, indata, outdata, arr_dim_xy, tran_dim_xy, type, async, NULL);
 						#endif
+			//If a callback is provided, register it immediately after returning from enqueuing the kernel
+			if ((void*)call != NULL && call_pl != NULL) cudaStreamAddCallback(0, call->cudaCallback, call_pl, 0);
 						  break;
 					  }
 		#endif
@@ -836,8 +906,13 @@ a_err meta_transpose_2d_face_cb(a_dim3 * grid_size, a_dim3 * block_size, void *i
 					  if (meta_context == NULL) metaOpenCLFallBack();
 					  #ifdef WITH_TIMERS
 					  ret = (a_err) opencl_transpose_2d_face(grid_size, block_size, indata, outdata, arr_dim_xy, tran_dim_xy, type, async, &(frame->event.opencl));
+			//If timers exist, use their event to add the callback
+			if ((void*)call != NULL && call_pl != NULL) clSetEventCallback(frame->event.opencl, CL_COMPLETE, call->openclCallback, call_pl);
 					  #else
-					  ret = (a_err) opencl_transpose_2d_face(grid_size, block_size, indata, outdata, arr_dim_xy, tran_dim_xy, type, async, NULL);
+			//If timers don't exist, get the event via a locally-scoped event to add to the callback
+			cl_event cb_event;
+					  ret = (a_err) opencl_transpose_2d_face(grid_size, block_size, indata, outdata, arr_dim_xy, tran_dim_xy, type, async, &cb_event);
+			if ((void*)call != NULL && call_pl != NULL) clSetEventCallback(cb_event, CL_COMPLETE, call->openclCallback, call_pl);
 					  #endif
 					  break;
 		#endif
@@ -916,6 +991,8 @@ a_err meta_pack_2d_face_cb(a_dim3 * grid_size, a_dim3 * block_size, void *packed
 						#else
 						  ret = (a_err) cuda_pack_2d_face(grid_size, block_size, packed_buf, buf, face, remain_dim, type, async, NULL, NULL, NULL, NULL);
 						#endif
+			//If a callback is provided, register it immediately after returning from enqueuing the kernel
+			if ((void*)call != NULL && call_pl != NULL) cudaStreamAddCallback(0, call->cudaCallback, call_pl, 0);
 						  break;
 					  }
 		#endif
@@ -926,8 +1003,13 @@ a_err meta_pack_2d_face_cb(a_dim3 * grid_size, a_dim3 * block_size, void *packed
 					  if (meta_context == NULL) metaOpenCLFallBack();
 					  #ifdef WITH_TIMERS
 					  ret = (a_err) opencl_pack_2d_face(grid_size, block_size, packed_buf, buf, face, remain_dim, type, async, &(frame_k1->event.opencl), &(frame_c1->event.opencl), &(frame_c2->event.opencl), &(frame_c3->event.opencl));
+			//If timers exist, use their event to add the callback
+			if ((void*)call != NULL && call_pl != NULL) clSetEventCallback(frame_k1->event.opencl, CL_COMPLETE, call->openclCallback, call_pl);
 					  #else
-					  ret = (a_err) opencl_pack_2d_face(grid_size, block_size, packed_buf, buf, face, remain_dim, type, async, NULL, NULL, NULL, NULL);
+			//If timers don't exist, get the event via a locally-scoped event to add to the callback
+			cl_event cb_event;
+					  ret = (a_err) opencl_pack_2d_face(grid_size, block_size, packed_buf, buf, face, remain_dim, type, async, NULL, NULL, NULL, &cb_event);
+			if ((void*)call != NULL && call_pl != NULL) clSetEventCallback(cb_event, CL_COMPLETE, call->openclCallback, call_pl);
 					  #endif
 					  break;
 		#endif
@@ -1003,6 +1085,8 @@ a_err meta_unpack_2d_face_cb(a_dim3 * grid_size, a_dim3 * block_size, void *pack
 						#else
 						  ret = (a_err) cuda_unpack_2d_face(grid_size, block_size, packed_buf, buf, face, remain_dim, type, async, NULL, NULL, NULL, NULL);
 						#endif
+			//If a callback is provided, register it immediately after returning from enqueuing the kernel
+			if ((void*)call != NULL && call_pl != NULL) cudaStreamAddCallback(0, call->cudaCallback, call_pl, 0);
 						  break;
 					  }
 		#endif
@@ -1013,8 +1097,13 @@ a_err meta_unpack_2d_face_cb(a_dim3 * grid_size, a_dim3 * block_size, void *pack
 					  if (meta_context == NULL) metaOpenCLFallBack();
 					  #ifdef WITH_TIMERS
 					  ret = (a_err) opencl_unpack_2d_face(grid_size, block_size, packed_buf, buf, face, remain_dim, type, async, &(frame_k1->event.opencl), &(frame_c1->event.opencl), &(frame_c2->event.opencl), &(frame_c3->event.opencl));
+			//If timers exist, use their event to add the callback
+			if ((void*)call != NULL && call_pl != NULL) clSetEventCallback(frame_k1->event.opencl, CL_COMPLETE, call->openclCallback, call_pl);
 					  #else
-					  ret = (a_err) opencl_unpack_2d_face(grid_size, block_size, packed_buf, buf, face, remain_dim, type, async, NULL, NULL, NULL, NULL);
+			//If timers don't exist, get the event via a locally-scoped event to add to the callback
+			cl_event cb_event;
+					  ret = (a_err) opencl_unpack_2d_face(grid_size, block_size, packed_buf, buf, face, remain_dim, type, async, NULL, NULL, NULL, &cb_event);
+			if ((void*)call != NULL && call_pl != NULL) clSetEventCallback(cb_event, CL_COMPLETE, call->openclCallback, call_pl);
 					  #endif
 					  break;
 		#endif

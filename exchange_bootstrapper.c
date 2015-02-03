@@ -201,8 +201,8 @@ void data_initialize(int ni, int nj, int nk) {
             int istat, deviceused, idevice = rank; //integer::istat, deviceused, idevice
 
 //            ! Initialize GPU
-           istat = choose_accel(idevice, (rank & 1 ? metaModePreferOpenCL : metaModePreferCUDA)); //TODO make "choose_accel"
-     //      istat = choose_accel(idevice, metaModePreferCUDA); //TODO make "choose_accel"3
+     //      istat = choose_accel(idevice, (rank & 1 ? metaModePreferOpenCL : metaModePreferCUDA)); //TODO make "choose_accel"
+           istat = choose_accel(idevice, metaModePreferCUDA); //TODO make "choose_accel"3
       //      istat = choose_accel(idevice, metaModePreferGeneric); //TODO make "choose_accel"
 
 //            ! cudaChooseDevice
@@ -304,7 +304,7 @@ int main(int argc, char **argv) {
 	MPI_Init(&argc, &argv);
 
 #ifdef __DEBUG__
-int breakMe = 1;
+int breakMe = 0;
 while (breakMe);
 #endif
 
@@ -500,11 +500,19 @@ switch(g_type) {
 		//send the packed face to proc1
 		ret = meta_mpi_packed_face_send(1, dev_face[face_id], face[face_id], trans_dim[0]*trans_dim[1], i, &request, g_type, async);
 
+//Force the recv and unpack to finish
+meta_flush();
+//At this point the send should be forced to complete
+// which means there's either a failure in the SP helper or the RP helper
+
 
 		//receive and unpack the face
 		//TODO set a_dim3 structs - i believe these are fine
 		//TODO set the face_spec - believe these are fine
 		ret = meta_mpi_recv_and_unpack_face(&dimgrid_red, &dimblock_red, 1, face_spec, dev_data3, dev_face[face_id], face[face_id], i, &request, g_type, async);
+
+//Force the recv and unpack to finish
+meta_flush();
 		meta_copy_h2d(reduction, zero, g_typesize, async);
 		arr_start[0] = ((face_id == 3) ? ni-1 : 0);
 		arr_end[0] = ((face_id == 2) ? 0 : ni-1);
@@ -520,6 +528,9 @@ switch(g_type) {
 		printf("RecvAndUnpacked ZeroFace Integrity Check: %s\n", (*((double*)sum_gpu) == 0.0) ? "FAILED" : "PASSED");
 
 		ret = meta_mpi_recv_and_unpack_face(&dimgrid_red, &dimblock_red, 1, face_spec, dev_data3, dev_face[face_id], face[face_id], i, &request, g_type, async);
+
+//Force the recv and unpack to finish
+meta_flush();
 		meta_copy_h2d(reduction, zero, g_typesize, async);
 		arr_start[0] = ((face_id == 3) ? ni-1 : 0);
 		arr_end[0] = ((face_id == 2) ? 0 : ni-1);
@@ -542,8 +553,12 @@ switch(g_type) {
 		//one of the faces should always be size = 1, since we're only taking a 1-deep subsection
 		// thus, the size of the recv buffer can be the product of all 3 elements
 		a_err ret = meta_mpi_packed_face_recv(0, dev_face[face_id], face[face_id], face_spec->size[0]*face_spec->size[1]*face_spec->size[2], i, &request, g_type, async);
-		//check_buffer(face[face_id], dev_face[face_id], face_spec->size[0]*face_spec->size[1]*face_spec->size[2]);
-		//check_buffer(face[face_id], dev_face[face_id], face_spec->size[0]*face_spec->size[1]*face_spec->size[2]);
+
+//Force the recv and unpack to finish
+//FIXME this flush appears to invalidate something needed by the ensuing reduce at L:570
+meta_flush();
+		//check_buffer(face[face_id], dev_face[face_id], face_spec->size[0]*face_spec->size[1]*face_spec->size[2]);i
+		check_buffer(face[face_id], dev_face[face_id], face_spec->size[0]*face_spec->size[1]*face_spec->size[2]);
 
 		//TODO reduce the packed buf to check the sum - this should be fine
 		meta_copy_h2d(reduction, zero, g_typesize, async);
@@ -562,6 +577,9 @@ switch(g_type) {
 		//TODO set a_dim3 structs - these should be fine until the lib respects user provided ones
 		ret = meta_unpack_2d_face(&dimgrid_red, &dimblock_red, dev_face[face_id], dev_data3, face_spec, g_type, async);
 		printf("Unpack retval: %d\n", ret);
+
+//Force the recv and unpack to finish
+meta_flush();
 		//check_buffer(data3, dev_data3, ni*nj*nk);
 		//TODO reduce the unpacked face to test the sum(s)
 		meta_copy_h2d(reduction, zero, g_typesize, async);
@@ -581,8 +599,14 @@ switch(g_type) {
 		//TODO set the face_spec
 		//Send a face of zeroes
 		ret = meta_mpi_pack_and_send_face(&dimgrid_red, &dimblock_red, 0, opp_face, dev_data3, dev_face[face_id], face[face_id], i, &request, g_type, async);
+
+//Force the recv and unpack to finish
+meta_flush();
 		//Then send a real face
 		ret = meta_mpi_pack_and_send_face(&dimgrid_red, &dimblock_red, 0, face_spec, dev_data3, dev_face[face_id], face[face_id], i, &request, g_type, async);
+
+//Force the recv and unpack to finish
+meta_flush();
 	}
 }
 	//deallocate_();

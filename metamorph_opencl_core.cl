@@ -560,14 +560,14 @@ __kernel void kernel_transpose_2d_db(__global double *odata, __global double *id
 
     if(xIndex_in < tran_width && yIndex_in < tran_height)
         //tile[get_local_id(1)][get_local_id(0)] =  idata[index_in];
-        tile[get_local_id(1)*(get_local_size(0)+1)+get_local_id(0)] =  idata[index_in];
+        tile[get_local_id(1)*(get_local_size(0))+get_local_id(0)] =  idata[index_in];
 
     barrier(CLK_LOCAL_MEM_FENCE | CLK_GLOBAL_MEM_FENCE);
 
     //if(xIndex_out < width && yIndex_out < height)
     if(xIndex_out < tran_height && yIndex_out < tran_width)
         //odata[index_out] = tile[get_local_id(0)][get_local_id(1)];
-        odata[index_out] = tile[get_local_id(0)+(get_local_size(0)+1)*get_local_id(1)];
+        odata[index_out] = tile[get_local_id(1)+(get_local_size(1))*get_local_id(0)];
 
     //Added with the loop to ensure writes are finished before new vals go into shared memory
     barrier(CLK_LOCAL_MEM_FENCE | CLK_GLOBAL_MEM_FENCE);
@@ -621,14 +621,14 @@ __kernel void kernel_transpose_2d_fl(__global float *odata, __global float *idat
 
     if(xIndex_in < tran_width && yIndex_in < tran_height)
         //tile[get_local_id(1)][get_local_id(0)] =  idata[index_in];
-        tile[get_local_id(1)*(get_local_size(0)+1)+get_local_id(0)] =  idata[index_in];
+        tile[get_local_id(1)*(get_local_size(0))+get_local_id(0)] =  idata[index_in];
 
     barrier(CLK_LOCAL_MEM_FENCE | CLK_GLOBAL_MEM_FENCE);
 
     //if(xIndex_out < width && yIndex_out < height)
     if(xIndex_out < tran_height && yIndex_out < tran_width)
         //odata[index_out] = tile[get_local_id(0)][get_local_id(1)];
-        odata[index_out] = tile[get_local_id(0)+(get_local_size(0)+1)*get_local_id(1)];
+        odata[index_out] = tile[get_local_id(1)+(get_local_size(1))*get_local_id(0)];
 
     //Added with the loop to ensure writes are finished before new vals go into shared memory
     barrier(CLK_LOCAL_MEM_FENCE | CLK_GLOBAL_MEM_FENCE);
@@ -682,14 +682,14 @@ __kernel void kernel_transpose_2d_ul(__global unsigned long *odata, __global uns
 
     if(xIndex_in < tran_width && yIndex_in < tran_height)
         //tile[get_local_id(1)][get_local_id(0)] =  idata[index_in];
-        tile[get_local_id(1)*(get_local_size(0)+1)+get_local_id(0)] =  idata[index_in];
+        tile[get_local_id(1)*(get_local_size(0))+get_local_id(0)] =  idata[index_in];
 
     barrier(CLK_LOCAL_MEM_FENCE | CLK_GLOBAL_MEM_FENCE);
 
     //if(xIndex_out < width && yIndex_out < height)
     if(xIndex_out < tran_height && yIndex_out < tran_width)
         //odata[index_out] = tile[get_local_id(0)][get_local_id(1)];
-        odata[index_out] = tile[get_local_id(0)+(get_local_size(0)+1)*get_local_id(1)];
+        odata[index_out] = tile[get_local_id(1)+(get_local_size(1))*get_local_id(0)];
 
     //Added with the loop to ensure writes are finished before new vals go into shared memory
     barrier(CLK_LOCAL_MEM_FENCE | CLK_GLOBAL_MEM_FENCE);
@@ -743,14 +743,14 @@ __kernel void kernel_transpose_2d_in(__global int *odata, __global int *idata, i
 
     if(xIndex_in < tran_width && yIndex_in < tran_height)
         //tile[get_local_id(1)][get_local_id(0)] =  idata[index_in];
-        tile[get_local_id(1)*(get_local_size(0)+1)+get_local_id(0)] =  idata[index_in];
+        tile[get_local_id(1)*(get_local_size(0))+get_local_id(0)] =  idata[index_in];
 
     barrier(CLK_LOCAL_MEM_FENCE | CLK_GLOBAL_MEM_FENCE);
 
     //if(xIndex_out < width && yIndex_out < height)
     if(xIndex_out < tran_height && yIndex_out < tran_width)
         //odata[index_out] = tile[get_local_id(0)][get_local_id(1)];
-        odata[index_out] = tile[get_local_id(0)+(get_local_size(0)+1)*get_local_id(1)];
+        odata[index_out] = tile[get_local_id(1)+(get_local_size(1))*get_local_id(0)];
 
     //Added with the loop to ensure writes are finished before new vals go into shared memory
     barrier(CLK_LOCAL_MEM_FENCE | CLK_GLOBAL_MEM_FENCE);
@@ -804,14 +804,14 @@ __kernel void kernel_transpose_2d_ui(__global unsigned int *odata, __global unsi
 
     if(xIndex_in < tran_width && yIndex_in < tran_height)
         //tile[get_local_id(1)][get_local_id(0)] =  idata[index_in];
-        tile[get_local_id(1)*(get_local_size(0)+1)+get_local_id(0)] =  idata[index_in];
+        tile[get_local_id(1)*(get_local_size(0))+get_local_id(0)] =  idata[index_in];
 
     barrier(CLK_LOCAL_MEM_FENCE | CLK_GLOBAL_MEM_FENCE);
 
     //if(xIndex_out < width && yIndex_out < height)
     if(xIndex_out < tran_height && yIndex_out < tran_width)
         //odata[index_out] = tile[get_local_id(0)][get_local_id(1)];
-        odata[index_out] = tile[get_local_id(0)+(get_local_size(0)+1)*get_local_id(1)];
+        odata[index_out] = tile[get_local_id(1)+(get_local_size(1))*get_local_id(0)];
 
     //Added with the loop to ensure writes are finished before new vals go into shared memory
     barrier(CLK_LOCAL_MEM_FENCE | CLK_GLOBAL_MEM_FENCE);

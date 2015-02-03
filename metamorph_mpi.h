@@ -139,7 +139,7 @@ void help_mpi_request();
 
 //A "forced wait until all requests finish" helper
 // Meant to be used with meta_flush and meta_finish
-void finish_mpi_requests();
+a_err finish_mpi_requests();
 
 void rp_helper(request_record *rp_request);
 void sp_helper(request_record *sp_request);

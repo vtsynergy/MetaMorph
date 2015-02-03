@@ -311,8 +311,9 @@ __global__ void kernel_transpose_2d(T *odata, T *idata, int arr_width, int arr_h
     __syncthreads();
 
     if(xIndex_out < tran_height && yIndex_out < tran_width)
+    //if(xIndex_out < tran_width && yIndex_out < tran_height)
         //odata[index_out] = tile[threadIdx.x][threadIdx.y];
-	odata[index_out] = tile[threadIdx.x+(blockDim.x+1)*threadIdx.y];
+	odata[index_out] = tile[threadIdx.y+(blockDim.y+1)*threadIdx.x];
         //odata[index_out] = tile[threadIdx.x][threadIdx.y];
 
     //Added when the loop was added to ensure writes are finished before new vals go into shared memory
