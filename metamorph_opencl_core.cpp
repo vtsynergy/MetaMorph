@@ -430,11 +430,13 @@ cl_int opencl_dotProd(size_t (* grid_size)[3], size_t (* block_size)[3], void * 
 	cl_int smem_len;
 	size_t grid[3];
 	size_t block[3] = METAMORPH_OCL_DEFAULT_BLOCK;
+	int iters;
 	//Allow for auto-selected grid/block size if either is not specified
 	if (grid_size == NULL || block_size == NULL) {
-		grid[0] = (((*arr_end)[0]-(*arr_start)[0]+(block[0]-1))/block[0])*block[0];
-		grid[1] = (((*arr_end)[1]-(*arr_start)[1]+(block[1]-1))/block[1])*block[1];
-		grid[0] = (((*arr_end)[2]-(*arr_start)[2]+(block[2]-1))/block[2])*block[2];
+		grid[0] = (((*arr_end)[0]-(*arr_start)[0]+(block[0]))/block[0])*block[0];
+		grid[1] = (((*arr_end)[1]-(*arr_start)[1]+(block[1]))/block[1])*block[1];
+		grid[2] = block[2];
+		iters = (((*arr_end)[2]-(*arr_start)[2]+(block[2]))/block[2]);
 	} else {
 		grid[0] = (*grid_size)[0]*(*block_size)[0];
 		grid[1] = (*grid_size)[1]*(*block_size)[1];
@@ -442,6 +444,7 @@ cl_int opencl_dotProd(size_t (* grid_size)[3], size_t (* block_size)[3], void * 
 		block[0] = (*block_size)[0];
 		block[1] = (*block_size)[1];
 		block[2] = (*block_size)[2];
+		iters = (*grid_size)[2];
 	}
 	smem_len =  block[0] * block[1] * block[2];
 	//before enqueuing, get a copy of the top stack frame
@@ -492,7 +495,7 @@ cl_int opencl_dotProd(size_t (* grid_size)[3], size_t (* block_size)[3], void * 
 	ret |= clSetKernelArg(kern, 8, sizeof(cl_int), &(*arr_end)[0]);
 	ret |= clSetKernelArg(kern, 9, sizeof(cl_int), &(*arr_end)[1]);
 	ret |= clSetKernelArg(kern, 10, sizeof(cl_int), &(*arr_end)[2]);
-	ret |= clSetKernelArg(kern, 11, sizeof(cl_int), &(*grid_size)[2]);
+	ret |= clSetKernelArg(kern, 11, sizeof(cl_int), &iters);
 	ret |= clSetKernelArg(kern, 12, sizeof(cl_mem *), &reduced_val);
 	ret |= clSetKernelArg(kern, 13, sizeof(cl_int), &smem_len);
 	switch (type) {
@@ -538,12 +541,14 @@ cl_int opencl_reduce(size_t (* grid_size)[3], size_t (* block_size)[3], void * d
 	cl_kernel kern;
 	cl_int smem_len;
 	size_t grid[3];
-	size_t block[3] = METAMORPH_OCL_DEFAULT_BLOCK;;
+	size_t block[3] = METAMORPH_OCL_DEFAULT_BLOCK;
+	int iters;
 	//Allow for auto-selected grid/block size if either is not specified
 	if (grid_size == NULL || block_size == NULL) {
-		grid[0] = (((*arr_end)[0]-(*arr_start)[0]+(block[0]-1))/block[0])*block[0];
-		grid[1] = (((*arr_end)[1]-(*arr_start)[1]+(block[1]-1))/block[1])*block[1];
-		grid[2] = (((*arr_end)[2]-(*arr_start)[2]+(block[2]-1))/block[2])*block[2];
+		grid[0] = (((*arr_end)[0]-(*arr_start)[0]+(block[0]))/block[0])*block[0];
+		grid[1] = (((*arr_end)[1]-(*arr_start)[1]+(block[1]))/block[1])*block[1];
+		grid[2] = block[2];
+		iters = (((*arr_end)[2]-(*arr_start)[2]+(block[2]))/block[2]);
 	} else {
 		grid[0] = (*grid_size)[0]*(*block_size)[0];
 		grid[1] = (*grid_size)[1]*(*block_size)[1];
@@ -551,6 +556,7 @@ cl_int opencl_reduce(size_t (* grid_size)[3], size_t (* block_size)[3], void * d
 		block[0] = (*block_size)[0];
 		block[1] = (*block_size)[1];
 		block[2] = (*block_size)[2];
+		iters = (*grid_size)[2];
 	}
 	smem_len =  block[0] * block[1] * block[2];
 	//before enqueuing, get a copy of the top stack frame
@@ -600,7 +606,7 @@ cl_int opencl_reduce(size_t (* grid_size)[3], size_t (* block_size)[3], void * d
 	ret |= clSetKernelArg(kern, 7, sizeof(cl_int), &(*arr_end)[0]);
 	ret |= clSetKernelArg(kern, 8, sizeof(cl_int), &(*arr_end)[1]);
 	ret |= clSetKernelArg(kern, 9, sizeof(cl_int), &(*arr_end)[2]);
-	ret |= clSetKernelArg(kern, 10, sizeof(cl_int), &(*grid_size)[2]);
+	ret |= clSetKernelArg(kern, 10, sizeof(cl_int), &iters);
 	ret |= clSetKernelArg(kern, 11, sizeof(cl_mem *), &reduced_val);
 	ret |= clSetKernelArg(kern, 12, sizeof(cl_int), &smem_len);
 	switch (type) {

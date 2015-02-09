@@ -331,14 +331,17 @@ cudaError_t cuda_dotProd(size_t (* grid_size)[3], size_t (* block_size)[3], void
 	size_t smem_len;
 	dim3 grid;
 	dim3 block;
+	int iters;
 	//Allow for auto-selected grid/block size if either is not specified
 	if (grid_size == NULL || block_size == NULL) {
 		block = METAMORPH_CUDA_DEFAULT_BLOCK;
 		//do not subtract 1 from blocx for the case when end == start
-		grid = dim3((((*arr_end)[0]-(*arr_start)[0]+(block.x-1))/block.x), (((*arr_end)[1]-(*arr_start)[1]+(block.y-1))/block.y), (((*arr_end)[2]-(*arr_start)[2]+(block.z-1))/block.z));
+		grid = dim3((((*arr_end)[0]-(*arr_start)[0]+(block.x))/block.x), (((*arr_end)[1]-(*arr_start)[1]+(block.y))/block.y), 1);
+		iters = (((*arr_end)[2]-(*arr_start)[2]+(block.z))/block.z);
 	} else {
 		grid = dim3((*grid_size)[0], (*grid_size)[1], 1);
 		block = dim3((*block_size)[0], (*block_size)[1], (*block_size)[2]);
+		iters = (int)(*grid_size)[2];
 	}
 	smem_len = block.x * block.y * block.z;
 	if (event != NULL) {
@@ -347,23 +350,23 @@ cudaError_t cuda_dotProd(size_t (* grid_size)[3], size_t (* block_size)[3], void
 	}
 	switch (type) {
 		case a_db:
-			kernel_dotProd<double><<<grid,block,smem_len*sizeof(double)>>>((double*)data1, (double*)data2, (*array_size)[0], (*array_size)[1], (*array_size)[2], (*arr_start)[0], (*arr_start)[1], (*arr_start)[2], (*arr_end)[0], (*arr_end)[1], (*arr_end)[2], (*grid_size)[2], (double*)reduced_val, smem_len);
+			kernel_dotProd<double><<<grid,block,smem_len*sizeof(double)>>>((double*)data1, (double*)data2, (*array_size)[0], (*array_size)[1], (*array_size)[2], (*arr_start)[0], (*arr_start)[1], (*arr_start)[2], (*arr_end)[0], (*arr_end)[1], (*arr_end)[2], iters, (double*)reduced_val, smem_len);
 		break;
 
 		case a_fl:
-			kernel_dotProd<float><<<grid,block,smem_len*sizeof(float)>>>((float*)data1, (float*)data2, (*array_size)[0], (*array_size)[1], (*array_size)[2], (*arr_start)[0], (*arr_start)[1], (*arr_start)[2], (*arr_end)[0], (*arr_end)[1], (*arr_end)[2], (*grid_size)[2], (float*)reduced_val, smem_len);
+			kernel_dotProd<float><<<grid,block,smem_len*sizeof(float)>>>((float*)data1, (float*)data2, (*array_size)[0], (*array_size)[1], (*array_size)[2], (*arr_start)[0], (*arr_start)[1], (*arr_start)[2], (*arr_end)[0], (*arr_end)[1], (*arr_end)[2], iters, (float*)reduced_val, smem_len);
 		break;
 
 		case a_ul:
-			kernel_dotProd<unsigned long long><<<grid,block,smem_len*sizeof(unsigned long long)>>>((unsigned long long*)data1, (unsigned long long*)data2, (*array_size)[0], (*array_size)[1], (*array_size)[2], (*arr_start)[0], (*arr_start)[1], (*arr_start)[2], (*arr_end)[0], (*arr_end)[1], (*arr_end)[2], (*grid_size)[2], (unsigned long long*)reduced_val, smem_len);
+			kernel_dotProd<unsigned long long><<<grid,block,smem_len*sizeof(unsigned long long)>>>((unsigned long long*)data1, (unsigned long long*)data2, (*array_size)[0], (*array_size)[1], (*array_size)[2], (*arr_start)[0], (*arr_start)[1], (*arr_start)[2], (*arr_end)[0], (*arr_end)[1], (*arr_end)[2], iters, (unsigned long long*)reduced_val, smem_len);
 		break;
 
 		case a_in:
-			kernel_dotProd<int><<<grid,block,smem_len*sizeof(int)>>>((int*)data1, (int*)data2, (*array_size)[0], (*array_size)[1], (*array_size)[2], (*arr_start)[0], (*arr_start)[1], (*arr_start)[2], (*arr_end)[0], (*arr_end)[1], (*arr_end)[2], (*grid_size)[2], (int *)reduced_val, smem_len);
+			kernel_dotProd<int><<<grid,block,smem_len*sizeof(int)>>>((int*)data1, (int*)data2, (*array_size)[0], (*array_size)[1], (*array_size)[2], (*arr_start)[0], (*arr_start)[1], (*arr_start)[2], (*arr_end)[0], (*arr_end)[1], (*arr_end)[2], iters, (int *)reduced_val, smem_len);
 		break;
 
 		case a_ui:
-			kernel_dotProd<unsigned int><<<grid,block,smem_len*sizeof(unsigned int)>>>((unsigned int*)data1, (unsigned int*)data2, (*array_size)[0], (*array_size)[1], (*array_size)[2], (*arr_start)[0], (*arr_start)[1], (*arr_start)[2], (*arr_end)[0], (*arr_end)[1], (*arr_end)[2], (*grid_size)[2], (unsigned int*)reduced_val, smem_len);
+			kernel_dotProd<unsigned int><<<grid,block,smem_len*sizeof(unsigned int)>>>((unsigned int*)data1, (unsigned int*)data2, (*array_size)[0], (*array_size)[1], (*array_size)[2], (*arr_start)[0], (*arr_start)[1], (*arr_start)[2], (*arr_end)[0], (*arr_end)[1], (*arr_end)[2], iters, (unsigned int*)reduced_val, smem_len);
 		break;
 
 		default:
@@ -384,39 +387,43 @@ cudaError_t cuda_reduce(size_t (* grid_size)[3], size_t (* block_size)[3], void 
 	size_t smem_len;
 	dim3 grid;
 	dim3 block;
+	int iters;
 	//Allow for auto-selected grid/block size if either is not specified
 	if (grid_size == NULL || block_size == NULL) {
 		block = METAMORPH_CUDA_DEFAULT_BLOCK;
-		grid = dim3((((*arr_end)[0]-(*arr_start)[0]+(block.x-1))/block.x), (((*arr_end)[1]-(*arr_start)[1]+(block.y-1))/block.y), (((*arr_end)[2]-(*arr_start)[2]+(block.z-1))/block.z));
+		grid = dim3((((*arr_end)[0]-(*arr_start)[0]+(block.x))/block.x), (((*arr_end)[1]-(*arr_start)[1]+(block.y))/block.y), 1);
+		iters =(((*arr_end)[2]-(*arr_start)[2]+(block.z))/block.z);
 	} else {
 		grid = dim3((*grid_size)[0], (*grid_size)[1], 1);
 		block = dim3((*block_size)[0], (*block_size)[1], (*block_size)[2]);
+		iters = (*grid_size)[2];
 	}
 	smem_len = block.x * block.y * block.z;
 	if (event != NULL) {
 		cudaEventCreate(&(*event)[0]);
 		cudaEventRecord((*event)[0], 0);
 	}
+	//printf("CUDA Config: grid(%d, %d, %d) block(%d, %d, %d) iters %d\n", grid.x, grid.y, grid.z, block.x, block.y, block.z, iters);
 	switch (type) {
 		case a_db:
 
-			kernel_reduction3<double><<<grid,block,smem_len*sizeof(double)>>>((double*)data, (*array_size)[0], (*array_size)[1], (*array_size)[2], (*arr_start)[0], (*arr_start)[1], (*arr_start)[2], (*arr_end)[0], (*arr_end)[1], (*arr_end)[2], (*grid_size)[2], (double*)reduced_val, (*block_size)[0] * (*block_size)[1] * (*block_size)[2]);
+			kernel_reduction3<double><<<grid,block,smem_len*sizeof(double)>>>((double*)data, (*array_size)[0], (*array_size)[1], (*array_size)[2], (*arr_start)[0], (*arr_start)[1], (*arr_start)[2], (*arr_end)[0], (*arr_end)[1], (*arr_end)[2], iters, (double*)reduced_val, smem_len);
 		break;
 
 		case a_fl:
-			kernel_reduction3<float><<<grid,block,smem_len*sizeof(float)>>>((float*)data, (*array_size)[0], (*array_size)[1], (*array_size)[2], (*arr_start)[0], (*arr_start)[1], (*arr_start)[2], (*arr_end)[0], (*arr_end)[1], (*arr_end)[2], (*grid_size)[2], (float*)reduced_val, (*block_size)[0] * (*block_size)[1] * (*block_size)[2]);
+			kernel_reduction3<float><<<grid,block,smem_len*sizeof(float)>>>((float*)data, (*array_size)[0], (*array_size)[1], (*array_size)[2], (*arr_start)[0], (*arr_start)[1], (*arr_start)[2], (*arr_end)[0], (*arr_end)[1], (*arr_end)[2], iters, (float*)reduced_val, smem_len);
 		break;
 
 		case a_ul:
-			kernel_reduction3<unsigned long long><<<grid,block,smem_len*sizeof(unsigned long long)>>>((unsigned long long*)data, (*array_size)[0], (*array_size)[1], (*array_size)[2], (*arr_start)[0], (*arr_start)[1], (*arr_start)[2], (*arr_end)[0], (*arr_end)[1], (*arr_end)[2], (*grid_size)[2], (unsigned long long*)reduced_val, (*block_size)[0] * (*block_size)[1] * (*block_size)[2]);
+			kernel_reduction3<unsigned long long><<<grid,block,smem_len*sizeof(unsigned long long)>>>((unsigned long long*)data, (*array_size)[0], (*array_size)[1], (*array_size)[2], (*arr_start)[0], (*arr_start)[1], (*arr_start)[2], (*arr_end)[0], (*arr_end)[1], (*arr_end)[2], iters, (unsigned long long*)reduced_val, smem_len);
 		break;
 
 		case a_in:
-			kernel_reduction3<int><<<grid,block,smem_len*sizeof(int)>>>((int*)data, (*array_size)[0], (*array_size)[1], (*array_size)[2], (*arr_start)[0], (*arr_start)[1], (*arr_start)[2], (*arr_end)[0], (*arr_end)[1], (*arr_end)[2], (*grid_size)[2], (int*)reduced_val, (*block_size)[0] * (*block_size)[1] * (*block_size)[2]);
+			kernel_reduction3<int><<<grid,block,smem_len*sizeof(int)>>>((int*)data, (*array_size)[0], (*array_size)[1], (*array_size)[2], (*arr_start)[0], (*arr_start)[1], (*arr_start)[2], (*arr_end)[0], (*arr_end)[1], (*arr_end)[2], iters, (int*)reduced_val, smem_len);
 		break;
 
 		case a_ui:
-			kernel_reduction3<unsigned int><<<grid,block,smem_len*sizeof(unsigned int)>>>((unsigned int*)data, (*array_size)[0], (*array_size)[1], (*array_size)[2], (*arr_start)[0], (*arr_start)[1], (*arr_start)[2], (*arr_end)[0], (*arr_end)[1], (*arr_end)[2], (*grid_size)[2], (unsigned int*)reduced_val, (*block_size)[0] * (*block_size)[1] * (*block_size)[2]);
+			kernel_reduction3<unsigned int><<<grid,block,smem_len*sizeof(unsigned int)>>>((unsigned int*)data, (*array_size)[0], (*array_size)[1], (*array_size)[2], (*arr_start)[0], (*arr_start)[1], (*arr_start)[2], (*arr_end)[0], (*arr_end)[1], (*arr_end)[2], iters, (unsigned int*)reduced_val, smem_len);
 		break;
 
 		default:

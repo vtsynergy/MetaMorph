@@ -201,8 +201,8 @@ void data_initialize(int ni, int nj, int nk) {
             int istat, deviceused, idevice = rank; //integer::istat, deviceused, idevice
 
 //            ! Initialize GPU
-     //      istat = choose_accel(idevice, (rank & 1 ? metaModePreferOpenCL : metaModePreferCUDA)); //TODO make "choose_accel"
-           istat = choose_accel(idevice, metaModePreferCUDA); //TODO make "choose_accel"3
+           istat = choose_accel(idevice, (rank & 1 ? metaModePreferOpenCL : metaModePreferCUDA)); //TODO make "choose_accel"
+           //istat = choose_accel(idevice, metaModePreferCUDA); //TODO make "choose_accel"3
       //      istat = choose_accel(idevice, metaModePreferGeneric); //TODO make "choose_accel"
 
 //            ! cudaChooseDevice
@@ -300,6 +300,12 @@ void check_buffer(void* h_buf, void * d_buf, int leng) {
 
 }
 
+//Returns 1 if the relative difference between expect and test is within tol
+//Returns 0 otherwise
+int check_fp(double expect, double test, double tol) {
+	return (abs((expect-test)/expect) < tol);
+}
+
 int main(int argc, char **argv) {
 	MPI_Init(&argc, &argv);
 
@@ -324,12 +330,12 @@ while (breakMe);
 	printf("Hello from rank %d!\n", rank);
 	int i = argc;
 	int ni, nj, nk, tx, ty, tz, face_id, l_type;
-	a_bool async;
+	a_bool async, autoconfig;
 	meta_2d_face_indexed * face_spec;
 	
-	a_dim3 dimgrid_red, dimblock_red, dimgrid_put, dimblock_put, dimarray_3d, arr_start, arr_end, dim_array2d, start_2d, end_2d, trans_dim, rtrans_dim;
-	if (i < 10) {
-		printf("<ni> <nj> <nk> <tblockx> <tblocky> <tblockz> <face> <data_type> <async>\n");
+	a_dim3 dimgrid_red, dimblock_red, dimgrid_tr_red, dimarray_3d, arr_start, arr_end, dim_array2d, start_2d, end_2d, trans_dim, rtrans_dim;
+	if (i < 11) {
+		printf("<ni> <nj> <nk> <tblockx> <tblocky> <tblockz> <face> <data_type> <async> <autoconfig>\n");
 		return(1);
 	}
 	ni = atoi(argv[1]);
@@ -346,6 +352,7 @@ while (breakMe);
 	set_type((meta_type_id)l_type);
 
 	async = (a_bool)atoi(argv[9]);
+	autoconfig = (a_bool)atoi(argv[10]);
 
 	dimblock_red[0] = tx, dimblock_red[1] = ty, dimblock_red[2] = tz;
 	dimgrid_red[0] = ni/tx + ((ni%tx) ? 1 : 0);
@@ -412,7 +419,13 @@ switch(g_type) {
 		arr_end[2] = ((face_id == 0) ? 0 : nk-1);
 		//check_dims(dimarray_3d, arr_start, arr_end);
 //		printf("Integrity check dim(%d, %d, %d) start(%d, %d, %d) end(%d, %d, %d)\n", dimarray_3d[0], dimarray_3d[1], dimarray_3d[2], arr_start[0], arr_start[1], arr_start[2], arr_end[0], arr_end[1], arr_end[2]);
-		a_err ret = meta_reduce(&dimgrid_red, &dimblock_red, dev_data3, &dimarray_3d, &arr_start, &arr_end, reduction, g_type, async);
+		a_err ret = meta_reduce(autoconfig ? NULL : &dimgrid_red, autoconfig ? NULL : &dimblock_red, dev_data3, &dimarray_3d, &arr_start, &arr_end, reduction, g_type, async);
+		//a_dim3 testgrid, testblock;
+		//testgrid[0] = testgrid[1] = testgrid[2] = 1;
+		//testblock[0] = 16;
+		//testblock[1] = 8;
+		//testblock[2] = 1;
+		//a_err ret = meta_reduce(&testgrid, &testblock, dev_data3, &dimarray_3d, &arr_start, &arr_end, reduction, g_type, async);
 		printf("Reduce Error: %d\n", ret);
 		//pull the sum back
 		meta_copy_d2h(sum_gpu, reduction, g_typesize, async);
@@ -437,7 +450,7 @@ switch(g_type) {
 		end_2d[2] = (dim_array2d[2] == 1 ? 0 : nk-1);
 	
 		//check_dims(dim_array2d, start_2d, end_2d);	
-		ret = meta_reduce(&dimgrid_red, &dimblock_red, dev_face[face_id], &dim_array2d, &start_2d, &end_2d, reduction, g_type, async);
+		ret = meta_reduce(autoconfig ? NULL : &dimgrid_red, autoconfig ? NULL : &dimblock_red, dev_face[face_id], &dim_array2d, &start_2d, &end_2d, reduction, g_type, async);
 		meta_copy_d2h(sum_gpu, reduction, g_typesize, async);
 		//The 4 ternaries ensure the right args are passed to match the face
 		// so this one call will work for any face
@@ -473,9 +486,10 @@ switch(g_type) {
 		rtrans_dim[1] = trans_dim[0];
 		rtrans_dim[2] = 1;
 		start_2d[0] = start_2d[1] = start_2d[2] = 0;
-		end_2d[0] = rtrans_dim[0]-1, end_2d[1] = rtrans_dim[1]-1, end_2d[2] = 0;
+		end_2d[0] = trans_dim[0]-1, end_2d[1] = trans_dim[1]-1, end_2d[2] = 0;
 		//check_dims(rtrans_dim, start_2d, end_2d);
-		ret = meta_reduce(&dimgrid_red, &dimblock_red, dev_face[(face_id & 1)? face_id-1 : face_id+1], &rtrans_dim, &start_2d, &end_2d, reduction, g_type, async);
+		ret = meta_reduce(autoconfig ? NULL : &dimgrid_red, autoconfig ? NULL : &dimblock_red, dev_face[(face_id & 1)? face_id-1 : face_id+1], &trans_dim, &start_2d, &end_2d, reduction, g_type, async);
+		//ret = meta_reduce(NULL, NULL, dev_face[(face_id & 1)? face_id-1 : face_id+1], &trans_dim, &start_2d, &end_2d, reduction, g_type, async);
 		meta_copy_d2h(sum_gpu, reduction, g_typesize, async);
 		//The 4 ternaries ensure the right args are passed to match the face
 		// so this one call will work for any face
@@ -484,13 +498,16 @@ switch(g_type) {
 
 		//transpose the face back
 		//TODO figure out what's wrong with transpose and re-enable
-		ret = meta_transpose_2d_face(&dimgrid_red, &dimblock_red, dev_face[(face_id & 1) ? face_id-1 : face_id+1], dev_face[face_id], &rtrans_dim, &rtrans_dim, g_type, async);
+		ret = meta_transpose_2d_face(autoconfig ? NULL : &dimgrid_red, autoconfig ? NULL : &dimblock_red, dev_face[(face_id & 1) ? face_id-1 : face_id+1], dev_face[face_id], &rtrans_dim, &rtrans_dim, g_type, async);
 		//check_buffer(face[face_id], dev_face[face_id], face_spec->size[0]*face_spec->size[1]*face_spec->size[2]);
 		//reduce the specified sums to ensure the reverse transpose worked too
 		meta_copy_h2d(reduction, zero, g_typesize, async);
 		start_2d[0] = start_2d[1] = start_2d[2] = 0;
-		end_2d[0] = trans_dim[0]-1, end_2d[1] = trans_dim[1]-1, end_2d[2] = 0;
-		ret = meta_reduce(&dimgrid_red, &dimblock_red, dev_face[(face_id & 1)? face_id-1 : face_id+1], &trans_dim, &start_2d, &end_2d, reduction, g_type, async);
+		end_2d[0] = rtrans_dim[0]-1, end_2d[1] = rtrans_dim[1]-1, end_2d[2] = 0;
+		dimgrid_tr_red[0] = dimgrid_red[1];
+		dimgrid_tr_red[1] = dimgrid_red[0];
+		dimgrid_tr_red[2] = dimgrid_red[2];
+		ret = meta_reduce(autoconfig ? NULL : &dimgrid_tr_red, autoconfig ? NULL : &dimblock_red, dev_face[(face_id & 1)? face_id-1 : face_id+1], &rtrans_dim, &start_2d, &end_2d, reduction, g_type, async);
 		meta_copy_d2h(sum_gpu, reduction, g_typesize, async);
 		//The 4 ternaries ensure the right args are passed to match the face
 		// so this one call will work for any face
@@ -509,7 +526,7 @@ meta_flush();
 		//receive and unpack the face
 		//TODO set a_dim3 structs - i believe these are fine
 		//TODO set the face_spec - believe these are fine
-		ret = meta_mpi_recv_and_unpack_face(&dimgrid_red, &dimblock_red, 1, face_spec, dev_data3, dev_face[face_id], face[face_id], i, &request, g_type, async);
+		ret = meta_mpi_recv_and_unpack_face(autoconfig ? NULL : &dimgrid_red, autoconfig ? NULL : &dimblock_red, 1, face_spec, dev_data3, dev_face[face_id], face[face_id], i, &request, g_type, async);
 
 //Force the recv and unpack to finish
 meta_flush();
@@ -521,13 +538,14 @@ meta_flush();
 		arr_start[2] = ((face_id == 1) ? nk-1 : 0);
 		arr_end[2] = ((face_id == 0) ? 0 : nk-1);
 		//check_dims(dimarray_3d, arr_start, arr_end);
-		ret = meta_reduce(&dimgrid_red, &dimblock_red, dev_data3, &dimarray_3d, &arr_start, &arr_end, reduction, g_type, async);
+		ret = meta_reduce(autoconfig ? NULL : &dimgrid_red, autoconfig ? NULL : &dimblock_red, dev_data3, &dimarray_3d, &arr_start, &arr_end, reduction, g_type, async);
 		meta_copy_d2h(sum_gpu, reduction, g_typesize, async);
 		//The 4 ternaries ensure the right args are passed to match the face
 		// so this one call will work for any face
-		printf("RecvAndUnpacked ZeroFace Integrity Check: %s\n", (*((double*)sum_gpu) == 0.0) ? "FAILED" : "PASSED");
+		printf("RecvAndUnpacked ZeroFace Integrity Check: %s\n", (check_fp(0.0, *((double*)sum_gpu), 0.000001)) ? "PASSED" : "FAILED");
+		if (!check_fp(0.0, *((double*)sum_gpu), 0.000001)) printf("\tExpected [0.0], returned [%f]!\n", sum_gpu);
 
-		ret = meta_mpi_recv_and_unpack_face(&dimgrid_red, &dimblock_red, 1, face_spec, dev_data3, dev_face[face_id], face[face_id], i, &request, g_type, async);
+		ret = meta_mpi_recv_and_unpack_face(autoconfig ? NULL : &dimgrid_red, autoconfig ? NULL : &dimblock_red, 1, face_spec, dev_data3, dev_face[face_id], face[face_id], i, &request, g_type, async);
 
 //Force the recv and unpack to finish
 meta_flush();
@@ -539,7 +557,7 @@ meta_flush();
 		arr_start[2] = ((face_id == 1) ? nk-1 : 0);
 		arr_end[2] = ((face_id == 0) ? 0 : nk-1);
 		//check_dims(dimarray_3d, arr_start, arr_end);
-		ret = meta_reduce(&dimgrid_red, &dimblock_red, dev_data3, &dimarray_3d, &arr_start, &arr_end, reduction, g_type, async);
+		ret = meta_reduce(autoconfig ? NULL : &dimgrid_red, autoconfig ? NULL : &dimblock_red, dev_data3, &dimarray_3d, &arr_start, &arr_end, reduction, g_type, async);
 		meta_copy_d2h(sum_gpu, reduction, g_typesize, async);
 		//The 4 ternaries ensure the right args are passed to match the face
 		// so this one call will work for any face
@@ -558,7 +576,7 @@ meta_flush();
 //FIXME this flush appears to invalidate something needed by the ensuing reduce at L:570
 meta_flush();
 		//check_buffer(face[face_id], dev_face[face_id], face_spec->size[0]*face_spec->size[1]*face_spec->size[2]);i
-		check_buffer(face[face_id], dev_face[face_id], face_spec->size[0]*face_spec->size[1]*face_spec->size[2]);
+		//check_buffer(face[face_id], dev_face[face_id], face_spec->size[0]*face_spec->size[1]*face_spec->size[2]);
 
 		//TODO reduce the packed buf to check the sum - this should be fine
 		meta_copy_h2d(reduction, zero, g_typesize, async);
@@ -567,7 +585,7 @@ meta_flush();
 		//FIXME: Make sure this reduce doesn't care if x or y is length 1, it *should* be fine
 		trans_dim[0] = face_spec->size[2], trans_dim[1] = face_spec->size[1], trans_dim[2] = face_spec->size[0];
 		//check_dims(trans_dim, start_2d, end_2d);
-		ret = meta_reduce(&dimgrid_red, &dimblock_red, dev_face[face_id], &trans_dim, &start_2d, &end_2d, reduction, g_type, async);
+		ret = meta_reduce(autoconfig ? NULL : &dimgrid_red, autoconfig ? NULL : &dimblock_red, dev_face[face_id], &trans_dim, &start_2d, &end_2d, reduction, g_type, async);
 		meta_copy_d2h(sum_gpu, reduction, g_typesize, async);
 		//The 4 ternaries ensure the right args are passed to match the face
 		// so this one call will work for any face
@@ -575,7 +593,7 @@ meta_flush();
 		
 		//unpack it, reduce/test the sum again
 		//TODO set a_dim3 structs - these should be fine until the lib respects user provided ones
-		ret = meta_unpack_2d_face(&dimgrid_red, &dimblock_red, dev_face[face_id], dev_data3, face_spec, g_type, async);
+		ret = meta_unpack_2d_face(autoconfig ? NULL : &dimgrid_red, autoconfig ? NULL : &dimblock_red, dev_face[face_id], dev_data3, face_spec, g_type, async);
 		printf("Unpack retval: %d\n", ret);
 
 //Force the recv and unpack to finish
@@ -590,7 +608,7 @@ meta_flush();
 		arr_start[2] = ((face_id == 1) ? nk-1 : 0);
 		arr_end[2] = ((face_id == 0) ? 0 : nk-1);
 		//check_dims(dimarray_3d, arr_start, arr_end);
-		ret = meta_reduce(&dimgrid_red, &dimblock_red, dev_data3, &dimarray_3d, &arr_start, &arr_end, reduction, g_type, async);
+		ret = meta_reduce(autoconfig ? NULL : &dimgrid_red, autoconfig ? NULL : &dimblock_red, dev_data3, &dimarray_3d, &arr_start, &arr_end, reduction, g_type, async);
 		meta_copy_d2h(sum_gpu, reduction, g_typesize, async);
 		//The 4 ternaries ensure the right args are passed to match the face
 		// so this one call will work for any face
@@ -598,12 +616,12 @@ meta_flush();
 		//combined pack and send it back
 		//TODO set the face_spec
 		//Send a face of zeroes
-		ret = meta_mpi_pack_and_send_face(&dimgrid_red, &dimblock_red, 0, opp_face, dev_data3, dev_face[face_id], face[face_id], i, &request, g_type, async);
+		ret = meta_mpi_pack_and_send_face(autoconfig ? NULL : &dimgrid_red, &autoconfig ? NULL : dimblock_red, 0, opp_face, dev_data3, dev_face[face_id], face[face_id], i, &request, g_type, async);
 
 //Force the recv and unpack to finish
 meta_flush();
 		//Then send a real face
-		ret = meta_mpi_pack_and_send_face(&dimgrid_red, &dimblock_red, 0, face_spec, dev_data3, dev_face[face_id], face[face_id], i, &request, g_type, async);
+		ret = meta_mpi_pack_and_send_face(autoconfig ? NULL : &dimgrid_red, autoconfig ? NULL : &dimblock_red, 0, face_spec, dev_data3, dev_face[face_id], face[face_id], i, &request, g_type, async);
 
 //Force the recv and unpack to finish
 meta_flush();
@@ -614,4 +632,4 @@ meta_flush();
 	metaTimersFinish();
 	#endif //WITH_TIMERS
 	MPI_Finalize();
-}
+}	
