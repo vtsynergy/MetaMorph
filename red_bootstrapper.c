@@ -45,7 +45,7 @@ void set_type(meta_type_id type) {
 void * dev_data3, * dev_data4, * dev_data3_2, * reduction;
 // host buffers
 void * data3, * data4;
-int ni, nj, nk, nm;
+int ni, nj, nk, nm, iters;
 
 //      !This does the host and device data allocations.
 	void data_allocate(int i, int j, int k, int m) {
@@ -209,18 +209,18 @@ int ni, nj, nk, nm;
 	struct timeval start, end;
 
 	gettimeofday(&start, NULL);
-	for (iter = 0; iter < 1000; iter++)
+	for (iter = 0; iter < iters; iter++)
             ret |= meta_copy_h2d( dev_data3, data3, g_typesize*ni*nj*nk, false);
 	gettimeofday(&end, NULL);
-	printf("D2H time: %f\n", ((end.tv_sec-start.tv_sec)*1000000.0+(end.tv_usec-start.tv_usec))/(1000));
+	printf("D2H time: %f\n", ((end.tv_sec-start.tv_sec)*1000000.0+(end.tv_usec-start.tv_usec))/(iters));
 
             ret |= meta_copy_h2d( dev_data4, data4, g_typesize*ni*nj*nk*nm, false);
 
 	gettimeofday(&start, NULL);
-	for (iter = 0; iter < 1000; iter++)
+	for (iter = 0; iter < iters; iter++)
             ret |= meta_copy_d2d( dev_data3_2, dev_data3, g_typesize*ni*nj*nk, false);
 	gettimeofday(&end, NULL);
-	printf("D2D time: %f\n", ((end.tv_sec-start.tv_sec)*1000000.0+(end.tv_usec-start.tv_usec))/(1000));
+	printf("D2D time: %f\n", ((end.tv_sec-start.tv_sec)*1000000.0+(end.tv_usec-start.tv_usec))/(iters));
 	
 } 
 
@@ -257,8 +257,8 @@ int ni, nj, nk, nm;
             char args[32];
 
             i = argc; 
-            if (i < 9) { 
-                  printf("<ni><nj><nk><nm><tblockx><tblocky><tblockz><type>"); 
+            if (i < 10) { 
+                  printf("<ni><nj><nk><nm><tblockx><tblocky><tblockz><type><iters>"); 
                   return(1); //stop
             } 
             ni = atoi(argv[1]);
@@ -273,6 +273,7 @@ int ni, nj, nk, nm;
 
 	    l_type = atoi(argv[8]);
 	    set_type((meta_type_id)l_type);
+	    iters = atoi(argv[9]);
 //For simplicity when testing across all types, these are kept as void
 // and explicitly cast for the few calls they are necessary, based on g_type
             void * sum_dot_gpu, * zero;
@@ -364,11 +365,11 @@ switch(g_type) {
 		struct timeval start, end;
 		a_err ret;
 		gettimeofday(&start, NULL);
-		for (iter = 0; iter < 1000; iter++)
+		for (iter = 0; iter < iters; iter++)
 			ret = meta_dotProd(&dimgrid, &dimblock, dev_data3, dev_data3_2, &dimarray, &arr_start, &arr_end, reduction, g_type, false);
 		gettimeofday(&end, NULL);
-		//fprintf(stderr, "Kernel Status: %d\n", ret);
-		printf("Kern time: %f\n", ((end.tv_sec-start.tv_sec)*1000000.0+(end.tv_usec-start.tv_usec))/(1000));
+		fprintf(stderr, "Kernel Status: %d\n", ret);
+		printf("Kern time: %f\n", ((end.tv_sec-start.tv_sec)*1000000.0+(end.tv_usec-start.tv_usec))/(iters));
 
 //           kernel_reduction3<<<dimgrid,dimblock,tx*ty*tz*sizeof(double)>>>(dev_data3, //call kernel_reduction3<<<dimgrid,dimblock,tx*ty*tz*8>>>(dev_data3 & //TODO move into CUDA backend, make "meta_reduce"
 //           dev_data3_2, ni, nj, nk, 2, 2, 2, nj-1, ni-1, nk-1, gz, reduction, tx*ty*tz); //& ,dev_data3_2,ni,nj,nk,2,2,2,nj-1,ni-1,nk-1,gz,reduction,tx*ty*tz) //TODO - see previous
@@ -377,32 +378,35 @@ switch(g_type) {
 		istat = meta_copy_d2h(sum_dot_gpu, reduction, g_typesize, false);
 switch(g_type) {
 	case a_db:
-		printf("Test Dot-Product:\t%s\n", (*(double*)sum_dot_gpu == (double)((ni-2)*(nj-2)*(nk-2)) ? "PASSED" : "FAILED")); //print *, "Test Reduction:",sum_dot_gpu
+		printf("Test Dot-Product:\t%s\n\tExpect[%d] Returned[%f]\n", (*(double*)sum_dot_gpu == (double)((ni-2)*(nj-2)*(nk-2)*iters) ? "PASSED" : "FAILED"), (ni-2)*(nj-2)*(nk-2)*iters, (*(double*)sum_dot_gpu)); //print *, "Test Reduction:",sum_dot_gpu
 	break;
 
 	case a_fl:
-		printf("Test Dot-Product:\t%f\n", *(float*)sum_dot_gpu); //print *, "Test Reduction:",sum_dot_gpu
+		printf("Test Dot-Product:\t%s\n\tExpect[%d] Returned[%f]\n", (*(float*)sum_dot_gpu == (float)((ni-2)*(nj-2)*(nk-2)*iters) ? "PASSED" : "FAILED"), (ni-2)*(nj-2)*(nk-2)*iters, (*(float*)sum_dot_gpu)); //print *, "Test Reduction:",sum_dot_gpu
 	break;
 
 	case a_ul:
+		printf("Test Dot-Product:\t%s\n\tExpect[%d] Returned[%ld]\n", (*(unsigned long*)sum_dot_gpu == (unsigned long)((ni-2)*(nj-2)*(nk-2)*iters) ? "PASSED" : "FAILED"), (ni-2)*(nj-2)*(nk-2)*iters, (*(unsigned long*)sum_dot_gpu)); //print *, "Test Reduction:",sum_dot_gpu
 		printf("Test Dot-Product:\t%lu\n", *(unsigned long*)sum_dot_gpu); //print *, "Test Reduction:",sum_dot_gpu
 	break;
 
 	case a_in:
+		printf("Test Dot-Product:\t%s\n\tExpect[%d] Returned[%d]\n", (*(int*)sum_dot_gpu == (int)((ni-2)*(nj-2)*(nk-2)*iters) ? "PASSED" : "FAILED"), (ni-2)*(nj-2)*(nk-2)*iters, (*(int*)sum_dot_gpu)); //print *, "Test Reduction:",sum_dot_gpu
 		printf("Test Dot-Product:\t%d\n", *(int*)sum_dot_gpu); //print *, "Test Reduction:",sum_dot_gpu
 	break;
 
 	case a_ui:
+		printf("Test Dot-Product:\t%s\n\tExpect[%d] Returned[%d]\n", (*(unsigned int*)sum_dot_gpu == (unsigned int)((ni-2)*(nj-2)*(nk-2)*iters) ? "PASSED" : "FAILED"), (ni-2)*(nj-2)*(nk-2)*iters, (*(unsigned int*)sum_dot_gpu)); //print *, "Test Reduction:",sum_dot_gpu
 		printf("Test Dot-Product:\t%d\n", *(unsigned int*)sum_dot_gpu); //print *, "Test Reduction:",sum_dot_gpu
 	break;
 }
 
 	//TODO add a copy-back timer loop
 	gettimeofday(&start, NULL);
-	for (iter = 0; iter < 1000; iter++)
+	for (iter = 0; iter < iters; iter++)
 		meta_copy_d2h(data3, dev_data3, g_typesize*ni*nj*nk, false);
 	gettimeofday(&end, NULL);
-	printf("D2H time: %f\n", ((end.tv_sec-start.tv_sec)*1000000.0+(end.tv_usec-start.tv_usec))/(1000));
+	printf("D2H time: %f\n", ((end.tv_sec-start.tv_sec)*1000000.0+(end.tv_usec-start.tv_usec))/(iters));
 	    //printf("Test Reduction:\t%d\n", sum_dot_gpu); //print *, "Test Reduction:",sum_dot_gpu
 	    //metaTimersFlush();
 //            } //end do
