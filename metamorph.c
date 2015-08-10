@@ -4,7 +4,7 @@
  *  for all functions which must be passed through to a specific
  *  mode's backend "core" implementation.
  *
- * Should support targetting a specific class of device, a
+ * Should support targeting a specific class of device, a
  *  specific accelerator model (CUDA/OpenCL/OpenMP/...), and
  *  "choose best", which would be similar to Tom's CoreTSAR.
  *
@@ -80,6 +80,7 @@ size_t get_atype_size(meta_type_id type) {
 //TODO - Validate attempted allocation sizes against maximum supported by the device
 // particularly for OpenCL (AMD 7970 doesn't support 512 512 512 reduce size
 a_err meta_alloc(void ** ptr, size_t size) {
+	//TODO: should always set ret to a value
 	a_err ret;
 	switch(run_mode) {
 		default:
@@ -101,9 +102,12 @@ a_err meta_alloc(void ** ptr, size_t size) {
 			break;
 		#endif
 
+
 		#ifdef WITH_OPENMP
 		case metaModePreferOpenMP:
-			//TODO implement OpenMP allocation
+			*ptr = (void *) malloc(size);
+			if(*ptr != NULL)
+				ret = 0; // success
 			break;
 		#endif
 	}
@@ -114,6 +118,7 @@ a_err meta_alloc(void ** ptr, size_t size) {
 // iff all cl_mems in the frame's context, as well as the frame members themselves
 // have been released.
 a_err meta_free(void * ptr) {
+	//TODO: should always set ret to a value
 	a_err ret;
 	switch (run_mode) {
 		default:
@@ -137,7 +142,7 @@ a_err meta_free(void * ptr) {
 
 		#ifdef WITH_OPENMP
 		case metaModePreferOpenMP:
-			//TODO implement OpenMP free
+			free(ptr);
 			break;
 		#endif
 	}
@@ -204,7 +209,14 @@ a_err meta_copy_h2d_cb(void * dst, void * src, size_t size, a_bool async, meta_c
 
 		#ifdef WITH_OPENMP
 		case metaModePreferOpenMP:
-			//TODO implement OpenMP copy
+			#ifdef WITH_TIMERS
+			frame->event.openmp[0]= omp_get_wtime();
+			#endif
+			memcpy(dst, src, size);
+			ret = 0;
+			#ifdef WITH_TIMERS
+			frame->event.openmp[1]= omp_get_wtime();
+			#endif
 			break;
 		#endif
 	}
@@ -274,7 +286,14 @@ a_err meta_copy_d2h_cb(void * dst, void * src, size_t size, a_bool async, meta_c
 
 		#ifdef WITH_OPENMP
 		case metaModePreferOpenMP:
-			//TODO implement OpenMP copy
+			#ifdef WITH_TIMERS
+			frame->event.openmp[0]= omp_get_wtime();
+			#endif
+			memcpy(dst, src, size);
+			ret = 0;
+			#ifdef WITH_TIMERS
+			frame->event.openmp[1]= omp_get_wtime();
+			#endif
 			break;
 		#endif
 	}
@@ -346,7 +365,14 @@ a_err meta_copy_d2d_cb(void * dst, void * src, size_t size, a_bool async, meta_c
 
 		#ifdef WITH_OPENMP
 		case metaModePreferOpenMP:
-			//TODO implement OpenMP copy
+			#ifdef WITH_TIMERS
+			frame->event.openmp[0]= omp_get_wtime();
+			#endif
+			memcpy(dst, src, size);
+			ret = 0;
+			#ifdef WITH_TIMERS
+			frame->event.openmp[1]= omp_get_wtime();
+			#endif
 			break;
 		#endif
 	}
@@ -440,8 +466,7 @@ a_err choose_accel(int accel, meta_preferred_mode mode) {
 
 		#ifdef WITH_OPENMP
 		case metaModePreferOpenMP:
-			//TODO implement if needed
-			fprintf(stderr, "OpenMP Mode not yet implemented!\n");
+			printf("OpenMP Mode selected\n");
 			break;
 		#endif
 	}
@@ -480,8 +505,6 @@ a_err get_accel(int * accel, meta_preferred_mode * mode) {
 
 		#ifdef WITH_OPENMP
 		case metaModePreferOpenMP:
-			//TODO implement appropriate response to indicate OpenMP is being used
-			fprintf(stderr, "OpenMP Device Query not yet implemented!\n");
 			*mode = metaModePreferOpenMP;
 			break;
 		#endif
@@ -567,8 +590,8 @@ a_err meta_flush() {
 
 		#ifdef WITH_OPENMP
 		case metaModePreferOpenMP:
-					  //TODO implement OpenMP flush?
-					  break;
+			#pragma omp barrier // synchronize threads
+			break;
 		#endif
 	}
 	//Flush all outstanding MPI work
@@ -693,8 +716,14 @@ a_err meta_dotProd_cb(a_dim3 * grid_size, a_dim3 * block_size, void * data1, voi
 
 		#ifdef WITH_OPENMP
 		case metaModePreferOpenMP:
-					  //TODO implement OpenMP reduce
-					  break;
+					#ifdef WITH_TIMERS
+					frame->event.openmp[0]= omp_get_wtime();
+					#endif
+					ret = omp_dotProd(grid_size, block_size, data1, data2, array_size, array_start,  array_end, reduction_var, type, async);
+					#ifdef WITH_TIMERS
+					frame->event.openmp[1]= omp_get_wtime();
+					#endif
+					 break;
 		#endif
 	}
 	#ifdef WITH_TIMERS
@@ -817,8 +846,14 @@ a_err meta_reduce_cb(a_dim3 * grid_size, a_dim3 * block_size, void * data, a_dim
 
 		#ifdef WITH_OPENMP
 		case metaModePreferOpenMP:
-					  //TODO implement OpenMP reduce
-					  break;
+					#ifdef WITH_TIMERS
+					frame->event.openmp[0]= omp_get_wtime();
+					#endif
+					ret = omp_reduce(grid_size, block_size, data, array_size, array_start,  array_end, reduction_var, type, async);
+					#ifdef WITH_TIMERS
+					frame->event.openmp[1]= omp_get_wtime();
+					#endif
+					break;
 		#endif
 	}
 	#ifdef WITH_TIMERS
@@ -919,8 +954,15 @@ a_err meta_transpose_2d_face_cb(a_dim3 * grid_size, a_dim3 * block_size, void *i
 
 		#ifdef WITH_OPENMP
 		case metaModePreferOpenMP:
-					  //TODO implement OpenMP reduce
+					  #ifdef WITH_TIMERS
+					  frame->event.openmp[0]= omp_get_wtime();
+					  #endif
+					  ret = omp_transpose_2d_face(grid_size, block_size, indata, outdata, arr_dim_xy, tran_dim_xy, type, async);
+					  #ifdef WITH_TIMERS
+					  frame->event.openmp[1]= omp_get_wtime();
+					  #endif
 					  break;
+
 		#endif
 	}
 	#ifdef WITH_TIMERS
@@ -1016,7 +1058,19 @@ a_err meta_pack_2d_face_cb(a_dim3 * grid_size, a_dim3 * block_size, void *packed
 
 		#ifdef WITH_OPENMP
 		case metaModePreferOpenMP:
-					  //TODO implement OpenMP reduce
+						#ifdef WITH_TIMERS
+						frame_k1->event.openmp[0]= omp_get_wtime();
+						#endif
+						ret = omp_pack_2d_face(grid_size, block_size, packed_buf, buf, face, remain_dim, type, async);
+						#ifdef WITH_TIMERS
+						frame_k1->event.openmp[1]= omp_get_wtime();
+						frame_c1->event.openmp[0] = 0.0;
+						frame_c1->event.openmp[1] = 0.0;
+						frame_c2->event.openmp[0] = 0.0;
+						frame_c2->event.openmp[1] = 0.0;
+						frame_c3->event.openmp[0] = 0.0;
+						frame_c3->event.openmp[1] = 0.0;
+						#endif
 					  break;
 		#endif
 	}
@@ -1110,7 +1164,19 @@ a_err meta_unpack_2d_face_cb(a_dim3 * grid_size, a_dim3 * block_size, void *pack
 
 		#ifdef WITH_OPENMP
 		case metaModePreferOpenMP:
-					  //TODO implement OpenMP reduce
+						#ifdef WITH_TIMERS
+						frame_k1->event.openmp[0]= omp_get_wtime();;
+						#endif
+						ret = omp_unpack_2d_face(grid_size, block_size, packed_buf, buf, face, remain_dim, type, async);
+						#ifdef WITH_TIMERS
+						frame_k1->event.openmp[1]= omp_get_wtime();
+						frame_c1->event.openmp[0] = 0.0;
+						frame_c1->event.openmp[1] = 0.0;
+						frame_c2->event.openmp[0] = 0.0;
+						frame_c2->event.openmp[1] = 0.0;
+						frame_c3->event.openmp[0] = 0.0;
+						frame_c3->event.openmp[1] = 0.0;
+						#endif
 					  break;
 		#endif
 	}

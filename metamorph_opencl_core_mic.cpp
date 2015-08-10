@@ -251,10 +251,10 @@ cl_int metaOpenCLInitStackFrame(metaOpenCLStackFrame ** frame, cl_int device) {
 	(*frame)->context = clCreateContext(NULL, 1, &((*frame)->device), NULL, NULL, NULL);
 	(*frame)->queue = clCreateCommandQueue((*frame)->context, (*frame)->device, CL_QUEUE_PROFILING_ENABLE, NULL);
 	if (metaCLProgLen == 0) {
-		metaCLProgLen = metaOpenCLLoadProgramSource("metamorph_opencl_core.cl", &metaCLProgSrc);
+		metaCLProgLen = metaOpenCLLoadProgramSource("metamorph_opencl_core_mic.cl", &metaCLProgSrc);
 	}
 	(*frame)->program_opencl_core = clCreateProgramWithSource((*frame)->context, 1, &metaCLProgSrc, &metaCLProgLen, NULL);
-	// Add this debug string if needed: -g -s\"./metamorph_opencl_core.cl\"
+	// Add this debug string if needed: -g -s\"./metamorph_opencl_core_mic.cl\"
 	char * args = NULL;
 	if (getenv("METAMORPH_MODE") != NULL) {
 		if (strcmp(getenv("METAMORPH_MODE"), "OpenCL") == 0) {
@@ -529,7 +529,8 @@ cl_int opencl_dotProd(size_t (* grid_size)[3], size_t (* block_size)[3], void * 
 		default:
 			fprintf(stderr, "Error: unexpected type, cannot set shared memory size in 'opencl_dotProd'!\n");
 	}
-		
+	ret |= clSetKernelArg(kern, 15, sizeof(cl_mem *), &frame->red_loc);
+
 	ret |= clEnqueueNDRangeKernel(frame->queue, kern, 3, NULL, grid, block, 0, NULL, event);
 	
 	//TODO find a way to make explicit sync optional
@@ -640,6 +641,7 @@ cl_int opencl_reduce(size_t (* grid_size)[3], size_t (* block_size)[3], void * d
 		default:
 			fprintf(stderr, "Error: unexpected type, cannot set shared memory size in 'opencl_reduce'!\n");
 	}
+	ret |= clSetKernelArg(kern, 14, sizeof(cl_mem *), &frame->red_loc);
 	ret |= clEnqueueNDRangeKernel(frame->queue, kern, 3, NULL, grid, block, 0, NULL, event);
 	
 	//TODO find a way to make explicit sync optional

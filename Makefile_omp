@@ -1,0 +1,40 @@
+
+#SIMD_FLAGS=  
+#SIMD_FLAGS= -ftree-vectorize -ffast-math -mavx -O3 -ftree-vectorizer-verbose=2 #gcc
+SIMD_FLAGS= -axavx -O3 -fp-model fast #icc -vec-report3
+
+
+#CC=gcc
+CC=/opt/intel/bin/icc
+#CC=/opt/pgi/linux86-64/15.3/bin/pgcc
+
+#CC_FLAGS= -fopenmp
+CC_FLAGS= -openmp
+
+L_FLAGS= -fPIC -shared
+
+dxch_test_omp: libmetamorph_omp.so
+	$(CC) dxch_bootstrapper.c $(CC_FLAGS) $(SIMD_FLAGS) -I ./ -D UNIFIED_MEMORY -D WITH_OPENMP -D WITH_TIMERS -L ./ -lmetamorph_omp -lmetamorph_omp_core -o dxch_test_omp
+
+red_test_omp: libmetamorph_omp.so
+	$(CC) red_bootstrapper.c  $(CC_FLAGS) $(SIMD_FLAGS) -I ./ -D UNIFIED_MEMORY -D WITH_OPENMP -D WITH_TIMERS -L ./ -lmetamorph_omp -lmetamorph_omp_core -o red_test_omp
+
+
+libmetamorph_omp.so: libmetamorph_omp_core.so metamorph.c
+	$(CC) metamorph.c metamorph_timers.c $(CC_FLAGS) $(SIMD_FLAGS) $(L_FLAGS) -D WITH_OPENMP -D WITH_TIMERS -I ./ -L ./ -lmetamorph_omp_core -o libmetamorph_omp.so
+
+libmetamorph_omp_core.so:
+	$(CC) metamorph_openmp_core.c $(CC_FLAGS) -g $(SIMD_FLAGS) $(L_FLAGS) -I ./ -o libmetamorph_omp_core.so
+
+red_test_omp_DEBUG: libmetamorph_omp_DEBUG.so
+	$(CC) red_bootstrapper.c $(CC_FLAGS) -I ./ -D WITH_OPENMP -D WITH_TIMERS -L ./ -lmetamorph_omp_DEBUG -lmetamorph_omp_core_DEBUG -o red_test_omp_DEBUG -g -O0
+
+libmetamorph_omp_DEBUG.so: libmetamorph_omp_core_DEBUG.so metamorph.c
+	$(CC) metamorph.c metamorph_timers.c $(CC_FLAGS) $(L_FLAGS) -D WITH_OPENMP -D WITH_TIMERS -I ./ -L ./ -lmetamorph_omp_core_DEBUG -o libmetamorph_omp_DEBUG.so -g -O0
+
+libmetamorph_omp_core_DEBUG.so:
+	$(CC) metamorph_openmp_core.c $(CC_FLAGS) -g $(L_FLAGS) -I ./ -o libmetamorph_omp_core_DEBUG.so -g -O0
+	
+
+clean:
+	rm libmetamorph*.so *.mod dxch_test_omp xch_test red_test red_test_nocuda red_test_cuda red_test_omp red_test_notimers red_test_nocuda_notimers red_test_fortran red_test_fortran_nocuda red_test_fortran_notimers red_test_fortran_nocuda_notimers red_test_DEBUG red_test_nocuda_DEBUG red_test_cuda_DEBUG red_test_omp_DEBUG red_test_notimers_DEBUG red_test_nocuda_notimers_DEBUG red_test_fortran_DEBUG red_test_fortran_nocuda_DEBUG red_test_fortran_notimers_DEBUG red_test_fortran_nocuda_notimers_DEBUG
