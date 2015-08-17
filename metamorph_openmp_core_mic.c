@@ -7,7 +7,7 @@
 
 //TODO figure out how to use templates with the  intrinsics
 
-#define BLOCK 	8
+#define BLOCK 	16
 
 #ifdef USE_AVX
 #include <x86intrin.h>
@@ -90,11 +90,8 @@ static void omp_dotProd_kernel_db( double * __restrict__ data1, double * __restr
 		{
 			int i, j, k;
 			double psum = 0;
-#ifdef COLLAPSE
 			#pragma omp for collapse(2)
-#else
-			#pragma omp for
-#endif
+			//#pragma omp for
 			for (k = (* arr_start)[2]; k <= (* arr_end)[2]; k++) {
 				for (j = (* arr_start)[1]; j <= (* arr_end)[1]; j++) {
 					for (i = (* arr_start)[0]; i <= (* arr_end)[0]; i++) {
@@ -177,11 +174,8 @@ static void omp_dotProd_kernel_fl( float * __restrict__ data1, float * __restric
 		{
 			int i, j, k;
 			float psum = 0;
-#ifdef COLLAPSE
 			#pragma omp for collapse(2)
-#else
-			#pragma omp for
-#endif
+			//#pragma omp for
 			for (k = (* arr_start)[2]; k <= (* arr_end)[2]; k++) {
 				for (j = (* arr_start)[1]; j <= (* arr_end)[1]; j++) {
 					for (i = (* arr_start)[0]; i <= (* arr_end)[0]; i++) {
@@ -244,11 +238,8 @@ static void omp_dotProd_kernel_ul( unsigned long * __restrict__ data1, unsigned 
 		{
 			int i, j, k;
 			unsigned long psum = 0;
-#ifdef COLLAPSE
 			#pragma omp for collapse(2)
-#else
-			#pragma omp for
-#endif
+			//#pragma omp for
 			for (k = (* arr_start)[2]; k <= (* arr_end)[2]; k++) {
 				for (j = (* arr_start)[1]; j <= (* arr_end)[1]; j++) {
 					for (i = (* arr_start)[0]; i <= (* arr_end)[0]; i++) {
@@ -310,11 +301,8 @@ static void omp_dotProd_kernel_in( int * __restrict__ data1, int * __restrict__ 
 		{
 			int i, j, k;
 			int psum = 0;
-#ifdef COLLAPSE
 			#pragma omp for collapse(2)
-#else
-			#pragma omp for
-#endif
+			//#pragma omp for
 			for (k = (* arr_start)[2]; k <= (* arr_end)[2]; k++) {
 				for (j = (* arr_start)[1]; j <= (* arr_end)[1]; j++) {
 					for (i = (* arr_start)[0]; i <= (* arr_end)[0]; i++) {
@@ -376,11 +364,8 @@ static void omp_dotProd_kernel_ui( unsigned int * __restrict__ data1, unsigned i
 		{
 			int i, j, k;
 			unsigned int psum = 0;
-#ifdef COLLAPSE
 			#pragma omp for collapse(2)
-#else
-			#pragma omp for
-#endif
+			//#pragma omp for
 			for (k = (* arr_start)[2]; k <= (* arr_end)[2]; k++) {
 				for (j = (* arr_start)[1]; j <= (* arr_end)[1]; j++) {
 					for (i = (* arr_start)[0]; i <= (* arr_end)[0]; i++) {
@@ -443,11 +428,8 @@ static void omp_reduce_kernel_db( double * __restrict__ data, size_t (* array_si
 		{
 			int i, j, k;
 			double psum = 0;
-#ifdef COLLAPSE
 			#pragma omp for collapse(2)
-#else
-			#pragma omp for
-#endif
+			//#pragma omp for
 			for (k = (* arr_start)[2]; k <= (* arr_end)[2]; k++) {
 				for (j = (* arr_start)[1]; j <= (* arr_end)[1]; j++) {
 					for (i = (* arr_start)[0]; i <= (* arr_end)[0]; i++) {
@@ -509,11 +491,8 @@ static void omp_reduce_kernel_fl( float *__restrict__  data, size_t (* array_siz
 		{
 			int i, j, k;
 			float psum = 0;
-#ifdef COLLAPSE
 			#pragma omp for collapse(2)
-#else
-			#pragma omp for
-#endif
+			//#pragma omp for
 			for (k = (* arr_start)[2]; k <= (* arr_end)[2]; k++) {
 				for (j = (* arr_start)[1]; j <= (* arr_end)[1]; j++) {
 					for (i = (* arr_start)[0]; i <= (* arr_end)[0]; i++) {
@@ -575,11 +554,8 @@ static void omp_reduce_kernel_ul( unsigned long * __restrict__ data, size_t (* a
 		{
 			int i, j, k;
 			unsigned long psum = 0;
-#ifdef COLLAPSE
 			#pragma omp for collapse(2)
-#else
-			#pragma omp for
-#endif
+			//#pragma omp for
 			for (k = (* arr_start)[2]; k <= (* arr_end)[2]; k++) {
 				for (j = (* arr_start)[1]; j <= (* arr_end)[1]; j++) {
 					for (i = (* arr_start)[0]; i <= (* arr_end)[0]; i++) {
@@ -641,11 +617,8 @@ static void omp_reduce_kernel_in( int * __restrict__ data, size_t (* array_size)
 		{
 			int i, j, k;
 			int psum = 0;
-#ifdef COLLAPSE
 			#pragma omp for collapse(2)
-#else
-			#pragma omp for
-#endif
+			//#pragma omp for
 			for (k = (* arr_start)[2]; k <= (* arr_end)[2]; k++) {
 				for (j = (* arr_start)[1]; j <= (* arr_end)[1]; j++) {
 					for (i = (* arr_start)[0]; i <= (* arr_end)[0]; i++) {
@@ -707,11 +680,8 @@ static void omp_reduce_kernel_ui( unsigned int * __restrict__ data, size_t (* ar
 		{
 			int i, j, k;
 			unsigned int psum = 0;
-#ifdef COLLAPSE
 			#pragma omp for collapse(2)
-#else
-			#pragma omp for
-#endif
+			//#pragma omp for
 			for (k = (* arr_start)[2]; k <= (* arr_end)[2]; k++) {
 				for (j = (* arr_start)[1]; j <= (* arr_end)[1]; j++) {
 					for (i = (* arr_start)[0]; i <= (* arr_end)[0]; i++) {
@@ -738,7 +708,6 @@ static void omp_transpose_2d_face_kernel_db(double * __restrict__ indata, double
 	int ni, nj;
 	unsigned int sum = 0;
 
-
 	ni =  (* arr_dim_xy)[0];
 	nj =  (* arr_dim_xy)[1];
 
@@ -746,8 +715,9 @@ static void omp_transpose_2d_face_kernel_db(double * __restrict__ indata, double
 	{
 		int i, j, ii, jj;
 
-		//#pragma omp for schedule(static, 1)
-		#pragma omp for schedule(dynamic, 1) nowait
+		#pragma omp for schedule(static) nowait collapse(2)
+		//#pragma omp for schedule(static) nowait
+		//#pragma omp for schedule(dynamic, 1) nowait
 		for (j = 0; j < nj; j+=BLOCK)
 		{
 			for (i = 0; i < ni; i+=BLOCK)
@@ -780,8 +750,9 @@ static void omp_transpose_2d_face_kernel_fl(float * __restrict__ indata, float *
 	{
 		int i, j, ii, jj;
 
-		//#pragma omp for schedule(static, 1)
-		#pragma omp for schedule(dynamic, 1) nowait
+		#pragma omp for schedule(static) nowait collapse(2)
+		//#pragma omp for schedule(static) nowait
+		//#pragma omp for schedule(dynamic, 1) nowait
 		for (j = 0; j < nj; j+=BLOCK)
 		{
 			for (i = 0; i < ni; i+=BLOCK)
@@ -815,8 +786,9 @@ static void omp_transpose_2d_face_kernel_ul(unsigned long * __restrict__ indata,
 	{
 		int i, j, ii, jj;
 
-		//#pragma omp for schedule(static, 1)
-		#pragma omp for schedule(dynamic, 1) nowait
+		#pragma omp for schedule(static) nowait collapse(2)
+		//#pragma omp for schedule(static) nowait
+		//#pragma omp for schedule(dynamic, 1) nowait
 		for (j = 0; j < nj; j+=BLOCK)
 		{
 			for (i = 0; i < ni; i+=BLOCK)
@@ -849,8 +821,9 @@ static void omp_transpose_2d_face_kernel_in(int * __restrict__ indata, int * __r
 	{
 		int i, j, ii, jj;
 
-		//#pragma omp for schedule(static, 1)
-		#pragma omp for schedule(dynamic, 1) nowait
+		#pragma omp for schedule(static) nowait collapse(2)
+		//#pragma omp for schedule(static) nowait
+		//#pragma omp for schedule(dynamic, 1) nowait
 		for (j = 0; j < nj; j+=BLOCK)
 		{
 			for (i = 0; i < ni; i+=BLOCK)
@@ -885,8 +858,9 @@ static void omp_transpose_2d_face_kernel_ui(unsigned int * __restrict__ indata, 
 	{
 		int i, j, ii, jj;
 
-		//#pragma omp for schedule(static, 1)
-		#pragma omp for schedule(dynamic, 1) nowait
+		#pragma omp for schedule(static) nowait collapse(2)
+		//#pragma omp for schedule(static) nowait
+		//#pragma omp for schedule(dynamic, 1) nowait
 		for (j = 0; j < nj; j+=BLOCK)
 		{
 			for (i = 0; i < ni; i+=BLOCK)
@@ -981,7 +955,8 @@ int omp_pack_2d_face_kernel_db(double * __restrict__ packed_buf, double * __rest
 	#pragma omp parallel shared(size, packed_buf, buf, face, remain_dim)
 	{
 		int idx;
-		#pragma omp for schedule(dynamic,16) nowait
+		#pragma omp for schedule(static) nowait
+		//#pragma omp for schedule(dynamic,16) nowait
 		for (idx= 0; idx < size; idx++)
 			packed_buf[idx] = buf[get_pack_index(idx, face, remain_dim)];
 	}
@@ -994,7 +969,8 @@ int omp_pack_2d_face_kernel_fl(float * __restrict__ packed_buf, float * __restri
 	#pragma omp parallel shared(size, packed_buf, buf, face, remain_dim)
 	{
 		int idx;
-		#pragma omp for schedule(dynamic,16) nowait
+		#pragma omp for schedule(static) nowait
+		//#pragma omp for schedule(dynamic,16) nowait
 		for (idx= 0; idx < size; idx++)
 			packed_buf[idx] = buf[get_pack_index(idx, face, remain_dim)];
 	}
@@ -1007,7 +983,8 @@ int omp_pack_2d_face_kernel_ul(unsigned long * __restrict__ packed_buf, unsigned
 	#pragma omp parallel shared(size, packed_buf, buf, face, remain_dim)
 	{
 		int idx;
-		#pragma omp for schedule(dynamic,16) nowait
+		#pragma omp for schedule(static) nowait
+		//#pragma omp for schedule(dynamic,16) nowait
 		for (idx= 0; idx < size; idx++)
 			packed_buf[idx] = buf[get_pack_index(idx, face, remain_dim)];
 	}
@@ -1020,7 +997,8 @@ int omp_pack_2d_face_kernel_in(int * __restrict__ packed_buf, int * __restrict__
 	#pragma omp parallel shared(size, packed_buf, buf, face, remain_dim)
 	{
 		int idx;
-		#pragma omp for schedule(dynamic,16) nowait
+		#pragma omp for schedule(static) nowait
+		//#pragma omp for schedule(dynamic,16) nowait
 		for (idx= 0; idx < size; idx++)
 			packed_buf[idx] = buf[get_pack_index(idx, face, remain_dim)];
 	}
@@ -1033,7 +1011,8 @@ int omp_pack_2d_face_kernel_ui(unsigned int * __restrict__ packed_buf, unsigned 
 	#pragma omp parallel shared(size, packed_buf, buf, face, remain_dim)
 	{
 		int idx;
-		#pragma omp for schedule(dynamic,16) nowait
+		#pragma omp for schedule(static) nowait
+		//#pragma omp for schedule(dynamic,16) nowait
 		for (idx= 0; idx < size; idx++)
 			packed_buf[idx] = buf[get_pack_index(idx, face, remain_dim)];
 	}
@@ -1046,7 +1025,8 @@ int omp_unpack_2d_face_kernel_db(double * __restrict__ packed_buf, double * __re
 	#pragma omp parallel shared(size, packed_buf, buf, face, remain_dim)
 	{
 		int idx;
-		#pragma omp for schedule(dynamic,16) nowait
+		#pragma omp for schedule(static) nowait
+		//#pragma omp for schedule(dynamic,16) nowait
 		for (idx= 0; idx < size; idx++)
 			buf[get_pack_index(idx, face, remain_dim)] = packed_buf[idx];
 	}
@@ -1059,7 +1039,8 @@ int omp_unpack_2d_face_kernel_fl(float * __restrict__ packed_buf, float * __rest
 	#pragma omp parallel shared(size, packed_buf, buf, face, remain_dim)
 	{
 		int idx;
-		#pragma omp for schedule(dynamic,16) nowait
+		#pragma omp for schedule(static) nowait
+		//#pragma omp for schedule(dynamic,16) nowait
 		for (idx= 0; idx < size; idx++)
 			buf[get_pack_index(idx, face, remain_dim)] = packed_buf[idx];
 	}
@@ -1072,7 +1053,8 @@ int omp_unpack_2d_face_kernel_ul(unsigned long * __restrict__ packed_buf, unsign
 	#pragma omp parallel shared(size, packed_buf, buf, face, remain_dim)
 	{
 		int idx;
-		#pragma omp for schedule(dynamic,16) nowait
+		#pragma omp for schedule(static) nowait
+		//#pragma omp for schedule(dynamic,16) nowait
 		for (idx= 0; idx < size; idx++)
 			buf[get_pack_index(idx, face, remain_dim)] = packed_buf[idx];
 	}
@@ -1085,7 +1067,8 @@ int omp_unpack_2d_face_kernel_in(int * __restrict__ packed_buf, int * __restrict
 	#pragma omp parallel shared(size, packed_buf, buf, face, remain_dim)
 	{
 		int idx;
-		#pragma omp for schedule(dynamic,16) nowait
+		#pragma omp for schedule(static) nowait
+		//#pragma omp for schedule(dynamic,16) nowait
 		for (idx= 0; idx < size; idx++)
 			buf[get_pack_index(idx, face, remain_dim)] = packed_buf[idx];
 	}
@@ -1098,7 +1081,8 @@ int omp_unpack_2d_face_kernel_ui(unsigned int * __restrict__ packed_buf, unsigne
 	#pragma omp parallel shared(size, packed_buf, buf, face, remain_dim)
 	{
 		int idx;
-		#pragma omp for schedule(dynamic,16) nowait
+		#pragma omp for schedule(static) nowait
+		//#pragma omp for schedule(dynamic,16) nowait
 		for (idx= 0; idx < size; idx++)
 			buf[get_pack_index(idx, face, remain_dim)] = packed_buf[idx];
 	}

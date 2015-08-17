@@ -43,22 +43,20 @@ void metaOpenCLQueryDevices() {
 	if (clGetPlatformIDs(0, NULL, &num_platforms) != CL_SUCCESS) printf("Failed to query platform count!\n");
 	printf("Number of OpenCL Platforms: %d\n", num_platforms);
 
-	platforms = (cl_platform_id *) malloc(sizeof(cl_platform_id) * (num_platforms+1));
+	platforms = (cl_platform_id *) malloc(sizeof(cl_platform_id) * num_platforms);
 
 	if (clGetPlatformIDs(num_platforms, &platforms[0], NULL) != CL_SUCCESS) printf("Failed to get platform IDs\n");
 
 	for (i = 0; i < num_platforms; i++) {
 		temp_uint = 0;
-		fprintf(stderr, "OCL DEBUG: clGetDeviceIDs Count query on platform[%d] has address[%x]!\n", i, &temp_uint);
 		if(clGetDeviceIDs(platforms[i], CL_DEVICE_TYPE_ALL, 0, NULL, &temp_uint) != CL_SUCCESS) printf("Failed to query device count on platform %d!\n", i);
 		num_devices += temp_uint;
 	}
 	printf("Number of Devices: %d\n", num_devices);
 
-	devices = (cl_device_id *) malloc(sizeof(cl_device_id) * (num_devices+1));
+	devices = (cl_device_id *) malloc(sizeof(cl_device_id) * num_devices);
 	temp_uint = 0;
 	for ( i = 0; i < num_platforms; i++) {
-		fprintf(stderr, "OCL DEBUG: clGetDeviceIDs IDs query on platform[%d] has addresses[%x][%x]!\n", i, &devices[temp_uint], &temp_uint2);
 		if(clGetDeviceIDs(platforms[i], CL_DEVICE_TYPE_ALL, num_devices, &devices[temp_uint], &temp_uint2) != CL_SUCCESS) printf ("Failed to query device IDs on platform %d!\n", i);
 		temp_uint += temp_uint2;
 		temp_uint2 = 0;
@@ -253,10 +251,10 @@ cl_int metaOpenCLInitStackFrame(metaOpenCLStackFrame ** frame, cl_int device) {
 	(*frame)->context = clCreateContext(NULL, 1, &((*frame)->device), NULL, NULL, NULL);
 	(*frame)->queue = clCreateCommandQueue((*frame)->context, (*frame)->device, CL_QUEUE_PROFILING_ENABLE, NULL);
 	if (metaCLProgLen == 0) {
-		metaCLProgLen = metaOpenCLLoadProgramSource("metamorph_opencl_core.cl", &metaCLProgSrc);
+		metaCLProgLen = metaOpenCLLoadProgramSource("metamorph_opencl_core_mic.cl", &metaCLProgSrc);
 	}
 	(*frame)->program_opencl_core = clCreateProgramWithSource((*frame)->context, 1, &metaCLProgSrc, &metaCLProgLen, NULL);
-	// Add this debug string if needed: -g -s\"./metamorph_opencl_core.cl\"
+	// Add this debug string if needed: -g -s\"./metamorph_opencl_core_mic.cl\"
 	char * args = NULL;
 	if (getenv("METAMORPH_MODE") != NULL) {
 		if (strcmp(getenv("METAMORPH_MODE"), "OpenCL") == 0) {
@@ -531,7 +529,8 @@ cl_int opencl_dotProd(size_t (* grid_size)[3], size_t (* block_size)[3], void * 
 		default:
 			fprintf(stderr, "Error: unexpected type, cannot set shared memory size in 'opencl_dotProd'!\n");
 	}
-		
+	ret |= clSetKernelArg(kern, 15, sizeof(cl_mem *), &frame->red_loc);
+
 	ret |= clEnqueueNDRangeKernel(frame->queue, kern, 3, NULL, grid, block, 0, NULL, event);
 	
 	//TODO find a way to make explicit sync optional
@@ -642,6 +641,7 @@ cl_int opencl_reduce(size_t (* grid_size)[3], size_t (* block_size)[3], void * d
 		default:
 			fprintf(stderr, "Error: unexpected type, cannot set shared memory size in 'opencl_reduce'!\n");
 	}
+	ret |= clSetKernelArg(kern, 14, sizeof(cl_mem *), &frame->red_loc);
 	ret |= clEnqueueNDRangeKernel(frame->queue, kern, 3, NULL, grid, block, 0, NULL, event);
 	
 	//TODO find a way to make explicit sync optional
@@ -774,18 +774,12 @@ cl_int opencl_pack_2d_face(size_t (* grid_size)[3], size_t (* block_size)[3], vo
 		grid[1] = 1;
 		grid[2] = 1;
 	} else {
-		//This is a workaround for some non-determinism that was observed when allowing fully-arbitrary spec of grid/block
-		if ((*block_size)[1] != 1 || (*block_size)[2] != 1 || (*grid_size)[1] != 1 || (*grid_size)[2]) fprintf(stderr, "WARNING: Pack requires 1D block and grid, ignoring y/z params!\n");
 		grid[0] = (*grid_size)[0]*(*block_size)[0];
-		grid[1] = 1;
-		grid[2] = 1;
-		//grid[1] = (*grid_size)[1]*(*block_size)[1];
-		//grid[2] = (*block_size)[2];
+		grid[1] = (*grid_size)[1]*(*block_size)[1];
+		grid[2] = (*block_size)[2];
 		block[0] = (*block_size)[0];
-		block[1] = 1;
-		block[2] = 1;
-		//block[1] = (*block_size)[1];
-		//block[2] = (*block_size)[2];
+		block[1] = (*block_size)[1];
+		block[2] = (*block_size)[2];
 	}
 	smem_size =  face->count*block[0]*sizeof(int);
 //TODO Timing needs to be made consistent with CUDA (ie the event should return time for copying to constant memory and the kernel
@@ -867,18 +861,12 @@ cl_int opencl_unpack_2d_face(size_t (* grid_size)[3], size_t (* block_size)[3], 
 		grid[1] = 1;
 		grid[2] = 1;
 	} else {
-		//This is a workaround for some non-determinism that was observed when allowing fully-arbitrary spec of grid/block
-		if ((*block_size)[1] != 1 || (*block_size)[2] != 1 || (*grid_size)[1] != 1 || (*grid_size)[2]) fprintf(stderr, "WARNING: Unpack requires 1D block and grid, ignoring y/z params!\n");
 		grid[0] = (*grid_size)[0]*(*block_size)[0];
-		grid[1] = 1;
-		grid[2] = 1;
-		//grid[1] = (*grid_size)[1]*(*block_size)[1];
-		//grid[2] = (*block_size)[2];
+		grid[1] = (*grid_size)[1]*(*block_size)[1];
+		grid[2] = (*block_size)[2];
 		block[0] = (*block_size)[0];
-		block[1] = 1;
-		block[2] = 1;
-		//block[1] = (*block_size)[1];
-		//block[2] = (*block_size)[2];
+		block[1] = (*block_size)[1];
+		block[2] = (*block_size)[2];
 	}
 	smem_size =  face->count*block[0]*sizeof(int);
 //TODO Timing needs to be made consistent with CUDA (ie the event should return time for copying to constant memory and the kernel

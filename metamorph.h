@@ -55,19 +55,20 @@
 
 #include <stdio.h>
 
+
 //This needs to be here so that the cores can internally
 // switch between implementations for different primitive types
 typedef enum {
-	a_db = 0,
-	a_fl = 1,
-	a_lo = 2,
-	a_ul = 3,
-	a_in = 4,
-	a_ui = 5,
-	a_sh = 6,
-	a_us = 7,
-	a_ch = 8,
-	a_uc = 9
+	a_db = 0, 		// double
+	a_fl = 1, 		// float
+	a_lo = 2, 		// long
+	a_ul = 3, 		// unsigned long
+	a_in = 4, 		// int
+	a_ui = 5, 		// unsigned int
+	a_sh = 6, 		// short
+	a_us = 7, 		// unsigned short
+	a_ch = 8, 		// char
+	a_uc = 9 		// unsigned char
 } meta_type_id;
 
 //Define Marshaling option bitmasks
@@ -138,10 +139,10 @@ typedef unsigned short a_ushort;
 typedef unsigned int a_uint;
 typedef unsigned long a_ulong;
 typedef int a_err;
-#if defined __CUDACC__ || __cplusplus
+#if defined (__CUDACC__) || defined(__cplusplus)
 typedef bool a_bool;
 #else
-typedef enum { false , true } a_bool;
+typedef enum boolean { false , true } a_bool;
 #endif
 typedef size_t a_dim3[3];
 
@@ -248,9 +249,9 @@ a_err meta_unpack_2d_face_cb(a_dim3 * grid_size, a_dim3 * block_size, void *pack
 // These are the ones applications built on top of the library should use
 a_err meta_dotProd(a_dim3 * grid_size, a_dim3 * block_size, void * data1, void * data2, a_dim3 * array_size, a_dim3 * array_start, a_dim3 * array_end, void * reduction_var, meta_type_id type, a_bool async);
 a_err meta_reduce(a_dim3 * grid_size, a_dim3 * block_size, void * data, a_dim3 * array_size, a_dim3 * array_start, a_dim3 * array_end, void * reduction_var, meta_type_id type, a_bool async);
-a_err meta_copy_h2d(void * dst, void * src, size_t size, a_bool async);
-a_err meta_copy_d2h(void * dst, void * src, size_t size, a_bool async);
-a_err meta_copy_d2d(void * dst, void * src, size_t size, a_bool async);
+a_err meta_copy_h2d(void * dst, void * src, size_t size, a_bool async);	// Memory copy host to device
+a_err meta_copy_d2h(void * dst, void * src, size_t size, a_bool async); // Memory copy device to host
+a_err meta_copy_d2d(void * dst, void * src, size_t size, a_bool async); // Memory copy device to device
 a_err meta_transpose_2d_face(a_dim3 * grid_size, a_dim3 * block_size, void *indata, void *outdata, a_dim3 * arr_dim_xy, a_dim3 * tran_dim_xy, meta_type_id type, a_bool async);
 a_err meta_pack_2d_face(a_dim3 * grid_size, a_dim3 * block_size, void *packed_buf, void *buf, meta_2d_face_indexed *face, meta_type_id type, a_bool async);
 a_err meta_unpack_2d_face(a_dim3 * grid_size, a_dim3 * block_size, void *packed_buf, void *buf, meta_2d_face_indexed *face, meta_type_id type, a_bool async);

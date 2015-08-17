@@ -75,6 +75,7 @@ extern "C" {
 		cl_mem constant_face_size;
 		cl_mem constant_face_stride;
 		cl_mem constant_face_child_size;
+		cl_mem red_loc;
 
 	} metaOpenCLStackFrame;
 	//TODO these shouldn't need to be exposed to the user, unless there's a CUDA call we need to emulate

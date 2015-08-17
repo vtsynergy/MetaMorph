@@ -168,7 +168,7 @@ void flushWorker(metaTimerQueue * queue, int level) {
 			#endif
 			#ifdef WITH_OPENMP
 			else if (frame->mode == metaModePreferOpenMP) {
-				//TODO add some OpenMP stuff
+				temp_t = (float) ((frame->event.openmp[1] - frame->event.openmp[0]) * 1000.0);
 			}
 	 		#endif 
 			//Aggregate times/bandwidth across all 

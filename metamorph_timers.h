@@ -29,7 +29,7 @@ typedef union metaTimerEvent {
 	cl_event opencl;
 	#endif
 	#ifdef WITH_OPENMP
-	struct timeval openmp;
+	double openmp[2];
 	#endif
 } metaTimerEvent;
 
