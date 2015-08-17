@@ -1,11 +1,208 @@
 #include "metamorph_mpi.h"
 
+//This pool manages host staging buffers
+//These arrays are kept in sync to store the pointer and size of each buffer
+void * host_buf_pool[META_MPI_POOL_SIZE];
+//The size array moonlights as an occupied flag if size !=0
+unsigned long host_buf_pool_size[META_MPI_POOL_SIZE];
+unsigned long host_pool_token = 0;
+#ifdef WITH_MPI_POOL_TIMING
+double host_time = 0.0;
+#endif
+
+//This separate pool manages internal buffers for requests/callback payloads
+void* internal_pool[META_MPI_POOL_SIZE];
+unsigned long internal_pool_size[META_MPI_POOL_SIZE];
+unsigned long internal_pool_token = 0;
+#ifdef WITH_MPI_POOL_TIMING
+double internal_time = 0.0;
+#endif
+
+//Alloc never moves the token, this lets the ring queue "ratchet" forward
+// which has the beneficial property of releasing anything that's been sitting
+// in the pool for META_MPI_POOL_SIZE frees back to the OS
+//Additionally, this means the alloc token will always be on the oldest buffer (to avoid reallocing) but also be able to easily look back at the LOOKBACK-1 most recent buffers (to catch tight communication loops with heavy reuse of the same buffer)
+//NOT THREADSAFE
+void * pool_alloc(size_t size, int isHost) {
+	void * retval;
+	#ifdef WITH_MPI_POOL_TIMING
+	struct timeval start, end;
+	gettimeofday(&start, NULL);
+	#endif
+	#ifndef WITH_MPI_POOL
+	retval = malloc(size);
+	#else
+
+	unsigned long * pool_size;
+	void ** pool;
+	unsigned long * token;
+	if (isHost) {
+		pool_size = host_buf_pool_size;
+		pool = host_buf_pool;
+		token = &host_pool_token;
+	} else {
+		pool_size = internal_pool_size;
+		pool = internal_pool;
+		token = &internal_pool_token;
+	}
+
+	//If there's something in the slot (size != 0)
+	if (pool_size[*token & POOL_MASK]) {
+		int i = 0;
+		//roll backwards up to META_MPI_POOL_LOOKBACK cells to look for a big enough buffer
+		for (i = 0; i < META_MPI_POOL_LOOKBACK && pool_size[(*token-i) & POOL_MASK] < size; i++);
+		//if we found a slot of sufficient size (stopped before i == LOOKBACK)
+		if (i < META_MPI_POOL_LOOKBACK) {
+			//claim its pointer
+			retval = pool[(*token-i) & POOL_MASK];
+			//then notify (possibly other threads) that it's not available by zeroing out the size
+			pool_size[(*token-i) & POOL_MASK] = 0;
+			
+		} else {//Otherwise just pull what's at the token, realloc it and move on
+			//When things are pushed back to the pool, they are added back with their minimum size, so they might actually be bigger than they seem. In these cases realloc should just resize the buffer in-place.
+			pool_size[*token & POOL_MASK] = 0;
+			retval = realloc(pool[*token & POOL_MASK], size);
+			//oh no, something went wrong
+			if (retval == NULL) fprintf(stderr, "ERROR: in pool_alloc, realloc of pool buffer was unsuccessful!\n");
+			
+		}
+	
+	} else { //If there's not, just malloc directly
+		retval = malloc(size);
+	}
+	//Sanitize the amount of space the caller requested.
+	memset(retval, 0, size);
+	#endif
+	#ifdef WITH_MPI_POOL_TIMING
+	gettimeofday(&end, NULL);
+	if (isHost) {
+		host_time += (end.tv_sec-start.tv_sec)*1000000.0+(end.tv_usec-start.tv_usec);
+	} else {
+		internal_time += (end.tv_sec-start.tv_sec)*1000000.0+(end.tv_usec-start.tv_usec);
+	}
+	#endif
+	return retval;
+}
+
+//Only free moves the token, this is what causes the "ratchet ring queue" behavior
+// If the same buffer is used META_MPI_POOL_SIZE times in a row, all other pool buffers will get freed by it constantly being dropped one cell forward
+//NOT THREADSAFE
+void pool_free(void * buf, size_t size, int isHost) {
+	#ifdef WITH_MPI_POOL_TIMING
+	struct timeval start, end;
+	gettimeofday(&start, NULL);
+	#endif
+	#ifndef WITH_MPI_POOL
+	free(buf);
+	#else
+
+	unsigned long * pool_size;
+	void ** pool;
+	unsigned long * token;
+	if (isHost) {
+		pool_size = host_buf_pool_size;
+		pool = host_buf_pool;
+		token = &host_pool_token;
+	} else {
+		pool_size = internal_pool_size;
+		pool = internal_pool;
+		token = &internal_pool_token;
+	}
+	//If there's something in this slot, it must be the oldest buffer
+	if (pool_size[*token & POOL_MASK]) {
+		//so free it
+		free(pool[*token & POOL_MASK]);
+	}
+	//place it
+	pool[*token & POOL_MASK] = buf;
+	//and update the size
+	pool_size[*token & POOL_MASK] = size;
+	//and move the token forward to the "next oldest" slot
+	(*token)++;
+	#endif
+	#ifdef WITH_MPI_POOL_TIMING
+	gettimeofday(&end, NULL);
+	if (isHost) {
+		host_time += (end.tv_sec-start.tv_sec)*1000000.0+(end.tv_usec-start.tv_usec);
+	} else {
+		internal_time += (end.tv_sec-start.tv_sec)*1000000.0+(end.tv_usec-start.tv_usec);
+	}
+	#endif
+	return;
+}
+
+//Returns the MPI_Datatype matching the given meta_type_id
+// If a non-NULL size pointer is provided, it returns the sizeof the meta_type_id there as well
+MPI_Datatype get_mpi_type(meta_type_id type, size_t * size) {
+	size_t type_size;
+	MPI_Datatype mpi_type;
+	switch (type) {
+		case a_db:
+			type_size = sizeof(double);
+			mpi_type = MPI_DOUBLE;
+		break;
+
+		case a_fl:
+			type_size = sizeof(float);
+			mpi_type = MPI_FLOAT;
+		break;
+
+		case a_ul:
+			type_size = sizeof(unsigned long);
+			mpi_type = MPI_UNSIGNED_LONG;
+		break;
+
+		case a_in:
+			type_size = sizeof(int);
+			mpi_type = MPI_INT;
+		break;
+
+		case a_ui:
+			type_size = sizeof(unsigned int);
+			mpi_type = MPI_UNSIGNED;
+		break;
+
+		default:
+			//Should be a No-op
+			// for safety, just give it the size of a pointer
+			type_size = sizeof(double *);
+			mpi_type = MPI_DOUBLE;
+		break;
+	}
+	if (size != NULL) *size = type_size;
+	return mpi_type;
+}
 //Static sentinel head node, and dynamic tail pointer for the
 // MPI request queue
 //Spawn the queue in the uninit state to force calling the init function
 recordQueueNode record_queue = {uninit, {NULL, NULL}, NULL};
 recordQueueNode *record_queue_tail;
 
+void meta_mpi_init(int * argc, char *** argv) {
+	MPI_Init(argc, argv);
+	host_pool_token = 0;
+	internal_pool_token = 0;
+	init_record_queue();
+	memset(host_buf_pool_size, 0, sizeof(unsigned long)*META_MPI_POOL_SIZE);
+	memset(internal_pool_size, 0, sizeof(unsigned long)*META_MPI_POOL_SIZE);
+}
+
+void meta_mpi_finalize() {
+	//finish up any outstanding requests
+	finish_mpi_requests();
+	//clean up anything left in the ring buffer
+	//pool_free doesn't ever dereference the provided pointer, so just calling it on zero-length null pointers POOL_SIZE times, is guaranteed to clear it
+	//(since they are specified as zero-length buffers, the pool logic prevents them from ever being dereferenced or freed)
+	int i;
+	for (i = 0; i < META_MPI_POOL_SIZE; i++) pool_free(NULL, 0, 1);
+	for (i = 0; i < META_MPI_POOL_SIZE; i++) pool_free(NULL, 0, 0);
+	#ifdef WITH_MPI_POOL_TIMING
+		int rank;
+		MPI_Comm_rank(MPI_COMM_WORLD, &rank);
+		fprintf(stderr, "MPI Pool Internal time rank[%d]: [%f] Host time: [%f]\n", rank, internal_time, host_time);
+	#endif
+	MPI_Finalize();
+}
 
 //Helper functions for asynchronous transfers
 void init_record_queue() {
@@ -20,7 +217,7 @@ void register_mpi_request(request_record_type type, request_record * request) {
 	//If the queue hasn't been setup, do so now
 	//FIXME: Not threadsafe until only one thread can init and the rest block
 	if (record_queue.type == uninit) init_record_queue();
-	recordQueueNode *record =(recordQueueNode*) malloc(sizeof(recordQueueNode));
+	recordQueueNode *record =(recordQueueNode*) pool_alloc(sizeof(recordQueueNode), 0);
 	record->type = type;
 	record->next = NULL;
 	//When copying, we can treat the record as a rap_rec, since the union
@@ -95,7 +292,7 @@ void help_mpi_request() {
 //A "forced wait until all requests finish" helper
 // Meant to be used with meta_flush and meta_finish
 a_err finish_mpi_requests() {
-	printf("FINISH TRIGGERED\n");
+	//printf("FINISH TRIGGERED\n");
 	//TODO: Implement "finish the world"
 	//Use MPI_Wait rather than MPI Test
 	if (record_queue.type == uninit) init_record_queue();
@@ -146,100 +343,74 @@ a_err finish_mpi_requests() {
 				//shouldn't be reachable
 			break;
 		}
-		printf("HELPER DONE\n");
-		FIXME(Make record queue hazard-aware!);
+		//printf("HELPER DONE\n");
+		//FIXME(Make record queue hazard-aware!);
 		//It must have finished the request, pull it off the queue
 		record_queue.next = curr->next;
 		//If this node is the last one, redirect the tail to the sentinel
 		if (record_queue_tail == curr && record_queue.next == NULL) record_queue_tail = &record_queue; 
-		FIXME(Is there anything inside a record that needs to be freed here);
-		free(curr);	
+		//FIXME(Is there anything inside a record that needs to be freed here);
+		pool_free(curr, sizeof(recordQueueNode), 0);	
 	}
 }
 
 #ifdef WITH_CUDA
 void CUDART_CB cuda_sp_isend_cb(cudaStream_t stream, cudaError_t status, void *data) {
 	sp_callback_payload * call_pl = (sp_callback_payload *)data;
-			MPI_Isend(call_pl->host_packed_buf, call_pl->buf_leng, call_pl->mpi_type, call_pl->dst_rank, call_pl->tag, MPI_COMM_WORLD, call_pl->req);
+	size_t type_size;
+	MPI_Datatype mpi_type = get_mpi_type(call_pl->type, &type_size);
+			MPI_Isend(call_pl->host_packed_buf, call_pl->buf_leng, mpi_type, call_pl->dst_rank, call_pl->tag, MPI_COMM_WORLD, call_pl->req);
 	//Assemble a request
-	request_record * rec = (request_record *) malloc(sizeof(request_record));
+	request_record * rec = (request_record *) pool_alloc(sizeof(request_record), 0);
 	rec->sp_rec.req = call_pl->req;
 	rec->sp_rec.host_packed_buf = call_pl->host_packed_buf;
+	rec->sp_rec.buf_size = call_pl->buf_leng*type_size;
 	//and submit it
 	register_mpi_request(sp_rec, rec);
 	//once registered, all the params are copied, so the record can be freed
-	free(rec);
+	pool_free(rec, sizeof(request_record), 0);
 	//once the Isend is invoked and the request is submitted, we can remove the payload
-	free(data);
+	pool_free(data, sizeof(sp_callback_payload), 0);
 }
 #endif //WITH_CUDA
 #ifdef WITH_OPENCL
 void CL_CALLBACK opencl_sp_isend_cb(cl_event event, cl_int status, void *data) {
 	sp_callback_payload * call_pl = (sp_callback_payload *)data;
-			MPI_Isend(call_pl->host_packed_buf, call_pl->buf_leng, call_pl->mpi_type, call_pl->dst_rank, call_pl->tag, MPI_COMM_WORLD, call_pl->req);
+	size_t type_size;
+	MPI_Datatype mpi_type = get_mpi_type(call_pl->type, &type_size);
+			MPI_Isend(call_pl->host_packed_buf, call_pl->buf_leng, mpi_type, call_pl->dst_rank, call_pl->tag, MPI_COMM_WORLD, call_pl->req);
 	//Assemble a request
-	request_record * rec = (request_record *) malloc(sizeof(request_record));
+	request_record * rec = (request_record *) pool_alloc(sizeof(request_record), 0);
 	rec->sp_rec.req = call_pl->req;
 	rec->sp_rec.host_packed_buf = call_pl->host_packed_buf;
+	rec->sp_rec.buf_size = call_pl->buf_leng*type_size;
 	//and submit it
 	register_mpi_request(sp_rec, rec);
 	//once registered, all the params are copied, so the record can be freed
-	free(rec);
+	pool_free(rec, sizeof(request_record), 0);
 	//once the Isend is invoked and the request is submitted, we can remove the payload
-	free(data);
+	pool_free(data, sizeof(sp_callback_payload), 0);
 }
 #endif //EITH_OPENCL
 
 void sp_helper(request_record * sp_request) {
-	printf("SP_HELPER FIRED!\n");
-	fprintf(stderr, "Would have been a SP free\n");//free(sp_request->sp_rec.host_packed_buf);
+	//printf("SP_HELPER FIRED!\n");
+	pool_free(sp_request->sp_rec.host_packed_buf, sp_request->sp_rec.buf_size, 1);
 }
 
 //Compound transfers, reliant on other library functions
 //Essentially a wrapper for a contiguous buffer send
-a_err meta_mpi_packed_face_send(int dst_rank, void *packed_buf, void *packed_buf_host, size_t buf_leng, int tag, MPI_Request *req, meta_type_id type, int async) {
-	a_err error;
+a_err meta_mpi_packed_face_send(int dst_rank, void *packed_buf, size_t buf_leng, int tag, MPI_Request *req, meta_type_id type, int async) {
+	a_err error = 0;
 	size_t type_size;
-	MPI_Datatype mpi_type;
-	switch (type) {
-		case a_db:
-			type_size = sizeof(double);
-			mpi_type = MPI_DOUBLE;
-		break;
-
-		case a_fl:
-			type_size = sizeof(float);
-			mpi_type = MPI_FLOAT;
-		break;
-
-		case a_ul:
-			type_size = sizeof(unsigned long);
-			mpi_type = MPI_UNSIGNED_LONG;
-		break;
-
-		case a_in:
-			type_size = sizeof(int);
-			mpi_type = MPI_INT;
-		break;
-
-		case a_ui:
-			type_size = sizeof(unsigned int);
-			mpi_type = MPI_UNSIGNED;
-		break;
-
-		default:
-			//Should be a No-op
-			// for safety, just give it the size of a pointer
-			type_size = sizeof(double *);
-			//TODO: Put something appropriate in mpi_type;
-		break;
-	}
+	MPI_Datatype mpi_type = get_mpi_type(type, &type_size);
 	//If we have GPUDirect, simply copy the device buffer diectly
 	#ifdef WITH_MPI_GPU_DIRECT
 		#ifdef WITH_CUDA
 			if (run_mode == metaModePreferCUDA) {
 			//send directly
 				//FIXME: add other data types
+				//fprintf(stderr, "GPUDirect send: %x\n", packed_buf);
 				if(async) {
 					MPI_Isend(packed_buf, buf_leng, mpi_type, dst_rank, tag, MPI_COMM_WORLD, req);
 					//FIXME: Build a record around the request, to be finished by a helper later
@@ -253,15 +424,13 @@ a_err meta_mpi_packed_face_send(int dst_rank, void *packed_buf, void *packed_buf
 	#endif //WITH_MPI_GPU_DIRECT
 	//otherwise..
 	//allocate a host buffer
-	//FIXME: user app is now responsible for this
-	//void *packed_buf_host = malloc(buf_leng*type_size);
+	//FIXME(POOL try to alloc from the buffer pool);
+	void *packed_buf_host = pool_alloc(buf_leng*type_size, 1);
 	
 	//Do the send
-	//FIXME: bind the send routine to a cl_event/cu_event callback
-	//FIXME: Record the request with the host buffer needing freeing
 	if (async) {
 		//Figure out whether to use CUDA or OpenCL callback
-		meta_callback * call = (meta_callback*) malloc(sizeof(meta_callback));
+		meta_callback * call = (meta_callback*) pool_alloc(sizeof(meta_callback), 0);
 		switch(run_mode) {
 			#ifdef WITH_CUDA
 				case metaModePreferCUDA:
@@ -278,10 +447,10 @@ a_err meta_mpi_packed_face_send(int dst_rank, void *packed_buf, void *packed_buf
 				break;
 		}
 		//Assemble the callback's necessary data elements
-		sp_callback_payload * call_pl = (sp_callback_payload *)malloc(sizeof(sp_callback_payload));
+		sp_callback_payload * call_pl = (sp_callback_payload *)pool_alloc(sizeof(sp_callback_payload), 0);
 		call_pl->host_packed_buf = packed_buf_host;
 		call_pl->buf_leng = buf_leng;
-		call_pl->mpi_type = mpi_type;
+		call_pl->type = type;
 		call_pl->dst_rank = dst_rank;
 		call_pl->tag = tag;
 		call_pl->req = req;
@@ -292,7 +461,7 @@ a_err meta_mpi_packed_face_send(int dst_rank, void *packed_buf, void *packed_buf
 		error |= meta_copy_d2h(packed_buf_host, packed_buf, buf_leng*type_size, 0);
 		MPI_Send(packed_buf_host, buf_leng, mpi_type, dst_rank, tag, MPI_COMM_WORLD);
 		//FIXME: remove associated async frees
-		//free(packed_buf_host);
+		pool_free(packed_buf_host, buf_leng*type_size, 1);
 	}
 	//Close the if/else checking if mode == CUDA
 	#ifdef WITH_MPI_GPU_DIRECT
@@ -302,21 +471,26 @@ a_err meta_mpi_packed_face_send(int dst_rank, void *packed_buf, void *packed_buf
 
 //minimal callback to free a host buffer
 #ifdef WITH_OPENCL
+
 void CL_CALLBACK opencl_free_host_cb(cl_event event, cl_int status, void * data) {
-	fprintf(stderr, "Would have been a CBH free\n");//free(data);
+	rp_callback_payload * call_pl = (rp_callback_payload *)data;
+	pool_free(call_pl->host_packed_buf, call_pl->buf_size, 1);
+	pool_free(data, sizeof(rp_callback_payload), 0);
 }
 #endif //WITH_OPENCL
 #ifdef WITH_CUDA
 void CUDART_CB cuda_free_host_cb(cudaStream_t stream, cudaError_t status, void *data) {
-	fprintf(stderr, "Would have been a CBH free\n");//free(data);
+	rp_callback_payload * call_pl = (rp_callback_payload *)data;
+	pool_free(call_pl->host_packed_buf, call_pl->buf_size, 1);
+	pool_free(data, sizeof(rp_callback_payload), 0);
 }
 #endif //WITH_CUDA
 
 void rp_helper(request_record * rp_request) {
-	printf("RP_HELPER FIRED!\n");
+	//printf("RP_HELPER FIRED!\n");
 	//async H2D copy w/ callback to free the temp host buffer
 	//set up the mode_specific pointer to our free wrapper
-	meta_callback * call = (meta_callback*) malloc(sizeof(meta_callback));
+	meta_callback * call = (meta_callback*) pool_alloc(sizeof(meta_callback), 0);
 	switch(run_mode) {
 		#ifdef WITH_CUDA
 			case metaModePreferCUDA:
@@ -332,49 +506,20 @@ void rp_helper(request_record * rp_request) {
 				//TODO: Do something
 			break;
 	}
+		rp_callback_payload * call_pl = (rp_callback_payload *)pool_alloc(sizeof(rp_callback_payload), 0);
+		call_pl->host_packed_buf = rp_request->rp_rec.host_packed_buf;
+		call_pl->buf_size = rp_request->rp_rec.buf_size;
 	//and invoke the async copy with the callback specified and the host pointer as the payload
-	meta_copy_h2d_cb(rp_request->rp_rec.dev_packed_buf, rp_request->rp_rec.host_packed_buf, rp_request->rp_rec.buf_size, 1, call, rp_request->rp_rec.host_packed_buf);
+	meta_copy_h2d_cb(rp_request->rp_rec.dev_packed_buf, rp_request->rp_rec.host_packed_buf, rp_request->rp_rec.buf_size, 1, call, call_pl);
 }
 	
 
 //Essentially a wrapper for a contiguous buffer receive
-a_err meta_mpi_packed_face_recv(int src_rank, void *packed_buf, void * packed_buf_host, size_t buf_leng, int tag, MPI_Request *req, meta_type_id type, int async) {
-	a_err error;
+a_err meta_mpi_packed_face_recv(int src_rank, void *packed_buf, size_t buf_leng, int tag, MPI_Request *req, meta_type_id type, int async) {
+	a_err error = 0;
 	MPI_Status status;
 	size_t type_size;
-	MPI_Datatype mpi_type;
-	switch (type) {
-		case a_db:
-			type_size = sizeof(double);
-			mpi_type = MPI_DOUBLE;
-		break;
-
-		case a_fl:
-			type_size = sizeof(float);
-			mpi_type = MPI_FLOAT;
-		break;
-
-		case a_ul:
-			type_size = sizeof(unsigned long);
-			mpi_type = MPI_UNSIGNED_LONG;
-		break;
-
-		case a_in:
-			type_size = sizeof(int);
-			mpi_type = MPI_INT;
-		break;
-
-		case a_ui:
-			type_size = sizeof(unsigned int);
-			mpi_type = MPI_INT;
-		break;
-
-		default:
-			//Should be a No-op
-			// for safety, just give it the size of a pointer
-			type_size = sizeof(double *);
-		break;
-	}
+	MPI_Datatype mpi_type = get_mpi_type(type, &type_size);
 	
 	//If we have GPUDriect, simply receive directly to the device buffer
 	#ifdef WITH_MPI_GPU_DIRECT
@@ -385,6 +530,16 @@ a_err meta_mpi_packed_face_recv(int src_rank, void *packed_buf, void * packed_bu
 				//rintf("GPU DIRECT MODE ACTIVE!\n");
 				if(async) {
 					MPI_Irecv(packed_buf, buf_leng, mpi_type, src_rank, tag, MPI_COMM_WORLD, req);
+					//Assemble a request_record
+					request_record * rec = (request_record *) pool_alloc(sizeof(request_record), 0);
+					rec->rp_rec.req = req;
+					rec->rp_rec.host_packed_buf = NULL;
+					rec->rp_rec.dev_packed_buf = packed_buf;
+					rec->rp_rec.buf_size = buf_leng*type_size; 
+					//and submit it
+					register_mpi_request(rp_rec, rec);
+					//once registered, all the params are copied, so the record can be freed
+					pool_free(rec, sizeof(request_record), 0);
 				} else {
 					MPI_Recv(packed_buf, buf_leng, mpi_type, src_rank, tag, MPI_COMM_WORLD, &status);
 				}
@@ -394,15 +549,14 @@ a_err meta_mpi_packed_face_recv(int src_rank, void *packed_buf, void * packed_bu
 	#endif //WITH_MPI_GPU_DIRECT
 	//otherwise..	
 	//allocate a host buffer
-	//FIXME: user apps now responsible for this
-	//void *packed_buf_host = malloc(buf_leng*type_size);
+	void *packed_buf_host = pool_alloc(buf_leng*type_size, 1);
 	
 	//Receive into the host buffer
 	//FIXME: Add proper callback-related functionality to allow the pack and copy to be asynchronous
 	if (async) {
 		MPI_Irecv(packed_buf_host, buf_leng, mpi_type, src_rank, tag, MPI_COMM_WORLD, req);
 		//Assemble a request_record
-		request_record * rec = (request_record *) malloc(sizeof(request_record));
+		request_record * rec = (request_record *) pool_alloc(sizeof(request_record), 0);
 		rec->rp_rec.req = req;
 		rec->rp_rec.host_packed_buf = packed_buf_host;
 		rec->rp_rec.dev_packed_buf = packed_buf;
@@ -410,14 +564,14 @@ a_err meta_mpi_packed_face_recv(int src_rank, void *packed_buf, void * packed_bu
 		//and submit it
 		register_mpi_request(rp_rec, rec);
 		//once registered, all the params are copied, so the record can be freed
-		free(rec);
+		pool_free(rec, sizeof(request_record), 0);
 	} else {
 		MPI_Recv(packed_buf_host, buf_leng, mpi_type, src_rank, tag, MPI_COMM_WORLD, &status);
 		//Copy into the device buffer
 		error |= meta_copy_h2d(packed_buf, packed_buf_host, buf_leng*type_size, 0);
 		//free the host buffer
 		//FIXME: remove associated async frees
-		//free(packed_buf_host);
+		pool_free(packed_buf_host, buf_leng*type_size, 1);
 	}
 	//Close the if/else checking if mode == CUDA
 	#ifdef WITH_MPI_GPU_DIRECT
@@ -428,96 +582,75 @@ a_err meta_mpi_packed_face_recv(int src_rank, void *packed_buf, void * packed_bu
 #ifdef WITH_CUDA
 void CUDART_CB cuda_sap_isend_cb(cudaStream_t stream, cudaError_t status, void *data) {
 	sap_callback_payload * call_pl = (sap_callback_payload *)data;
+	size_t type_size;
+	MPI_Datatype mpi_type = get_mpi_type(call_pl->type, &type_size);
 	if (call_pl->host_packed_buf != NULL) { //No GPUDirect
-		MPI_Isend(call_pl->host_packed_buf, call_pl->buf_leng, call_pl->mpi_type, call_pl->dst_rank, call_pl->tag, MPI_COMM_WORLD, call_pl->req);
+		MPI_Isend(call_pl->host_packed_buf, call_pl->buf_leng, mpi_type, call_pl->dst_rank, call_pl->tag, MPI_COMM_WORLD, call_pl->req);
 	} else {
-		MPI_Isend(call_pl->dev_packed_buf, call_pl->buf_leng, call_pl->mpi_type, call_pl->dst_rank, call_pl->tag, MPI_COMM_WORLD, call_pl->req);
+		FIXME(GPUDirect PAS triggered illegally);
+		//GPUDirect send requires CUDA API calls, forbidden in callbacks
+		MPI_Isend(call_pl->dev_packed_buf, call_pl->buf_leng, mpi_type, call_pl->dst_rank, call_pl->tag, MPI_COMM_WORLD, call_pl->req);
 	}
 	//Assemble a request
-	request_record * rec = (request_record *) malloc(sizeof(request_record));
+	request_record * rec = (request_record *) pool_alloc(sizeof(request_record), 0);
 	rec->sap_rec.req = call_pl->req;
 	rec->sap_rec.host_packed_buf = call_pl->host_packed_buf;
 	rec->sap_rec.dev_packed_buf = call_pl->dev_packed_buf;
+	rec->sap_rec.buf_size = type_size*call_pl->buf_leng;
 	//and submit it
 	register_mpi_request(sap_rec, rec);
 	//once registered, all the params are copied, so the record can be freed
-	free(rec);
+	pool_free(rec, sizeof(request_record), 0);
 	//once the Isend is invoked and the request is submitted, we can remove the payload
-	free(data);
+	pool_free(data, sizeof(sap_callback_payload), 0);
 }
 #endif //WITH_CUDA
 #ifdef WITH_OPENCL
 void CL_CALLBACK opencl_sap_isend_cb(cl_event event, cl_int status, void *data) {
 	sap_callback_payload * call_pl = (sap_callback_payload *)data;
-	MPI_Isend(call_pl->host_packed_buf, call_pl->buf_leng, call_pl->mpi_type, call_pl->dst_rank, call_pl->tag, MPI_COMM_WORLD, call_pl->req);
+	size_t type_size;
+	MPI_Datatype mpi_type = get_mpi_type(call_pl->type, &type_size);
+	MPI_Isend(call_pl->host_packed_buf, call_pl->buf_leng, mpi_type, call_pl->dst_rank, call_pl->tag, MPI_COMM_WORLD, call_pl->req);
 	//Assemble a request
-	request_record * rec = (request_record *) malloc(sizeof(request_record));
+	request_record * rec = (request_record *) pool_alloc(sizeof(request_record), 0);
 	rec->sap_rec.req = call_pl->req;
 	rec->sap_rec.host_packed_buf = call_pl->host_packed_buf;
 	rec->sap_rec.dev_packed_buf = call_pl->dev_packed_buf;
+	rec->sap_rec.buf_size = type_size*call_pl->buf_leng;
 	//and submit it
 	register_mpi_request(sap_rec, rec);
 	//once registered, all the params are copied, so the record can be freed
-	free(rec);
+	pool_free(rec, sizeof(request_record), 0);
 	//once the Isend is invoked and the request is submitted, we can remove the payload
-	free(data);
+	pool_free(data, sizeof(sap_callback_payload), 0);
 }
 #endif //EITH_OPENCL
 
 void sap_helper(request_record * sap_request) {
-	printf("SAP_HELPER FIRED!\n");
-	if (sap_request->sap_rec.host_packed_buf != NULL) fprintf(stderr, "Would have been a SAP free\n");//free(sap_request->sap_rec.host_packed_buf);
-	meta_free(sap_request->sap_rec.dev_packed_buf);
+	//printf("SAP_HELPER FIRED!\n");
+	if (sap_request->sap_rec.host_packed_buf != NULL) pool_free(sap_request->sap_rec.host_packed_buf, sap_request->sap_rec.buf_size, 1);
+	//meta_free(sap_request->sap_rec.dev_packed_buf);
 }
 
 //A wrapper that, provided a face, will pack it, then send it
-a_err meta_mpi_pack_and_send_face(a_dim3 *grid_size, a_dim3 *block_size, int dst_rank, meta_2d_face_indexed * face, void * buf, void * packed_buf, void * packed_buf_host, int tag, MPI_Request *req, meta_type_id type, int async) {
+a_err meta_mpi_pack_and_send_face(a_dim3 *grid_size, a_dim3 *block_size, int dst_rank, meta_2d_face_indexed * face, void * buf, void * packed_buf, int tag, MPI_Request *req, meta_type_id type, int async) {
 	//allocate space for a packed buffer
 	size_t size = 1;
 	int i;
 	for(i = 0; i < face->count; i++) size *= face->size[i];
 	//FIXME: User app is now responsible for allocing and managing these
-	//void *packed_buf, *packed_buf_host;
+	//void *packed_buf
+	void *packed_buf_host;
 	size_t type_size;
-	MPI_Datatype mpi_type;
-	switch (type) {
-		case a_db:
-			type_size = sizeof(double);
-			mpi_type = MPI_DOUBLE;
-		break;
-
-		case a_fl:
-			type_size = sizeof(float);
-			mpi_type = MPI_FLOAT;
-		break;
-
-		case a_ul:
-			type_size = sizeof(unsigned long);
-			mpi_type = MPI_UNSIGNED_LONG;
-		break;
-
-		case a_in:
-			type_size = sizeof(int);
-			mpi_type = MPI_INT;
-		break;
-
-		case a_ui:
-			type_size = sizeof(unsigned int);
-			mpi_type = MPI_UNSIGNED;
-		break;
-
-		default:
-			//Should be a No-op
-			// for safety, just give it the size of a pointer
-			type_size = sizeof(double *);
-		break;
-	}
+	MPI_Datatype mpi_type = get_mpi_type(type, &type_size);
 	//FIXME: remove this, and any associated frees, app is now responsible
-	a_err error;
+	a_err error = 0;
 	//a_err error = meta_alloc(&packed_buf, size*type_size);
 	// call the device pack function
 	//FIXME: add grid, block params
 	//FIXME: Add proper callback-related functionality to allwo the pack and copy to be asynchronous
+
+	packed_buf_host = pool_alloc(size*type_size, 1);
 
 	//do a send, if asynchronous, this should be a callback for when the async D2H copy finishes
 	#ifdef WITH_MPI_GPU_DIRECT
@@ -527,19 +660,23 @@ a_err meta_mpi_pack_and_send_face(a_dim3 *grid_size, a_dim3 *block_size, int dst
 				//FIXME: add other data types
 				if(async) {
 					//TODO: Move this into a callback for meta_pack_2d_face_cb
-					meta_callback * call = (meta_callback*) malloc(sizeof(meta_callback));
+					meta_callback * call = (meta_callback*) pool_alloc(sizeof(meta_callback), 0);
 					call->cudaCallback = cuda_sap_isend_cb;
 					//Assemble the callback's necessary data elements
-					sap_callback_payload * call_pl = (sap_callback_payload *)malloc(sizeof(sap_callback_payload));
-					call_pl->host_packed_buf = NULL;
+					sap_callback_payload * call_pl = (sap_callback_payload *) pool_alloc(sizeof(sap_callback_payload), 0);
+					FIXME(GPUDirect PAS needs host buffer now);
+					call_pl->host_packed_buf = packed_buf_host;
 					call_pl->dev_packed_buf = packed_buf;
 					call_pl->buf_leng = size;
-					call_pl->mpi_type = mpi_type;
+					call_pl->type = type;
 					call_pl->dst_rank = dst_rank;
 					call_pl->tag = tag;
 					call_pl->req = req;
-					meta_pack_2d_face_cb(grid_size, block_size, packed_buf, buf, face, type, 1, call, call_pl);
-					//MPI_Isend(packed_buf, size, mpi_type, dst_rank, tag, MPI_COMM_WORLD, req);
+					//fprintf(stderr, "SAP Callback PL: %p %p %d %d %p\n", call_pl->host_packed_buf, call_pl->dev_packed_buf, call_pl->buf_leng, call_pl->tag, call_pl->req);
+					meta_pack_2d_face(grid_size, block_size, packed_buf, buf, face, type, 1);
+					meta_copy_d2h_cb(packed_buf_host, packed_buf, size*type_size, 1, call, call_pl);
+					//This was no longer valid after switching to host staging, as required by GPUDirect/CUDACallback interaction
+					//meta_pack_2d_face_cb(grid_size, block_size, packed_buf, buf, face, type, 1, call, call_pl);
 				} else {
 					error |= meta_pack_2d_face(grid_size, block_size, packed_buf, buf, face, type, 0);
 					MPI_Send(packed_buf, size, mpi_type, dst_rank, tag, MPI_COMM_WORLD);
@@ -551,14 +688,11 @@ a_err meta_mpi_pack_and_send_face(a_dim3 *grid_size, a_dim3 *block_size, int dst
 			{
 	#endif //WITH_MPI_GPU_DIRECT
 	
-	//FIXME Remove this and associate frees, application is now responsible for host buffer	
-	//packed_buf_host = malloc(size*type_size);
 	//DO all variants via copy to host
-	//FIXME: Add proper callback-related functionality to allow the pack and copy to be asynchronous
 	if (async) {
 		meta_pack_2d_face(grid_size, block_size, packed_buf, buf, face, type, 1);
 		//Figure out whether to use CUDA or OpenCL callback
-		meta_callback * call = (meta_callback*) malloc(sizeof(meta_callback));
+		meta_callback * call = (meta_callback*) pool_alloc(sizeof(meta_callback), 0);
 		switch(run_mode) {
 			#ifdef WITH_CUDA
 				case metaModePreferCUDA:
@@ -575,11 +709,11 @@ a_err meta_mpi_pack_and_send_face(a_dim3 *grid_size, a_dim3 *block_size, int dst
 				break;
 		}
 		//Assemble the callback's necessary data elements
-		sap_callback_payload * call_pl = (sap_callback_payload *)malloc(sizeof(sap_callback_payload));
+		sap_callback_payload * call_pl = (sap_callback_payload *) pool_alloc(sizeof(sap_callback_payload), 0);
 		call_pl->host_packed_buf = packed_buf_host;
 		call_pl->dev_packed_buf = packed_buf;
 		call_pl->buf_leng = size;
-		call_pl->mpi_type = mpi_type;
+		call_pl->type = type;
 		call_pl->dst_rank = dst_rank;
 		call_pl->tag = tag;
 		call_pl->req = req;
@@ -590,7 +724,7 @@ a_err meta_mpi_pack_and_send_face(a_dim3 *grid_size, a_dim3 *block_size, int dst
 		MPI_Send(packed_buf_host, size, mpi_type, dst_rank, tag, MPI_COMM_WORLD);
 	//FIXME: remove asynchronous frees too
 	//	meta_free(packed_buf);
-	//	free(packed_buf_host);
+		pool_free(packed_buf_host, size*type_size, 1);
 	}
 	//TODO: once async callback is implemented free malloced buffer	
 	//TODO: add callback for asyncs
@@ -605,26 +739,26 @@ a_err meta_mpi_pack_and_send_face(a_dim3 *grid_size, a_dim3 *block_size, int dst
 #ifdef WITH_OPENCL
 void CL_CALLBACK opencl_rap_freebufs_cb(cl_event event, cl_int status, void * data) {
 	rap_callback_payload * call_pl = (rap_callback_payload *)data;
-	fprintf(stderr, "Would have been a RAP free\n");//if (call_pl->host_packed_buf != NULL) free(call_pl->host_packed_buf);
-	free(call_pl->packed_buf);
-	free(data);
+	if (call_pl->host_packed_buf != NULL) pool_free(call_pl->host_packed_buf, call_pl->buf_size, 1);
+	//free(call_pl->packed_buf);
+	pool_free(data, sizeof(rap_callback_payload), 0);
 }
 #endif //WITH_OPENCL
 #ifdef WITH_CUDA
 void CUDART_CB cuda_rap_freebufs_cb(cudaStream_t stream, cudaError_t status, void *data) {
 	rap_callback_payload * call_pl = (rap_callback_payload *)data;
-	fprintf(stderr, "Would have been a RAP free\n");//if (call_pl->host_packed_buf != NULL) free(call_pl->host_packed_buf);
+	if (call_pl->host_packed_buf != NULL) pool_free(call_pl->host_packed_buf, call_pl->buf_size, 1);
 	//I'm not sure this should be removed, now that we rely on the user to provide staging buffs (to save reallocing)
-	FIXME(free(call_pl->packed_buf););
-	free(data);
+	//FIXME(free(call_pl->packed_buf););
+	pool_free(data, sizeof(rap_callback_payload), 0);
 }
 #endif //WITH_CUDA
 
 void rap_helper(request_record *rap_request) {
-	printf("RAP_HELPER FIRED!\n");
+	//printf("RAP_HELPER FIRED!\n");
 	//async H2D copy w/ callback to free the temp host buffer
 	//set up the mode_specific pointer to our free wrapper
-	meta_callback * call = (meta_callback*) malloc(sizeof(meta_callback));
+	meta_callback * call = (meta_callback*) pool_alloc(sizeof(meta_callback), 0);
 	switch(run_mode) {
 		#ifdef WITH_CUDA
 			case metaModePreferCUDA:
@@ -641,23 +775,27 @@ void rap_helper(request_record *rap_request) {
 			break;
 	}
 	//and invoke the async copy with the callback specified and the host pointer as the payload
-	rap_callback_payload * call_pl = (rap_callback_payload *)malloc(sizeof(rap_callback_payload));
+	rap_callback_payload * call_pl = (rap_callback_payload *) pool_alloc(sizeof(rap_callback_payload), 0);
 	call_pl->host_packed_buf = NULL;
 	if(rap_request->rap_rec.host_packed_buf != NULL) {
 		meta_copy_h2d(rap_request->rap_rec.dev_packed_buf, rap_request->rap_rec.host_packed_buf, rap_request->rap_rec.buf_size, 1);
 		call_pl->host_packed_buf = rap_request->rap_rec.host_packed_buf;
+		call_pl->buf_size = rap_request->rap_rec.buf_size;
 	}
-	meta_unpack_2d_face_cb(&(rap_request->rap_rec.grid_size), &(rap_request->rap_rec.block_size), rap_request->rap_rec.dev_packed_buf, rap_request->rap_rec.dev_buf, rap_request->rap_rec.face, rap_request->rap_rec.type, 1, call, call_pl);
+	call_pl->packed_buf = rap_request->rap_rec.dev_packed_buf;
+	//check that the "NULL grid/block" flags aren't set with ternaries
+	meta_unpack_2d_face_cb((rap_request->rap_rec.grid_size[0] == 0 ? NULL : &(rap_request->rap_rec.grid_size)), (rap_request->rap_rec.block_size[0] == 0 ? NULL : &(rap_request->rap_rec.block_size)), rap_request->rap_rec.dev_packed_buf, rap_request->rap_rec.dev_buf, rap_request->rap_rec.face, rap_request->rap_rec.type, 1, call, (void*)call_pl);
 }
 
 //A wrapper that, provided a face, will receive a buffer, and unpack it
-a_err meta_mpi_recv_and_unpack_face(a_dim3 * grid_size, a_dim3 * block_size, int src_rank, meta_2d_face_indexed * face, void * buf, void * packed_buf, void * packed_buf_host, int tag, MPI_Request * req, meta_type_id type, int async) {
+a_err meta_mpi_recv_and_unpack_face(a_dim3 * grid_size, a_dim3 * block_size, int src_rank, meta_2d_face_indexed * face, void * buf, void * packed_buf, int tag, MPI_Request * req, meta_type_id type, int async) {
 	//allocate space to receive the packed buffer
 	size_t size = 1;
 	int i;
 	for(i = 0; i < face->count; i++) size *= face->size[i];
 	//FIXME: User app is now responsible for managing these
-	//void *packed_buf, *packed_buf_host;
+	//void *packed_buf, 
+	void *packed_buf_host;
 	size_t type_size;
 	MPI_Datatype mpi_type;
 	switch (type) {
@@ -693,7 +831,7 @@ a_err meta_mpi_recv_and_unpack_face(a_dim3 * grid_size, a_dim3 * block_size, int
 		break;
 	}
 	//FIXME: remove this and associated frees
-	a_err error;
+	a_err error = 0;
 	//a_err error = meta_alloc(&packed_buf, size*type_size);
 	MPI_Status status; //FIXME: Should this be a function param?
 	#ifdef WITH_MPI_GPU_DIRECT
@@ -705,19 +843,24 @@ a_err meta_mpi_recv_and_unpack_face(a_dim3 * grid_size, a_dim3 * block_size, int
 					//Helper will recognize the null, and not do h2d transfer, but
 					// will invoke unpack kernel
 					//Assemble a request_record
-					request_record * rec = (request_record *) malloc(sizeof(request_record));
+					request_record * rec = (request_record *) pool_alloc(sizeof(request_record), 0);
 					rec->rap_rec.req = req;
 					rec->rap_rec.host_packed_buf = NULL;
 					rec->rap_rec.dev_packed_buf = packed_buf;
+					rec->rap_rec.dev_buf = buf;
 					rec->rap_rec.buf_size = size*type_size;
-					memcpy(&(rec->rap_rec.grid_size), grid_size, sizeof(a_dim3));
-					memcpy(&(rec->rap_rec.block_size), block_size, sizeof(a_dim3));
+					if (grid_size != NULL)
+						memcpy(&(rec->rap_rec.grid_size), grid_size, sizeof(a_dim3));
+					else rec->rap_rec.grid_size[0] = NULL;
+					if (block_size != NULL)
+						memcpy(&(rec->rap_rec.block_size), block_size, sizeof(a_dim3));
+					else rec->rap_rec.block_size[0] = NULL;
 					rec->rap_rec.type = type;
 					rec->rap_rec.face = face;
 					//and submit it
 					register_mpi_request(rap_rec, rec);
 					//once registered, all the params are copied, so the record can be freed
-					free(rec);
+					pool_free(rec, sizeof(request_record), 0);
 				} else {
 					MPI_Recv(packed_buf, size, mpi_type, src_rank, tag, MPI_COMM_WORLD, &status);
 				}
@@ -727,8 +870,7 @@ a_err meta_mpi_recv_and_unpack_face(a_dim3 * grid_size, a_dim3 * block_size, int
 	#endif //WITH_MPI_GPU_DIRECT
 	
 	//Non-GPUDirect version
-	//FIXME: Remove this and associated frees
-	//packed_buf_host = malloc(size*type_size);
+	packed_buf_host = pool_alloc(size*type_size, 1);
 	//do a receive, if asynchronous, we need to implement a callback to launch the H2D copy
 	//FIXME: Add proper callback-related functionality to allow the pack and copy to be asynchronous
 	if (async) {
@@ -736,10 +878,11 @@ a_err meta_mpi_recv_and_unpack_face(a_dim3 * grid_size, a_dim3 * block_size, int
 		//TODO: Register the transfer, with host pointer set to packed_buf_host
 		//Helper will recognize the non-null pointer and do an h2d transfer and unpack
 		// with necessary callbacks to free both temp buffers
-		request_record * rec = (request_record *) malloc(sizeof(request_record));
+		request_record * rec = (request_record *) pool_alloc(sizeof(request_record), 0);
 		rec->rap_rec.req = req;
 		rec->rap_rec.host_packed_buf = packed_buf_host;
 		rec->rap_rec.dev_packed_buf = packed_buf;
+		rec->rap_rec.dev_buf = buf;
 		rec->rap_rec.buf_size = size*type_size;
 		//If they've provided a grid_size, copy it
 		if (grid_size != NULL)
@@ -756,15 +899,14 @@ a_err meta_mpi_recv_and_unpack_face(a_dim3 * grid_size, a_dim3 * block_size, int
 		//and submit it
 		register_mpi_request(rap_rec, rec);
 		//once registered, all the params are copied, so the record can be freed
-		free(rec);
+		pool_free(rec, sizeof(request_record), 0);
 	} else {
 		//receive the buffer
 		MPI_Recv(packed_buf_host, size, mpi_type, src_rank, tag, MPI_COMM_WORLD, &status);
 		//copy the buffer to the device
 		error |= meta_copy_h2d(packed_buf, packed_buf_host, size*type_size, 0);
 		//free the host temp buffer
-		//FIXME: remove the async frees
-		//free(packed_buf_host);
+		pool_free(packed_buf_host, size*type_size, 1);
 		//Unpack on the device
 		error |= meta_unpack_2d_face(grid_size, block_size, packed_buf, buf, face, type, 0);
 		//free the device temp buffer

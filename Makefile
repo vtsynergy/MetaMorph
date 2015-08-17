@@ -23,10 +23,12 @@ nocuda_DEBUG: red_test_nocuda_DEBUG red_test_fortran_nocuda_DEBUG
 nocuda_notimers_DEBUG: red_test_nocuda_notimers_DEBUG red_test_fortran_nocuda_notimers_DEBUG
 
 xch_test: libmetamorph.so
-	mpicc -cc=gcc-4.8 exchange_bootstrapper.c -I ./ -D WITH_OPENCL -D WITH_OPENMP -D WITH_CUDA -D WITH_MPI -D WITH_TIMERS -D WITH_FORTRAN -L ./ -L /usr/local/cuda/lib64 -lmetamorph -o xch_test -g /usr/lib/libnuma.so.1
+	mpicc -cc=gcc-4.8 exchange_bootstrapper.c -I ./ -D WITH_OPENCL -D WITH_OPENMP -D WITH_CUDA -D WITH_MPI -D WITH_TIMERS -D WITH_FORTRAN -L ./ -L /usr/local/cuda/lib64 -lmetamorph -o xch_test -g
+#/usr/lib/libnuma.so.1
 
 xch_test_direct: libmetamorph_direct.so
-	mpicc -cc=gcc-4.8 exchange_bootstrapper.c -pg -g -D__DEBUG__ -I ./ -D WITH_OPENCL -D WITH_OPENMP -D WITH_CUDA -D WITH_MPI -D WITH_TIMERS -D WITH_FORTRAN -D WITH_MPI_GPU_DIRECT -L ./ -L /usr/local/cuda/lib64 -lmetamorph_direct -o xch_test_direct -g /usr/lib/libnuma.so.1
+	mpicc -cc=gcc-4.8 exchange_bootstrapper.c -pg -g -D__DEBUG__ -I ./ -D WITH_OPENCL -D WITH_OPENMP -D WITH_CUDA -D WITH_MPI -D WITH_TIMERS -D WITH_FORTRAN -D WITH_MPI_GPU_DIRECT -L ./ -L /usr/local/cuda/lib64 -lmetamorph_direct -o xch_test_direct -g
+#/usr/lib/libnuma.so.1
 	#mpicc -cc=gcc-4.8 exchange_bootstrapper.c -g -D__DEBUG__ -I ./ -D WITH_OPENCL -D WITH_OPENMP -D WITH_CUDA -D WITH_MPI -D WITH_TIMERS -D WITH_FORTRAN -D WITH_MPI_GPU_DIRECT -L ./ -L /usr/local/cuda/lib64 -lmetamorph_direct -o xch_test_direct -g /usr/lib/libnuma.so.1
 
 red_test_fortran_nocuda_notimers: libmetamorph_nocuda_notimers.so
@@ -60,7 +62,7 @@ libmetamorph_nocuda.so: libmetamorph_opencl_core.so metamorph.c
 	gcc metamorph.c metamorph_timers.c metamorph_fortran_compat.c -fPIC -shared -D WITH_OPENCL -D WITH_OPENMP -D WITH_TIMERS -D WITH_FORTRAN -I ./ -L ./ -L /usr/local/cuda/lib64 -lmetamorph_opencl_core -lOpenCL -o libmetamorph_nocuda.so
 
 libmetamorph_notimers.so: libmetamorph_cuda_core.so libmetamorph_opencl_core.so metamorph.c
-	mpicc -cc=gcc-4.8 metamorph.c metamorph_mpi.c -g -DWITH_MPI -fPIC -shared -D WITH_CUDA -D WITH_OPENCL -D WITH_OPENMP -I ./ -L ./ -L /usr/local/cuda/lib64 -lmetamorph_opencl_core -lmetamorph_cuda_core -lOpenCL -lcudart -o libmetamorph_notimers.so
+	mpicc -cc=gcc-4.8 metamorph.c metamorph_mpi.c -g -DWITH_MPI -fPIC -shared -D WITH_CUDA -D WITH_OPENCL -D WITH_OPENMP -I ./ -L ./ -L /usr/local/cuda/lib64 -lmetamorph_opencl_core -lmetamorph_cuda_core -lOpenCL -lcudart -o libmetamorph_notimers.so -DWITH_MPI_POOL_TIMING -DWITH_MPI_POOL
 #	gcc metamorph.c -fPIC -shared -D WITH_CUDA -D WITH_OPENCL -D WITH_OPENMP -I ./ -L ./ -L /usr/local/cuda/lib64 -lmetamorph_opencl_core -lmetamorph_cuda_core -lOpenCL -lcudart -o libmetamorph_notimers.so
 
 libmetamorph_notimers_fortran.so: libmetamorph_cuda_core.so libmetamorph_opencl_core.so metamorph.c metamorph_fortran_compat.c
@@ -70,7 +72,8 @@ libmetamorph_notimers_fortran.so: libmetamorph_cuda_core.so libmetamorph_opencl_
 #OMPI_CC=gcc-4.8 /usr/bin/mpicc
 libmetamorph_direct.so: libmetamorph_cuda_core.so libmetamorph_opencl_core.so metamorph.c
 	which mpicc
-	mpicc -cc=gcc-4.8 metamorph.c metamorph_timers.c metamorph_fortran_compat.c metamorph_mpi.c -g -fPIC -shared -DNO_FIXME -D WITH_CUDA -D WITH_OPENCL -D WITH_OPENMP -D WITH_FORTRAN -D WITH_MPI -I ./ -L ./ -L /usr/local/cuda/lib64 -lmetamorph_opencl_core -lmetamorph_cuda_core -lOpenCL -lcudart -o libmetamorph_direct.so /usr/lib/libnuma.so.1
+	mpicc -cc=gcc-4.8 metamorph.c metamorph_timers.c metamorph_fortran_compat.c metamorph_mpi.c -g -fPIC -shared -DNO_FIXME -D WITH_CUDA -D WITH_OPENCL -D WITH_OPENMP -D WITH_FORTRAN -D WITH_MPI -D WITH_MPI_GPU_DIRECT -I ./ -L ./ -L /usr/local/cuda/lib64 -lmetamorph_opencl_core -lmetamorph_cuda_core -lOpenCL -lcudart -o libmetamorph_direct.so -DWITH_MPI_POOL_TIMING -DWITH_MPI_POOL
+# /usr/lib/libnuma.so.1
 	#mpicc -cc=gcc-4.8 metamorph.c metamorph_timers.c metamorph_fortran_compat.c metamorph_mpi.c -g -fPIC -shared -D WITH_CUDA -D WITH_OPENCL -D WITH_OPENMP -D WITH_FORTRAN -D WITH_MPI -D WITH_MPI_GPU_DIRECT -I ./ -L ./ -L /usr/local/cuda/lib64 -lmetamorph_opencl_core -lmetamorph_cuda_core -lOpenCL -lcudart -o libmetamorph_direct.so /usr/lib/libnuma.so.1
 
 libmetamorph_fortran.so: libmetamorph_cuda_core.so libmetamorph_opencl_core.so metamorph.c metamorph_fortran_compat.c

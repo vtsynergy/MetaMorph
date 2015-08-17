@@ -550,8 +550,12 @@ cudaError_t cuda_pack_2d_face(size_t (* grid_size)[3], size_t (* block_size)[3],
 		block = dim3(256, 1, 1);
 		grid = dim3((face->size[0]*face->size[1]*face->size[2] + block.x -1)/block.x, 1, 1);
 	} else {
-		block = dim3((*block_size)[0], (*block_size)[1], (*block_size)[2]);
-		grid = dim3((*grid_size)[0], (*grid_size)[1], 1);
+		//This is a workaround for some non-determinism that was observed when allowing fully-arbitrary spec of grid/block
+		if ((*block_size)[1] != 1 || (*block_size)[2] != 1 || (*grid_size)[1] != 1 || (*grid_size)[2]) fprintf(stderr, "WARNING: Pack requires 1D block and grid, ignoring y/z params!\n");
+		//block = dim3((*block_size)[0], (*block_size)[1], (*block_size)[2]);
+		block = dim3((*block_size)[0], 1, 1);
+		//grid = dim3((*grid_size)[0], (*grid_size)[1], 1);
+		grid = dim3((*grid_size)[0], 1, 1);
 	}
 	smem_size = face->count*block.x*sizeof(int);
 	switch (type) {
@@ -639,8 +643,12 @@ cudaError_t cuda_unpack_2d_face(size_t (* grid_size)[3], size_t (* block_size)[3
 		block = dim3(256, 1, 1);
 		grid = dim3((face->size[0]*face->size[1]*face->size[2] + block.x -1)/block.x, 1, 1);
 	} else {
-		block = dim3((*block_size)[0], (*block_size)[1], (*block_size)[2]);
-		grid = dim3((*grid_size)[0], (*grid_size)[1], 1);
+		//This is a workaround for some non-determinism that was observed when allowing fully-arbitrary spec of grid/block
+		if ((*block_size)[1] != 1 || (*block_size)[2] != 1 || (*grid_size)[1] != 1 || (*grid_size)[2]) fprintf(stderr, "WARNING: Unpack requires 1D block and grid, ignoring y/z params!\n");
+		//block = dim3((*block_size)[0], (*block_size)[1], (*block_size)[2]);
+		block = dim3((*block_size)[0], 1, 1);
+		//grid = dim3((*grid_size)[0], (*grid_size)[1], 1);
+		grid = dim3((*grid_size)[0], 1, 1);
 	}
 	smem_size = face->count*block.x*sizeof(int);
 	switch (type) {

@@ -1008,7 +1008,7 @@ a_err meta_pack_2d_face_cb(a_dim3 * grid_size, a_dim3 * block_size, void *packed
 					  #else
 			//If timers don't exist, get the event via a locally-scoped event to add to the callback
 			cl_event cb_event;
-					  ret = (a_err) opencl_pack_2d_face(grid_size, block_size, packed_buf, buf, face, remain_dim, type, async, NULL, NULL, NULL, &cb_event);
+					  ret = (a_err) opencl_pack_2d_face(grid_size, block_size, packed_buf, buf, face, remain_dim, type, async, &cb_event, NULL, NULL, NULL);
 			if ((void*)call != NULL && call_pl != NULL) clSetEventCallback(cb_event, CL_COMPLETE, call->openclCallback, call_pl);
 					  #endif
 					  break;
@@ -1102,7 +1102,7 @@ a_err meta_unpack_2d_face_cb(a_dim3 * grid_size, a_dim3 * block_size, void *pack
 					  #else
 			//If timers don't exist, get the event via a locally-scoped event to add to the callback
 			cl_event cb_event;
-					  ret = (a_err) opencl_unpack_2d_face(grid_size, block_size, packed_buf, buf, face, remain_dim, type, async, NULL, NULL, NULL, &cb_event);
+					  ret = (a_err) opencl_unpack_2d_face(grid_size, block_size, packed_buf, buf, face, remain_dim, type, async, &cb_event, NULL, NULL, NULL);
 			if ((void*)call != NULL && call_pl != NULL) clSetEventCallback(cb_event, CL_COMPLETE, call->openclCallback, call_pl);
 					  #endif
 					  break;

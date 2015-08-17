@@ -32,6 +32,25 @@
 	#include "metamorph.h"
 #endif
 
+//POOL_SIZE must be a power of two for quick masks instead of modulos
+// behavior is left undefined if this is violated/
+#ifndef META_MPI_POOL_SIZE
+	#define META_MPI_POOL_SIZE 8
+#endif
+
+//To keep the structure lightweight, it's a simple ring array
+// this param specifies how many previous ring slots we should look
+// at for one of appropriate size before just reallocing the current one
+// The default is 4
+//This lookback is part of the "ratchet" behavior of the ring
+#ifndef META_MPI_POOL_LOOKBACK
+	#define META_MPI_POOL_LOOKBACK 4
+#endif
+
+//Should never be user-editted, it's just for masking the bits needed for
+// fast indexing
+#define POOL_MASK (META_MPI_POOL_SIZE - 1)
+
 //Any special concerns
 #ifdef WITH_CUDA
 #endif
@@ -42,22 +61,39 @@
 #ifdef WITH_OPENMP
 #endif
 
+//This pool manages host staging buffers
+//These arrays are kept in sync to store the pointer and size of each buffer
+extern void * host_buf_pool[META_MPI_POOL_SIZE];
+//The size array moonlights as an occupied flag if size !=0
+extern unsigned long host_buf_pool_size[META_MPI_POOL_SIZE];
+extern unsigned long host_pool_token;
+
+//This separate pool manages internal buffers for requests/callback payloads
+extern void * internal_pool[META_MPI_POOL_SIZE];
+extern unsigned long internal_pool_size[META_MPI_POOL_SIZE];
+extern unsigned long internal_pool_token;
+
+void * pool_alloc(size_t size, int isHost);
+void pool_free(void * bufi, size_t size, int isHost);
+
 //Helper records for async transfers
 typedef struct {
 	MPI_Request * req;
 	void * host_packed_buf;
+	size_t buf_size;
 } send_packed_record;
 
 typedef struct {
 	MPI_Request *req;
 	void *host_packed_buf;
-	void *dev_packed_buf;
 	size_t buf_size;
+	void *dev_packed_buf;
 } recv_packed_record;
 
 typedef struct {
 	MPI_Request *req;
 	void *host_packed_buf;
+	size_t buf_size;
 	void *dev_packed_buf;
 } pack_and_send_record;
 
@@ -66,8 +102,8 @@ typedef struct {
 typedef struct {
 	MPI_Request *req;
 	void *host_packed_buf;
-	void *dev_packed_buf;
 	size_t buf_size;
+	void *dev_packed_buf;
 	a_dim3 grid_size;
 	a_dim3 block_size;
 	meta_type_id type;
@@ -107,7 +143,7 @@ typedef struct recordQueueNode {
 typedef struct sp_callback_payload {
 	void * host_packed_buf;
 	size_t buf_leng;
-	MPI_Datatype mpi_type;
+	meta_type_id type;
 	int dst_rank;
 	int tag;
 	MPI_Request *req;
@@ -117,7 +153,7 @@ typedef struct sap_callback_payload {
 	void * host_packed_buf;
 	void * dev_packed_buf;
 	size_t buf_leng;
-	MPI_Datatype mpi_type;
+	meta_type_id type;
 	int dst_rank;
 	int tag;
 	MPI_Request *req;
@@ -126,8 +162,24 @@ typedef struct sap_callback_payload {
 typedef struct rap_callback_payload {
 	void * host_packed_buf;
 	void * packed_buf;
+	size_t buf_size;
 }rap_callback_payload;
 
+typedef struct rp_callback_payload {
+	void * host_packed_buf;
+	size_t buf_size;
+}rp_callback_payload;
+
+//Call this first
+// sets up MPI_Init, and all MetaMorph specific MPI features
+void meta_mpi_init(int *argc, char *** argv);
+
+//Call this last
+// finalizes all MetaMorph specific MPI features
+// and calls MPI_finalize
+void meta_mpi_finalize();
+
+//setup the record queue sentinel
 void init_record_queue();
 //Helper functions for async transfers
 
@@ -146,21 +198,24 @@ void sp_helper(request_record *sp_request);
 void rap_helper(request_record *rap_request);
 void sap_helper(request_record *sap_request);
 
+//Returns the MPI_Datatype, (and the type's size in size, if a non-NULL pointer is provided
+MPI_Datatype get_mpi_type(meta_type_id type, size_t * size);
+
 //FIXME: Paul 2014.06.30 - HOST ONLY TRANSFERS AREN'T OUR JOB
 // all library-implemented transfers assume device buffers!!
 
 //Compound transfers, reliant on other library functions
 //Essentially a wrapper for a contiguous buffer send
-a_err meta_mpi_packed_face_send();
+a_err meta_mpi_packed_face_send(int dst_rank, void * packed_buf, size_t buf_leng, int tag, MPI_Request * req, meta_type_id type, int async);
 
 //Essentially a wrapper for a contiguous buffer receive
-a_err meta_mpi_packed_face_recv();
+a_err meta_mpi_packed_face_recv(int src_rank, void * packed_buf, size_t buf_leng, int tag, MPI_Request * req, meta_type_id type, int async);
 
 //A wrapper that, provided a face, will pack it, then send it
-a_err meta_mpi_pack_and_send_face();
+a_err meta_mpi_pack_and_send_face(a_dim3 * grid_size, a_dim3 * block_size, int dst_rank, meta_2d_face_indexed * face, void * buf, void * packed_buf, int tag, MPI_Request * req, meta_type_id type, int async);
 
 //A wrapper that, provided a face, will receive a buffer, and unpack it
-a_err meta_mpi_recv_and_unpack_face();
+a_err meta_mpi_recv_and_unpack_face(a_dim3 * grid_size, a_dim3 * block_size, int src_rank, meta_2d_face_indexed * face, void * buf, void * packed_buf, int tag, MPI_Request * req, meta_type_id type, int async);
 
 extern meta_preferred_mode run_mode;
 #endif //METAMORPH_MPI_H
