@@ -256,16 +256,17 @@ int ni, nj, nk, nm, iters;
 
 //      !Transfers data from host to device
       void data_transfer_h2d() {
+	a_err ret;
 #ifdef WITH_CUDA
-   a_err ret= cudaSuccess;
+	ret= cudaSuccess;
 #endif
 
 #ifdef WITH_OPENCL
-	a_err ret= CL_SUCCESS; 
+	ret= CL_SUCCESS; 
 #endif
 
 #ifdef WITH_OPENMP
-	a_err ret= 0;
+	ret= 0;
 #endif
 	//TODO add timing loops
 	int iter;
@@ -314,19 +315,20 @@ int ni, nj, nk, nm, iters;
 		//for CUDA use idevice = 0
             int istat, deviceused; //integer::istat, deviceused, idevice
 
+		int idevice;
 //            ! Initialize GPU
 #ifdef WITH_CUDA
-            int  idevice = 0;
+            idevice = 0;
             istat = choose_accel(idevice, metaModePreferCUDA); //TODO make "choose_accel"
 #endif
 
 #ifdef WITH_OPENCL
-            int  idevice = -1;
+            idevice = -1;
             istat = choose_accel(idevice, metaModePreferGeneric); //TODO make "choose_accel"
 #endif
 
 #ifdef WITH_OPENMP
-            int  idevice = 0;
+            idevice = 0;
             istat = choose_accel(idevice, metaModePreferOpenMP); //TODO make "choose_accel"
 #endif
 
