@@ -530,16 +530,19 @@ a_err meta_mpi_packed_face_recv(int src_rank, void *packed_buf, size_t buf_leng,
 				//rintf("GPU DIRECT MODE ACTIVE!\n");
 				if(async) {
 					MPI_Irecv(packed_buf, buf_leng, mpi_type, src_rank, tag, MPI_COMM_WORLD, req);
+					//TODO  ? Paul 2015.09.09
+					// I see no reason to register the request, there is no need for a helper to free the non-existent host buffer
+					// If we eventually allow the user to "fast-forward" the registry to ensure a specific request completes, then we will need to add both this and send_packed to the registry
 					//Assemble a request_record
-					request_record * rec = (request_record *) pool_alloc(sizeof(request_record), 0);
-					rec->rp_rec.req = req;
-					rec->rp_rec.host_packed_buf = NULL;
-					rec->rp_rec.dev_packed_buf = packed_buf;
-					rec->rp_rec.buf_size = buf_leng*type_size; 
+					//request_record * rec = (request_record *) pool_alloc(sizeof(request_record), 0);
+					//rec->rp_rec.req = req;
+					//rec->rp_rec.host_packed_buf = NULL;
+					//rec->rp_rec.dev_packed_buf = packed_buf;
+					//rec->rp_rec.buf_size = buf_leng*type_size; 
 					//and submit it
-					register_mpi_request(rp_rec, rec);
+					//register_mpi_request(rp_rec, rec);
 					//once registered, all the params are copied, so the record can be freed
-					pool_free(rec, sizeof(request_record), 0);
+					//pool_free(rec, sizeof(request_record), 0);
 				} else {
 					MPI_Recv(packed_buf, buf_leng, mpi_type, src_rank, tag, MPI_COMM_WORLD, &status);
 				}
