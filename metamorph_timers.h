@@ -10,6 +10,7 @@
 #ifndef METAMORPH_H
 	#include "metamorph.h"
 #endif
+#include <stdlib.h>
 
 //Any special concerns for 
 #ifdef WITH_CUDA

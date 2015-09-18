@@ -1182,7 +1182,7 @@ a_err meta_unpack_2d_face_cb(a_dim3 * grid_size, a_dim3 * block_size, void *pack
 	}
 	#ifdef WITH_TIMERS
 	//TODO Add queue c_H2Dc for copies into constant memory
-	metaTimerEnqueue(frame_k1, &(metaBuiltinQueues[k_pack_2d_face]));
+	metaTimerEnqueue(frame_k1, &(metaBuiltinQueues[k_unpack_2d_face]));
 	metaTimerEnqueue(frame_c1, &(metaBuiltinQueues[c_H2Dc]));
 	metaTimerEnqueue(frame_c2, &(metaBuiltinQueues[c_H2Dc]));
 	metaTimerEnqueue(frame_c3, &(metaBuiltinQueues[c_H2Dc]));

@@ -487,6 +487,8 @@ void CUDART_CB cuda_free_host_cb(cudaStream_t stream, cudaError_t status, void *
 #endif //WITH_CUDA
 
 void rp_helper(request_record * rp_request) {
+	//Paul, added this short circuit to prevent GPU-direct RPs from trying to do a H2D copy and free a host buffer
+	if (rp_request->rp_rec.host_packed_buf == NULL) return;
 	//printf("RP_HELPER FIRED!\n");
 	//async H2D copy w/ callback to free the temp host buffer
 	//set up the mode_specific pointer to our free wrapper

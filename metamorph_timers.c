@@ -203,27 +203,30 @@ a_err metaTimersFlush() {
 	// dequeuing each element and tallying it up
 	//This is where we need METAMORPH_TIMER_LEVEL
 	int i;
-	if  (getenv("METAMORPH_TIMER_LEVEL") != NULL) {
-		if (strcmp(getenv("METAMORPH_TIMER_LEVEL"), "0") == 0) {
+	char * level = NULL;
+	//if  ((level = (char*)((long int) getenv("METAMORPH_TIMER_LEVEL"))) != NULL) {
+	if  ((level = getenv("METAMORPH_TIMER_LEVEL")) != NULL) {
+		printf("My level pointer is %x\n", level);
+		if (strcmp(level, "0") == 0) {
 			for(i = 0; i < queue_count; i++) flushWorker(&metaBuiltinQueues[i], 0);
 			//Just eat the nodes, don't do anything with them
 		}
 
-		else if (strcmp(getenv("METAMORPH_TIMER_LEVEL"), "1") == 0) {
+		else if (strcmp(level, "1") == 0) {
 			fprintf(stderr, "***TIMER LEVEL 1 FLUSH START***\n");
 			for(i = 0; i < queue_count; i++) flushWorker(&metaBuiltinQueues[i], 1);
 			fprintf(stderr, "***TIMER LEVEL 1 FLUSH END***\n");
 			//Aggregate just averages
 		}
 
-		else if (strcmp(getenv("METAMORPH_TIMER_LEVEL"), "2") == 0) {
+		else if (strcmp(level, "2") == 0) {
 			fprintf(stderr, "***TIMER LEVEL 2 FLUSH START***\n");
 			for(i = 0; i < queue_count; i++) flushWorker(&metaBuiltinQueues[i], 2);
 			fprintf(stderr, "***TIMER LEVEL 2 FLUSH END***\n");
 			//Display all individual nodes, with bandwidth (for transfers)
 		}
 
-		else if (strcmp(getenv("METAMORPH_TIMER_LEVEL"), "3") == 0) {
+		else if (strcmp(level, "3") == 0) {
 			for(i = 0; i < queue_count; i++) flushWorker(&metaBuiltinQueues[i], 3);
 			//Display full diagnostics
 			// This should include grid and block sizes
