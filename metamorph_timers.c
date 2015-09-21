@@ -176,7 +176,13 @@ void flushWorker(metaTimerQueue * queue, int level) {
 		if (level >= 2) {
 			//Individual call times/bandwidths
 			//TODO come up with a reasonable, generic bandwidth calculation.
-			fprintf(stderr, "\t%s [%lu] on [%lu]bytes took [%f]ms, with [%f]MB/s approximate bandwidth.\n", queue->name, count, frame->size, temp_t, (frame->size > 0 && temp_t > 0) ? frame->size*.001/temp_t : 0.0);
+			#ifdef WITH_MPI
+				int rank;
+				MPI_Comm_rank(MPI_COMM_WORLD, &rank);
+				fprintf(stderr, "\tRank[%d]: %s [%lu] on [%lu]bytes took [%f]ms, with [%f]MB/s approximate bandwidth.\n", rank, queue->name, count, frame->size, temp_t, (frame->size > 0 && temp_t > 0) ? frame->size*.001/temp_t : 0.0);
+			#else
+				fprintf(stderr, "\t%s [%lu] on [%lu]bytes took [%f]ms, with [%f]MB/s approximate bandwidth.\n", queue->name, count, frame->size, temp_t, (frame->size > 0 && temp_t > 0) ? frame->size*.001/temp_t : 0.0);
+			#endif
 		}
 
 		if (level == 3) {
@@ -187,7 +193,15 @@ void flushWorker(metaTimerQueue * queue, int level) {
 		count++;
 		//Eating the node for level 0 is inherent in the while
 	}
-	if (level > 0 && time > 0)fprintf(stderr, "All %ss took [%f]ms, with [%f]MB/s approximate average bandwidth.\n", queue->name, time, (size > 0 && time > 0) ? size*.001/time : 0.0);
+	if (level > 0 && time > 0) {
+		#ifdef WITH_MPI
+			int rank;
+			MPI_Comm_rank(MPI_COMM_WORLD, &rank);
+			fprintf(stderr, "Rank[%d]: All %ss took [%f]ms, with [%f]MB/s approximate average bandwidth.\n", rank, queue->name, time, (size > 0 && time > 0) ? size*.001/time : 0.0);
+		#else
+			fprintf(stderr, "All %ss took [%f]ms, with [%f]MB/s approximate average bandwidth.\n", queue->name, time, (size > 0 && time > 0) ? size*.001/time : 0.0);
+		#endif
+	}
 }
 
 //Flush out properly-formatted timers/bandwidths/diagnostics

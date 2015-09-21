@@ -765,7 +765,7 @@ cl_int opencl_pack_2d_face(size_t (* grid_size)[3], size_t (* block_size)[3], vo
 	//copy required pieces of the face struct into constant memory
 	ret = clEnqueueWriteBuffer(frame->queue, frame->constant_face_size, ((async) ? CL_FALSE : CL_TRUE), 0, sizeof(cl_int)*face->count, face->size, 0, NULL, event_c1);
 	ret |= clEnqueueWriteBuffer(frame->queue, frame->constant_face_stride, ((async) ? CL_FALSE : CL_TRUE), 0, sizeof(cl_int)*face->count, face->stride, 0, NULL, event_c2);
-	ret |= clEnqueueWriteBuffer(frame->queue, frame->constant_face_child_size, ((async) ? CL_FALSE : CL_TRUE), 0, sizeof(cl_int)*face->count, remain_dim, 0, NULL, event_c2);
+	ret |= clEnqueueWriteBuffer(frame->queue, frame->constant_face_child_size, ((async) ? CL_FALSE : CL_TRUE), 0, sizeof(cl_int)*face->count, remain_dim, 0, NULL, event_c3);
 //TODO update to use user-provided grid/block once multi-element per thread scaling is added
 //	size_t grid[3] = {(*grid_size)[0]*(*block_size)[0], (*grid_size)[1]*(*block_size)[1], (*block_size)[2]};
 //	size_t block[3] = {(*block_size)[0], (*block_size)[1], (*block_size)[2]};
@@ -858,7 +858,7 @@ cl_int opencl_unpack_2d_face(size_t (* grid_size)[3], size_t (* block_size)[3], 
 	//copy required pieces of the face struct into constant memory
 	ret = clEnqueueWriteBuffer(frame->queue, frame->constant_face_size, ((async) ? CL_FALSE : CL_TRUE), 0, sizeof(cl_int)*face->count, face->size, 0, NULL, event_c1);
 	ret |= clEnqueueWriteBuffer(frame->queue, frame->constant_face_stride, ((async) ? CL_FALSE : CL_TRUE), 0, sizeof(cl_int)*face->count, face->stride, 0, NULL, event_c2);
-	ret |= clEnqueueWriteBuffer(frame->queue, frame->constant_face_child_size, ((async) ? CL_FALSE : CL_TRUE), 0, sizeof(cl_int)*face->count, remain_dim, 0, NULL, event_c2);
+	ret |= clEnqueueWriteBuffer(frame->queue, frame->constant_face_child_size, ((async) ? CL_FALSE : CL_TRUE), 0, sizeof(cl_int)*face->count, remain_dim, 0, NULL, event_c3);
 //TODO update to use user-provided grid/block once multi-element per thread scaling is added
 //	size_t grid[3] = {(*grid_size)[0]*(*block_size)[0], (*grid_size)[1]*(*block_size)[1], (*block_size)[2]};
 //	size_t block[3] = {(*block_size)[0], (*block_size)[1], (*block_size)[2]};

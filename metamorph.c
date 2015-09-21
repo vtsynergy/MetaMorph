@@ -996,6 +996,10 @@ a_err meta_pack_2d_face_cb(a_dim3 * grid_size, a_dim3 * block_size, void *packed
 	frame_c1->mode = run_mode;
 	frame_c2->mode = run_mode;
 	frame_c3->mode = run_mode;
+	frame_k1->size = get_atype_size(type)*face->size[0]*face->size[1]*face->size[2];
+	frame_c1->size = get_atype_size(type)*face->size[0]*face->size[1]*face->size[2];
+	frame_c2->size = get_atype_size(type)*face->size[0]*face->size[1]*face->size[2];
+	frame_c3->size = get_atype_size(type)*face->size[0]*face->size[1]*face->size[2];
 //	frame->size = (*dim_xy)[0]*(*dim_xy)[1]*get_atype_size(type);
 	#endif
 
@@ -1111,6 +1115,10 @@ a_err meta_unpack_2d_face_cb(a_dim3 * grid_size, a_dim3 * block_size, void *pack
 	frame_c1->mode = run_mode;
 	frame_c2->mode = run_mode;
 	frame_c3->mode = run_mode;
+	frame_k1->size = get_atype_size(type)*face->size[0]*face->size[1]*face->size[2];
+	frame_c1->size = get_atype_size(type)*face->size[0]*face->size[1]*face->size[2];
+	frame_c2->size = get_atype_size(type)*face->size[0]*face->size[1]*face->size[2];
+	frame_c3->size = get_atype_size(type)*face->size[0]*face->size[1]*face->size[2];
 //	frame->size = (*dim_xy)[0]*(*dim_xy)[1]*get_atype_size(type);
 	#endif
 

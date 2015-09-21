@@ -262,6 +262,14 @@ a_err meta_unpack_2d_face(a_dim3 * grid_size, a_dim3 * block_size, void *packed_
 // should decide whether to compiler with different metrics
 // packages. First and foremost, event-based timers for their
 // respective platforms.
+//MPI functions need access to all top-level calls and types
+//MPI needs to be before timers, so that timers can output rank info - if available
+#ifdef WITH_MPI
+	#ifndef METAMORPH_MPI_H
+		#include "metamorph_mpi.h"
+	#endif
+#endif
+
 //WITH_TIMERS needs to be here, so the header passthrough can give it the meta_preferred_mode enum
 #ifdef WITH_TIMERS
 	#ifndef METAMORPH_TIMERS_H
@@ -274,13 +282,6 @@ a_err meta_unpack_2d_face(a_dim3 * grid_size, a_dim3 * block_size, void *packed_
 #ifdef WITH_FORTRAN
 	#ifndef METAMORPH_FORTRAN_COMPAT_H
 		#include "metamorph_fortran_compat.h"
-	#endif
-#endif
-
-//MPI functions need access to all top-level calls and types
-#ifdef WITH_MPI
-	#ifndef METAMORPH_MPI_H
-		#include "metamorph_mpi.h"
 	#endif
 #endif
 
