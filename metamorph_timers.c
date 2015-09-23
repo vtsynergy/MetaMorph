@@ -106,7 +106,7 @@ a_err metaTimersInit() {
 	metaBuiltinQueues[k_reduce].head = metaBuiltinQueues[k_reduce].tail = (metaTimerQueueNode*) malloc(sizeof(metaTimerQueueNode));
 	metaBuiltinQueues[k_reduce].head->mode = metaModeUnset;
 	metaBuiltinQueues[k_reduce].head->next = NULL;
-	metaBuiltinQueues[k_reduce].name = "Reduction kernel call";
+	metaBuiltinQueues[k_reduce].name = "Reduction Sum kernel call";
 
 	//Init the Dot Product kernel queue
 	metaBuiltinQueues[k_dotProd].head = metaBuiltinQueues[k_dotProd].tail = (metaTimerQueueNode*) malloc(sizeof(metaTimerQueueNode));
