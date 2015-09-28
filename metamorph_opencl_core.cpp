@@ -317,6 +317,7 @@ cl_int metaOpenCLSetState(cl_platform_id platform, cl_device_id device, cl_conte
 	metaOpenCLBuildProgram(frame);
 
 	//add the extra buffers needed for pack/unpack
+	int zero = 0;
 	frame->constant_face_size = clCreateBuffer(frame->context, CL_MEM_READ_ONLY, sizeof(cl_int)*METAMORPH_FACE_MAX_DEPTH, NULL, NULL);
 	frame->constant_face_stride = clCreateBuffer(frame->context, CL_MEM_READ_ONLY, sizeof(cl_int)*METAMORPH_FACE_MAX_DEPTH, NULL, NULL);
 	frame->constant_face_child_size = clCreateBuffer(frame->context, CL_MEM_READ_ONLY, sizeof(cl_int)*METAMORPH_FACE_MAX_DEPTH, NULL, NULL);
