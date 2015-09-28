@@ -85,7 +85,8 @@ size_t metaOpenCLLoadProgramSource(const char *filename, const char **progSrc) {
 }
 
 
-cl_int metaOpenCLBuildProgram(metaOpenCLStackFrame * frame) { 
+cl_int metaOpenCLBuildProgram(metaOpenCLStackFrame * frame) {
+	cl_int ret = CL_SUCCESS;
 	if (metaCLProgLen == 0) {
 		metaCLProgLen = metaOpenCLLoadProgramSource("metamorph_opencl_core.cl", &metaCLProgSrc);
 	}
@@ -290,7 +291,7 @@ metaOpenCLStackFrame * metaOpenCLPopStackFrame() {
 	return(frame);
 }
 
-cl_int metaOpenCLGetState(cl_platform_id * platform, cl_device_id * device, cl_context * context, cl_command_queue queue) {
+cl_int metaOpenCLGetState(cl_platform_id * platform, cl_device_id * device, cl_context * context, cl_command_queue * queue) {
 	metaOpenCLStackFrame * frame = metaOpenCLTopStackFrame();
 	if (platform != NULL) *platform = frame->platform;
 	if (device != NULL) *device = frame->device;
@@ -304,7 +305,7 @@ cl_int metaOpenCLSetState(cl_platform_id platform, cl_device_id device, cl_conte
 		return -1;
 	}
 	//Make a frame
-	metaOpenCLStackFrame * frame = malloc(sizeof(metaOpenCLStackFrame));
+	metaOpenCLStackFrame * frame = (metaOpenCLStackFrame *) malloc(sizeof(metaOpenCLStackFrame));
 
 	//copy the info into the frame
 	frame->platform = platform;
