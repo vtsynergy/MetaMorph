@@ -1,5 +1,9 @@
 #include "metamorph_opencl_core.h"
 
+extern cl_context meta_context;
+extern cl_command_queue meta_queue;
+extern cl_device_id meta_device;
+
 //Warning, none of these variables are threadsafe, so only one thread should ever
 // perform the one-time scan!!
 cl_uint num_platforms, num_devices;
