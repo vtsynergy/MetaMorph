@@ -81,6 +81,69 @@ size_t metaOpenCLLoadProgramSource(const char *filename, const char **progSrc) {
 }
 
 
+cl_int metaOpenCLBuildProgram(metaOpenCLStackFrame * frame) { 
+	if (metaCLProgLen == 0) {
+		metaCLProgLen = metaOpenCLLoadProgramSource("metamorph_opencl_core.cl", &metaCLProgSrc);
+	}
+	frame->program_opencl_core = clCreateProgramWithSource(frame->context, 1, &metaCLProgSrc, &metaCLProgLen, NULL);
+	
+	char * args = NULL;
+	if (getenv("METAMORPH_MODE") != NULL) {
+		if (strcmp(getenv("METAMORPH_MODE"), "OpenCL") == 0) {
+			size_t needed = snprintf(NULL, 0, "-I . -D TRANSPOSE_TILE_DIM=(%d) -D TRANSPOSE_TILE_BLOCK_ROWS=(%d)", TRANSPOSE_TILE_DIM, TRANSPOSE_TILE_BLOCK_ROWS);
+			args = (char *)malloc(needed);
+			snprintf(args, needed, "-I . -D TRANSPOSE_TILE_DIM=(%d) -D TRANSPOSE_TILE_BLOCK_ROWS=(%d)", TRANSPOSE_TILE_DIM, TRANSPOSE_TILE_BLOCK_ROWS);
+			ret |= clBuildProgram(frame->program_opencl_core, 1, &(frame->device), args, NULL, NULL);
+		}
+		else if (strcmp(getenv("METAMORPH_MODE"), "OpenCL_DEBUG") == 0) {
+			size_t needed = snprintf(NULL, 0, "-I . -D TRANSPOSE_TILE_DIM=(%d) -D TRANSPOSE_TILE_BLOCK_ROWS=(%d) -g -cl-opt-disable", TRANSPOSE_TILE_DIM, TRANSPOSE_TILE_BLOCK_ROWS);
+			args = (char *)malloc(needed);
+			snprintf(args, needed, "-I . -D TRANSPOSE_TILE_DIM=(%d) -D TRANSPOSE_TILE_BLOCK_ROWS=(%d) -g -cl-opt-disable", TRANSPOSE_TILE_DIM, TRANSPOSE_TILE_BLOCK_ROWS);
+		}
+	} else {
+		//Do the same as if METAMORPH_MODE was set as OpenCL
+		size_t needed = snprintf(NULL, 0, "-I . -D TRANSPOSE_TILE_DIM=(%d) -D TRANSPOSE_TILE_BLOCK_ROWS=(%d)", TRANSPOSE_TILE_DIM, TRANSPOSE_TILE_BLOCK_ROWS);
+		args = (char *)malloc(needed);
+		snprintf(args, needed, "-I . -D TRANSPOSE_TILE_DIM=(%d) -D TRANSPOSE_TILE_BLOCK_ROWS=(%d)", TRANSPOSE_TILE_DIM, TRANSPOSE_TILE_BLOCK_ROWS);
+	//	ret |= clBuildProgram(frame->program_opencl_core, 1, &(frame->device), args, NULL, NULL);
+
+	}
+	ret |= clBuildProgram(frame->program_opencl_core, 1, &(frame->device), args, NULL, NULL);
+	//Let us know if there's any errors in the build process
+	if (ret != CL_SUCCESS) {fprintf(stderr, "Error in clBuildProgram: %d!\n", ret); ret = CL_SUCCESS;}
+	//Stub to get build log
+	size_t logsize = 0;
+	clGetProgramBuildInfo(frame->program_opencl_core, frame->device, CL_PROGRAM_BUILD_LOG, 0, NULL, &logsize);
+	char * log = (char *) malloc (sizeof(char) *(logsize+1));
+	clGetProgramBuildInfo(frame->program_opencl_core, frame->device, CL_PROGRAM_BUILD_LOG, logsize, log, NULL);
+	fprintf(stderr, "CL_PROGRAM_BUILD_LOG:\n%s", log);
+	free(log);
+	frame->kernel_reduce_db = clCreateKernel(frame->program_opencl_core, "kernel_reduce_db", NULL);
+	frame->kernel_reduce_fl = clCreateKernel(frame->program_opencl_core, "kernel_reduce_fl", NULL);
+	frame->kernel_reduce_ul = clCreateKernel(frame->program_opencl_core, "kernel_reduce_ul", NULL);
+	frame->kernel_reduce_in = clCreateKernel(frame->program_opencl_core, "kernel_reduce_in", NULL);
+	frame->kernel_reduce_ui = clCreateKernel(frame->program_opencl_core, "kernel_reduce_ui", NULL);
+	frame->kernel_dotProd_db = clCreateKernel(frame->program_opencl_core, "kernel_dotProd_db", NULL);
+	frame->kernel_dotProd_fl = clCreateKernel(frame->program_opencl_core, "kernel_dotProd_fl", NULL);
+	frame->kernel_dotProd_ul = clCreateKernel(frame->program_opencl_core, "kernel_dotProd_ul", NULL);
+	frame->kernel_dotProd_in = clCreateKernel(frame->program_opencl_core, "kernel_dotProd_in", NULL);
+	frame->kernel_dotProd_ui = clCreateKernel(frame->program_opencl_core, "kernel_dotProd_ui", NULL);
+	frame->kernel_transpose_2d_face_db = clCreateKernel(frame->program_opencl_core, "kernel_transpose_2d_db", NULL);
+	frame->kernel_transpose_2d_face_fl = clCreateKernel(frame->program_opencl_core, "kernel_transpose_2d_fl", NULL);
+	frame->kernel_transpose_2d_face_ul = clCreateKernel(frame->program_opencl_core, "kernel_transpose_2d_ul", NULL);
+	frame->kernel_transpose_2d_face_in = clCreateKernel(frame->program_opencl_core, "kernel_transpose_2d_in", NULL);
+	frame->kernel_transpose_2d_face_ui = clCreateKernel(frame->program_opencl_core, "kernel_transpose_2d_ui", NULL);
+	frame->kernel_pack_2d_face_db = clCreateKernel(frame->program_opencl_core, "kernel_pack_db", NULL);
+	frame->kernel_pack_2d_face_fl = clCreateKernel(frame->program_opencl_core, "kernel_pack_fl", NULL);
+	frame->kernel_pack_2d_face_ul = clCreateKernel(frame->program_opencl_core, "kernel_pack_ul", NULL);
+	frame->kernel_pack_2d_face_in = clCreateKernel(frame->program_opencl_core, "kernel_pack_in", NULL);
+	frame->kernel_pack_2d_face_ui = clCreateKernel(frame->program_opencl_core, "kernel_pack_ui", NULL);
+	frame->kernel_unpack_2d_face_db = clCreateKernel(frame->program_opencl_core, "kernel_unpack_db", NULL);
+	frame->kernel_unpack_2d_face_fl = clCreateKernel(frame->program_opencl_core, "kernel_unpack_fl", NULL);
+	frame->kernel_unpack_2d_face_ul = clCreateKernel(frame->program_opencl_core, "kernel_unpack_ul", NULL);
+	frame->kernel_unpack_2d_face_in = clCreateKernel(frame->program_opencl_core, "kernel_unpack_in", NULL);
+	frame->kernel_unpack_2d_face_ui = clCreateKernel(frame->program_opencl_core, "kernel_unpack_ui", NULL);
+}
 
 //This should not be exposed to the user, just the top and pop functions built on top of it
 //for thread-safety, returns a new metaOpenCLStackNode, which is a direct copy
@@ -223,6 +286,39 @@ metaOpenCLStackFrame * metaOpenCLPopStackFrame() {
 	return(frame);
 }
 
+cl_int metaOpenCLGetState(cl_platform_id * platform, cl_device_id * device, cl_context * context, cl_command_queue queue) {
+	metaOpenCLStackFrame * frame = metaOpenCLTopStackFrame();
+	if (platform != NULL) *platform = frame->platform;
+	if (device != NULL) *device = frame->device;
+	if (context != NULL) *context = frame->context;
+	if (queue != NULL) *queue = frame->queue;
+}
+
+cl_int metaOpenCLSetState(cl_platform_id platform, cl_device_id device, cl_context context, cl_command_queue queue) {
+	if (platform == NULL || device == NULL || context == NULL || queue == NULL) {
+		fprintf(stderr, "Error: metaOpenCLSetState requires a full frame specification!\n");
+		return -1;
+	}
+	//Make a frame
+	metaOpenCLStackFrame * frame = malloc(sizeof(metaOpenCLStackFrame));
+
+	//copy the info into the frame
+	frame->platform = platform;
+	frame->device = device;
+	frame->context = context;
+	frame->queue = queue;
+
+	//add the metamorph programs and kernels to it
+	metaOpenCLBuildProgram(frame);
+
+	//push it onto the stack
+	meta_context = frame->context;
+	meta_queue = frame->queue;
+	meta_device = frame->device;
+	metaOpenCLPushStackFrame(frame);
+	free(frame);
+	
+}
 
 
 cl_int metaOpenCLInitStackFrame(metaOpenCLStackFrame ** frame, cl_int device) {
@@ -252,68 +348,8 @@ cl_int metaOpenCLInitStackFrame(metaOpenCLStackFrame ** frame, cl_int device) {
 	//create the context and add it to the frame
 	(*frame)->context = clCreateContext(NULL, 1, &((*frame)->device), NULL, NULL, NULL);
 	(*frame)->queue = clCreateCommandQueue((*frame)->context, (*frame)->device, CL_QUEUE_PROFILING_ENABLE, NULL);
-	if (metaCLProgLen == 0) {
-		metaCLProgLen = metaOpenCLLoadProgramSource("metamorph_opencl_core.cl", &metaCLProgSrc);
-	}
-	(*frame)->program_opencl_core = clCreateProgramWithSource((*frame)->context, 1, &metaCLProgSrc, &metaCLProgLen, NULL);
+	metaOpenCLBuildProgram((*frame));
 	// Add this debug string if needed: -g -s\"./metamorph_opencl_core.cl\"
-	char * args = NULL;
-	if (getenv("METAMORPH_MODE") != NULL) {
-		if (strcmp(getenv("METAMORPH_MODE"), "OpenCL") == 0) {
-			size_t needed = snprintf(NULL, 0, "-I . -D TRANSPOSE_TILE_DIM=(%d) -D TRANSPOSE_TILE_BLOCK_ROWS=(%d)", TRANSPOSE_TILE_DIM, TRANSPOSE_TILE_BLOCK_ROWS);
-			args = (char *)malloc(needed);
-			snprintf(args, needed, "-I . -D TRANSPOSE_TILE_DIM=(%d) -D TRANSPOSE_TILE_BLOCK_ROWS=(%d)", TRANSPOSE_TILE_DIM, TRANSPOSE_TILE_BLOCK_ROWS);
-			ret |= clBuildProgram((*frame)->program_opencl_core, 1, &((*frame)->device), args, NULL, NULL);
-		}
-		else if (strcmp(getenv("METAMORPH_MODE"), "OpenCL_DEBUG") == 0) {
-			size_t needed = snprintf(NULL, 0, "-I . -D TRANSPOSE_TILE_DIM=(%d) -D TRANSPOSE_TILE_BLOCK_ROWS=(%d) -g -cl-opt-disable", TRANSPOSE_TILE_DIM, TRANSPOSE_TILE_BLOCK_ROWS);
-			args = (char *)malloc(needed);
-			snprintf(args, needed, "-I . -D TRANSPOSE_TILE_DIM=(%d) -D TRANSPOSE_TILE_BLOCK_ROWS=(%d) -g -cl-opt-disable", TRANSPOSE_TILE_DIM, TRANSPOSE_TILE_BLOCK_ROWS);
-		}
-	} else {
-		//Do the same as if METAMORPH_MODE was set as OpenCL
-		size_t needed = snprintf(NULL, 0, "-I . -D TRANSPOSE_TILE_DIM=(%d) -D TRANSPOSE_TILE_BLOCK_ROWS=(%d)", TRANSPOSE_TILE_DIM, TRANSPOSE_TILE_BLOCK_ROWS);
-		args = (char *)malloc(needed);
-		snprintf(args, needed, "-I . -D TRANSPOSE_TILE_DIM=(%d) -D TRANSPOSE_TILE_BLOCK_ROWS=(%d)", TRANSPOSE_TILE_DIM, TRANSPOSE_TILE_BLOCK_ROWS);
-	//	ret |= clBuildProgram((*frame)->program_opencl_core, 1, &((*frame)->device), args, NULL, NULL);
-
-	}
-	ret |= clBuildProgram((*frame)->program_opencl_core, 1, &((*frame)->device), args, NULL, NULL);
-	//Let us know if there's any errors in the build process
-	if (ret != CL_SUCCESS) {fprintf(stderr, "Error in clBuildProgram: %d!\n", ret); ret = CL_SUCCESS;}
-	//Stub to get build log
-	size_t logsize = 0;
-	clGetProgramBuildInfo((*frame)->program_opencl_core, (*frame)->device, CL_PROGRAM_BUILD_LOG, 0, NULL, &logsize);
-	char * log = (char *) malloc (sizeof(char) *(logsize+1));
-	clGetProgramBuildInfo((*frame)->program_opencl_core, (*frame)->device, CL_PROGRAM_BUILD_LOG, logsize, log, NULL);
-	fprintf(stderr, "CL_PROGRAM_BUILD_LOG:\n%s", log);
-	free(log);
-	(*frame)->kernel_reduce_db = clCreateKernel((*frame)->program_opencl_core, "kernel_reduce_db", NULL);
-	(*frame)->kernel_reduce_fl = clCreateKernel((*frame)->program_opencl_core, "kernel_reduce_fl", NULL);
-	(*frame)->kernel_reduce_ul = clCreateKernel((*frame)->program_opencl_core, "kernel_reduce_ul", NULL);
-	(*frame)->kernel_reduce_in = clCreateKernel((*frame)->program_opencl_core, "kernel_reduce_in", NULL);
-	(*frame)->kernel_reduce_ui = clCreateKernel((*frame)->program_opencl_core, "kernel_reduce_ui", NULL);
-	(*frame)->kernel_dotProd_db = clCreateKernel((*frame)->program_opencl_core, "kernel_dotProd_db", NULL);
-	(*frame)->kernel_dotProd_fl = clCreateKernel((*frame)->program_opencl_core, "kernel_dotProd_fl", NULL);
-	(*frame)->kernel_dotProd_ul = clCreateKernel((*frame)->program_opencl_core, "kernel_dotProd_ul", NULL);
-	(*frame)->kernel_dotProd_in = clCreateKernel((*frame)->program_opencl_core, "kernel_dotProd_in", NULL);
-	(*frame)->kernel_dotProd_ui = clCreateKernel((*frame)->program_opencl_core, "kernel_dotProd_ui", NULL);
-	(*frame)->kernel_transpose_2d_face_db = clCreateKernel((*frame)->program_opencl_core, "kernel_transpose_2d_db", NULL);
-	(*frame)->kernel_transpose_2d_face_fl = clCreateKernel((*frame)->program_opencl_core, "kernel_transpose_2d_fl", NULL);
-	(*frame)->kernel_transpose_2d_face_ul = clCreateKernel((*frame)->program_opencl_core, "kernel_transpose_2d_ul", NULL);
-	(*frame)->kernel_transpose_2d_face_in = clCreateKernel((*frame)->program_opencl_core, "kernel_transpose_2d_in", NULL);
-	(*frame)->kernel_transpose_2d_face_ui = clCreateKernel((*frame)->program_opencl_core, "kernel_transpose_2d_ui", NULL);
-	(*frame)->kernel_pack_2d_face_db = clCreateKernel((*frame)->program_opencl_core, "kernel_pack_db", NULL);
-	(*frame)->kernel_pack_2d_face_fl = clCreateKernel((*frame)->program_opencl_core, "kernel_pack_fl", NULL);
-	(*frame)->kernel_pack_2d_face_ul = clCreateKernel((*frame)->program_opencl_core, "kernel_pack_ul", NULL);
-	(*frame)->kernel_pack_2d_face_in = clCreateKernel((*frame)->program_opencl_core, "kernel_pack_in", NULL);
-	(*frame)->kernel_pack_2d_face_ui = clCreateKernel((*frame)->program_opencl_core, "kernel_pack_ui", NULL);
-	(*frame)->kernel_unpack_2d_face_db = clCreateKernel((*frame)->program_opencl_core, "kernel_unpack_db", NULL);
-	(*frame)->kernel_unpack_2d_face_fl = clCreateKernel((*frame)->program_opencl_core, "kernel_unpack_fl", NULL);
-	(*frame)->kernel_unpack_2d_face_ul = clCreateKernel((*frame)->program_opencl_core, "kernel_unpack_ul", NULL);
-	(*frame)->kernel_unpack_2d_face_in = clCreateKernel((*frame)->program_opencl_core, "kernel_unpack_in", NULL);
-	(*frame)->kernel_unpack_2d_face_ui = clCreateKernel((*frame)->program_opencl_core, "kernel_unpack_ui", NULL);
-
 	//Allocate any internal buffers necessary for kernel functions
 	(*frame)->constant_face_size = clCreateBuffer((*frame)->context, CL_MEM_READ_ONLY, sizeof(cl_int)*METAMORPH_FACE_MAX_DEPTH, NULL, NULL);
 	(*frame)->constant_face_stride = clCreateBuffer((*frame)->context, CL_MEM_READ_ONLY, sizeof(cl_int)*METAMORPH_FACE_MAX_DEPTH, NULL, NULL);
