@@ -316,6 +316,12 @@ cl_int metaOpenCLSetState(cl_platform_id platform, cl_device_id device, cl_conte
 	//add the metamorph programs and kernels to it
 	metaOpenCLBuildProgram(frame);
 
+	//add the extra buffers needed for pack/unpack
+	frame->constant_face_size = clCreateBuffer(frame->context, CL_MEM_READ_ONLY, sizeof(cl_int)*METAMORPH_FACE_MAX_DEPTH, NULL, NULL);
+	frame->constant_face_stride = clCreateBuffer(frame->context, CL_MEM_READ_ONLY, sizeof(cl_int)*METAMORPH_FACE_MAX_DEPTH, NULL, NULL);
+	frame->constant_face_child_size = clCreateBuffer(frame->context, CL_MEM_READ_ONLY, sizeof(cl_int)*METAMORPH_FACE_MAX_DEPTH, NULL, NULL);
+	frame->red_loc = clCreateBuffer(frame->context, CL_MEM_READ_WRITE | CL_MEM_COPY_HOST_PTR, sizeof(cl_int), &zero, NULL);
+
 	//push it onto the stack
 	meta_context = frame->context;
 	meta_queue = frame->queue;
