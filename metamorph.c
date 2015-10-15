@@ -717,11 +717,16 @@ a_err meta_dotProd_cb(a_dim3 * grid_size, a_dim3 * block_size, void * data1, voi
 		#ifdef WITH_OPENMP
 		case metaModePreferOpenMP:
 					#ifdef WITH_TIMERS
-					frame->event.openmp[0]= omp_get_wtime();
+			struct timeval start, end;
+			gettimeofday(&start, NULL);
+			//		frame->event.openmp[0]= omp_get_wtime();
 					#endif
 					ret = omp_dotProd(grid_size, block_size, data1, data2, array_size, array_start,  array_end, reduction_var, type, async);
 					#ifdef WITH_TIMERS
-					frame->event.openmp[1]= omp_get_wtime();
+			gettimeofday(&end, NULL);
+			frame->event.openmp[0] = (start.tv_usec*0.000001)+start.tv_sec;
+			frame->event.openmp[1] = (end.tv_usec*0.000001)+end.tv_sec;
+			//		frame->event.openmp[1]= omp_get_wtime();
 					#endif
 					 break;
 		#endif
