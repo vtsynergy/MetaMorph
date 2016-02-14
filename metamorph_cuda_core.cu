@@ -321,6 +321,279 @@ __global__ void kernel_transpose_2d(T *odata, T *idata, int arr_width, int arr_h
     }
 }
 
+// this kernel works for 3D data only.
+//  i,j,k are the array dimensions
+//  s* parameters are start values in each dimension.
+//  e* parameters are end values in each dimension.
+//  s* and e* are only necessary when the halo layers
+//    has different thickness along various directions.
+//  len_ is number of threads in a threadblock.
+//       This can be computed in the kernel itself.
+template <typename T>
+
+//Read-only cache + Rigster blocking (Z) + smem blocking (X-Y)
+// work only with 2D thread blocks (the best block size is 128 * 2)
+__global__ void kernel_stencil_3d7p(const T * __restrict__ ind, T * __restrict__  outd,
+		int i, int j, int k,
+		int sx, int sy, int sz,
+		int ex, int ey, int ez,
+		int gz, int len_) {
+	SharedMem<T> shared;
+	T * bind = shared.getPointer(); //[blockDim.x+2*blockDim.y+2]
+	const int bi = (blockDim.x+2);
+	const int bc = (threadIdx.x+1)+(threadIdx.y+1)*bi;
+	T r0, rz1, rz2;
+	int x, y, z;
+	int ij = i*j;
+	int c;
+	bool boundx, boundy, boundz;
+
+	x = (blockIdx.x)*blockDim.x+threadIdx.x+sx;
+	y = (blockIdx.y)*blockDim.y+threadIdx.y+sy;
+	z = threadIdx.z +sz; //blockDim.z ==1
+	c = x+y*i+z*ij;
+	r0 = ind[c];
+	rz1 = ind[c-ij];
+	rz2 = ind[c+ij];
+
+	boundy = ((y > sy) && (y < ey));
+	boundx = ((x > sx) && (x < ex));
+	#pragma unroll 8
+	for (; z < gz; z++) {
+		boundz = ((z > sz) && (z < ez));
+		bind[bc] = r0;
+
+		if(threadIdx.x == 0)
+			bind[bc-1] = ind[c-1];
+		else if (threadIdx.x == blockDim.x-1)
+			bind[bc+1] = ind[c+1];
+
+		if(threadIdx.y == 0)
+			bind[bc-bi] = ind[c-i];
+		else if (threadIdx.y == blockDim.y-1)
+			bind[bc+bi] = ind[c+i];
+
+		__syncthreads();
+
+		if (boundx && boundy && boundz)
+			outd[c] = ( rz1 + bind[bc-1] + bind[bc-bi] + r0 +
+						bind[bc+bi] + bind[bc+1] + rz2 ) / (T) 7;
+		c += ij;
+		rz1 = r0;
+		r0 = rz2;
+		rz2 = ind[c+ij];
+	}
+}
+
+
+#if 0
+// work with 2D and 3D thread blocks
+__global__ void kernel_stencil_3d7p_v0(T *ind, T *outd,
+		int i, int j, int k,
+		int sx, int sy, int sz,
+		int ex, int ey, int ez,
+		int gz, int len_) {
+	int x, y, z, itr;
+	bool boundx, boundy, boundz;
+
+	x = (blockIdx.x)*blockDim.x+threadIdx.x+sx;
+	y = (blockIdx.y)*blockDim.y+threadIdx.y+sy;
+
+	boundy = ((y > sy) && (y < ey));
+	boundx = ((x > sx) && (x < ex));
+
+	for (itr = 0; itr < gz; itr++) {
+		z = itr*blockDim.z+threadIdx.z +sz;
+		boundz = ((z > sz) && (z < ez));
+		if (boundx && boundy && boundz)
+			outd[x+y*i+z*i*j] = ( ind[x+y*i+(z-1)*i*j] + ind[(x-1)+y*i+z*i*j] + ind[x+(y-1)*i+z*i*j] +
+								  ind[x+y*i+z*i*j] + ind[x+(y+1)*i+z*i*j] + ind[(x+1)+y*i+z*i*j] +
+								  ind[x+y*i+(z+1)*i*j] ) / (T) 7;
+	}
+}
+
+//Read-only cache + Rigster blocking (Z)
+// work only with 2D thread blocks
+__global__ void kernel_stencil_3d7p_v1(const T * __restrict__ ind, T * __restrict__  outd,
+		int i, int j, int k,
+		int sx, int sy, int sz,
+		int ex, int ey, int ez,
+		int gz, int len_) {
+	T r0, rz1, rz2;
+	int x, y, z;
+	int ij = i*j;
+	int c;
+	bool boundx, boundy, boundz;
+
+	x = (blockIdx.x)*blockDim.x+threadIdx.x+sx;
+	y = (blockIdx.y)*blockDim.y+threadIdx.y+sy;
+	z = threadIdx.z +sz; //blockDim.z ==1
+	c = x+y*i+z*ij;
+	r0 = ind[c];
+	rz1 = ind[c-ij];
+	rz2 = ind[c+ij];
+
+	boundy = ((y > sy) && (y < ey));
+	boundx = ((x > sx) && (x < ex));
+	#pragma unroll 8
+	for (; z < gz; z++) {
+		boundz = ((z > sz) && (z < ez));
+		if (boundx && boundy && boundz)
+			outd[c] = ( rz1 + ind[c-1] + ind[c-i] + r0 +
+						ind[c+i] + ind[c+1] + rz2 ) / (T) 7;
+		c += ij;
+		rz1 = r0;
+		r0 = rz2;
+		rz2 = ind[c+ij];
+	}
+}
+
+//Read-only cache + Rigster blocking (Z) + manual prefetch
+// work only with 2D thread blocks
+__global__ void kernel_stencil_3d7p_v2(const T * __restrict__ ind, T * __restrict__  outd,
+		int i, int j, int k,
+		int sx, int sy, int sz,
+		int ex, int ey, int ez,
+		int gz, int len_) {
+	T r0, rz1, rz2, rz3;
+	int x, y, z;
+	int ij = i*j;
+	int c;
+	bool boundx, boundy, boundz;
+
+	x = (blockIdx.x)*blockDim.x+threadIdx.x+sx;
+	y = (blockIdx.y)*blockDim.y+threadIdx.y+sy;
+	z = threadIdx.z +sz; //blockDim.z ==1
+	c = x+y*i+z*ij;
+	r0 = ind[c];
+	rz1 = ind[c-ij];
+	rz2 = ind[c+ij];
+	rz3 = ind[c+ij*2];
+
+	boundy = ((y > sy) && (y < ey));
+	boundx = ((x > sx) && (x < ex));
+	#pragma unroll 8
+	for (; z < gz; z++) {
+		boundz = ((z > sz) && (z < ez));
+		if (boundx && boundy && boundz)
+			outd[c] = ( rz1 + ind[c-1] + ind[c-i] + r0 +
+						ind[c+i] + ind[c+1] + rz2 ) / (T) 7;
+		c += ij;
+		rz1 = r0;
+		r0 = rz2;
+		rz2 = rz3;
+		rz3 = ind[c+ij*2];
+	}
+}
+
+//Read-only cache + Rigster blocking (Z) + + smem blocking (X-Y)
+// work only with 2D thread blocks
+__global__ void kernel_stencil_3d7p_v3(const T * __restrict__ ind, T * __restrict__  outd,
+		int i, int j, int k,
+		int sx, int sy, int sz,
+		int ex, int ey, int ez,
+		int gz, int len_) {
+	SharedMem<T> shared;
+	T * bind = shared.getPointer(); //[blockDim.x+2*blockDim.y+2]
+	const int bi = (blockDim.x+2);
+	const int bc = (threadIdx.x+1)+(threadIdx.y+1)*bi;
+	T r0, rz1, rz2;
+	int x, y, z;
+	int ij = i*j;
+	int c;
+	bool boundx, boundy, boundz;
+
+	x = (blockIdx.x)*blockDim.x+threadIdx.x+sx;
+	y = (blockIdx.y)*blockDim.y+threadIdx.y+sy;
+	z = threadIdx.z +sz; //blockDim.z ==1
+	c = x+y*i+z*ij;
+	r0 = ind[c];
+	rz1 = ind[c-ij];
+	rz2 = ind[c+ij];
+
+	boundy = ((y > sy) && (y < ey));
+	boundx = ((x > sx) && (x < ex));
+	#pragma unroll 8
+	for (; z < gz; z++) {
+		boundz = ((z > sz) && (z < ez));
+		bind[bc] = r0;
+
+		if(threadIdx.x == 0)
+			bind[bc-1] = ind[c-1];
+		else if (threadIdx.x == blockDim.x-1)
+			bind[bc+1] = ind[c+1];
+
+		if(threadIdx.y == 0)
+			bind[bc-bi] = ind[c-i];
+		else if (threadIdx.y == blockDim.y-1)
+			bind[bc+bi] = ind[c+i];
+
+		__syncthreads();
+
+		if (boundx && boundy && boundz)
+			outd[c] = ( rz1 + bind[bc-1] + bind[bc-bi] + r0 +
+						bind[bc+bi] + bind[bc+1] + rz2 ) / (T) 7;
+		c += ij;
+		rz1 = r0;
+		r0 = rz2;
+		rz2 = ind[c+ij];
+	}
+}
+
+// explicit Read-only cache + Rigster blocking (Z) + + smem blocking (X-Y)
+// work only with 2D thread blocks
+__global__ void kernel_stencil_3d7p_v4(const T * __restrict__ ind, T * __restrict__  outd,
+		int i, int j, int k,
+		int sx, int sy, int sz,
+		int ex, int ey, int ez,
+		int gz, int len_) {
+	SharedMem<T> shared;
+	T * bind = shared.getPointer(); //[blockDim.x+2*blockDim.y+2]
+	const int bi = (blockDim.x+2);
+	const int bc = (threadIdx.x+1)+(threadIdx.y+1)*bi;
+	T r0, rz1, rz2;
+	int x, y, z;
+	int ij = i*j;
+	int c;
+	bool boundx, boundy, boundz;
+
+	x = (blockIdx.x)*blockDim.x+threadIdx.x+sx;
+	y = (blockIdx.y)*blockDim.y+threadIdx.y+sy;
+	z = threadIdx.z +sz; //blockDim.z ==1
+	c = x+y*i+z*ij;
+	r0 = __ldg(&ind[c]);
+	rz1 = __ldg(&ind[c-ij]);
+	rz2 = __ldg(&ind[c+ij]);
+
+	boundy = ((y > sy) && (y < ey));
+	boundx = ((x > sx) && (x < ex));
+	#pragma unroll 8
+	for (; z < gz; z++) {
+		boundz = ((z > sz) && (z < ez));
+		bind[bc] = r0;
+
+		if(threadIdx.x == 0)
+			bind[bc-1] = __ldg(&ind[c-1]);
+		else if (threadIdx.x == blockDim.x-1)
+			bind[bc+1] = __ldg(&ind[c+1]);
+
+		if(threadIdx.y == 0)
+			bind[bc-bi] = __ldg(&ind[c-i]);
+		else if (threadIdx.y == blockDim.y-1)
+			bind[bc+bi] = __ldg(&ind[c+i]);
+
+		__syncthreads();
+
+		if (boundx && boundy && boundz)
+			outd[c] = ( rz1 + bind[bc-1] + bind[bc-bi] + r0 +
+						bind[bc+bi] + bind[bc+1] + rz2 ) / (T) 7;
+		c += ij;
+		rz1 = r0;
+		r0 = rz2;
+		rz2 = __ldg(&ind[c+ij]);
+	}
+}
+#endif
 /// END KERNELS
 
 
@@ -686,3 +959,63 @@ cudaError_t cuda_unpack_2d_face(size_t (* grid_size)[3], size_t (* block_size)[3
 
 }
 
+cudaError_t cuda_stencil_3d7p(size_t (* grid_size)[3], size_t (* block_size)[3], void * indata, void * outdata, size_t (* array_size)[3], size_t (* arr_start)[3],  size_t (* arr_end)[3], meta_type_id type, int async, cudaEvent_t ((*event)[2]))
+{
+	cudaError_t ret = cudaSuccess;
+	size_t smem_len;
+	dim3 grid;
+	dim3 block;
+	int iters;
+	//Allow for auto-selected grid/block size if either is not specified
+	if (grid_size == NULL || block_size == NULL) {
+		block = METAMORPH_CUDA_DEFAULT_BLOCK;
+		//do not subtract 1 from blocx for the case when end == start
+		grid = dim3((((*arr_end)[0]-(*arr_start)[0]+(block.x))/block.x), (((*arr_end)[1]-(*arr_start)[1]+(block.y))/block.y), 1);
+		iters = (((*arr_end)[2]-(*arr_start)[2]+(block.z))/block.z);
+	} else {
+		grid = dim3((*grid_size)[0], (*grid_size)[1], 1);
+		block = dim3((*block_size)[0], (*block_size)[1], (*block_size)[2]);
+		iters = (int)(*grid_size)[2];
+	}
+	smem_len = (block.x+2) * (block.y+2) * block.z;
+	//smem_len = 0;
+
+	if (event != NULL) {
+		cudaEventCreate(&(*event)[0]);
+		cudaEventRecord((*event)[0], 0);
+	}
+
+	switch (type) {
+		case a_db:
+			kernel_stencil_3d7p<double><<<grid,block,smem_len*sizeof(double)>>>((double*)indata, (double*)outdata, (*array_size)[0], (*array_size)[1], (*array_size)[2], (*arr_start)[0], (*arr_start)[1], (*arr_start)[2], (*arr_end)[0], (*arr_end)[1], (*arr_end)[2], iters, smem_len);
+		break;
+
+		case a_fl:
+			kernel_stencil_3d7p<float><<<grid,block,smem_len*sizeof(float)>>>((float*)indata, (float*)outdata, (*array_size)[0], (*array_size)[1], (*array_size)[2], (*arr_start)[0], (*arr_start)[1], (*arr_start)[2], (*arr_end)[0], (*arr_end)[1], (*arr_end)[2], iters, smem_len);
+		break;
+
+		case a_ul:
+			kernel_stencil_3d7p<unsigned long long><<<grid,block,smem_len*sizeof(unsigned long long)>>>((unsigned long long*)indata, (unsigned long long*)outdata, (*array_size)[0], (*array_size)[1], (*array_size)[2], (*arr_start)[0], (*arr_start)[1], (*arr_start)[2], (*arr_end)[0], (*arr_end)[1], (*arr_end)[2], iters, smem_len);
+		break;
+
+		case a_in:
+			kernel_stencil_3d7p<int><<<grid,block,smem_len*sizeof(int)>>>((int*)indata, (int*)outdata, (*array_size)[0], (*array_size)[1], (*array_size)[2], (*arr_start)[0], (*arr_start)[1], (*arr_start)[2], (*arr_end)[0], (*arr_end)[1], (*arr_end)[2], iters, smem_len);
+		break;
+
+		case a_ui:
+			kernel_stencil_3d7p<unsigned int><<<grid,block,smem_len*sizeof(unsigned int)>>>((unsigned int*)indata, (unsigned int*)outdata, (*array_size)[0], (*array_size)[1], (*array_size)[2], (*arr_start)[0], (*arr_start)[1], (*arr_start)[2], (*arr_end)[0], (*arr_end)[1], (*arr_end)[2], iters, smem_len);
+		break;
+
+		default:
+			fprintf(stderr, "Error: Function 'cuda_stencil_3d7p' not implemented for selected type!\n");
+		break;
+	}
+
+	if (event != NULL) {
+		cudaEventCreate(&(*event)[1]);
+		cudaEventRecord((*event)[1], 0);
+	}
+	if (!async) ret = cudaThreadSynchronize();
+	return(ret);
+
+}

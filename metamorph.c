@@ -1203,3 +1203,123 @@ a_err meta_unpack_2d_face_cb(a_dim3 * grid_size, a_dim3 * block_size, void *pack
 	return(ret);
 }
 
+a_err meta_stencil_3d7p(a_dim3 * grid_size, a_dim3 * block_size, void *indata, void *outdata, a_dim3 * array_size, a_dim3 * array_start, a_dim3 * array_end, meta_type_id type, a_bool async)
+{
+	return meta_stencil_3d7p_cb(grid_size, block_size, indata, outdata, array_size, array_start, array_end, type, async, (meta_callback*)NULL, NULL);
+}
+
+a_err meta_stencil_3d7p_cb(a_dim3 * grid_size, a_dim3 * block_size, void *indata, void *outdata, a_dim3 * array_size, a_dim3 * array_start, a_dim3 * array_end, meta_type_id type, a_bool async, meta_callback *call, void *call_pl)
+{
+	a_err ret;
+
+	//FIXME? Consider adding a compiler flag "UNCHECKED_EXPLICIT" to streamline out sanity checks like this
+	//Before we do anything, sanity check the start/end/size
+	if (array_start == NULL || array_end == NULL || array_size == NULL) {
+		fprintf(stderr, "ERROR in meta_stencil: array_start=[%p], array_end=[%p], or array_size=[%p] is NULL!\n", array_start, array_end, array_size);
+		return -1;
+	}
+	int i;
+	for (i = 0; i < 3; i ++) {
+		if ((*array_start)[i] < 0 || (*array_end)[i] < 0) {
+			fprintf(stderr, "ERROR in meta_stencil: array_start[%d]=[%ld] or array_end[%d]=[%ld] is negative!\n", i, (*array_start)[i], i, (*array_end)[i]);
+			return -1;
+		}
+		if ((*array_size)[i] < 1) {
+			fprintf(stderr, "ERROR in meta_stencil: array_size[%d]=[%ld] must be >=1!\n", i, (*array_size)[i]);
+			return -1;
+		}
+		if ((*array_start)[i] > (*array_end)[i]) {
+			fprintf(stderr, "ERROR in meta_stencil: array_start[%d]=[%ld] is after array_end[%d]=[%ld]!\n", i, (*array_start)[i], i, (*array_end)[i]);
+			return -1;
+		}
+		if ((*array_end)[i] >= (*array_size)[i]) {
+			fprintf(stderr, "ERROR in meta_stencil: array_end[%d]=[%ld] is bigger than array_size[%d]=[%ld]!\n", i, (*array_end)[i], i, (*array_size)[i]);
+			return -1;
+		}
+
+	}
+	//Ensure the block is all powers of two
+	// do not fail if not, but rescale and emit a warning
+	if (grid_size != NULL && block_size != NULL) {
+		int flag = 0;
+		size_t new_block[3];
+		size_t new_grid[3];
+		for (i = 0; i < 3; i++) {
+			new_block[i] = (*block_size)[i];
+			new_grid[i] = (*grid_size)[i];
+			//Bit-twiddle our way to the next-highest power of 2, from: (checked 2015.01.06)
+			//http://graphics.standford.edu/~seander/bithacks.html#RoundUpPowerOf2
+			new_block[i]--;
+			new_block[i] |= new_block[i] >> 1;
+			new_block[i] |= new_block[i] >> 2;
+			new_block[i] |= new_block[i] >> 4;
+			new_block[i] |= new_block[i] >> 8;
+			new_block[i] |= new_block[i] >> 16;
+			new_block[i]++;
+			if (new_block[i] != (*block_size)[i]) {
+				flag = 1; //Trip the flag to emit a warning
+				new_grid[i] = ((*block_size)[i]*(*grid_size)[i]-1+new_block[i])/new_block[i];
+			}
+		}
+		if (flag) {
+			fprintf(stderr, "WARNING in meta_stencil: block_size={%ld, %ld, %ld} must be all powers of two!\n\tRescaled grid_size={%ld, %ld, %ld}, block_size={%ld, %ld, %ld} to\n\tnew_grid={%ld, %ld, %ld}, new_block={%ld, %ld, %ld}\n", (*block_size)[0], (*block_size)[1], (*block_size)[2], (*grid_size)[0], (*grid_size)[1], (*grid_size)[2], (*block_size)[0], (*block_size)[1], (*block_size)[2], new_grid[0], new_grid[1], new_grid[2], new_block[0], new_block[1], new_block[2]);
+			(*grid_size)[0] = new_grid[0];
+			(*grid_size)[1] = new_grid[1];
+			(*grid_size)[2] = new_grid[2];
+			(*block_size)[0] = new_block[0];
+			(*block_size)[1] = new_block[1];
+			(*block_size)[2] = new_block[2];
+		}
+	}
+
+	#ifdef WITH_TIMERS
+	metaTimerQueueFrame * frame = (metaTimerQueueFrame*)malloc (sizeof(metaTimerQueueFrame));
+	frame->mode = run_mode;
+	frame->size = (*array_size)[0]*(*array_size)[1]*(*array_size)[2]*get_atype_size(type);
+	#endif
+	switch(run_mode) {
+		default:
+		case metaModePreferGeneric:
+			//TODO implement a generic reduce
+			break;
+
+		#ifdef WITH_CUDA
+		case metaModePreferCUDA: {
+						#ifdef WITH_TIMERS
+						  ret = (a_err) cuda_stencil_3d7p(grid_size, block_size, indata, outdata, array_size, array_start,  array_end, type, async, &(frame->event.cuda));
+						#else
+						  ret = (a_err) cuda_stencil_3d7p(grid_size, block_size, indata, outdata, array_size, array_start,  array_end, type, async, NULL);
+						#endif
+			//If a callback is provided, register it immediately after returning from enqueuing the kernel
+			if ((void*)call != NULL && call_pl != NULL) cudaStreamAddCallback(0, call->cudaCallback, call_pl, 0);
+						  break;
+					  }
+		#endif
+
+		#ifdef WITH_OPENCL
+		case metaModePreferOpenCL:
+					  break;
+		#endif
+
+		#ifdef WITH_OPENMP
+		case metaModePreferOpenMP:
+					#ifdef WITH_TIMERS
+			{ struct timeval start, end;
+			gettimeofday(&start, NULL);
+			//		frame->event.openmp[0]= omp_get_wtime();
+					#endif
+					ret = omp_stencil_3d7p(grid_size, block_size, indata, outdata, array_size, array_start,  array_end, type, async);
+					#ifdef WITH_TIMERS
+			gettimeofday(&end, NULL);
+			frame->event.openmp[0] = (start.tv_usec*0.000001)+start.tv_sec;
+			frame->event.openmp[1] = (end.tv_usec*0.000001)+end.tv_sec; }
+			//		frame->event.openmp[1]= omp_get_wtime();
+					#endif
+					 break;
+		#endif
+	}
+	#ifdef WITH_TIMERS
+	metaTimerEnqueue(frame, &(metaBuiltinQueues[k_stencil_3d7p]));
+	#endif
+	return(ret);
+}

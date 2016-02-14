@@ -1,15 +1,15 @@
-
 #SIMD_FLAGS=  
+SIMD_FLAGS=  -O3 
 #SIMD_FLAGS= -ftree-vectorize -ffast-math -mavx -O3 -ftree-vectorizer-verbose=2 #gcc
-SIMD_FLAGS= -axavx -O3 -fp-model fast #icc -vec-report3
+#SIMD_FLAGS= -axavx -O3 -fp-model fast #icc -vec-report3
 
 
-#CC=gcc
-CC=/opt/intel/bin/icc
+CC=gcc
+#CC=/opt/intel/bin/icc
 #CC=/opt/pgi/linux86-64/15.3/bin/pgcc
 
-#CC_FLAGS= -fopenmp
-CC_FLAGS= -openmp
+CC_FLAGS= -fopenmp
+#CC_FLAGS= -openmp
 
 L_FLAGS= -fPIC -shared
 

@@ -341,6 +341,18 @@ int ni, nj, nk, nm, iters;
 
       } //end subroutine gpu_initialize
 
+      void print_grid(double * grid) {
+      	int i,j,k;
+      	for (k = 0; k < nk; k++) {
+      		for (j =0; j < nj; j++) {
+      			for (i=0; i < ni; i++) {
+      				printf("[%f] ", grid[i+ j*(ni) + k*nj*(ni)]);
+      			}
+      			printf("\n");
+      		}
+      		printf("\n");
+      	}
+      }
 
  int main(int argc, char **argv) { 
             int tx, ty, tz, gx, gy, gz, istat, i, l_type;
@@ -460,13 +472,13 @@ switch(g_type) {
 		if (meta_validate_worksize(&dimgrid, &dimblock)) {
 
 		}
-		
 
 		//Call the entire reduction
 		//TODO add timer loop
 		int iter;
 		struct timeval start, end;
 		a_err ret;
+
 		gettimeofday(&start, NULL);
 		for (iter = 0; iter < iters; iter++)
 			ret = meta_dotProd(&dimgrid, &dimblock, dev_data3, dev_data3_2, &dimarray, &arr_start, &arr_end, reduction, g_type, false);
@@ -479,7 +491,6 @@ switch(g_type) {
 //            istat = cudaThreadSynchronize(); //cudathreadsynchronize()// TODO move into CUDA backend
 	//	printf("cudaThreadSynchronize error code:%d\n", istat);            
 		istat = meta_copy_d2h(sum_dot_gpu, reduction, g_typesize, false);
-
 
 switch(g_type) {
 	case a_db:
@@ -508,6 +519,39 @@ switch(g_type) {
 
 	gettimeofday(&start, NULL);
 	for (iter = 0; iter < iters; iter++)
+		ret = meta_stencil_3d7p(&dimgrid, &dimblock, dev_data3, dev_data3_2, &dimarray, &arr_start, &arr_end, g_type, false);
+	gettimeofday(&end, NULL);
+	fprintf(stderr, "Kernel Status: %d\n", ret);
+	printf("stencil_3d7p Kern time: %f\n", ((end.tv_sec-start.tv_sec)*1000000.0+(end.tv_usec-start.tv_usec))/(iters));
+	//print_grid(dev_data3_2);
+	istat =	meta_copy_h2d( reduction, zero, g_typesize, true);
+	ret = meta_reduce(&dimgrid, &dimblock, dev_data3_2, &dimarray, &arr_start, &arr_end, reduction, g_type, false);
+	istat = meta_copy_d2h(sum_dot_gpu, reduction, g_typesize, false);
+
+	switch(g_type) {
+	case a_db:
+		printf("Test stencil_3d7p:\t%f\n", *(double*)sum_dot_gpu); //print *, "Test Reduction:",sum_dot_gpu
+	break;
+
+	case a_fl:
+		printf("Test stencil_3d7p:\t%f\n", *(float*)sum_dot_gpu); //print *, "Test Reduction:",sum_dot_gpu
+	break;
+
+	case a_ul:
+		printf("Test stencil_3d7p:\t%lu\n", *(unsigned long*)sum_dot_gpu); //print *, "Test Reduction:",sum_dot_gpu
+	break;
+
+	case a_in:
+		printf("Test stencil_3d7p:\t%d\n", *(int*)sum_dot_gpu); //print *, "Test Reduction:",sum_dot_gpu
+	break;
+
+	case a_ui:
+		printf("Test Dot-Product:\t%d\n", *(unsigned int*)sum_dot_gpu); //print *, "Test Reduction:",sum_dot_gpu
+	break;
+	}
+
+	gettimeofday(&start, NULL);
+	for (iter = 0; iter < iters; iter++)
 		//ret = meta_transpose_2d_face(&dimgrid, &dimblock, dev_data3cp, dev_data3, &trans_2d, &trans_2d,  g_type, false);
 		ret = meta_transpose_2d_face(&dimgrid, &dimblock, dev_data3_2, dev_data3, &trans_2d, &trans_2d,  g_type, false);
 	gettimeofday(&end, NULL);
@@ -529,4 +573,5 @@ switch(g_type) {
 	    #ifdef WITH_TIMERS
 	    metaTimersFinish();
 	    #endif
+	    return 0;
       } //end program main

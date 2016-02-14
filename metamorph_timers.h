@@ -80,6 +80,7 @@ enum metaTimerQueueEnum {
 	k_transpose_2d_face,
 	k_pack_2d_face,
 	k_unpack_2d_face,
+	k_stencil_3d7p,
 	//Special value used just to determine the size of the enum automagically
 	// only works if we don't set explicit values for anything, and let it start from 0
 	queue_count

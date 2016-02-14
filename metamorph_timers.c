@@ -131,6 +131,12 @@ a_err metaTimersInit() {
 	metaBuiltinQueues[k_unpack_2d_face].head->mode = metaModeUnset;
 	metaBuiltinQueues[k_unpack_2d_face].head->next = NULL;
 	metaBuiltinQueues[k_unpack_2d_face].name = "Unpack 2DFace kernel call";
+
+	//Init the stencil_3d7p kernel queue
+	metaBuiltinQueues[k_stencil_3d7p].head = metaBuiltinQueues[k_stencil_3d7p].tail = (metaTimerQueueNode*) malloc(sizeof(metaTimerQueueNode));
+	metaBuiltinQueues[k_stencil_3d7p].head->mode = metaModeUnset;
+	metaBuiltinQueues[k_stencil_3d7p].head->next = NULL;
+	metaBuiltinQueues[k_stencil_3d7p].name = "stencil_3d7p kernel call";
 }
 
 //Workhorse that loops over a queue until it receives an empty signal

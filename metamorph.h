@@ -245,6 +245,9 @@ a_err meta_transpose_2d_face_cb(a_dim3 * grid_size, a_dim3 * block_size, void *i
 a_err meta_pack_2d_face_cb(a_dim3 * grid_size, a_dim3 * block_size, void *packed_buf, void *buf, meta_2d_face_indexed *face, meta_type_id type, a_bool async, meta_callback *call, void *call_pl);
 a_err meta_unpack_2d_face_cb(a_dim3 * grid_size, a_dim3 * block_size, void *packed_buf, void *buf, meta_2d_face_indexed *face, meta_type_id type, a_bool async, meta_callback *call, void *call_pl);
 
+a_err meta_stencil_3d7p_cb(a_dim3 * grid_size, a_dim3 * block_size, void *indata, void *outdata, a_dim3 * array_size, a_dim3 * array_start, a_dim3 * array_end, meta_type_id type, a_bool async, meta_callback *call, void *call_pl);
+
+
 //Reduced-complexity calls
 // These are the ones applications built on top of the library should use
 a_err meta_dotProd(a_dim3 * grid_size, a_dim3 * block_size, void * data1, void * data2, a_dim3 * array_size, a_dim3 * array_start, a_dim3 * array_end, void * reduction_var, meta_type_id type, a_bool async);
@@ -256,6 +259,7 @@ a_err meta_transpose_2d_face(a_dim3 * grid_size, a_dim3 * block_size, void *inda
 a_err meta_pack_2d_face(a_dim3 * grid_size, a_dim3 * block_size, void *packed_buf, void *buf, meta_2d_face_indexed *face, meta_type_id type, a_bool async);
 a_err meta_unpack_2d_face(a_dim3 * grid_size, a_dim3 * block_size, void *packed_buf, void *buf, meta_2d_face_indexed *face, meta_type_id type, a_bool async);
 
+a_err meta_stencil_3d7p(a_dim3 * grid_size, a_dim3 * block_size, void *indata, void *outdata, a_dim3 * array_size, a_dim3 * array_start, a_dim3 * array_end, meta_type_id type, a_bool async);
 
 
 //Separate from which core libraries are compiled in, the users
