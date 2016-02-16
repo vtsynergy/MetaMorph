@@ -148,6 +148,11 @@ cl_int metaOpenCLBuildProgram(metaOpenCLStackFrame * frame) {
 	frame->kernel_unpack_2d_face_ul = clCreateKernel(frame->program_opencl_core, "kernel_unpack_ul", NULL);
 	frame->kernel_unpack_2d_face_in = clCreateKernel(frame->program_opencl_core, "kernel_unpack_in", NULL);
 	frame->kernel_unpack_2d_face_ui = clCreateKernel(frame->program_opencl_core, "kernel_unpack_ui", NULL);
+	frame->kernel_stencil_3d7p_db = clCreateKernel(frame->program_opencl_core, "kernel_stencil_3d7p_db", NULL);
+	frame->kernel_stencil_3d7p_fl = clCreateKernel(frame->program_opencl_core, "kernel_stencil_3d7p_fl", NULL);
+	frame->kernel_stencil_3d7p_ul = clCreateKernel(frame->program_opencl_core, "kernel_stencil_3d7p_ul", NULL);
+	frame->kernel_stencil_3d7p_in = clCreateKernel(frame->program_opencl_core, "kernel_stencil_3d7p_in", NULL);
+	frame->kernel_stencil_3d7p_ui = clCreateKernel(frame->program_opencl_core, "kernel_stencil_3d7p_ui", NULL);
 }
 
 //This should not be exposed to the user, just the top and pop functions built on top of it
@@ -193,6 +198,11 @@ void copyStackNodeToFrame(metaOpenCLStackNode * t, metaOpenCLStackFrame ** frame
 	(*frame)->kernel_unpack_2d_face_ul = t->frame.kernel_unpack_2d_face_ul;
 	(*frame)->kernel_unpack_2d_face_in = t->frame.kernel_unpack_2d_face_in;
 	(*frame)->kernel_unpack_2d_face_ui = t->frame.kernel_unpack_2d_face_ui;
+	(*frame)->kernel_stencil_3d7p_db = t->frame.kernel_stencil_3d7p_db;
+	(*frame)->kernel_stencil_3d7p_fl = t->frame.kernel_stencil_3d7p_fl;
+	(*frame)->kernel_stencil_3d7p_ul = t->frame.kernel_stencil_3d7p_ul;
+	(*frame)->kernel_stencil_3d7p_in = t->frame.kernel_stencil_3d7p_in;
+	(*frame)->kernel_stencil_3d7p_ui = t->frame.kernel_stencil_3d7p_ui;
 	
 	//Internal buffers
 	(*frame)->constant_face_size = t->frame.constant_face_size;
@@ -238,6 +248,11 @@ void copyStackFrameToNode(metaOpenCLStackFrame * f, metaOpenCLStackNode ** node)
 	(*node)->frame.kernel_unpack_2d_face_ul = f->kernel_unpack_2d_face_ul;
 	(*node)->frame.kernel_unpack_2d_face_in = f->kernel_unpack_2d_face_in;
 	(*node)->frame.kernel_unpack_2d_face_ui = f->kernel_unpack_2d_face_ui;
+	(*node)->frame.kernel_stencil_3d7p_db = f->kernel_stencil_3d7p_db;
+	(*node)->frame.kernel_stencil_3d7p_fl = f->kernel_stencil_3d7p_fl;
+	(*node)->frame.kernel_stencil_3d7p_ul = f->kernel_stencil_3d7p_ul;
+	(*node)->frame.kernel_stencil_3d7p_in = f->kernel_stencil_3d7p_in;
+	(*node)->frame.kernel_stencil_3d7p_ui = f->kernel_stencil_3d7p_ui;
 
 	//Internal Buffers
 	(*node)->frame.constant_face_size = f->constant_face_size;
@@ -405,6 +420,11 @@ cl_int metaOpenCLDestroyStackFrame(metaOpenCLStackFrame * frame) {
 	clReleaseKernel(frame->kernel_unpack_2d_face_ul);
 	clReleaseKernel(frame->kernel_unpack_2d_face_in);
 	clReleaseKernel(frame->kernel_unpack_2d_face_ui);
+	clReleaseKernel(frame->kernel_stencil_3d7p_db);
+	clReleaseKernel(frame->kernel_stencil_3d7p_fl);
+	clReleaseKernel(frame->kernel_stencil_3d7p_ul);
+	clReleaseKernel(frame->kernel_stencil_3d7p_in);
+	clReleaseKernel(frame->kernel_stencil_3d7p_ui);
 
 	//Release Internal Buffers
 	clReleaseMemObject(frame->constant_face_size);
@@ -984,3 +1004,104 @@ cl_int opencl_unpack_2d_face(size_t (* grid_size)[3], size_t (* block_size)[3], 
 
 	return(ret);
 }
+
+cl_int opencl_stencil_3d7p(size_t (* grid_size)[3], size_t (* block_size)[3], void * indata, void * outdata, size_t (* array_size)[3], size_t (* arr_start)[3],  size_t (* arr_end)[3], meta_type_id type, int async, cl_event * event)
+{
+	cl_int ret = CL_SUCCESS;
+	cl_kernel kern;
+	cl_int smem_len;
+	size_t grid[3] = {1, 1, 1};
+	size_t block[3] = METAMORPH_OCL_DEFAULT_BLOCK;
+	int iters;
+	//Allow for auto-selected grid/block size if either is not specified
+	if (grid_size == NULL || block_size == NULL) {
+		//do not subtract 1 from blocx for the case when end == start
+		grid[0] = (((*arr_end)[0]-(*arr_start)[0]+(block[0]))/block[0]);
+		grid[1] = (((*arr_end)[1]-(*arr_start)[1]+(block[1]))/block[1]);
+		iters = (((*arr_end)[2]-(*arr_start)[2]+(block[2]))/block[2]);
+	} else {
+		grid[0] = (*grid_size)[0];
+		grid[1] = (*grid_size)[1];
+		block[0] = (*block_size)[0];
+		block[1] = (*block_size)[1];
+		block[2] = (*block_size)[2];
+		iters = (int)(*grid_size)[2];
+	}
+	smem_len = (block[0]+2) * (block[1]+2) * block[2];
+	//smem_len = 0;
+	metaOpenCLStackFrame * frame = metaOpenCLTopStackFrame();
+
+	switch (type) {
+		case a_db:
+			kern = frame->kernel_stencil_3d7p_db;
+			break;
+
+		case a_fl:
+			kern = frame->kernel_stencil_3d7p_fl;
+			break;
+
+		case a_ul:
+			kern = frame->kernel_stencil_3d7p_ul;
+			break;
+
+		case a_in:
+			kern = frame->kernel_stencil_3d7p_in;
+			break;
+
+		case a_ui:
+			kern = frame->kernel_stencil_3d7p_ui;
+			break;
+
+		default:
+			fprintf(stderr, "Error: Function 'opencl_stencil_3d7p' not implemented for selected type!\n");
+			return -1;
+			break;
+	}
+
+	ret = clSetKernelArg(kern, 0, sizeof(cl_mem *), &indata);
+	ret |= clSetKernelArg(kern, 1, sizeof(cl_mem *), &outdata);
+	ret |= clSetKernelArg(kern, 2, sizeof(cl_int), &(*array_size)[0]);
+	ret |= clSetKernelArg(kern, 3, sizeof(cl_int), &(*array_size)[1]);
+	ret |= clSetKernelArg(kern, 4, sizeof(cl_int), &(*array_size)[2]);
+	ret |= clSetKernelArg(kern, 5, sizeof(cl_int), &(*arr_start)[0]);
+	ret |= clSetKernelArg(kern, 6, sizeof(cl_int), &(*arr_start)[1]);
+	ret |= clSetKernelArg(kern, 7, sizeof(cl_int), &(*arr_start)[2]);
+	ret |= clSetKernelArg(kern, 8, sizeof(cl_int), &(*arr_end)[0]);
+	ret |= clSetKernelArg(kern, 9, sizeof(cl_int), &(*arr_end)[1]);
+	ret |= clSetKernelArg(kern, 10, sizeof(cl_int), &(*arr_end)[2]);
+	ret |= clSetKernelArg(kern, 11, sizeof(cl_int), &iters);
+	ret |= clSetKernelArg(kern, 12, sizeof(cl_int), &smem_len);
+	switch (type) {
+		case a_db:
+			ret |= clSetKernelArg(kern, 13, smem_len*sizeof(cl_double), NULL);
+			break;
+
+		case a_fl:
+			ret |= clSetKernelArg(kern, 13, smem_len*sizeof(cl_float), NULL);
+			break;
+
+		case a_ul:
+			ret |= clSetKernelArg(kern, 13, smem_len*sizeof(cl_ulong), NULL);
+			break;
+
+		case a_in:
+			ret |= clSetKernelArg(kern, 13, smem_len*sizeof(cl_int), NULL);
+			break;
+
+		case a_ui:
+			ret |= clSetKernelArg(kern, 13, smem_len*sizeof(cl_uint), NULL);
+			break;
+
+		//Shouldn't be reachable, but cover our bases
+		default:
+			fprintf(stderr, "Error: unexpected type, cannot set shared memory size in 'opencl_stencil_3d7p'!\n");
+	}
+	ret |= clEnqueueNDRangeKernel(frame->queue, kern, 3, NULL, grid, block, 0, NULL, event);
+
+	if (!async) ret |= clFinish(frame->queue);
+	free(frame);
+
+	return(ret);
+
+}
+

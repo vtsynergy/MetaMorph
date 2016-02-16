@@ -71,6 +71,11 @@ extern "C" {
 		cl_kernel kernel_unpack_2d_face_ul;
 		cl_kernel kernel_unpack_2d_face_in;
 		cl_kernel kernel_unpack_2d_face_ui;
+		cl_kernel kernel_stencil_3d7p_db;
+		cl_kernel kernel_stencil_3d7p_fl;
+		cl_kernel kernel_stencil_3d7p_ul;
+		cl_kernel kernel_stencil_3d7p_in;
+		cl_kernel kernel_stencil_3d7p_ui;
 
 		cl_mem constant_face_size;
 		cl_mem constant_face_stride;
