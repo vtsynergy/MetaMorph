@@ -1298,6 +1298,19 @@ a_err meta_stencil_3d7p_cb(a_dim3 * grid_size, a_dim3 * block_size, void *indata
 
 		#ifdef WITH_OPENCL
 		case metaModePreferOpenCL:
+			  //Make sure some context exists..
+			  if (meta_context == NULL) metaOpenCLFallBack();
+			  #ifdef WITH_TIMERS
+			  ret = (a_err) opencl_stencil_3d7p(grid_size, block_size, indata, outdata, array_size, array_start, array_end, type, async, &(frame->event.opencl));
+	//If timers exist, use their event to add the callback
+	if ((void*)call != NULL && call_pl != NULL) clSetEventCallback(frame->event.opencl, CL_COMPLETE, call->openclCallback, call_pl);
+			  #else
+	//If timers don't exist, get the event via a locally-scoped event to add to the callback
+	cl_event cb_event;
+			  ret = (a_err) opencl_stencil_3d7p(grid_size, block_size, indata, outdata, array_size, array_start, array_end, type, async, &cb_event);
+
+	if ((void*)call != NULL && call_pl != NULL) clSetEventCallback(cb_event, CL_COMPLETE, call->openclCallback, call_pl);
+			  #endif
 					  break;
 		#endif
 
