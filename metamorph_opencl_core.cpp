@@ -1020,13 +1020,21 @@ cl_int opencl_stencil_3d7p(size_t (* grid_size)[3], size_t (* block_size)[3], vo
 		grid[1] = (((*arr_end)[1]-(*arr_start)[1]+(block[1]))/block[1]);
 		iters = (((*arr_end)[2]-(*arr_start)[2]+(block[2]))/block[2]);
 	} else {
-		grid[0] = (*grid_size)[0];
-		grid[1] = (*grid_size)[1];
+//		grid[0] = (*grid_size)[0];
+//		grid[1] = (*grid_size)[1];
+//		block[0] = (*block_size)[0];
+//		block[1] = (*block_size)[1];
+//		block[2] = (*block_size)[2];
+//		iters = (*grid_size)[2];
+		grid[0] = (*grid_size)[0]*(*block_size)[0];
+		grid[1] = (*grid_size)[1]*(*block_size)[1];
+		grid[2] = (*block_size)[2];
 		block[0] = (*block_size)[0];
 		block[1] = (*block_size)[1];
 		block[2] = (*block_size)[2];
-		iters = (int)(*grid_size)[2];
+		iters = (*grid_size)[2];
 	}
+
 	smem_len = (block[0]+2) * (block[1]+2) * block[2];
 	//smem_len = 0;
 	metaOpenCLStackFrame * frame = metaOpenCLTopStackFrame();
