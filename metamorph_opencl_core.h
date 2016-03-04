@@ -19,6 +19,28 @@
 #define METAMORPH_OCL_DEFAULT_BLOCK {16, 8, 1}
 #endif
 
+#ifndef __FPGA__
+    #define FPGA_DOUBLE
+    #define FPGA_FLOAT
+    #define FPGA_UNSIGNED_LONG
+    #define FPGA_INTEGER
+    #define FPGA_UNSIGNED_INTEGER
+    #define KERNEL_REDUCE
+    #define KERNEL_DOT_PROD
+    #define KERNEL_TRANSPOSE
+    #define KERNEL_PACK
+    #define KERNEL_UPACK
+    #define KERNEL_STENCIL
+#endif 
+
+#if (!defined(FPGA_DOUBLE) && !defined(FPGA_FLOAT) && !defined(FPGA_UNSIGNED_LONG) && !defined(FPGA_INTEGER) && !defined(FPGA_UNSIGNED_INTEGER))
+    #error Macro is Undefined,Please define one of FPGA_DOUBLE, FPGA_FLOAT, FPGA_UNSIGNED_LONG, FPGA_INTEGER, FPGA_UNSIGNED_INTEGER
+#endif 
+
+#if (!defined(KERNEL_REDUCE) && !defined(KERNEL_DOT_PROD) && !defined(KERNEL_TRANSPOSE) && !defined(KERNEL_PACK) && !defined(KERNEL_UPACK) && !defined(KERNEL_STENCIL))
+    #error Macro is undefined. Define at least one of the kernel. 
+#endif 
+
 //Not sure if these C compatibility stubs will actually be needed
 #ifdef __OPENCLCC__
 extern "C" {
@@ -46,36 +68,106 @@ extern "C" {
 
 		cl_program program_opencl_core;
 
+#ifdef FPGA_DOUBLE
+    #ifdef KERNEL_REDUCE
 		cl_kernel kernel_reduce_db;
-		cl_kernel kernel_reduce_fl;
-		cl_kernel kernel_reduce_ul;
-		cl_kernel kernel_reduce_in;
-		cl_kernel kernel_reduce_ui;
+    #endif // KERNEL_REDUCE
+    #ifdef KERNEL_DOT_PROD
 		cl_kernel kernel_dotProd_db;
-		cl_kernel kernel_dotProd_fl;
-		cl_kernel kernel_dotProd_ul;
-		cl_kernel kernel_dotProd_in;
-		cl_kernel kernel_dotProd_ui;
+    #endif // KERNEL_DOT_PROD
+    #ifdef KERNEL_TRANSPOSE
 		cl_kernel kernel_transpose_2d_face_db;
-		cl_kernel kernel_transpose_2d_face_fl;
-		cl_kernel kernel_transpose_2d_face_ul;
-		cl_kernel kernel_transpose_2d_face_in;
-		cl_kernel kernel_transpose_2d_face_ui;
+    #endif // KERNEL_TRANSPOSE
+    #ifdef KERNEL_PACK
 		cl_kernel kernel_pack_2d_face_db;
-		cl_kernel kernel_pack_2d_face_fl;
-		cl_kernel kernel_pack_2d_face_ul;
-		cl_kernel kernel_pack_2d_face_in;
-		cl_kernel kernel_pack_2d_face_ui;
+    #endif // KERNEL_PACK
+    #ifdef KERNEL_UPACK
 		cl_kernel kernel_unpack_2d_face_db;
-		cl_kernel kernel_unpack_2d_face_fl;
-		cl_kernel kernel_unpack_2d_face_ul;
-		cl_kernel kernel_unpack_2d_face_in;
-		cl_kernel kernel_unpack_2d_face_ui;
+    #endif // KERNEL_UPACK
+    #ifdef KERNEL_STENCIL
 		cl_kernel kernel_stencil_3d7p_db;
+    #endif // KERNL_STENCIL
+#endif // FPGA_DOUBLE
+#ifdef  FPGA_FLOAT
+    #ifdef KERNEL_REDUCE
+		cl_kernel kernel_reduce_fl;
+    #endif // KERNEL_REDUCE
+    #ifdef KERNEL_DOT_PROD
+		cl_kernel kernel_dotProd_fl;
+    #endif // KERNEL_DOT_PROD
+    #ifdef KERNEL_TRANSPOSE
+		cl_kernel kernel_transpose_2d_face_fl;
+    #endif // KERNEL_TRANSPOSE
+    #ifdef KERNEL_PACK
+		cl_kernel kernel_pack_2d_face_fl;
+    #endif // KERNEL_PACK
+    #ifdef KERNEL_UPACK
+		cl_kernel kernel_unpack_2d_face_fl;
+    #endif // KERNEL_UPACK
+    #ifdef KERNEL_STENCIL
 		cl_kernel kernel_stencil_3d7p_fl;
+    #endif // KERNL_STENCIL
+#endif // FPGA_FLOAT
+#ifdef FPGA_UNSIGNED_LONG
+    #ifdef KERNEL_REDUCE
+		cl_kernel kernel_reduce_ul;
+    #endif // KERNEL_REDUCE
+    #ifdef KERNEL_DOT_PROD
+		cl_kernel kernel_dotProd_ul;
+    #endif // KERNEL_DOT_PROD
+    #ifdef KERNEL_TRANSPOSE
+		cl_kernel kernel_transpose_2d_face_ul;
+    #endif // KERNEL_TRANSPOSE
+    #ifdef KERNEL_PACK
+		cl_kernel kernel_pack_2d_face_ul;
+    #endif // KERNEL_PACK
+    #ifdef KERNEL_UPACK
+		cl_kernel kernel_unpack_2d_face_ul;
+    #endif // KERNEL_UPACK
+    #ifdef KERNEL_STENCIL
 		cl_kernel kernel_stencil_3d7p_ul;
+    #endif // KERNL_STENCIL
+#endif // FPGA_UNSIGNED_LONG
+#ifdef FPGA_INTEGER
+    #ifdef KERNEL_REDUCE
+		cl_kernel kernel_reduce_in;
+    #endif // KERNEL_REDUCE
+    #ifdef KERNEL_DOT_PROD
+		cl_kernel kernel_dotProd_in;
+    #endif // KERNEL_DOT_PROD
+    #ifdef KERNEL_TRANSPOSE
+		cl_kernel kernel_transpose_2d_face_in;
+    #endif // KERNEL_TRANSPOSE
+    #ifdef KERNEL_PACK
+		cl_kernel kernel_pack_2d_face_in;
+    #endif // KERNEL_PACK
+    #ifdef KERNEL_UPACK
+		cl_kernel kernel_unpack_2d_face_in;
+    #endif // KERNEL_UPACK
+    #ifdef KERNEL_STENCIL
 		cl_kernel kernel_stencil_3d7p_in;
+    #endif // KERNL_STENCIL
+#endif // FPGA_INTEGER
+#ifdef FPGA_UNSIGNED_INTEGER
+    #ifdef KERNEL_REDUCE
+		cl_kernel kernel_reduce_ui;
+    #endif // KERNEL_REDUCE
+    #ifdef KERNEL_DOT_PROD
+		cl_kernel kernel_dotProd_ui;
+    #endif // KERNEL_DOT_PROD
+    #ifdef KERNEL_TRANSPOSE
+		cl_kernel kernel_transpose_2d_face_ui;
+    #endif // KERNEL_TRANSPOSE
+    #ifdef KERNEL_PACK
+		cl_kernel kernel_pack_2d_face_ui;
+    #endif // KERNEL_PACK
+    #ifdef KERNEL_UPACK
+		cl_kernel kernel_unpack_2d_face_ui;
+    #endif // KERNEL_UPACK
+    #ifdef KERNEL_STENCIL
 		cl_kernel kernel_stencil_3d7p_ui;
+    #endif // KERNL_STENCIL
+#endif // FPGA_UNSIGNED_INTEGER 
 
 		cl_mem constant_face_size;
 		cl_mem constant_face_stride;

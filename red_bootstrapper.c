@@ -8,6 +8,16 @@
 #include <sys/time.h>
 #include "metamorph.h"
 
+#ifndef __FPGA__ 
+    #define KERNEL_REDUCE
+    #define KERNEL_STENCIL
+    #define KERNEL_DOT_PROD 
+    #define KERNEL_TRANSPOSE
+#endif 
+
+#if (!defined(KERNEL_REDUCE) && !defined(KERNEL_STENCIL) && !defined(KERNEL_DOT_PROD) && !defined(KERNEL_TRANSPOSE))
+    #error Define at least one of the function  among KERNEL_STENCIL, KERNEL_DOT_PROD, KERNEL_TRANSPOSE, KERNEL_REDUCE
+#endif 
 //#define DATA4
 
 //global for the current type
@@ -16,25 +26,31 @@ size_t g_typesize;
 
 //Sets the benchmark's global configuration for one of the supported data types
 void set_type(meta_type_id type) {
+    char data_type[30];
 	switch (type) {
 		case a_db:
 		g_typesize=sizeof(double);
+        strcpy(data_type ,"Double");
 		break;
 
 		case a_fl:
 		g_typesize=sizeof(float);
+        strcpy(data_type ,"Float");
 		break;
 
 		case a_ul:
 		g_typesize=sizeof(unsigned long);
+        strcpy(data_type ,"Unsigned Long");
 		break;
 
 		case a_in:
 		g_typesize=sizeof(int);
+        strcpy(data_type ,"Integer");
 		break;
 
 		case a_ui:
 		g_typesize=sizeof(unsigned int);
+        strcpy(data_type ,"Unsigned Integer");
 		break;
 
 		default:
@@ -42,6 +58,7 @@ void set_type(meta_type_id type) {
 		exit(-1);
 		break;
 	}
+    printf("-INFO- Data Type : %0s\n-INFO- Data Size : %0d\n", data_type, g_typesize);
 	g_type = type;
 }
 
@@ -61,7 +78,7 @@ void *data4;
 
 int ni, nj, nk, nm, iters;
 
-//      !This does the host and device data allocations.
+    //This does the host and device data allocations.
 	void data_allocate(int i, int j, int k, int m) {
 
         a_err istat = 0;
@@ -89,27 +106,28 @@ int ni, nj, nk, nm, iters;
         //printf("Data Allocated\n");
       } 
 
-//      !initilialize the host side data that has to be reduced here.
-//      !For now I initialized it to 1.0
+      //Initilialize the host side data that has to be reduced here.
+      //For now I initialized it to 1.0
       void data_initialize() {
-	int i, j, k;
-	switch(g_type) {
+	  int i, j, k;
+
+	    switch(g_type) {
 		default:
 		case a_db:
 			{
 				double * l_data3 = (double *) data3;
-#ifdef DATA4
+                #ifdef DATA4
 				double * l_data4 = (double *) data4;
-#endif
+                #endif
 				for (i = ni*nj*nk*nm-1; i >= ni*nj*nk; i--) {
-#ifdef DATA4
+                #ifdef DATA4
 			            l_data4[i] = 1;
-#endif
+                #endif
 				}
 				for (; i >= 0; i--) {
-#ifdef DATA4
+                #ifdef DATA4
 				    l_data4[i] = 1;
-#endif
+                #endif
 				    l_data3[i] = 1;
 				}
 				k = 0;
@@ -254,56 +272,58 @@ int ni, nj, nk, nm, iters;
       }
 
 
-//      !Transfers data from host to device
+    //!Transfers data from host to device
       void data_transfer_h2d() {
-	a_err ret;
-#ifdef WITH_CUDA
-	ret= cudaSuccess;
-#endif
+	  a_err ret;
+      #ifdef WITH_CUDA
+      	ret= cudaSuccess;
+      #endif
+      
+      #ifdef WITH_OPENCL
+      	ret= CL_SUCCESS; 
+      #endif
+      
+      #ifdef WITH_OPENMP
+      	ret= 0;
+      #endif
+	  //TODO add timing loops
+	  int iter;
+	  struct timeval start, end;
 
-#ifdef WITH_OPENCL
-	ret= CL_SUCCESS; 
-#endif
+      #ifndef UNIFIED_MEMORY
+	  gettimeofday(&start, NULL);
+	  for (iter = 0; iter < iters; iter++)
+              ret |= meta_copy_h2d( dev_data3, data3, g_typesize*ni*nj*nk, false);
+	  gettimeofday(&end, NULL);
+	  printf("D2H time: %f\n", ((end.tv_sec-start.tv_sec)*1000000.0+(end.tv_usec-start.tv_usec))/(iters));
+      #else
+      	dev_data3 = data3;
+      #endif
+      
+      #ifdef DATA4
+         ret |= meta_copy_h2d( dev_data4, data4, g_typesize*ni*nj*nk*nm, false);
+      #endif
+      
+      gettimeofday(&start, NULL);
 
-#ifdef WITH_OPENMP
-	ret= 0;
-#endif
-	//TODO add timing loops
-	int iter;
-	struct timeval start, end;
+      for (iter = 0; iter < iters; iter++)
+           ret |= meta_copy_d2d( dev_data3_2, dev_data3, g_typesize*ni*nj*nk, false);
 
-#ifndef UNIFIED_MEMORY
-	gettimeofday(&start, NULL);
-	for (iter = 0; iter < iters; iter++)
-            ret |= meta_copy_h2d( dev_data3, data3, g_typesize*ni*nj*nk, false);
-	gettimeofday(&end, NULL);
-	printf("D2H time: %f\n", ((end.tv_sec-start.tv_sec)*1000000.0+(end.tv_usec-start.tv_usec))/(iters));
-#else
-	dev_data3 = data3;
-#endif
-
-#ifdef DATA4
-            ret |= meta_copy_h2d( dev_data4, data4, g_typesize*ni*nj*nk*nm, false);
-#endif
-
-	gettimeofday(&start, NULL);
-	for (iter = 0; iter < iters; iter++)
-            ret |= meta_copy_d2d( dev_data3_2, dev_data3, g_typesize*ni*nj*nk, false);
-	gettimeofday(&end, NULL);
-	printf("D2D time: %f\n", ((end.tv_sec-start.tv_sec)*1000000.0+(end.tv_usec-start.tv_usec))/(iters));
+      gettimeofday(&end, NULL);
+      printf("D2D time: %f\n", ((end.tv_sec-start.tv_sec)*1000000.0+(end.tv_usec-start.tv_usec))/(iters));
 	
 } 
 
       void deallocate_() {
-#ifndef UNIFIED_MEMORY
-            meta_free(dev_data3); 
-#endif
-            free(data3); 
-            meta_free(dev_data3_2); 
-#ifdef DATA4
-            meta_free(dev_data4);
-            free(data4); 
-#endif
+      #ifndef UNIFIED_MEMORY
+          meta_free(dev_data3); 
+      #endif
+          free(data3); 
+          meta_free(dev_data3_2); 
+      #ifdef DATA4
+          meta_free(dev_data4);
+          free(data4); 
+      #endif
 	    meta_free(reduction); 
       } 
 
@@ -313,10 +333,10 @@ int ni, nj, nk, nm, iters;
 		//-1 is only supported with metaModePreferOpenCL
 		// as a trigger to list all devices and select one
 		//for CUDA use idevice = 0
-            int istat, deviceused; //integer::istat, deviceused, idevice
+        int istat, deviceused; //integer::istat, deviceused, idevice
 
 		int idevice;
-//            ! Initialize GPU
+        // ! Initialize GPU
 #ifdef WITH_CUDA
             idevice = 0;
             istat = choose_accel(idevice, metaModePreferCUDA); //TODO make "choose_accel"
@@ -361,10 +381,11 @@ int ni, nj, nk, nm, iters;
             char args[32];
 
             i = argc; 
-            if (i < 10) { 
-                  printf("<ni><nj><nk><nm><tblockx><tblocky><tblockz><type><iters>"); 
+            if (i != 10) { 
+                  printf("<ni> <nj> <nk> <nm> <tblockx> <tblocky> <tblockz> <type> <iters>"); 
                   return(1); //stop
             } 
+
             ni = atoi(argv[1]);
             nj = atoi(argv[2]);
             nk = atoi(argv[3]);
@@ -375,40 +396,47 @@ int ni, nj, nk, nm, iters;
             ty = atoi(argv[6]);
             tz = atoi(argv[7]);
 
-	    l_type = atoi(argv[8]);
-	    set_type((meta_type_id)l_type);
-	    iters = atoi(argv[9]);
-//For simplicity when testing across all types, these are kept as void
-// and explicitly cast for the few calls they are necessary, based on g_type
-            void * sum_dot_gpu, * zero;
-		sum_dot_gpu = malloc(g_typesize);
-		zero = malloc(g_typesize);
-		//TODO make timer initialization automatic
-            #ifdef WITH_TIMERS
-	    metaTimersInit();
-	    #endif
+	        l_type = atoi(argv[8]); //Data Type
 
-            gpu_initialize(); //call gpu_initialize 
+	        set_type((meta_type_id)l_type);
+	        iters = atoi(argv[9]);
+            
+            //For simplicity when testing across all types, these are kept as void
+            //and explicitly cast for the few calls they are necessary, based on g_type
+
+            void * sum_dot_gpu, * zero;
+
+		    sum_dot_gpu = malloc(g_typesize);
+		    zero = malloc(g_typesize);
+
+		    //TODO make timer initialization automatic
+            #ifdef WITH_TIMERS
+	            metaTimersInit();
+	        #endif
+
+            gpu_initialize();           //call gpu_initialize 
             data_allocate(ni,nj,nk,nm); //call data_allocate(ni,nj,nk,nm) 
-            data_initialize(); //call data_initialize 
+            data_initialize();          //call data_initialize 
 
             data_transfer_h2d(); //call data_transfer_h2d 
             printf("Performing dot-product, type %d\n", l_type); //print *,'Performing reduction'
-#ifdef WITH_OPENMP
-			#pragma omp parallel
-			{
-				#pragma omp master
-				printf("num threads %d\n", omp_get_num_threads());
-			}
-#endif
+
+            #ifdef WITH_OPENMP
+			    #pragma omp parallel
+			    {
+			    	#pragma omp master
+			    	printf("num threads %d\n", omp_get_num_threads());
+			    }
+            #endif
             //dev_data3 = 1.0
-//!            tx = 8
-//!            ty = 8
-//!            tz = 2
-//!            gx = 0 
-//!            gy = 0
-//!            gz = 0
-            dimblock[0] = tx, dimblock[1] = ty, dimblock[2] = tz; // dimblock = {tx,ty,tz}; //TODO move into CUDA backend, replace with generic struct
+            //tx = 8
+            //ty = 8
+            //tz = 2
+            //gx = 0 
+            //gy = 0
+            //gz = 0
+            // dimblock = {tx,ty,tz}; //TODO move into CUDA backend, replace with generic struct
+            dimblock[0] = tx, dimblock[1] = ty, dimblock[2] = tz; 
             //printf("ni:\t%d\n", ni); //print *,"ni:",ni
             //printf("nj:\t%d\n", nj); //print *,"nj:",nj
             //printf("nk:\t%d\n", nk); //print *,"nk:",nk
@@ -431,32 +459,33 @@ int ni, nj, nk, nm, iters;
             else
                   gz = (nk)/tz;
             //end if
-	    //CUDA doesn't support dimgrid[2] != 1, but we use this to pass the number of slab iterations the kernel needs to run internally
-            dimgrid[0] = gx, dimgrid[1] = gy, dimgrid[2] = gz; //dimgrid = {gx,gy,1}; // TODO move into CUDA backend, replace with generic struct
+	        //CUDA doesn't support dimgrid[2] != 1, but we use this to pass the number of slab iterations the kernel needs to run internally
+            //dimgrid = {gx,gy,1}; // TODO move into CUDA backend, replace with generic struct
+            dimgrid[0] = gx, dimgrid[1] = gy, dimgrid[2] = gz; 
             //printf("gx:\t%d\n", gx); //print *,"gx:",gx
             //printf("gy:\t%d\n", gy); //print *,"gy:",gy
             //printf("gz:\t%d\n", gz); //print *,"gz:",gz
-switch(g_type) {
-	case a_db:
-		*(double*)zero = 0;
-	break;
-
-	case a_fl:
-		*(float*)zero = 0;
-	break;
-
-	case a_ul:
-		*(unsigned long*)zero = 0;
-	break;
-
-	case a_in:
-		*(int *)zero = 0;
-	break;
-
-	case a_ui:
-		*(unsigned int *)zero = 0;
-	break;
-}
+            switch(g_type) {
+            	case a_db:
+            		*(double*)zero = 0;
+            	break;
+            
+            	case a_fl:
+            		*(float*)zero = 0;
+            	break;
+            
+            	case a_ul:
+            		*(unsigned long*)zero = 0;
+            	break;
+            
+            	case a_in:
+            		*(int *)zero = 0;
+            	break;
+            
+            	case a_ui:
+            		*(unsigned int *)zero = 0;
+            	break;
+            }
 	    dimarray[0] = ni, dimarray[1] = nj, dimarray[2] = nk;
 	    arr_start[0] = arr_start[1] = arr_start[2] = 0;
 	    arr_end[0] = ni-1, arr_end[1] = nj-1, arr_end[2] = nk-1;
@@ -479,6 +508,8 @@ switch(g_type) {
 		struct timeval start, end;
 		a_err ret;
 
+#ifdef KERNEL_DOT_PROD
+        printf("DOT product\n");
 		gettimeofday(&start, NULL);
 		for (iter = 0; iter < iters; iter++)
 			ret = meta_dotProd(&dimgrid, &dimblock, dev_data3, dev_data3_2, &dimarray, &arr_start, &arr_end, reduction, g_type, false);
@@ -516,18 +547,25 @@ switch(g_type) {
 		printf("Test Dot-Product:\t%d\n", *(unsigned int*)sum_dot_gpu); //print *, "Test Reduction:",sum_dot_gpu
 	break;
 }
+#endif // KERNEL_DOT_PROD
 
+#ifdef KERNEL_STENCIL
+    printf("Stencil \n");
 	gettimeofday(&start, NULL);
 	for (iter = 0; iter < iters; iter++)
 		ret = meta_stencil_3d7p(&dimgrid, &dimblock, dev_data3, dev_data3_2, &dimarray, &arr_start, &arr_end, g_type, false);
 	gettimeofday(&end, NULL);
 	fprintf(stderr, "Kernel Status: %d\n", ret);
 	printf("stencil_3d7p Kern time: %f\n", ((end.tv_sec-start.tv_sec)*1000000.0+(end.tv_usec-start.tv_usec))/(iters));
+
+#endif // KERNEL_STENCIL
+
 	//print_grid(dev_data3_2);
+#ifdef KERNEL_REDUCE
 	istat =	meta_copy_h2d( reduction, zero, g_typesize, true);
 	ret = meta_reduce(&dimgrid, &dimblock, dev_data3_2, &dimarray, &arr_start, &arr_end, reduction, g_type, false);
 	istat = meta_copy_d2h(sum_dot_gpu, reduction, g_typesize, false);
-
+#endif // KERNEL_REDUCE
 	switch(g_type) {
 	case a_db:
 		printf("Test stencil_3d7p:\t%f\n", *(double*)sum_dot_gpu); //print *, "Test Reduction:",sum_dot_gpu
@@ -550,6 +588,9 @@ switch(g_type) {
 	break;
 	}
 
+
+
+#ifdef KERNEL_TRANSPOSE
 	gettimeofday(&start, NULL);
 	for (iter = 0; iter < iters; iter++)
 		//ret = meta_transpose_2d_face(&dimgrid, &dimblock, dev_data3cp, dev_data3, &trans_2d, &trans_2d,  g_type, false);
@@ -559,17 +600,18 @@ switch(g_type) {
 	printf("transpose Kern time: %f\n", ((end.tv_sec-start.tv_sec)*1000000.0+(end.tv_usec-start.tv_usec))/(iters));
     //ret = meta_copy_d2d( dev_data3_2, dev_data3, g_typesize*ni*nj*nk, false);
 
+
 	//TODO add a copy-back timer loop
 	gettimeofday(&start, NULL);
 	for (iter = 0; iter < iters; iter++)
 		meta_copy_d2h(data3, dev_data3, g_typesize*ni*nj*nk, false);
 	gettimeofday(&end, NULL);
 	printf("D2H time: %f\n", ((end.tv_sec-start.tv_sec)*1000000.0+(end.tv_usec-start.tv_usec))/(iters));
-
+#endif //KERNEL_TRANSPOSE
 	    //printf("Test Reduction:\t%d\n", sum_dot_gpu); //print *, "Test Reduction:",sum_dot_gpu
 	    //metaTimersFlush();
 //            } //end do
-            deallocate_(); //call deallocate_i
+        deallocate_(); //call deallocate_i
 	    #ifdef WITH_TIMERS
 	    metaTimersFinish();
 	    #endif

@@ -1,6 +1,6 @@
 CC=gcc
 CPP=g++
-DEFINES=-D WITH_OPENCL -D WITH_TIMERS
+DEFINES=-D WITH_OPENCL -D WITH_TIMERS -D __FPGA__ -D KERNEL_STENCIL -D FPGA_DOUBLE
 INCLUDE=-I . 
 #Why does it need CUDA library with OpenCL? And yes, it does not work without this library //FIXME
 #LIB=-L ./ -L /usr/local/cuda/lib64 
@@ -8,10 +8,11 @@ LIB=-L ./
 
 # Where is the Altera SDK for OpenCL software?
 ifeq ($(wildcard $(ALTERAOCLSDKROOT)),)
-$(error Set ALTERAOCLSDKROOT to the root directory of the Altera SDK for OpenCL software installation)
+	$(error Set ALTERAOCLSDKROOT to the root directory of the Altera SDK for OpenCL software installation)
 endif
+
 ifeq ($(wildcard $(ALTERAOCLSDKROOT)/host/include/CL/opencl.h),)
-$(error Set ALTERAOCLSDKROOT to the root directory of the Altera SDK for OpenCL software installation.)
+	$(error Set ALTERAOCLSDKROOT to the root directory of the Altera SDK for OpenCL software installation.)
 endif
 
 # OpenCL compile and link flags.
@@ -27,14 +28,17 @@ dxch_test: libmetamorph.so dxch_bootstrapper.c
 run: 
 	./red_test 16 16 16 1 16 8 1 0 10
 
-red_test: libmetamorph.so red_bootstrapper.c libmetamorph.so libmetamorph_opencl_core.so
-	$(CC) red_bootstrapper.c $(INCLUDE) $(DEFINES)  $(LIB)  $(AOCL_LINK_CONFIG) -lmetamorph -lmetamorph_opencl_core -o red_test
+red_test: red_bootstrapper.c libmetamorph.so libmetamorph_opencl_core_alt.so
+	$(CC) red_bootstrapper.c $(INCLUDE) $(DEFINES)  $(LIB)  $(AOCL_LINK_CONFIG) -lmetamorph -lmetamorph_opencl_core_alt -o red_test
 
-libmetamorph.so: libmetamorph_opencl_core.so metamorph.c metamorph_timers.c 
-	$(CC) metamorph.c metamorph_timers.c -fPIC -shared $(DEFINES)  $(AOCL_COMPILE_CONFIG) $(LIB) -lmetamorph_opencl_core  -o libmetamorph.so
+libmetamorph.so: libmetamorph_opencl_core_alt.so metamorph.c metamorph_timers.c 
+	$(CC) metamorph.c metamorph_timers.c -fPIC -shared $(DEFINES)  $(AOCL_COMPILE_CONFIG) $(LIB) -lmetamorph_opencl_core_alt  -o libmetamorph.so
 
 libmetamorph_opencl_core.so: metamorph_opencl_core.cpp
-	$(CPP) metamorph_opencl_core.cpp -g -c -fPIC -shared $(AOCL_COMPILE_CONFIG) -o libmetamorph_opencl_core.so -D __OPENCLCC__
+	$(CPP) metamorph_opencl_core.cpp -g -c -fPIC -shared $(AOCL_COMPILE_CONFIG) -o libmetamorph_opencl_core.so -D __OPENCLCC__ -D __FPGA__
+
+libmetamorph_opencl_core_alt.so: metamorph_opencl_core_alt.cpp metamorph_opencl_core.h
+	$(CPP) metamorph_opencl_core_alt.cpp -g -c -fPIC -shared $(AOCL_COMPILE_CONFIG) -o libmetamorph_opencl_core_alt.so -D __OPENCLCC__ -D __FPGA__ -D FPGA_DOUBLE -D KERNEL_STENCIL
 
 red_test_DEBUG: libmetamorph_DEBUG.so red_bootstrapper.c libmetamorph_DEBUG.so libmetamorph_opencl_core_DEBUG.so
 	$(CC) red_bootstrapper.c $(INCLUDE) $(DEFINES) -D WITH_OPENMP  $(LIB) -lmetamorph_DEBUG -lmetamorph_opencl_core_DEBUG -o red_test_DEBUG -g -O0
@@ -45,9 +49,14 @@ libmetamorph_DEBUG.so: libmetamorph_opencl_core_DEBUG.so metamorph.c metamorph_t
 libmetamorph_opencl_core_DEBUG.so: metamorph_opencl_core.cpp
 	g++ metamorph_opencl_core.cpp -fPIC -shared $(LIB) $(INCLUDE) -o libmetamorph_opencl_core_DEBUG.so -D __OPENCLCC__ -g -O0
 	
-clean:
-	rm -f libmetamorph*.so *.mod dxch_test xch_test red_test red_test red_test_cuda red_test_omp red_test_notimers red_test_notimers red_test_fortran red_test_fortran red_test_fortran_notimers red_test_fortran_notimers red_test_DEBUG red_test_DEBUG red_test_cuda_DEBUG red_test_omp_DEBUG red_test_notimers_DEBUG red_test_notimers_DEBUG red_test_fortran_DEBUG red_test_fortran_DEBUG red_test_fortran_notimers_DEBUG red_test_fortran_notimers_DEBUG red_test
+clean:;w
+	rm -f libmetamorph*.so *.mod dxch_test xch_test red_test red_test red_test_cuda red_test_omp red_test_notimers red_test_notimers red_test_fortran red_test_fortran red_test_fortran_notimers red_test_fortran_notimers red_test_DEBUG red_test_DEBUG red_test_cuda_DEBUG red_test_omp_DEBUG red_test_notimers_DEBUG red_test_notimers_DEBUG red_test_fortran_DEBUG red_test_fortran_DEBUG red_test_fortran_notimers_DEBUG red_test_fortran_notimers_DEBUG red_test libmetamorph_opencl_core_alt.so 
 
 
+emulate: red_test
+	env CL_CONTEXT_EMULATOR_DEVICE_ALTERA=s5phq_d8 ./red_test 16 16 16 1 16 8 1 0 10
 
-.PHONY : all clean
+comp_emulate: metamorph_opencl_core_alt.cl
+	aoc -g -march=emulator metamorph_opencl_core_alt.cl -o metamorph_opencl_core.aocx $(DEFINES)
+
+.PHONY : all clean emulate
