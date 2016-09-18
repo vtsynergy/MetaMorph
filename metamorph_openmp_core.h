@@ -15,6 +15,8 @@
 extern "C" {
 #endif
 
+	int omp_copy_d2d(void *dst, void *src, size_t size, int async);
+
 	int omp_dotProd(size_t (* grid_size)[3], size_t (* block_size)[3], void * data1, void * data2, size_t (* array_size)[3], size_t (* arr_start)[3],  size_t (* arr_end)[3], void * reduction_var, meta_type_id type, int async);
 	int omp_reduce(size_t (* grid_size)[3], size_t (* block_size)[3], void * data, size_t (* array_size)[3], size_t (* arr_start)[3],  size_t (* arr_end)[3], void * reduction_var, meta_type_id type, int async);
 	int omp_transpose_2d_face(size_t (* grid_size)[3], size_t (* block_size)[3], void * indata, void *outdata, size_t (* arr_dim_xy)[3], size_t (* tran_dim_xy)[3], meta_type_id type, int async);

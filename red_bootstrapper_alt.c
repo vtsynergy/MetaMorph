@@ -8,6 +8,16 @@
 #include <sys/time.h>
 #include "metamorph.h"
 
+#ifndef __FPGA__ 
+    #define KERNEL_REDUCE
+    #define KERNEL_STENCIL
+    #define KERNEL_DOT_PROD 
+    #define KERNEL_TRANSPOSE
+#endif 
+
+#if (!defined(KERNEL_REDUCE) && !defined(KERNEL_STENCIL) && !defined(KERNEL_DOT_PROD) && !defined(KERNEL_TRANSPOSE))
+    #error Define at least one of the function  among KERNEL_STENCIL, KERNEL_DOT_PROD, KERNEL_TRANSPOSE, KERNEL_REDUCE
+#endif 
 //#define DATA4
 
 //global for the current type
@@ -16,25 +26,31 @@ size_t g_typesize;
 
 //Sets the benchmark's global configuration for one of the supported data types
 void set_type(meta_type_id type) {
+    char data_type[30];
 	switch (type) {
 		case a_db:
 		g_typesize=sizeof(double);
+        strcpy(data_type ,"Double");
 		break;
 
 		case a_fl:
 		g_typesize=sizeof(float);
+        strcpy(data_type ,"Float");
 		break;
 
 		case a_ul:
 		g_typesize=sizeof(unsigned long);
+        strcpy(data_type ,"Unsigned Long");
 		break;
 
 		case a_in:
 		g_typesize=sizeof(int);
+        strcpy(data_type ,"Integer");
 		break;
 
 		case a_ui:
 		g_typesize=sizeof(unsigned int);
+        strcpy(data_type ,"Unsigned Integer");
 		break;
 
 		default:
@@ -42,6 +58,7 @@ void set_type(meta_type_id type) {
 		exit(-1);
 		break;
 	}
+    printf("-INFO- Data Type : %0s\n-INFO- Data Size : %0d\n", data_type, g_typesize);
 	g_type = type;
 }
 
@@ -327,8 +344,7 @@ int ni, nj, nk, nm, iters;
 
 #ifdef WITH_OPENCL
             idevice = -1;
-            //istat = choose_accel(idevice, metaModePreferGeneric); //TODO make "choose_accel"
-            istat = choose_accel(idevice, metaModePreferOpenCL); //TODO make "choose_accel"
+            istat = choose_accel(idevice, metaModePreferGeneric); //TODO make "choose_accel"
 #endif
 
 #ifdef WITH_OPENMP
@@ -492,6 +508,8 @@ int ni, nj, nk, nm, iters;
 		struct timeval start, end;
 		a_err ret;
 
+#ifdef KERNEL_DOT_PROD
+        printf("DOT product\n");
 		gettimeofday(&start, NULL);
 		for (iter = 0; iter < iters; iter++)
 			ret = meta_dotProd(&dimgrid, &dimblock, dev_data3, dev_data3_2, &dimarray, &arr_start, &arr_end, reduction, g_type, false);
@@ -529,18 +547,25 @@ switch(g_type) {
 		printf("Test Dot-Product:\t%d\n", *(unsigned int*)sum_dot_gpu); //print *, "Test Reduction:",sum_dot_gpu
 	break;
 }
+#endif // KERNEL_DOT_PROD
 
+#ifdef KERNEL_STENCIL
+    printf("Stencil \n");
 	gettimeofday(&start, NULL);
 	for (iter = 0; iter < iters; iter++)
 		ret = meta_stencil_3d7p(&dimgrid, &dimblock, dev_data3, dev_data3_2, &dimarray, &arr_start, &arr_end, g_type, false);
 	gettimeofday(&end, NULL);
 	fprintf(stderr, "Kernel Status: %d\n", ret);
 	printf("stencil_3d7p Kern time: %f\n", ((end.tv_sec-start.tv_sec)*1000000.0+(end.tv_usec-start.tv_usec))/(iters));
+
+#endif // KERNEL_STENCIL
+
 	//print_grid(dev_data3_2);
+#ifdef KERNEL_REDUCE
 	istat =	meta_copy_h2d( reduction, zero, g_typesize, true);
 	ret = meta_reduce(&dimgrid, &dimblock, dev_data3_2, &dimarray, &arr_start, &arr_end, reduction, g_type, false);
 	istat = meta_copy_d2h(sum_dot_gpu, reduction, g_typesize, false);
-
+#endif // KERNEL_REDUCE
 	switch(g_type) {
 	case a_db:
 		printf("Test stencil_3d7p:\t%f\n", *(double*)sum_dot_gpu); //print *, "Test Reduction:",sum_dot_gpu
@@ -563,6 +588,9 @@ switch(g_type) {
 	break;
 	}
 
+
+
+#ifdef KERNEL_TRANSPOSE
 	gettimeofday(&start, NULL);
 	for (iter = 0; iter < iters; iter++)
 		//ret = meta_transpose_2d_face(&dimgrid, &dimblock, dev_data3cp, dev_data3, &trans_2d, &trans_2d,  g_type, false);
@@ -572,13 +600,14 @@ switch(g_type) {
 	printf("transpose Kern time: %f\n", ((end.tv_sec-start.tv_sec)*1000000.0+(end.tv_usec-start.tv_usec))/(iters));
     //ret = meta_copy_d2d( dev_data3_2, dev_data3, g_typesize*ni*nj*nk, false);
 
+
 	//TODO add a copy-back timer loop
 	gettimeofday(&start, NULL);
 	for (iter = 0; iter < iters; iter++)
 		meta_copy_d2h(data3, dev_data3, g_typesize*ni*nj*nk, false);
 	gettimeofday(&end, NULL);
 	printf("D2H time: %f\n", ((end.tv_sec-start.tv_sec)*1000000.0+(end.tv_usec-start.tv_usec))/(iters));
-
+#endif //KERNEL_TRANSPOSE
 	    //printf("Test Reduction:\t%d\n", sum_dot_gpu); //print *, "Test Reduction:",sum_dot_gpu
 	    //metaTimersFlush();
 //            } //end do

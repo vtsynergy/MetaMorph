@@ -332,7 +332,7 @@ __global__ void kernel_transpose_2d(T *odata, T *idata, int arr_width, int arr_h
 template <typename T>
 
 //Read-only cache + Rigster blocking (Z) + smem blocking (X-Y)
-// work only with 2D thread blocks (the best block size is 128 * 2)
+// work only with 2D thread blocks (use rectangular blocks, i.e. 64*4, 128*2)
 __global__ void kernel_stencil_3d7p(const T * __restrict__ ind, T * __restrict__  outd,
 		int i, int j, int k,
 		int sx, int sy, int sz,
@@ -382,11 +382,14 @@ __global__ void kernel_stencil_3d7p(const T * __restrict__ ind, T * __restrict__
 		rz1 = r0;
 		r0 = rz2;
 		rz2 = ind[c+ij];
+		
+		__syncthreads();
 	}
 }
 
 
 #if 0
+template <typename T>
 // work with 2D and 3D thread blocks
 __global__ void kernel_stencil_3d7p_v0(T *ind, T *outd,
 		int i, int j, int k,
@@ -411,6 +414,8 @@ __global__ void kernel_stencil_3d7p_v0(T *ind, T *outd,
 								  ind[x+y*i+(z+1)*i*j] ) / (T) 7;
 	}
 }
+
+template <typename T>
 
 //Read-only cache + Rigster blocking (Z)
 // work only with 2D thread blocks
@@ -447,6 +452,8 @@ __global__ void kernel_stencil_3d7p_v1(const T * __restrict__ ind, T * __restric
 		rz2 = ind[c+ij];
 	}
 }
+
+template <typename T>
 
 //Read-only cache + Rigster blocking (Z) + manual prefetch
 // work only with 2D thread blocks
@@ -485,6 +492,8 @@ __global__ void kernel_stencil_3d7p_v2(const T * __restrict__ ind, T * __restric
 		rz3 = ind[c+ij*2];
 	}
 }
+
+template <typename T>
 
 //Read-only cache + Rigster blocking (Z) + + smem blocking (X-Y)
 // work only with 2D thread blocks
@@ -539,6 +548,8 @@ __global__ void kernel_stencil_3d7p_v3(const T * __restrict__ ind, T * __restric
 		rz2 = ind[c+ij];
 	}
 }
+
+template <typename T>
 
 // explicit Read-only cache + Rigster blocking (Z) + + smem blocking (X-Y)
 // work only with 2D thread blocks
@@ -968,7 +979,8 @@ cudaError_t cuda_stencil_3d7p(size_t (* grid_size)[3], size_t (* block_size)[3],
 	int iters;
 	//Allow for auto-selected grid/block size if either is not specified
 	if (grid_size == NULL || block_size == NULL) {
-		block = METAMORPH_CUDA_DEFAULT_BLOCK;
+		//block = METAMORPH_CUDA_DEFAULT_BLOCK;
+		block = dim3(64, 4, 1);
 		//do not subtract 1 from blocx for the case when end == start
 		grid = dim3((((*arr_end)[0]-(*arr_start)[0]+(block.x))/block.x), (((*arr_end)[1]-(*arr_start)[1]+(block.y))/block.y), 1);
 		iters = (((*arr_end)[2]-(*arr_start)[2]+(block.z))/block.z);

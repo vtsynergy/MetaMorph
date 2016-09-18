@@ -1,0 +1,184 @@
+MPICH_USE_SHLIB=yes
+#SIMD_FLAGS= -mavx
+SIMD_FLAGS= 
+
+
+all: default notimers nocuda nocuda_notimers gpuDirect
+
+default: red_test red_test_fortran
+
+gpuDirect: xch_test_direct 
+
+notimers: red_test_notimers red_test_fortran_notimers
+
+nocuda: red_test_nocuda red_test_fortran_nocuda
+
+nocuda_notimers: red_test_nocuda_notimers red_test_fortran_nocuda_notimers
+
+debug: default_DEBUG notimers_DEBUG nocuda_DEBUG nocuda_notimers_DEBUG
+
+default_DEBUG: red_test_DEBUG red_test_fortran_DEBUG xch_test_DEBUG
+
+notimers_DEBUG: red_test_notimers_DEBUG red_test_fortran_notimers_DEBUG
+
+nocuda_DEBUG: red_test_nocuda_DEBUG red_test_fortran_nocuda_DEBUG
+
+nocuda_notimers_DEBUG: red_test_nocuda_notimers_DEBUG red_test_fortran_nocuda_notimers_DEBUG
+
+xch_test: libmetamorph.so
+	mpicc -cc=gcc-4.8 exchange_bootstrapper.c -I ./ -D WITH_OPENCL -D WITH_OPENMP -D WITH_CUDA -D WITH_MPI -D WITH_TIMERS -D WITH_FORTRAN -L ./ -L /usr/local/cuda/lib64 -lmetamorph -o xch_test -g /usr/lib/libnuma.so.1
+
+xch_test: libmetamorph.so
+	mpicc -cc=gcc-4.8 exchange_bootstrapper.c -I ./ -D WITH_OPENCL -D WITH_OPENMP -D WITH_CUDA -D WITH_MPI -D WITH_TIMERS -D WITH_FORTRAN -L ./ -L /usr/local/cuda/lib64 -lmetamorph -o xch_test -g /usr/lib/libnuma.so.1
+
+
+xch_test_direct: libmetamorph_direct.so
+	mpicc -cc=gcc-4.8 exchange_bootstrapper.c -pg -g -D__DEBUG__ -I ./ -D WITH_OPENCL -D WITH_OPENMP -D WITH_CUDA -D WITH_MPI -D WITH_TIMERS -D WITH_FORTRAN -D WITH_MPI_GPU_DIRECT -L ./ -L /usr/local/cuda/lib64 -lmetamorph_direct -o xch_test_direct -g /usr/lib/libnuma.so.1
+	#mpicc -cc=gcc-4.8 exchange_bootstrapper.c -g -D__DEBUG__ -I ./ -D WITH_OPENCL -D WITH_OPENMP -D WITH_CUDA -D WITH_MPI -D WITH_TIMERS -D WITH_FORTRAN -D WITH_MPI_GPU_DIRECT -L ./ -L /usr/local/cuda/lib64 -lmetamorph_direct -o xch_test_direct -g /usr/lib/libnuma.so.1
+
+red_test_fortran_nocuda_notimers: libmetamorph_nocuda_notimers.so
+	gfortran -o red_test_fortran_nocuda_notimers red_bootstrapper.F03 -L ./ -lmetamorph_nocuda_notimers
+
+red_test_fortran_nocuda: libmetamorph_nocuda.so
+	gfortran -o red_test_fortran_nocuda red_bootstrapper.F03 -L ./ -lmetamorph_nocuda -D WITH_TIMERS
+
+red_test_fortran_notimers: libmetamorph_notimers_fortran.so
+	gfortran -o red_test_fortran_notimers red_bootstrapper.F03 -L ./ -lmetamorph_notimers_fortran
+
+red_test_fortran: libmetamorph_fortran.so
+	gfortran -o red_test_fortran red_bootstrapper.F03 -L ./ -lmetamorph_fortran -D WITH_TIMERS
+
+red_test_nocuda_notimers: libmetamorph_nocuda_notimers.so
+	gcc red_bootstrapper.c -I ./ -D WITH_OPENCL -D WITH_OPENMP -D WITH_FORTRAN -L ./ -L /usr/local/cuda/lib64 -lmetamorph_nocuda_notimers -lmetamorph_opencl_core -o red_test_nocuda_notimers
+
+red_test_nocuda: libmetamorph_nocuda.so
+	gcc red_bootstrapper.c -I ./ -D WITH_OPENCL -D WITH_TIMERS -D WITH_FORTRAN -L ./ -L /usr/local/cuda/lib64 -lmetamorph_nocuda -lmetamorph_opencl_core -o red_test_nocuda
+
+red_test_cuda: libmetamorph_cuda.so
+	gcc red_bootstrapper.c -I ./ -D WITH_CUDA -D WITH_TIMERS -L ./ -L /usr/local/cuda/lib64 -lmetamorph_cuda -lmetamorph_cuda_core -o red_test_cuda
+
+red_test_omp: libmetamorph_omp.so
+	gcc red_bootstrapper.c -fopenmp $(SIMD_FLAGS) -I ./ -D WITH_OPENMP -D WITH_TIMERS -L ./ -lmetamorph_omp -lmetamorph_omp_core -o red_test_omp
+
+red_test_notimers: libmetamorph_notimers.so
+	gcc red_bootstrapper.c -I ./ -D WITH_CUDA -D WITH_OPENCL -D WITH_OPENMP -L ./ -L /usr/local/cuda/lib64 -lmetamorph_notimers -lmetamorph_opencl_core -lmetamorph_cuda_core -o red_test_notimers
+
+red_test: libmetamorph.so
+	gcc red_bootstrapper.c -I ./ -D WITH_CUDA -D WITH_OPENCL -D WITH_OPENMP -D WITH_TIMERS -L ./ -L /usr/local/cuda/lib64 -lmetamorph  -o red_test
+
+libmetamorph_nocuda_notimers.so: libmetamorph_opencl_core.so metamorph.c
+	gcc metamorph.c metamorph_fortran_compat.c -fPIC -shared -D WITH_OPENCL -D WITH_FORTRAN -I ./ -L ./ -L /usr/local/cuda/lib64 -lmetamorph_opencl_core -lOpenCL -o libmetamorph_nocuda_notimers.so
+
+libmetamorph_nocuda.so: libmetamorph_opencl_core.so metamorph.c
+	gcc metamorph.c metamorph_timers.c metamorph_fortran_compat.c -fPIC -shared -D WITH_OPENCL -D WITH_TIMERS -D WITH_FORTRAN -I ./ -L ./ -L /usr/local/cuda/lib64 -lmetamorph_opencl_core -lOpenCL -o libmetamorph_nocuda.so
+
+libmetamorph_cuda.so: libmetamorph_cuda_core.so metamorph.c
+	gcc metamorph.c metamorph_timers.c -fPIC -shared -D WITH_CUDA -D WITH_TIMERS -I ./ -L ./ -L /usr/local/cuda/lib64 -lmetamorph_cuda_core -lcudart -o libmetamorph_cuda.so
+
+libmetamorph_omp.so: libmetamorph_omp_core.so metamorph.c
+	gcc metamorph.c metamorph_timers.c -fopenmp $(SIMD_FLAGS) -fPIC -shared -D WITH_OPENMP -D WITH_TIMERS -I ./ -L ./ -lmetamorph_omp_core -o libmetamorph_omp.so
+
+libmetamorph_notimers.so: libmetamorph_cuda_core.so libmetamorph_opencl_core.so metamorph.c
+	mpicc -cc=gcc-4.8 metamorph.c metamorph_mpi.c -g -DWITH_MPI -fPIC -shared -D WITH_CUDA -D WITH_OPENCL -D WITH_OPENMP -I ./ -L ./ -L /usr/local/cuda/lib64 -lmetamorph_opencl_core -lmetamorph_cuda_core -lOpenCL -lcudart -o libmetamorph_notimers.so
+#	gcc metamorph.c -fPIC -shared -D WITH_CUDA -D WITH_OPENCL -D WITH_OPENMP -I ./ -L ./ -L /usr/local/cuda/lib64 -lmetamorph_opencl_core -lmetamorph_cuda_core -lOpenCL -lcudart -o libmetamorph_notimers.so
+
+libmetamorph_notimers_fortran.so: libmetamorph_cuda_core.so libmetamorph_opencl_core.so metamorph.c metamorph_fortran_compat.c
+	gcc metamorph.c metamorph_fortran_compat.c  -fPIC -shared -D WITH_CUDA -D WITH_OPENCL -D WITH_OPENMP -D WITH_FORTRAN -I ./ -L ./ -L /usr/local/cuda/lib64 -lmetamorph_opencl_core -lmetamorph_cuda_core -lOpenCL -lcudart -o libmetamorph_notimers_fortran.so
+#	OMPI_CC=gcc-4.8 /usr/bin/mpicc.openmpi metamorph.c metamorph_mpi.c metamorph_fortran_compat.c  -fPIC -shared -D WITH_CUDA -D WITH_OPENCL -D WITH_OPENMP -D WITH_FORTRAN -D WITH_MPI -I ./ -L ./ -L /usr/local/cuda/lib64 -lmetamorph_opencl_core -lmetamorph_cuda_core -lOpenCL -lcudart -o libmetamorph_notimers.so /usr/lib/libnuma.so.1
+
+#OMPI_CC=gcc-4.8 /usr/bin/mpicc
+libmetamorph_direct.so: libmetamorph_cuda_core.so libmetamorph_opencl_core.so metamorph.c
+	which mpicc
+	mpicc -cc=gcc-4.8 metamorph.c metamorph_timers.c metamorph_fortran_compat.c metamorph_mpi.c -g -fPIC -shared -DNO_FIXME -D WITH_CUDA -D WITH_OPENCL -D WITH_OPENMP -D WITH_FORTRAN -D WITH_MPI -I ./ -L ./ -L /usr/local/cuda/lib64 -lmetamorph_opencl_core -lmetamorph_cuda_core -lOpenCL -lcudart -o libmetamorph_direct.so /usr/lib/libnuma.so.1
+	#mpicc -cc=gcc-4.8 metamorph.c metamorph_timers.c metamorph_fortran_compat.c metamorph_mpi.c -g -fPIC -shared -D WITH_CUDA -D WITH_OPENCL -D WITH_OPENMP -D WITH_FORTRAN -D WITH_MPI -D WITH_MPI_GPU_DIRECT -I ./ -L ./ -L /usr/local/cuda/lib64 -lmetamorph_opencl_core -lmetamorph_cuda_core -lOpenCL -lcudart -o libmetamorph_direct.so /usr/lib/libnuma.so.1
+
+libmetamorph_fortran.so: libmetamorph_cuda_core.so libmetamorph_opencl_core.so metamorph.c metamorph_fortran_compat.c
+	gcc metamorph.c metamorph_timers.c metamorph_fortran_compat.c -fPIC -shared -D WITH_CUDA -D WITH_OPENCL -D WITH_OPENMP -D WITH_TIMERS -D WITH_FORTRAN -I ./ -L ./ -L /usr/local/cuda/lib64 -lmetamorph_opencl_core -lmetamorph_cuda_core -lOpenCL -lcudart -o libmetamorph_fortran.so
+
+
+libmetamorph.so: libmetamorph_cuda_core.so libmetamorph_opencl_core.so metamorph.c
+	gcc metamorph.c metamorph_timers.c -fPIC -shared -D WITH_CUDA -D WITH_OPENCL -D WITH_OPENMP -D WITH_TIMERS -I ./ -L ./ -L /usr/local/cuda/lib64 -lmetamorph_opencl_core -lmetamorph_cuda_core -lOpenCL -lcudart -o libmetamorph.so
+	#mpicc -cc=gcc-4.8 metamorph.c metamorph_timers.c metamorph_fortran_compat.c metamorph_mpi.c -fPIC -shared -D WITH_CUDA -D WITH_OPENCL -D WITH_OPENMP -D WITH_TIMERS -D WITH_FORTRAN -D WITH_MPI -I ./ -L ./ -L /usr/local/cuda/lib64 -lmetamorph_opencl_core -lmetamorph_cuda_core -lOpenCL -lcudart -o libmetamorph.so /usr/lib/libnuma.so.1
+
+#I can only get it to provide correct results with the debugging symbols..
+#  Something to do with volatiles and sync on the shared memory regions
+libmetamorph_cuda_core.so:
+	nvcc metamorph_cuda_core.cu -g -Xcompiler -fPIC -shared -I ./ -L /usr/local/cuda/lib64 -lcudart  -o libmetamorph_cuda_core.so -D __CUDACC__ -arch sm_20
+
+libmetamorph_omp_core.so:
+	gcc metamorph_openmp_core.c -fopenmp -g $(SIMD_FLAGS) -fPIC -shared -I ./ -o libmetamorph_omp_core.so
+
+#Stub for once we implement OpenCL
+# should include compiling as well as moving the kernel file..
+#TODO do something smart with required kernel files..
+libmetamorph_opencl_core.so:
+	g++ metamorph_opencl_core.cpp -g -fPIC -shared -I ./ -L /usr/local/cuda/lib64 -lOpenCL -o libmetamorph_opencl_core.so -D __OPENCLCC__
+
+#Debug variants
+red_test_fortran_nocuda_notimers_DEBUG: libmetamorph_nocuda_notimers_DEBUG.so
+	gfortran -o red_test_fortran_nocuda_notimers_DEBUG red_bootstrapper.F03 -L ./ -lmetamorph_nocuda_notimers_DEBUG -g
+
+red_test_fortran_nocuda_DEBUG: libmetamorph_nocuda.so
+	gfortran -o red_test_fortran_nocuda_DEBUG red_bootstrapper.F03 -L ./ -lmetamorph_nocuda_DEBUG -D WITH_TIMERS -g
+
+red_test_fortran_notimers_DEBUG: libmetamorph_notimers.so
+	gfortran -o red_test_fortran_notimers_DEBUG red_bootstrapper.F03 -L ./ -lmetamorph_notimers_DEBUG -g
+
+red_test_fortran_DEBUG: libmetamorph.so
+	gfortran -o red_test_fortran_DEBUG red_bootstrapper.F03 -L ./ -lmetamorph_DEBUG -D WITH_TIMERS -g
+
+red_test_nocuda_notimers_DEBUG: libmetamorph_nocuda_notimers_DEBUG.so
+	gcc red_bootstrapper.c -I ./ -D WITH_OPENCL -D WITH_OPENMP -D WITH_FORTRAN -L ./ -L /usr/local/cuda/lib64 -lmetamorph_nocuda_notimers_DEBUG -lmetamorph_opencl_core_DEBUG -o red_test_nocuda_notimers_DEBUG -g -O0
+
+red_test_nocuda_DEBUG: libmetamorph_nocuda_DEBUG.so
+	gcc red_bootstrapper.c -I ./ -D WITH_OPENCL -D WITH_OPENMP -D WITH_TIMERS -D WITH_FORTRAN -L ./ -L /usr/local/cuda/lib64 -lmetamorph_nocuda_DEBUG -lmetamorph_opencl_core_DEBUG -o red_test_nocuda_DEBUG -g -O0
+
+red_test_cuda_DEBUG: libmetamorph_cuda_DEBUG.so
+	gcc red_bootstrapper.c -I ./ -D WITH_CUDA -D WITH_OPENMP -D WITH_TIMERS -L ./ -L /usr/local/cuda/lib64 -lmetamorph_cuda_DEBUG -lmetamorph_cuda_core_DEBUG -o red_test_cuda_DEBUG -g -O0
+
+red_test_omp_DEBUG: libmetamorph_omp_DEBUG.so
+	gcc red_bootstrapper.c -fopenmp -I ./ -D WITH_OPENMP -D WITH_TIMERS -L ./ -lmetamorph_omp_DEBUG -lmetamorph_omp_core_DEBUG -o red_test_omp_DEBUG -g -O0
+
+red_test_notimers_DEBUG: libmetamorph_notimers_DEBUG.so
+	gcc red_bootstrapper.c -I ./ -D WITH_CUDA -D WITH_OPENCL -D WITH_OPENMP -D WITH_FORTRAN -L ./ -L /usr/local/cuda/lib64 -lmetamorph_notimers_DEBUG -lmetamorph_opencl_core_DEBUG -lmetamorph_cuda_core_DEBUG -o red_test_notimers_DEBUG -g -O0
+
+red_test_DEBUG: libmetamorph_DEBUG.so
+	gcc red_bootstrapper.c -I ./ -D WITH_CUDA -D WITH_OPENCL -D WITH_OPENMP -D WITH_TIMERS -D WITH_FORTRAN -D WITH_MPI -L ./ -L /usr/local/cuda/lib64 -lmetamorph_DEBUG -lmetamorph_opencl_core_DEBUG -lmetamorph_cuda_core_DEBUG -o red_test_DEBUG -g -O0
+xch_test_DEBUG:
+	mpicc -cc=gcc-4.8 exchange_bootstrapper.c -I ./ -D WITH_OPENCL -D WITH_OPENMP -D WITH_CUDA -D WITH_MPI -D WITH_TIMERS -D WITH_FORTRAN -L ./ -L /usr/local/cuda/lib64 -lmetamorph_DEBUG -o xch_test_DEBUG -g
+
+libmetamorph_nocuda_notimers_DEBUG.so: libmetamorph_opencl_core_DEBUG.so metamorph.c
+	gcc metamorph.c metamorph_fortran_compat.c -fPIC -shared -D WITH_OPENCL -D WITH_OPENMP -D WITH_FORTRAN -I ./ -L ./ -L /usr/local/cuda/lib64 -lmetamorph_opencl_core_DEBUG -lOpenCL -o libmetamorph_nocuda_notimers_DEBUG.so -g -O0
+
+libmetamorph_nocuda_DEBUG.so: libmetamorph_opencl_core_DEBUG.so metamorph.c
+	gcc metamorph.c metamorph_timers.c metamorph_fortran_compat.c -fPIC -shared -D WITH_OPENCL -D WITH_OPENMP -D WITH_TIMERS -D WITH_FORTRAN -I ./ -L ./ -L /usr/local/cuda/lib64 -lmetamorph_opencl_core_DEBUG -lOpenCL -o libmetamorph_nocuda_DEBUG.so -g -O0
+
+libmetamorph_cuda_DEBUG.so: libmetamorph_cuda_core_DEBUG.so metamorph.c
+	gcc metamorph.c metamorph_timers.c -fPIC -shared -D WITH_CUDA -D WITH_TIMERS -I ./ -L ./ -L /usr/local/cuda/lib64 -lmetamorph_cuda_core_DEBUG -lcudart -o libmetamorph_cuda_DEBUG.so -g -O0
+
+libmetamorph_omp_DEBUG.so: libmetamorph_omp_core_DEBUG.so metamorph.c
+	gcc metamorph.c metamorph_timers.c -fopenmp -fPIC -shared -D WITH_OPENMP -D WITH_TIMERS -I ./ -L ./ -lmetamorph_omp_core_DEBUG -o libmetamorph_omp_DEBUG.so -g -O0
+
+libmetamorph_notimers_DEBUG.so: libmetamorph_cuda_core_DEBUG.so libmetamorph_opencl_core_DEBUG.so metamorph.c
+	gcc metamorph.c metamorph_fortran_compat.c  -fPIC -shared -D WITH_CUDA -D WITH_OPENCL -D WITH_OPENMP -D WITH_FORTRAN -I ./ -L ./ -L /usr/local/cuda/lib64 -lmetamorph_opencl_core_DEBUG -lmetamorph_cuda_core_DEBUG -lOpenCL -lcudart -o libmetamorph_notimers_DEBUG.so -g -O0
+
+libmetamorph_DEBUG.so: libmetamorph_cuda_core_DEBUG.so libmetamorph_opencl_core_DEBUG.so metamorph.c
+	gcc metamorph.c metamorph_timers.c metamorph_fortran_compat.c -fPIC -shared -D WITH_CUDA -D WITH_OPENCL -D WITH_OPENMP -D WITH_TIMERS -D WITH_FORTRAN -D WITH_MPI -I ./ -L ./ -L /usr/local/cuda/lib64 -lmetamorph_opencl_core_DEBUG -lmetamorph_cuda_core_DEBUG -lOpenCL -lcudart -o libmetamorph_DEBUG.so -g -O0
+
+#I can only get it to provide correct results with the debugging symbols..
+#  Something to do with volatiles and sync on the shared memory regions
+libmetamorph_cuda_core_DEBUG.so:
+	nvcc metamorph_cuda_core.cu -Xcompiler -fPIC -shared -I ./ -L /usr/local/cuda/lib64 -lcudart  -o libmetamorph_cuda_core_DEBUG.so -D __CUDACC__ -arch sm_20 -g -O0
+
+libmetamorph_omp_core_DEBUG.so:
+	gcc metamorph_openmp_core.c -fopenmp -g -fPIC -shared -I ./ -o libmetamorph_omp_core_DEBUG.so -g -O0
+	
+#Stub for once we implement OpenCL
+# should include compiling as well as moving the kernel file..
+#TODO do something smart with required kernel files..
+libmetamorph_opencl_core_DEBUG.so:
+	g++ metamorph_opencl_core.cpp -fPIC -shared -I ./ -L /usr/local/cuda/lib64 -lOpenCL -o libmetamorph_opencl_core_DEBUG.so -D __OPENCLCC__ -g -O0
+	
+
+clean:
+	rm libmetamorph*.so *.mod xch_test red_test red_test_nocuda red_test_cuda red_test_omp red_test_notimers red_test_nocuda_notimers red_test_fortran red_test_fortran_nocuda red_test_fortran_notimers red_test_fortran_nocuda_notimers red_test_DEBUG red_test_nocuda_DEBUG red_test_cuda_DEBUG red_test_omp_DEBUG red_test_notimers_DEBUG red_test_nocuda_notimers_DEBUG red_test_fortran_DEBUG red_test_fortran_nocuda_DEBUG red_test_fortran_notimers_DEBUG red_test_fortran_nocuda_notimers_DEBUG

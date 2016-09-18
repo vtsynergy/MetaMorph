@@ -1,5 +1,9 @@
 #include "metamorph_opencl_core.h"
 
+extern cl_context meta_context;
+extern cl_command_queue meta_queue;
+extern cl_device_id meta_device;
+
 //Warning, none of these variables are threadsafe, so only one thread should ever
 // perform the one-time scan!!
 cl_uint num_platforms, num_devices;
@@ -43,20 +47,22 @@ void metaOpenCLQueryDevices() {
 	if (clGetPlatformIDs(0, NULL, &num_platforms) != CL_SUCCESS) printf("Failed to query platform count!\n");
 	printf("Number of OpenCL Platforms: %d\n", num_platforms);
 
-	platforms = (cl_platform_id *) malloc(sizeof(cl_platform_id) * num_platforms);
+	platforms = (cl_platform_id *) malloc(sizeof(cl_platform_id) * (num_platforms+1));
 
 	if (clGetPlatformIDs(num_platforms, &platforms[0], NULL) != CL_SUCCESS) printf("Failed to get platform IDs\n");
 
 	for (i = 0; i < num_platforms; i++) {
 		temp_uint = 0;
+		fprintf(stderr, "OCL DEBUG: clGetDeviceIDs Count query on platform[%d] has address[%x]!\n", i, &temp_uint);
 		if(clGetDeviceIDs(platforms[i], CL_DEVICE_TYPE_ALL, 0, NULL, &temp_uint) != CL_SUCCESS) printf("Failed to query device count on platform %d!\n", i);
 		num_devices += temp_uint;
 	}
 	printf("Number of Devices: %d\n", num_devices);
 
-	devices = (cl_device_id *) malloc(sizeof(cl_device_id) * num_devices);
+	devices = (cl_device_id *) malloc(sizeof(cl_device_id) * (num_devices+1));
 	temp_uint = 0;
 	for ( i = 0; i < num_platforms; i++) {
+		fprintf(stderr, "OCL DEBUG: clGetDeviceIDs IDs query on platform[%d] has addresses[%x][%x]!\n", i, &devices[temp_uint], &temp_uint2);
 		if(clGetDeviceIDs(platforms[i], CL_DEVICE_TYPE_ALL, num_devices, &devices[temp_uint], &temp_uint2) != CL_SUCCESS) printf ("Failed to query device IDs on platform %d!\n", i);
 		temp_uint += temp_uint2;
 		temp_uint2 = 0;
@@ -79,6 +85,75 @@ size_t metaOpenCLLoadProgramSource(const char *filename, const char **progSrc) {
 }
 
 
+cl_int metaOpenCLBuildProgram(metaOpenCLStackFrame * frame) {
+	cl_int ret = CL_SUCCESS;
+	if (metaCLProgLen == 0) {
+		metaCLProgLen = metaOpenCLLoadProgramSource("metamorph_opencl_core_mic.cl", &metaCLProgSrc);
+	}
+	frame->program_opencl_core = clCreateProgramWithSource(frame->context, 1, &metaCLProgSrc, &metaCLProgLen, NULL);
+	
+	char * args = NULL;
+	if (getenv("METAMORPH_MODE") != NULL) {
+		if (strcmp(getenv("METAMORPH_MODE"), "OpenCL") == 0) {
+			size_t needed = snprintf(NULL, 0, "-I . -D TRANSPOSE_TILE_DIM=(%d) -D TRANSPOSE_TILE_BLOCK_ROWS=(%d)", TRANSPOSE_TILE_DIM, TRANSPOSE_TILE_BLOCK_ROWS);
+			args = (char *)malloc(needed);
+			snprintf(args, needed, "-I . -D TRANSPOSE_TILE_DIM=(%d) -D TRANSPOSE_TILE_BLOCK_ROWS=(%d)", TRANSPOSE_TILE_DIM, TRANSPOSE_TILE_BLOCK_ROWS);
+			ret |= clBuildProgram(frame->program_opencl_core, 1, &(frame->device), args, NULL, NULL);
+		}
+		else if (strcmp(getenv("METAMORPH_MODE"), "OpenCL_DEBUG") == 0) {
+			size_t needed = snprintf(NULL, 0, "-I . -D TRANSPOSE_TILE_DIM=(%d) -D TRANSPOSE_TILE_BLOCK_ROWS=(%d) -g -cl-opt-disable", TRANSPOSE_TILE_DIM, TRANSPOSE_TILE_BLOCK_ROWS);
+			args = (char *)malloc(needed);
+			snprintf(args, needed, "-I . -D TRANSPOSE_TILE_DIM=(%d) -D TRANSPOSE_TILE_BLOCK_ROWS=(%d) -g -cl-opt-disable", TRANSPOSE_TILE_DIM, TRANSPOSE_TILE_BLOCK_ROWS);
+		}
+	} else {
+		//Do the same as if METAMORPH_MODE was set as OpenCL
+		size_t needed = snprintf(NULL, 0, "-I . -D TRANSPOSE_TILE_DIM=(%d) -D TRANSPOSE_TILE_BLOCK_ROWS=(%d)", TRANSPOSE_TILE_DIM, TRANSPOSE_TILE_BLOCK_ROWS);
+		args = (char *)malloc(needed);
+		snprintf(args, needed, "-I . -D TRANSPOSE_TILE_DIM=(%d) -D TRANSPOSE_TILE_BLOCK_ROWS=(%d)", TRANSPOSE_TILE_DIM, TRANSPOSE_TILE_BLOCK_ROWS);
+	//	ret |= clBuildProgram(frame->program_opencl_core, 1, &(frame->device), args, NULL, NULL);
+
+	}
+	ret |= clBuildProgram(frame->program_opencl_core, 1, &(frame->device), args, NULL, NULL);
+	//Let us know if there's any errors in the build process
+	if (ret != CL_SUCCESS) {fprintf(stderr, "Error in clBuildProgram: %d!\n", ret); ret = CL_SUCCESS;}
+	//Stub to get build log
+	size_t logsize = 0;
+	clGetProgramBuildInfo(frame->program_opencl_core, frame->device, CL_PROGRAM_BUILD_LOG, 0, NULL, &logsize);
+	char * log = (char *) malloc (sizeof(char) *(logsize+1));
+	clGetProgramBuildInfo(frame->program_opencl_core, frame->device, CL_PROGRAM_BUILD_LOG, logsize, log, NULL);
+	fprintf(stderr, "CL_PROGRAM_BUILD_LOG:\n%s", log);
+	free(log);
+	frame->kernel_reduce_db = clCreateKernel(frame->program_opencl_core, "kernel_reduce_db", NULL);
+	frame->kernel_reduce_fl = clCreateKernel(frame->program_opencl_core, "kernel_reduce_fl", NULL);
+	frame->kernel_reduce_ul = clCreateKernel(frame->program_opencl_core, "kernel_reduce_ul", NULL);
+	frame->kernel_reduce_in = clCreateKernel(frame->program_opencl_core, "kernel_reduce_in", NULL);
+	frame->kernel_reduce_ui = clCreateKernel(frame->program_opencl_core, "kernel_reduce_ui", NULL);
+	frame->kernel_dotProd_db = clCreateKernel(frame->program_opencl_core, "kernel_dotProd_db", NULL);
+	frame->kernel_dotProd_fl = clCreateKernel(frame->program_opencl_core, "kernel_dotProd_fl", NULL);
+	frame->kernel_dotProd_ul = clCreateKernel(frame->program_opencl_core, "kernel_dotProd_ul", NULL);
+	frame->kernel_dotProd_in = clCreateKernel(frame->program_opencl_core, "kernel_dotProd_in", NULL);
+	frame->kernel_dotProd_ui = clCreateKernel(frame->program_opencl_core, "kernel_dotProd_ui", NULL);
+	frame->kernel_transpose_2d_face_db = clCreateKernel(frame->program_opencl_core, "kernel_transpose_2d_db", NULL);
+	frame->kernel_transpose_2d_face_fl = clCreateKernel(frame->program_opencl_core, "kernel_transpose_2d_fl", NULL);
+	frame->kernel_transpose_2d_face_ul = clCreateKernel(frame->program_opencl_core, "kernel_transpose_2d_ul", NULL);
+	frame->kernel_transpose_2d_face_in = clCreateKernel(frame->program_opencl_core, "kernel_transpose_2d_in", NULL);
+	frame->kernel_transpose_2d_face_ui = clCreateKernel(frame->program_opencl_core, "kernel_transpose_2d_ui", NULL);
+	frame->kernel_pack_2d_face_db = clCreateKernel(frame->program_opencl_core, "kernel_pack_db", NULL);
+	frame->kernel_pack_2d_face_fl = clCreateKernel(frame->program_opencl_core, "kernel_pack_fl", NULL);
+	frame->kernel_pack_2d_face_ul = clCreateKernel(frame->program_opencl_core, "kernel_pack_ul", NULL);
+	frame->kernel_pack_2d_face_in = clCreateKernel(frame->program_opencl_core, "kernel_pack_in", NULL);
+	frame->kernel_pack_2d_face_ui = clCreateKernel(frame->program_opencl_core, "kernel_pack_ui", NULL);
+	frame->kernel_unpack_2d_face_db = clCreateKernel(frame->program_opencl_core, "kernel_unpack_db", NULL);
+	frame->kernel_unpack_2d_face_fl = clCreateKernel(frame->program_opencl_core, "kernel_unpack_fl", NULL);
+	frame->kernel_unpack_2d_face_ul = clCreateKernel(frame->program_opencl_core, "kernel_unpack_ul", NULL);
+	frame->kernel_unpack_2d_face_in = clCreateKernel(frame->program_opencl_core, "kernel_unpack_in", NULL);
+	frame->kernel_unpack_2d_face_ui = clCreateKernel(frame->program_opencl_core, "kernel_unpack_ui", NULL);
+	frame->kernel_stencil_3d7p_db = clCreateKernel(frame->program_opencl_core, "kernel_stencil_3d7p_db", NULL);
+	frame->kernel_stencil_3d7p_fl = clCreateKernel(frame->program_opencl_core, "kernel_stencil_3d7p_fl", NULL);
+	frame->kernel_stencil_3d7p_ul = clCreateKernel(frame->program_opencl_core, "kernel_stencil_3d7p_ul", NULL);
+	frame->kernel_stencil_3d7p_in = clCreateKernel(frame->program_opencl_core, "kernel_stencil_3d7p_in", NULL);
+	frame->kernel_stencil_3d7p_ui = clCreateKernel(frame->program_opencl_core, "kernel_stencil_3d7p_ui", NULL);
+}
 
 //This should not be exposed to the user, just the top and pop functions built on top of it
 //for thread-safety, returns a new metaOpenCLStackNode, which is a direct copy
@@ -123,6 +198,11 @@ void copyStackNodeToFrame(metaOpenCLStackNode * t, metaOpenCLStackFrame ** frame
 	(*frame)->kernel_unpack_2d_face_ul = t->frame.kernel_unpack_2d_face_ul;
 	(*frame)->kernel_unpack_2d_face_in = t->frame.kernel_unpack_2d_face_in;
 	(*frame)->kernel_unpack_2d_face_ui = t->frame.kernel_unpack_2d_face_ui;
+	(*frame)->kernel_stencil_3d7p_db = t->frame.kernel_stencil_3d7p_db;
+	(*frame)->kernel_stencil_3d7p_fl = t->frame.kernel_stencil_3d7p_fl;
+	(*frame)->kernel_stencil_3d7p_ul = t->frame.kernel_stencil_3d7p_ul;
+	(*frame)->kernel_stencil_3d7p_in = t->frame.kernel_stencil_3d7p_in;
+	(*frame)->kernel_stencil_3d7p_ui = t->frame.kernel_stencil_3d7p_ui;
 	
 	//Internal buffers
 	(*frame)->constant_face_size = t->frame.constant_face_size;
@@ -168,6 +248,11 @@ void copyStackFrameToNode(metaOpenCLStackFrame * f, metaOpenCLStackNode ** node)
 	(*node)->frame.kernel_unpack_2d_face_ul = f->kernel_unpack_2d_face_ul;
 	(*node)->frame.kernel_unpack_2d_face_in = f->kernel_unpack_2d_face_in;
 	(*node)->frame.kernel_unpack_2d_face_ui = f->kernel_unpack_2d_face_ui;
+	(*node)->frame.kernel_stencil_3d7p_db = f->kernel_stencil_3d7p_db;
+	(*node)->frame.kernel_stencil_3d7p_fl = f->kernel_stencil_3d7p_fl;
+	(*node)->frame.kernel_stencil_3d7p_ul = f->kernel_stencil_3d7p_ul;
+	(*node)->frame.kernel_stencil_3d7p_in = f->kernel_stencil_3d7p_in;
+	(*node)->frame.kernel_stencil_3d7p_ui = f->kernel_stencil_3d7p_ui;
 
 	//Internal Buffers
 	(*node)->frame.constant_face_size = f->constant_face_size;
@@ -221,6 +306,46 @@ metaOpenCLStackFrame * metaOpenCLPopStackFrame() {
 	return(frame);
 }
 
+cl_int metaOpenCLGetState(cl_platform_id * platform, cl_device_id * device, cl_context * context, cl_command_queue * queue) {
+	metaOpenCLStackFrame * frame = metaOpenCLTopStackFrame();
+	if (platform != NULL) *platform = frame->platform;
+	if (device != NULL) *device = frame->device;
+	if (context != NULL) *context = frame->context;
+	if (queue != NULL) *queue = frame->queue;
+}
+
+cl_int metaOpenCLSetState(cl_platform_id platform, cl_device_id device, cl_context context, cl_command_queue queue) {
+	if (platform == NULL || device == NULL || context == NULL || queue == NULL) {
+		fprintf(stderr, "Error: metaOpenCLSetState requires a full frame specification!\n");
+		return -1;
+	}
+	//Make a frame
+	metaOpenCLStackFrame * frame = (metaOpenCLStackFrame *) malloc(sizeof(metaOpenCLStackFrame));
+
+	//copy the info into the frame
+	frame->platform = platform;
+	frame->device = device;
+	frame->context = context;
+	frame->queue = queue;
+
+	//add the metamorph programs and kernels to it
+	metaOpenCLBuildProgram(frame);
+
+	//add the extra buffers needed for pack/unpack
+	int zero = 0;
+	frame->constant_face_size = clCreateBuffer(frame->context, CL_MEM_READ_ONLY, sizeof(cl_int)*METAMORPH_FACE_MAX_DEPTH, NULL, NULL);
+	frame->constant_face_stride = clCreateBuffer(frame->context, CL_MEM_READ_ONLY, sizeof(cl_int)*METAMORPH_FACE_MAX_DEPTH, NULL, NULL);
+	frame->constant_face_child_size = clCreateBuffer(frame->context, CL_MEM_READ_ONLY, sizeof(cl_int)*METAMORPH_FACE_MAX_DEPTH, NULL, NULL);
+	frame->red_loc = clCreateBuffer(frame->context, CL_MEM_READ_WRITE | CL_MEM_COPY_HOST_PTR, sizeof(cl_int), &zero, NULL);
+
+	//push it onto the stack
+	meta_context = frame->context;
+	meta_queue = frame->queue;
+	meta_device = frame->device;
+	metaOpenCLPushStackFrame(frame);
+	free(frame);
+	
+}
 
 
 cl_int metaOpenCLInitStackFrame(metaOpenCLStackFrame ** frame, cl_int device) {
@@ -250,68 +375,8 @@ cl_int metaOpenCLInitStackFrame(metaOpenCLStackFrame ** frame, cl_int device) {
 	//create the context and add it to the frame
 	(*frame)->context = clCreateContext(NULL, 1, &((*frame)->device), NULL, NULL, NULL);
 	(*frame)->queue = clCreateCommandQueue((*frame)->context, (*frame)->device, CL_QUEUE_PROFILING_ENABLE, NULL);
-	if (metaCLProgLen == 0) {
-		metaCLProgLen = metaOpenCLLoadProgramSource("metamorph_opencl_core_mic.cl", &metaCLProgSrc);
-	}
-	(*frame)->program_opencl_core = clCreateProgramWithSource((*frame)->context, 1, &metaCLProgSrc, &metaCLProgLen, NULL);
-	// Add this debug string if needed: -g -s\"./metamorph_opencl_core_mic.cl\"
-	char * args = NULL;
-	if (getenv("METAMORPH_MODE") != NULL) {
-		if (strcmp(getenv("METAMORPH_MODE"), "OpenCL") == 0) {
-			size_t needed = snprintf(NULL, 0, "-I . -D TRANSPOSE_TILE_DIM=(%d) -D TRANSPOSE_TILE_BLOCK_ROWS=(%d)", TRANSPOSE_TILE_DIM, TRANSPOSE_TILE_BLOCK_ROWS);
-			args = (char *)malloc(needed);
-			snprintf(args, needed, "-I . -D TRANSPOSE_TILE_DIM=(%d) -D TRANSPOSE_TILE_BLOCK_ROWS=(%d)", TRANSPOSE_TILE_DIM, TRANSPOSE_TILE_BLOCK_ROWS);
-			ret |= clBuildProgram((*frame)->program_opencl_core, 1, &((*frame)->device), args, NULL, NULL);
-		}
-		else if (strcmp(getenv("METAMORPH_MODE"), "OpenCL_DEBUG") == 0) {
-			size_t needed = snprintf(NULL, 0, "-I . -D TRANSPOSE_TILE_DIM=(%d) -D TRANSPOSE_TILE_BLOCK_ROWS=(%d) -g -cl-opt-disable", TRANSPOSE_TILE_DIM, TRANSPOSE_TILE_BLOCK_ROWS);
-			args = (char *)malloc(needed);
-			snprintf(args, needed, "-I . -D TRANSPOSE_TILE_DIM=(%d) -D TRANSPOSE_TILE_BLOCK_ROWS=(%d) -g -cl-opt-disable", TRANSPOSE_TILE_DIM, TRANSPOSE_TILE_BLOCK_ROWS);
-		}
-	} else {
-		//Do the same as if METAMORPH_MODE was set as OpenCL
-		size_t needed = snprintf(NULL, 0, "-I . -D TRANSPOSE_TILE_DIM=(%d) -D TRANSPOSE_TILE_BLOCK_ROWS=(%d)", TRANSPOSE_TILE_DIM, TRANSPOSE_TILE_BLOCK_ROWS);
-		args = (char *)malloc(needed);
-		snprintf(args, needed, "-I . -D TRANSPOSE_TILE_DIM=(%d) -D TRANSPOSE_TILE_BLOCK_ROWS=(%d)", TRANSPOSE_TILE_DIM, TRANSPOSE_TILE_BLOCK_ROWS);
-	//	ret |= clBuildProgram((*frame)->program_opencl_core, 1, &((*frame)->device), args, NULL, NULL);
-
-	}
-	ret |= clBuildProgram((*frame)->program_opencl_core, 1, &((*frame)->device), args, NULL, NULL);
-	//Let us know if there's any errors in the build process
-	if (ret != CL_SUCCESS) {fprintf(stderr, "Error in clBuildProgram: %d!\n", ret); ret = CL_SUCCESS;}
-	//Stub to get build log
-	size_t logsize = 0;
-	clGetProgramBuildInfo((*frame)->program_opencl_core, (*frame)->device, CL_PROGRAM_BUILD_LOG, 0, NULL, &logsize);
-	char * log = (char *) malloc (sizeof(char) *(logsize+1));
-	clGetProgramBuildInfo((*frame)->program_opencl_core, (*frame)->device, CL_PROGRAM_BUILD_LOG, logsize, log, NULL);
-	fprintf(stderr, "CL_PROGRAM_BUILD_LOG:\n%s", log);
-	free(log);
-	(*frame)->kernel_reduce_db = clCreateKernel((*frame)->program_opencl_core, "kernel_reduce_db", NULL);
-	(*frame)->kernel_reduce_fl = clCreateKernel((*frame)->program_opencl_core, "kernel_reduce_fl", NULL);
-	(*frame)->kernel_reduce_ul = clCreateKernel((*frame)->program_opencl_core, "kernel_reduce_ul", NULL);
-	(*frame)->kernel_reduce_in = clCreateKernel((*frame)->program_opencl_core, "kernel_reduce_in", NULL);
-	(*frame)->kernel_reduce_ui = clCreateKernel((*frame)->program_opencl_core, "kernel_reduce_ui", NULL);
-	(*frame)->kernel_dotProd_db = clCreateKernel((*frame)->program_opencl_core, "kernel_dotProd_db", NULL);
-	(*frame)->kernel_dotProd_fl = clCreateKernel((*frame)->program_opencl_core, "kernel_dotProd_fl", NULL);
-	(*frame)->kernel_dotProd_ul = clCreateKernel((*frame)->program_opencl_core, "kernel_dotProd_ul", NULL);
-	(*frame)->kernel_dotProd_in = clCreateKernel((*frame)->program_opencl_core, "kernel_dotProd_in", NULL);
-	(*frame)->kernel_dotProd_ui = clCreateKernel((*frame)->program_opencl_core, "kernel_dotProd_ui", NULL);
-	(*frame)->kernel_transpose_2d_face_db = clCreateKernel((*frame)->program_opencl_core, "kernel_transpose_2d_db", NULL);
-	(*frame)->kernel_transpose_2d_face_fl = clCreateKernel((*frame)->program_opencl_core, "kernel_transpose_2d_fl", NULL);
-	(*frame)->kernel_transpose_2d_face_ul = clCreateKernel((*frame)->program_opencl_core, "kernel_transpose_2d_ul", NULL);
-	(*frame)->kernel_transpose_2d_face_in = clCreateKernel((*frame)->program_opencl_core, "kernel_transpose_2d_in", NULL);
-	(*frame)->kernel_transpose_2d_face_ui = clCreateKernel((*frame)->program_opencl_core, "kernel_transpose_2d_ui", NULL);
-	(*frame)->kernel_pack_2d_face_db = clCreateKernel((*frame)->program_opencl_core, "kernel_pack_db", NULL);
-	(*frame)->kernel_pack_2d_face_fl = clCreateKernel((*frame)->program_opencl_core, "kernel_pack_fl", NULL);
-	(*frame)->kernel_pack_2d_face_ul = clCreateKernel((*frame)->program_opencl_core, "kernel_pack_ul", NULL);
-	(*frame)->kernel_pack_2d_face_in = clCreateKernel((*frame)->program_opencl_core, "kernel_pack_in", NULL);
-	(*frame)->kernel_pack_2d_face_ui = clCreateKernel((*frame)->program_opencl_core, "kernel_pack_ui", NULL);
-	(*frame)->kernel_unpack_2d_face_db = clCreateKernel((*frame)->program_opencl_core, "kernel_unpack_db", NULL);
-	(*frame)->kernel_unpack_2d_face_fl = clCreateKernel((*frame)->program_opencl_core, "kernel_unpack_fl", NULL);
-	(*frame)->kernel_unpack_2d_face_ul = clCreateKernel((*frame)->program_opencl_core, "kernel_unpack_ul", NULL);
-	(*frame)->kernel_unpack_2d_face_in = clCreateKernel((*frame)->program_opencl_core, "kernel_unpack_in", NULL);
-	(*frame)->kernel_unpack_2d_face_ui = clCreateKernel((*frame)->program_opencl_core, "kernel_unpack_ui", NULL);
-
+	metaOpenCLBuildProgram((*frame));
+	// Add this debug string if needed: -g -s\"./metamorph_opencl_core.cl\"
 	//Allocate any internal buffers necessary for kernel functions
 	(*frame)->constant_face_size = clCreateBuffer((*frame)->context, CL_MEM_READ_ONLY, sizeof(cl_int)*METAMORPH_FACE_MAX_DEPTH, NULL, NULL);
 	(*frame)->constant_face_stride = clCreateBuffer((*frame)->context, CL_MEM_READ_ONLY, sizeof(cl_int)*METAMORPH_FACE_MAX_DEPTH, NULL, NULL);
@@ -355,6 +420,11 @@ cl_int metaOpenCLDestroyStackFrame(metaOpenCLStackFrame * frame) {
 	clReleaseKernel(frame->kernel_unpack_2d_face_ul);
 	clReleaseKernel(frame->kernel_unpack_2d_face_in);
 	clReleaseKernel(frame->kernel_unpack_2d_face_ui);
+	clReleaseKernel(frame->kernel_stencil_3d7p_db);
+	clReleaseKernel(frame->kernel_stencil_3d7p_fl);
+	clReleaseKernel(frame->kernel_stencil_3d7p_ul);
+	clReleaseKernel(frame->kernel_stencil_3d7p_in);
+	clReleaseKernel(frame->kernel_stencil_3d7p_ui);
 
 	//Release Internal Buffers
 	clReleaseMemObject(frame->constant_face_size);
@@ -765,7 +835,7 @@ cl_int opencl_pack_2d_face(size_t (* grid_size)[3], size_t (* block_size)[3], vo
 	//copy required pieces of the face struct into constant memory
 	ret = clEnqueueWriteBuffer(frame->queue, frame->constant_face_size, ((async) ? CL_FALSE : CL_TRUE), 0, sizeof(cl_int)*face->count, face->size, 0, NULL, event_c1);
 	ret |= clEnqueueWriteBuffer(frame->queue, frame->constant_face_stride, ((async) ? CL_FALSE : CL_TRUE), 0, sizeof(cl_int)*face->count, face->stride, 0, NULL, event_c2);
-	ret |= clEnqueueWriteBuffer(frame->queue, frame->constant_face_child_size, ((async) ? CL_FALSE : CL_TRUE), 0, sizeof(cl_int)*face->count, remain_dim, 0, NULL, event_c2);
+	ret |= clEnqueueWriteBuffer(frame->queue, frame->constant_face_child_size, ((async) ? CL_FALSE : CL_TRUE), 0, sizeof(cl_int)*face->count, remain_dim, 0, NULL, event_c3);
 //TODO update to use user-provided grid/block once multi-element per thread scaling is added
 //	size_t grid[3] = {(*grid_size)[0]*(*block_size)[0], (*grid_size)[1]*(*block_size)[1], (*block_size)[2]};
 //	size_t block[3] = {(*block_size)[0], (*block_size)[1], (*block_size)[2]};
@@ -774,12 +844,18 @@ cl_int opencl_pack_2d_face(size_t (* grid_size)[3], size_t (* block_size)[3], vo
 		grid[1] = 1;
 		grid[2] = 1;
 	} else {
+		//This is a workaround for some non-determinism that was observed when allowing fully-arbitrary spec of grid/block
+		if ((*block_size)[1] != 1 || (*block_size)[2] != 1 || (*grid_size)[1] != 1 || (*grid_size)[2]) fprintf(stderr, "WARNING: Pack requires 1D block and grid, ignoring y/z params!\n");
 		grid[0] = (*grid_size)[0]*(*block_size)[0];
-		grid[1] = (*grid_size)[1]*(*block_size)[1];
-		grid[2] = (*block_size)[2];
+		grid[1] = 1;
+		grid[2] = 1;
+		//grid[1] = (*grid_size)[1]*(*block_size)[1];
+		//grid[2] = (*block_size)[2];
 		block[0] = (*block_size)[0];
-		block[1] = (*block_size)[1];
-		block[2] = (*block_size)[2];
+		block[1] = 1;
+		block[2] = 1;
+		//block[1] = (*block_size)[1];
+		//block[2] = (*block_size)[2];
 	}
 	smem_size =  face->count*block[0]*sizeof(int);
 //TODO Timing needs to be made consistent with CUDA (ie the event should return time for copying to constant memory and the kernel
@@ -852,7 +928,7 @@ cl_int opencl_unpack_2d_face(size_t (* grid_size)[3], size_t (* block_size)[3], 
 	//copy required pieces of the face struct into constant memory
 	ret = clEnqueueWriteBuffer(frame->queue, frame->constant_face_size, ((async) ? CL_FALSE : CL_TRUE), 0, sizeof(cl_int)*face->count, face->size, 0, NULL, event_c1);
 	ret |= clEnqueueWriteBuffer(frame->queue, frame->constant_face_stride, ((async) ? CL_FALSE : CL_TRUE), 0, sizeof(cl_int)*face->count, face->stride, 0, NULL, event_c2);
-	ret |= clEnqueueWriteBuffer(frame->queue, frame->constant_face_child_size, ((async) ? CL_FALSE : CL_TRUE), 0, sizeof(cl_int)*face->count, remain_dim, 0, NULL, event_c2);
+	ret |= clEnqueueWriteBuffer(frame->queue, frame->constant_face_child_size, ((async) ? CL_FALSE : CL_TRUE), 0, sizeof(cl_int)*face->count, remain_dim, 0, NULL, event_c3);
 //TODO update to use user-provided grid/block once multi-element per thread scaling is added
 //	size_t grid[3] = {(*grid_size)[0]*(*block_size)[0], (*grid_size)[1]*(*block_size)[1], (*block_size)[2]};
 //	size_t block[3] = {(*block_size)[0], (*block_size)[1], (*block_size)[2]};
@@ -861,12 +937,18 @@ cl_int opencl_unpack_2d_face(size_t (* grid_size)[3], size_t (* block_size)[3], 
 		grid[1] = 1;
 		grid[2] = 1;
 	} else {
+		//This is a workaround for some non-determinism that was observed when allowing fully-arbitrary spec of grid/block
+		if ((*block_size)[1] != 1 || (*block_size)[2] != 1 || (*grid_size)[1] != 1 || (*grid_size)[2]) fprintf(stderr, "WARNING: Unpack requires 1D block and grid, ignoring y/z params!\n");
 		grid[0] = (*grid_size)[0]*(*block_size)[0];
-		grid[1] = (*grid_size)[1]*(*block_size)[1];
-		grid[2] = (*block_size)[2];
+		grid[1] = 1;
+		grid[2] = 1;
+		//grid[1] = (*grid_size)[1]*(*block_size)[1];
+		//grid[2] = (*block_size)[2];
 		block[0] = (*block_size)[0];
-		block[1] = (*block_size)[1];
-		block[2] = (*block_size)[2];
+		block[1] = 1;
+		block[2] = 1;
+		//block[1] = (*block_size)[1];
+		//block[2] = (*block_size)[2];
 	}
 	smem_size =  face->count*block[0]*sizeof(int);
 //TODO Timing needs to be made consistent with CUDA (ie the event should return time for copying to constant memory and the kernel
@@ -924,3 +1006,112 @@ cl_int opencl_unpack_2d_face(size_t (* grid_size)[3], size_t (* block_size)[3], 
 
 	return(ret);
 }
+
+cl_int opencl_stencil_3d7p(size_t (* grid_size)[3], size_t (* block_size)[3], void * indata, void * outdata, size_t (* array_size)[3], size_t (* arr_start)[3],  size_t (* arr_end)[3], meta_type_id type, int async, cl_event * event)
+{
+	cl_int ret = CL_SUCCESS;
+	cl_kernel kern;
+	cl_int smem_len;
+	size_t grid[3] = {1, 1, 1};
+	size_t block[3] = METAMORPH_OCL_DEFAULT_BLOCK;
+	int iters;
+	//Allow for auto-selected grid/block size if either is not specified
+	if (grid_size == NULL || block_size == NULL) {
+		//do not subtract 1 from blocx for the case when end == start
+		grid[0] = (((*arr_end)[0]-(*arr_start)[0]+(block[0]))/block[0]);
+		grid[1] = (((*arr_end)[1]-(*arr_start)[1]+(block[1]))/block[1]);
+		iters = (((*arr_end)[2]-(*arr_start)[2]+(block[2]))/block[2]);
+	} else {
+//		grid[0] = (*grid_size)[0];
+//		grid[1] = (*grid_size)[1];
+//		block[0] = (*block_size)[0];
+//		block[1] = (*block_size)[1];
+//		block[2] = (*block_size)[2];
+//		iters = (*grid_size)[2];
+		grid[0] = (*grid_size)[0]*(*block_size)[0];
+		grid[1] = (*grid_size)[1]*(*block_size)[1];
+		grid[2] = (*block_size)[2];
+		block[0] = (*block_size)[0];
+		block[1] = (*block_size)[1];
+		block[2] = (*block_size)[2];
+		iters = (*grid_size)[2];
+	}
+
+	//smem_len = (block[0]+2) * (block[1]+2) * block[2];
+	smem_len = 0;
+	metaOpenCLStackFrame * frame = metaOpenCLTopStackFrame();
+
+	switch (type) {
+		case a_db:
+			kern = frame->kernel_stencil_3d7p_db;
+			break;
+
+		case a_fl:
+			kern = frame->kernel_stencil_3d7p_fl;
+			break;
+
+		case a_ul:
+			kern = frame->kernel_stencil_3d7p_ul;
+			break;
+
+		case a_in:
+			kern = frame->kernel_stencil_3d7p_in;
+			break;
+
+		case a_ui:
+			kern = frame->kernel_stencil_3d7p_ui;
+			break;
+
+		default:
+			fprintf(stderr, "Error: Function 'opencl_stencil_3d7p' not implemented for selected type!\n");
+			return -1;
+			break;
+	}
+
+	ret = clSetKernelArg(kern, 0, sizeof(cl_mem *), &indata);
+	ret |= clSetKernelArg(kern, 1, sizeof(cl_mem *), &outdata);
+	ret |= clSetKernelArg(kern, 2, sizeof(cl_int), &(*array_size)[0]);
+	ret |= clSetKernelArg(kern, 3, sizeof(cl_int), &(*array_size)[1]);
+	ret |= clSetKernelArg(kern, 4, sizeof(cl_int), &(*array_size)[2]);
+	ret |= clSetKernelArg(kern, 5, sizeof(cl_int), &(*arr_start)[0]);
+	ret |= clSetKernelArg(kern, 6, sizeof(cl_int), &(*arr_start)[1]);
+	ret |= clSetKernelArg(kern, 7, sizeof(cl_int), &(*arr_start)[2]);
+	ret |= clSetKernelArg(kern, 8, sizeof(cl_int), &(*arr_end)[0]);
+	ret |= clSetKernelArg(kern, 9, sizeof(cl_int), &(*arr_end)[1]);
+	ret |= clSetKernelArg(kern, 10, sizeof(cl_int), &(*arr_end)[2]);
+	ret |= clSetKernelArg(kern, 11, sizeof(cl_int), &iters);
+	ret |= clSetKernelArg(kern, 12, sizeof(cl_int), &smem_len);
+	switch (type) {
+		case a_db:
+			ret |= clSetKernelArg(kern, 13, smem_len*sizeof(cl_double), NULL);
+			break;
+
+		case a_fl:
+			ret |= clSetKernelArg(kern, 13, smem_len*sizeof(cl_float), NULL);
+			break;
+
+		case a_ul:
+			ret |= clSetKernelArg(kern, 13, smem_len*sizeof(cl_ulong), NULL);
+			break;
+
+		case a_in:
+			ret |= clSetKernelArg(kern, 13, smem_len*sizeof(cl_int), NULL);
+			break;
+
+		case a_ui:
+			ret |= clSetKernelArg(kern, 13, smem_len*sizeof(cl_uint), NULL);
+			break;
+
+		//Shouldn't be reachable, but cover our bases
+		default:
+			fprintf(stderr, "Error: unexpected type, cannot set shared memory size in 'opencl_stencil_3d7p'!\n");
+	}
+	ret |= clEnqueueNDRangeKernel(frame->queue, kern, 3, NULL, grid, block, 0, NULL, event);
+
+	if (!async) ret |= clFinish(frame->queue);
+	free(frame);
+
+	return(ret);
+
+}
+

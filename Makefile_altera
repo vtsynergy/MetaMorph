@@ -28,8 +28,8 @@ dxch_test: libmetamorph.so dxch_bootstrapper.c
 run: 
 	./red_test 16 16 16 1 16 8 1 0 10
 
-red_test: red_bootstrapper.c libmetamorph.so libmetamorph_opencl_core_alt.so
-	$(CC) red_bootstrapper.c $(INCLUDE) $(DEFINES)  $(LIB)  $(AOCL_LINK_CONFIG) -lmetamorph -lmetamorph_opencl_core_alt -o red_test
+red_test: red_bootstrapper_alt.c libmetamorph.so libmetamorph_opencl_core_alt.so
+	$(CC) red_bootstrapper_alt.c $(INCLUDE) $(DEFINES)  $(LIB)  $(AOCL_LINK_CONFIG) -lmetamorph -lmetamorph_opencl_core_alt -o red_test
 
 libmetamorph.so: libmetamorph_opencl_core_alt.so metamorph.c metamorph_timers.c 
 	$(CC) metamorph.c metamorph_timers.c -fPIC -shared $(DEFINES)  $(AOCL_COMPILE_CONFIG) $(LIB) -lmetamorph_opencl_core_alt  -o libmetamorph.so

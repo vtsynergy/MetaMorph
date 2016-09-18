@@ -1011,7 +1011,8 @@ cl_int opencl_stencil_3d7p(size_t (* grid_size)[3], size_t (* block_size)[3], vo
 	cl_kernel kern;
 	cl_int smem_len;
 	size_t grid[3] = {1, 1, 1};
-	size_t block[3] = METAMORPH_OCL_DEFAULT_BLOCK;
+	size_t block[3] = {128, 2, 1};
+	//size_t block[3] = METAMORPH_OCL_DEFAULT_BLOCK;
 	int iters;
 	//Allow for auto-selected grid/block size if either is not specified
 	if (grid_size == NULL || block_size == NULL) {
@@ -1035,8 +1036,9 @@ cl_int opencl_stencil_3d7p(size_t (* grid_size)[3], size_t (* block_size)[3], vo
 		iters = (*grid_size)[2];
 	}
 
-	smem_len = (block[0]+2) * (block[1]+2) * block[2];
-	//smem_len = 0;
+	//smem_len = (block[0]+2) * (block[1]+2) * block[2];
+	smem_len = 0;
+	//smem_len = 2;
 	metaOpenCLStackFrame * frame = metaOpenCLTopStackFrame();
 
 	switch (type) {

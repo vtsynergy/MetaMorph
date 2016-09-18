@@ -1,4 +1,4 @@
-#include "metamorph_opencl_core.h"
+#include "metamorph_opencl_core_alt.h"
 
 extern cl_context meta_context;
 extern cl_command_queue meta_queue;

@@ -24,6 +24,9 @@
  */
 
 #include "metamorph.h"
+#ifdef ALIGNED_MEMORY
+#include "xmmintrin.h"
+#endif
 
 //Globally-set mode
 meta_preferred_mode run_mode = metaModePreferGeneric;
@@ -105,7 +108,11 @@ a_err meta_alloc(void ** ptr, size_t size) {
 
 		#ifdef WITH_OPENMP
 		case metaModePreferOpenMP:
+		#ifdef ALIGNED_MEMORY
+			*ptr = (void *) _mm_malloc(size, ALIGNED_MEMORY_PAGE);
+		#else
 			*ptr = (void *) malloc(size);
+		#endif
 			if(*ptr != NULL)
 				ret = 0; // success
 			break;
@@ -142,7 +149,11 @@ a_err meta_free(void * ptr) {
 
 		#ifdef WITH_OPENMP
 		case metaModePreferOpenMP:
+		#ifdef ALIGNED_MEMORY
+			_mm_free(ptr);
+		#else
 			free(ptr);
+		#endif
 			break;
 		#endif
 	}
@@ -366,12 +377,18 @@ a_err meta_copy_d2d_cb(void * dst, void * src, size_t size, a_bool async, meta_c
 		#ifdef WITH_OPENMP
 		case metaModePreferOpenMP:
 			#ifdef WITH_TIMERS
-			frame->event.openmp[0]= omp_get_wtime();
+			{ struct timeval start, end;
+				gettimeofday(&start, NULL);
+			//		frame->event.openmp[0]= omp_get_wtime();
 			#endif
-			memcpy(dst, src, size);
+			//memcpy(dst, src, size);
+			omp_copy_d2d(dst, src, size, async);
 			ret = 0;
 			#ifdef WITH_TIMERS
-			frame->event.openmp[1]= omp_get_wtime();
+			gettimeofday(&end, NULL);
+			frame->event.openmp[0] = (start.tv_usec*0.000001)+start.tv_sec;
+			frame->event.openmp[1] = (end.tv_usec*0.000001)+end.tv_sec; }
+			//		frame->event.openmp[1]= omp_get_wtime();
 			#endif
 			break;
 		#endif

@@ -1,7 +1,7 @@
 CC=gcc
 CPP=g++
 DEFINES=-D WITH_OPENCL -D WITH_TIMERS
-INCLUDE=-I . 
+INCLUDE=-I ./ 
 #Why does it need CUDA library with OpenCL? And yes, it does not work without this library //FIXME
 LIB=-L ./ -L /usr/local/cuda/lib64 
 

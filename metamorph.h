@@ -55,6 +55,8 @@
 
 #include <stdio.h>
 
+//#define ALIGNED_MEMORY
+//#define ALIGNED_MEMORY_PAGE	64
 
 //This needs to be here so that the cores can internally
 // switch between implementations for different primitive types

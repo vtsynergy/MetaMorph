@@ -8,6 +8,11 @@
 //TODO figure out how to use templates with the  intrinsics
 
 #define BLOCK 	8
+#define CX		256
+#define CY		32
+#define CZ		1
+
+#include <x86intrin.h>
 
 #ifdef USE_AVX
 #include <x86intrin.h>
@@ -32,7 +37,7 @@ inline float hadd_ps(__m256 a) {
 
 
 // Kernels
-
+#if 1
 static void omp_dotProd_kernel_db( double * __restrict__ data1, double * __restrict__ data2, size_t (* array_size)[3], size_t (* arr_start)[3],  size_t (* arr_end)[3], double * reduction_var)
 {
 	int ni, nj, nk;
@@ -115,6 +120,92 @@ static void omp_dotProd_kernel_db( double * __restrict__ data1, double * __restr
 
 	*reduction_var += sum;
 }
+#else
+static void omp_dotProd_kernel_db( double * __restrict__ data1, double * __restrict__ data2, size_t (* array_size)[3], size_t (* arr_start)[3],  size_t (* arr_end)[3], double * reduction_var)
+{
+	int ni, nj, nk;
+	double sum = 0;
+
+	ni =  (* array_size)[0];
+	nj =  (* array_size)[1];
+	nk =  (* array_size)[2];
+
+#ifdef COLLAPSE
+	int n;
+	n = ((* arr_end)[0] - (* arr_start)[0] + 1) *
+		((* arr_end)[1] - (* arr_start)[1] + 1)	*
+		((* arr_end)[2] - (* arr_start)[2] + 1);
+
+	if( n == ni*nj*nk )	// original 3d grid
+	{
+		int i;
+#ifdef USE_AVX
+		#pragma omp parallel shared(n, data1, data2)  private(i) reduction(+: sum)
+		{
+		    __m256d sum1 = _mm256_setzero_pd();
+		    __m256d sum2 = _mm256_setzero_pd();
+		    __m256d sum3 = _mm256_setzero_pd();
+		    __m256d sum4 = _mm256_setzero_pd();
+		    __m256d x4, y4;
+			#pragma omp for
+			for (i = 0; i < n; i += 16) {
+				x4 = _mm256_loadu_pd(&data1[i]);
+				y4 = _mm256_loadu_pd(&data2[i]);
+	            sum1 = _mm256_add_pd(_mm256_mul_pd(x4,y4),sum1);
+				x4 = _mm256_loadu_pd(&data1[i+4]);
+				y4 = _mm256_loadu_pd(&data2[i+4]);
+	            sum2 = _mm256_add_pd(_mm256_mul_pd(x4,y4),sum2);
+				x4 = _mm256_loadu_pd(&data1[i+8]);
+				y4 = _mm256_loadu_pd(&data2[i+8]);
+	            sum3 = _mm256_add_pd(_mm256_mul_pd(x4,y4),sum3);
+				x4 = _mm256_loadu_pd(&data1[i+12]);
+				y4 = _mm256_loadu_pd(&data2[i+12]);
+	            sum4 = _mm256_add_pd(_mm256_mul_pd(x4,y4),sum4);
+			}
+	        sum += hadd_pd(_mm256_add_pd(_mm256_add_pd(sum1,sum2),_mm256_add_pd(sum3,sum4)));
+		}
+#else
+		#pragma omp parallel for shared(n, data1, data2)  private(i) reduction(+: sum)
+		for (i = 0; i < n;  i++) {
+			sum += data1[i] * data2[i];
+		}
+#endif
+	}
+	else	// 3d sub-grid
+#endif
+	{
+		#pragma omp parallel shared(ni, nj, nk, data1, data2, sum)
+		{
+			int i, j, k;
+			double psum = 0;
+			double *d1, *d2;
+
+#ifdef COLLAPSE
+			#pragma omp for collapse(2)
+#else
+			#pragma omp for
+#endif
+			for (k = (* arr_start)[2]; k <= (* arr_end)[2]; k++) {
+				for (j = (* arr_start)[1]; j <= (* arr_end)[1]; j++) {
+					d1 = &data1[j*ni+k*ni*nj];
+					d2 = &data2[j*ni+k*ni*nj];
+					for (i = (* arr_start)[0]; i <= (* arr_end)[0]; i++) {
+						psum += d1[i] * d2[i];
+					}
+				}
+			}
+
+			#pragma omp critical
+			{
+				sum += psum;
+
+			}
+		}
+	} //endif if( n == ni*nj*nk )
+
+	*reduction_var += sum;
+}
+#endif
 
 
 static void omp_dotProd_kernel_fl( float * __restrict__ data1, float * __restrict__ data2, size_t (* array_size)[3], size_t (* arr_start)[3], size_t (* arr_end)[3], float * reduction_var)
@@ -974,7 +1065,7 @@ static int get_pack_index (int idx, meta_2d_face_indexed *face, int * __restrict
 	return pos;
 }
 
-int omp_pack_2d_face_kernel_db(double * __restrict__ packed_buf, double * __restrict__ buf, meta_2d_face_indexed *face, int *remain_dim)
+void omp_pack_2d_face_kernel_db(double * __restrict__ packed_buf, double * __restrict__ buf, meta_2d_face_indexed *face, int *remain_dim)
 {
 	int size = face->size[0]*face->size[1]*face->size[2];
 
@@ -987,7 +1078,7 @@ int omp_pack_2d_face_kernel_db(double * __restrict__ packed_buf, double * __rest
 	}
 }
 
-int omp_pack_2d_face_kernel_fl(float * __restrict__ packed_buf, float * __restrict__ buf, meta_2d_face_indexed *face, int *remain_dim)
+void omp_pack_2d_face_kernel_fl(float * __restrict__ packed_buf, float * __restrict__ buf, meta_2d_face_indexed *face, int *remain_dim)
 {
 	int size = face->size[0]*face->size[1]*face->size[2];
 
@@ -1000,7 +1091,7 @@ int omp_pack_2d_face_kernel_fl(float * __restrict__ packed_buf, float * __restri
 	}
 }
 
-int omp_pack_2d_face_kernel_ul(unsigned long * __restrict__ packed_buf, unsigned long * __restrict__ buf, meta_2d_face_indexed *face, int *remain_dim)
+void omp_pack_2d_face_kernel_ul(unsigned long * __restrict__ packed_buf, unsigned long * __restrict__ buf, meta_2d_face_indexed *face, int *remain_dim)
 {
 	int size = face->size[0]*face->size[1]*face->size[2];
 
@@ -1013,7 +1104,7 @@ int omp_pack_2d_face_kernel_ul(unsigned long * __restrict__ packed_buf, unsigned
 	}
 }
 
-int omp_pack_2d_face_kernel_in(int * __restrict__ packed_buf, int * __restrict__ buf, meta_2d_face_indexed *face, int *remain_dim)
+void omp_pack_2d_face_kernel_in(int * __restrict__ packed_buf, int * __restrict__ buf, meta_2d_face_indexed *face, int *remain_dim)
 {
 	int size = face->size[0]*face->size[1]*face->size[2];
 
@@ -1026,7 +1117,7 @@ int omp_pack_2d_face_kernel_in(int * __restrict__ packed_buf, int * __restrict__
 	}
 }
 
-int omp_pack_2d_face_kernel_ui(unsigned int * __restrict__ packed_buf, unsigned int * __restrict__ buf, meta_2d_face_indexed *face, int *remain_dim)
+void omp_pack_2d_face_kernel_ui(unsigned int * __restrict__ packed_buf, unsigned int * __restrict__ buf, meta_2d_face_indexed *face, int *remain_dim)
 {
 	int size = face->size[0]*face->size[1]*face->size[2];
 
@@ -1039,7 +1130,7 @@ int omp_pack_2d_face_kernel_ui(unsigned int * __restrict__ packed_buf, unsigned 
 	}
 }
 
-int omp_unpack_2d_face_kernel_db(double * __restrict__ packed_buf, double * __restrict__ buf, meta_2d_face_indexed *face, int *remain_dim)
+void omp_unpack_2d_face_kernel_db(double * __restrict__ packed_buf, double * __restrict__ buf, meta_2d_face_indexed *face, int *remain_dim)
 {
 	int size = face->size[0]*face->size[1]*face->size[2];
 
@@ -1052,7 +1143,7 @@ int omp_unpack_2d_face_kernel_db(double * __restrict__ packed_buf, double * __re
 	}
 }
 
-int omp_unpack_2d_face_kernel_fl(float * __restrict__ packed_buf, float * __restrict__ buf, meta_2d_face_indexed *face, int *remain_dim)
+void omp_unpack_2d_face_kernel_fl(float * __restrict__ packed_buf, float * __restrict__ buf, meta_2d_face_indexed *face, int *remain_dim)
 {
 	int size = face->size[0]*face->size[1]*face->size[2];
 
@@ -1065,7 +1156,7 @@ int omp_unpack_2d_face_kernel_fl(float * __restrict__ packed_buf, float * __rest
 	}
 }
 
-int omp_unpack_2d_face_kernel_ul(unsigned long * __restrict__ packed_buf, unsigned long * __restrict__ buf, meta_2d_face_indexed *face, int *remain_dim)
+void omp_unpack_2d_face_kernel_ul(unsigned long * __restrict__ packed_buf, unsigned long * __restrict__ buf, meta_2d_face_indexed *face, int *remain_dim)
 {
 	int size = face->size[0]*face->size[1]*face->size[2];
 
@@ -1078,7 +1169,7 @@ int omp_unpack_2d_face_kernel_ul(unsigned long * __restrict__ packed_buf, unsign
 	}
 }
 
-int omp_unpack_2d_face_kernel_in(int * __restrict__ packed_buf, int * __restrict__ buf, meta_2d_face_indexed *face, int *remain_dim)
+void omp_unpack_2d_face_kernel_in(int * __restrict__ packed_buf, int * __restrict__ buf, meta_2d_face_indexed *face, int *remain_dim)
 {
 	int size = face->size[0]*face->size[1]*face->size[2];
 
@@ -1091,7 +1182,7 @@ int omp_unpack_2d_face_kernel_in(int * __restrict__ packed_buf, int * __restrict
 	}
 }
 
-int omp_unpack_2d_face_kernel_ui(unsigned int * __restrict__ packed_buf, unsigned int * __restrict__ buf, meta_2d_face_indexed *face, int *remain_dim)
+void omp_unpack_2d_face_kernel_ui(unsigned int * __restrict__ packed_buf, unsigned int * __restrict__ buf, meta_2d_face_indexed *face, int *remain_dim)
 {
 	int size = face->size[0]*face->size[1]*face->size[2];
 
@@ -1103,9 +1194,346 @@ int omp_unpack_2d_face_kernel_ui(unsigned int * __restrict__ packed_buf, unsigne
 			buf[get_pack_index(idx, face, remain_dim)] = packed_buf[idx];
 	}
 }
+
+#if 1
+void omp_stencil_3d7p_kernel_db(double * __restrict__ indata, double * __restrict__ outdata, size_t (* array_size)[3], size_t (* arr_start)[3],  size_t (* arr_end)[3])
+{
+	int ni, nj, nk;
+
+	ni =  (* array_size)[0];
+	nj =  (* array_size)[1];
+	nk =  (* array_size)[2];
+
+	#pragma omp parallel shared(ni, nj, nk, indata, outdata)
+	{
+		int i, j, k;
+		#pragma omp for collapse(2) schedule(static, 1) nowait
+		//#pragma omp for
+		for (k = (* arr_start)[2]+1 ; k < (* arr_end)[2]; k++) {
+			for (j = (* arr_start)[1]+1; j < (* arr_end)[1]; j++) {
+				//#pragma unroll (8)
+				//#pragma prefetch indata:_MM_HINT_T2:8,outdata:_MM_HINT_NTA
+				//#pragma loop count (256)
+				#pragma ivdep
+				#pragma vector nontemporal (outdata)
+				for (i = (* arr_start)[0]+1; i < (* arr_end)[0]; i++) {
+					outdata[i+j*ni+k*ni*nj] = ( indata[i+j*ni+ (k-1)*ni*nj] + indata[(i-1)+j*ni+k*ni*nj] + indata[i+(j-1)*ni+k*ni*nj] +
+											    indata[i+j*ni+k*ni*nj] + indata[i+(j+1)*ni+k*ni*nj] + indata[(i+1)+j*ni+k*ni*nj] +
+												indata[i+j*ni+(k+1)*ni*nj] ) / (double) 7.0;
+				}
+			}
+		}
+	}
+}
+#elif 0
+void omp_stencil_3d7p_kernel_db(double * __restrict__ indata, double * __restrict__ outdata, size_t (* array_size)[3], size_t (* arr_start)[3],  size_t (* arr_end)[3])
+{
+	int ni, nj, nk;
+
+	ni =  (* array_size)[0];
+	nj =  (* array_size)[1];
+	nk =  (* array_size)[2];
+
+	#pragma omp parallel shared(ni, nj, nk, indata, outdata)
+	{
+		int i, j, k;
+		double *in, *out;
+
+		#pragma omp for collapse(2) schedule(static, 1) nowait
+		for (k = (* arr_start)[2]+1 ; k < (* arr_end)[2]; k++) {
+			for (j = (* arr_start)[1]+1; j < (* arr_end)[1]; j++) {
+				in = &indata[j*ni+k*ni*nj];
+				out = &outdata[j*ni+k*ni*nj];
+				#pragma ivdep
+				#pragma vector nontemporal (out)
+				for (i = (* arr_start)[0]+1; i < (* arr_end)[0]; i++) {
+					out[i] = ( in[i-ni*nj] + in[i-1] + in[i-ni] + in[i] + in[i+ni] + in[i+1] + in[i+ni*nj] ) / (double) 7.0;
+				}
+			}
+		}
+	}
+}
+
+#elif 0
+void omp_stencil_3d7p_kernel_db(double * indata, double * outdata, size_t (* array_size)[3], size_t (* arr_start)[3],  size_t (* arr_end)[3])
+{
+	int ni, nj, nk;
+
+	ni =  (* array_size)[0];
+	nj =  (* array_size)[1];
+	nk =  (* array_size)[2];
+
+	#pragma omp parallel shared(ni, nj, nk, indata, outdata)
+	{
+		int i, j, k, ii, jj, kk;
+#ifdef COLLAPSE
+		#pragma omp for collapse(2)
+#else
+		#pragma omp for
+		//#pragma omp for schedule(static, 1)
+		//#pragma omp for schedule(dynamic, 1) nowait
+#endif
+		for (k = (* arr_start)[2]+1 ; k < (* arr_end)[2]; k+= CZ) {
+			for (j = (* arr_start)[1]+1; j < (* arr_end)[1]; j+= CY) {
+				for (i = (* arr_start)[0]+1; i < (* arr_end)[0]; i+=CX) {
+					int kkmax = ((* arr_end)[2] < k+CZ ? (* arr_end)[2] : k+CZ);
+					int jjmax = ((* arr_end)[1] < j+CY ? (* arr_end)[1] : j+CY);
+					int iimax = ((* arr_end)[0] < i+CX ? (* arr_end)[0] : i+CX);
+					for (kk = k ; kk < kkmax; kk++) {
+						for (jj = j; jj < jjmax; jj++) {
+							for (ii = i; ii < iimax; ii++) {
+								outdata[ii+jj*ni+kk*ni*nj] = ( indata[ii+jj*ni+ (kk-1)*ni*nj] + indata[(ii-1)+jj*ni+kk*ni*nj] + indata[ii+(jj-1)*ni+kk*ni*nj] +
+															 indata[ii+jj*ni+kk*ni*nj] + indata[ii+(jj+1)*ni+kk*ni*nj] + indata[(ii+1)+jj*ni+kk*ni*nj] +
+															 indata[ii+jj*ni+(kk+1)*ni*nj] ) / (double) 7.0;
+							}
+						}
+					}
+				}
+			}
+		}
+	}
+}
+#elif 0
+void omp_stencil_3d7p_kernel_db(double * indata, double * outdata, size_t (* array_size)[3], size_t (* arr_start)[3],  size_t (* arr_end)[3])
+{
+	int ni, nj, nk;
+
+	ni =  (* array_size)[0];
+	nj =  (* array_size)[1];
+	nk =  (* array_size)[2];
+
+	#pragma omp parallel shared(ni, nj, nk, indata, outdata)
+	{
+		int i, j, k, jj, kk;
+#ifdef COLLAPSE
+		#pragma omp for collapse(2)
+#else
+		//#pragma omp for
+		//#pragma omp for schedule(static, 1)
+		#pragma omp for schedule(dynamic, 1) nowait
+#endif
+		for (k = (* arr_start)[2]+1 ; k < (* arr_end)[2]; k+= CZ) {
+			for (j = (* arr_start)[1]+1; j < (* arr_end)[1]; j+= CY) {
+				int kkmax = ((* arr_end)[2] < k+CZ ? (* arr_end)[2] : k+CZ);
+				int jjmax = ((* arr_end)[1] < j+CY ? (* arr_end)[1] : j+CY);
+				for (kk = k ; kk < kkmax; kk++) {
+					for (jj = j; jj < jjmax; jj++) {
+						#pragma ivdep
+						#pragma vector nontemporal (outdata)
+						for (i = (* arr_start)[0]+1; i < (* arr_end)[0]; i++) {
+							outdata[i+jj*ni+kk*ni*nj] = ( indata[i+jj*ni+ (kk-1)*ni*nj] + indata[(i-1)+jj*ni+kk*ni*nj] + indata[i+(jj-1)*ni+kk*ni*nj] +
+														 indata[i+jj*ni+kk*ni*nj] + indata[i+(jj+1)*ni+kk*ni*nj] + indata[(i+1)+jj*ni+kk*ni*nj] +
+														 indata[i+jj*ni+(kk+1)*ni*nj] ) / (double) 7.0;
+						}
+					}
+				}
+			}
+		}
+	}
+}
+#elif 0
+void omp_stencil_3d7p_kernel_db(double * indata, double * outdata, size_t (* array_size)[3], size_t (* arr_start)[3],  size_t (* arr_end)[3])
+{
+	int ni, nj, nk;
+
+	ni =  (* array_size)[0];
+	nj =  (* array_size)[1];
+	nk =  (* array_size)[2];
+
+	#pragma omp parallel shared(ni, nj, nk, indata, outdata)
+	{
+		int i, j, k, ii, jj, kk;
+#ifdef COLLAPSE
+		#pragma omp for collapse(2)
+#else
+		#pragma omp for
+		//#pragma omp for schedule(static, 1)
+		//#pragma omp for schedule(dynamic, 1)
+#endif
+		for (k = (* arr_start)[2]+1 ; k < (* arr_end)[2]; k++) {
+			for (j = (* arr_start)[1]+1; j < (* arr_end)[1]; j+= CY) {
+				for (i = (* arr_start)[0]+1; i < (* arr_end)[0]; i+=CX) {
+					int jjmax = ((* arr_end)[1] < j+CY ? (* arr_end)[1] : j+CY);
+					int iimax = ((* arr_end)[0] < i+CX ? (* arr_end)[0] : i+CX);
+					for (jj = j; jj < jjmax; jj++) {
+						for (ii = i; ii < iimax; ii++) {
+							outdata[ii+jj*ni+k*ni*nj] = ( indata[ii+jj*ni+ (k-1)*ni*nj] + indata[(ii-1)+jj*ni+kk*ni*nj] + indata[ii+(jj-1)*ni+k*ni*nj] +
+														 indata[ii+jj*ni+k*ni*nj] + indata[ii+(jj+1)*ni+k*ni*nj] + indata[(ii+1)+jj*ni+k*ni*nj] +
+														 indata[ii+jj*ni+(k+1)*ni*nj] ) / (double) 7.0;
+						}
+					}
+				}
+			}
+		}
+	}
+}
+#else
+void omp_stencil_3d7p_kernel_db(double * __restrict__ indata, double * __restrict__ outdata, size_t (* array_size)[3], size_t (* arr_start)[3],  size_t (* arr_end)[3])
+{
+	int ni, nj, nk;
+
+	ni =  (* array_size)[0];
+	nj =  (* array_size)[1];
+	nk =  (* array_size)[2];
+
+	#pragma omp parallel shared(ni, nj, nk, indata, outdata)
+	{
+		int i, j, k;
+		int c;
+		double r0, rx1, rx2;
+
+#ifdef COLLAPSE
+		#pragma omp for collapse(2)
+#else
+		#pragma omp for collapse(2) schedule(static, 1) nowait
+		//#pragma omp for
+#endif
+		for (k = (* arr_start)[2]+1 ; k < (* arr_end)[2]; k++) {
+			for (j = (* arr_start)[1]+1; j < (* arr_end)[1]; j++) {
+				//#pragma Loop_Optimize Ivdep No_Unroll
+				//#pragma unroll(8)
+				i = (* arr_start)[0]+1;
+				c = i+j*ni+k*ni*nj;
+				r0 = indata[c];
+				rx1 = indata[c-1];
+				rx2 = indata[c+1];
+				for (; i < (* arr_end)[0]; i++) {
+					outdata[i+j*ni+k*ni*nj] = ( indata[i+j*ni+ (k-1)*ni*nj] + rx1 + indata[i+(j-1)*ni+k*ni*nj] +
+												r0 + indata[i+(j+1)*ni+k*ni*nj] + indata[(i+1)+j*ni+k*ni*nj] +
+												rx2 ) / (double) 7.0;
+					c++;
+					r0 = rx2;
+					rx1 = r0;
+					rx2 = indata[c+1];
+				}
+			}
+		}
+	}
+}
+#endif
+
+void omp_stencil_3d7p_kernel_fl(float * indata, float * outdata, size_t (* array_size)[3], size_t (* arr_start)[3],  size_t (* arr_end)[3])
+{
+	int ni, nj, nk;
+
+	ni =  (* array_size)[0];
+	nj =  (* array_size)[1];
+	nk =  (* array_size)[2];
+
+	#pragma omp parallel shared(ni, nj, nk, indata, outdata)
+	{
+		int i, j, k;
+		#pragma omp for collapse(2) schedule(static, 1) nowait
+		//#pragma omp for
+		for (k = (* arr_start)[2]+1 ; k < (* arr_end)[2]; k++) {
+			for (j = (* arr_start)[1]+1; j < (* arr_end)[1]; j++) {
+				//#pragma unroll (8)
+				//#pragma prefetch indata:_MM_HINT_T2:8,outdata:_MM_HINT_NTA
+				//#pragma loop count (256)
+				#pragma ivdep
+				#pragma vector nontemporal (outdata)
+				for (i = (* arr_start)[0]+1; i < (* arr_end)[0]; i++) {
+					outdata[i+j*ni+k*ni*nj] = ( indata[i+j*ni+ (k-1)*ni*nj] + indata[(i-1)+j*ni+k*ni*nj] + indata[i+(j-1)*ni+k*ni*nj] +
+											    indata[i+j*ni+k*ni*nj] + indata[i+(j+1)*ni+k*ni*nj] + indata[(i+1)+j*ni+k*ni*nj] +
+												indata[i+j*ni+(k+1)*ni*nj] ) / (float) 7.0;
+				}
+			}
+		}
+	}
+}
+
+void omp_stencil_3d7p_kernel_ul(unsigned long * indata, unsigned long * outdata, size_t (* array_size)[3], size_t (* arr_start)[3],  size_t (* arr_end)[3])
+{
+	int ni, nj, nk;
+
+	ni =  (* array_size)[0];
+	nj =  (* array_size)[1];
+	nk =  (* array_size)[2];
+
+	#pragma omp parallel shared(ni, nj, nk, indata, outdata)
+	{
+		int i, j, k;
+		#pragma omp for collapse(2) schedule(static, 1) nowait
+		//#pragma omp for
+		for (k = (* arr_start)[2]+1 ; k < (* arr_end)[2]; k++) {
+			for (j = (* arr_start)[1]+1; j < (* arr_end)[1]; j++) {
+				//#pragma unroll (8)
+				//#pragma prefetch indata:_MM_HINT_T2:8,outdata:_MM_HINT_NTA
+				//#pragma loop count (256)
+				#pragma ivdep
+				#pragma vector nontemporal (outdata)
+				for (i = (* arr_start)[0]+1; i < (* arr_end)[0]; i++) {
+					outdata[i+j*ni+k*ni*nj] = ( indata[i+j*ni+ (k-1)*ni*nj] + indata[(i-1)+j*ni+k*ni*nj] + indata[i+(j-1)*ni+k*ni*nj] +
+											    indata[i+j*ni+k*ni*nj] + indata[i+(j+1)*ni+k*ni*nj] + indata[(i+1)+j*ni+k*ni*nj] +
+												indata[i+j*ni+(k+1)*ni*nj] ) / (unsigned long) 7;
+				}
+			}
+		}
+	}
+}
+
+void omp_stencil_3d7p_kernel_in(int * indata, int * outdata, size_t (* array_size)[3], size_t (* arr_start)[3],  size_t (* arr_end)[3])
+{
+	int ni, nj, nk;
+
+	ni =  (* array_size)[0];
+	nj =  (* array_size)[1];
+	nk =  (* array_size)[2];
+
+	#pragma omp parallel shared(ni, nj, nk, indata, outdata)
+	{
+		int i, j, k;
+		#pragma omp for collapse(2) schedule(static, 1) nowait
+		//#pragma omp for
+		for (k = (* arr_start)[2]+1 ; k < (* arr_end)[2]; k++) {
+			for (j = (* arr_start)[1]+1; j < (* arr_end)[1]; j++) {
+				//#pragma unroll (8)
+				//#pragma prefetch indata:_MM_HINT_T2:8,outdata:_MM_HINT_NTA
+				//#pragma loop count (256)
+				#pragma ivdep
+				#pragma vector nontemporal (outdata)
+				for (i = (* arr_start)[0]+1; i < (* arr_end)[0]; i++) {
+					outdata[i+j*ni+k*ni*nj] = ( indata[i+j*ni+ (k-1)*ni*nj] + indata[(i-1)+j*ni+k*ni*nj] + indata[i+(j-1)*ni+k*ni*nj] +
+											    indata[i+j*ni+k*ni*nj] + indata[i+(j+1)*ni+k*ni*nj] + indata[(i+1)+j*ni+k*ni*nj] +
+												indata[i+j*ni+(k+1)*ni*nj] ) / (int) 7;
+				}
+			}
+		}
+	}
+}
+
+void omp_stencil_3d7p_kernel_ui(unsigned int * indata, unsigned int * outdata, size_t (* array_size)[3], size_t (* arr_start)[3],  size_t (* arr_end)[3])
+{
+	int ni, nj, nk;
+
+	ni =  (* array_size)[0];
+	nj =  (* array_size)[1];
+	nk =  (* array_size)[2];
+
+	#pragma omp parallel shared(ni, nj, nk, indata, outdata)
+	{
+		int i, j, k;
+		#pragma omp for collapse(2) schedule(static, 1) nowait
+		//#pragma omp for
+		for (k = (* arr_start)[2]+1 ; k < (* arr_end)[2]; k++) {
+			for (j = (* arr_start)[1]+1; j < (* arr_end)[1]; j++) {
+				//#pragma unroll (8)
+				//#pragma prefetch indata:_MM_HINT_T2:8,outdata:_MM_HINT_NTA
+				//#pragma loop count (256)
+				#pragma ivdep
+				#pragma vector nontemporal (outdata)
+				for (i = (* arr_start)[0]+1; i < (* arr_end)[0]; i++) {
+					outdata[i+j*ni+k*ni*nj] = ( indata[i+j*ni+ (k-1)*ni*nj] + indata[(i-1)+j*ni+k*ni*nj] + indata[i+(j-1)*ni+k*ni*nj] +
+											    indata[i+j*ni+k*ni*nj] + indata[i+(j+1)*ni+k*ni*nj] + indata[(i+1)+j*ni+k*ni*nj] +
+												indata[i+j*ni+(k+1)*ni*nj] ) / (unsigned int) 7;
+				}
+			}
+		}
+	}
+}
+
 
 //wrappers
-
 int omp_dotProd(size_t (* grid_size)[3], size_t (* block_size)[3], void * data1, void * data2, size_t (* array_size)[3], size_t (* arr_start)[3],  size_t (* arr_end)[3], void * reduction_var, meta_type_id type, int async)
 {
 		int ret = 0; //Success
@@ -1280,5 +1708,57 @@ int omp_unpack_2d_face(size_t (* grid_size)[3], size_t (* block_size)[3], void *
 	}
 
 	return(ret);
+}
+
+int omp_stencil_3d7p(size_t (* grid_size)[3], size_t (* block_size)[3], void * indata, void * outdata, size_t (* array_size)[3], size_t (* arr_start)[3],  size_t (* arr_end)[3], meta_type_id type, int async)
+{
+	int ret = 0; //Success
+
+	// ignore grid_size, block_size, async
+
+	switch (type) {
+		case a_db:
+			omp_stencil_3d7p_kernel_db((double*) indata, (double*) outdata, array_size, arr_start, arr_end);
+		break;
+
+		case a_fl:
+			omp_stencil_3d7p_kernel_fl((float*) indata, (float*) outdata, array_size, arr_start, arr_end);
+		break;
+
+		case a_ul:
+			omp_stencil_3d7p_kernel_ul((unsigned long*) indata, (unsigned long*) outdata, array_size, arr_start, arr_end);
+		break;
+
+		case a_in:
+			omp_stencil_3d7p_kernel_in((int*) indata, (int*) outdata, array_size, arr_start, arr_end);
+		break;
+
+		case a_ui:
+			omp_stencil_3d7p_kernel_ui((unsigned int*) indata, (unsigned int*) outdata, array_size, arr_start, arr_end);
+		break;
+
+		default:
+			fprintf(stderr, "Error: Function 'omp_stencil_3d7p' not implemented for selected type!\n");
+		break;
+	}
+
+	return(ret);
+
+}
+
+int omp_copy_d2d(void *dst, void *src, size_t size, int async)
+{
+	int i;
+	//int num_t = omp_get _num_threads();
+	int num_b = size / sizeof(unsigned long);
+
+	#pragma omp parallel for
+	#pragma ivdep
+	//#pragma vector nontemporal (dst)
+	for (i = 0; i < num_b; i++)
+	{
+		//memcpy((unsigned char *) dst+i, (unsigned char *) src+i, size);
+		*((unsigned long *) dst+i) = *((unsigned long *) src+i);
+	}
 }
 

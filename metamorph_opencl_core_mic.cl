@@ -965,4 +965,230 @@ __kernel void kernel_unpack_ui(__global unsigned int *packed_buf, __global unsig
     for (; idx < size; idx += nthreads)
     	buf[get_pack_index(idx, a, start, count, c_face_size, c_face_stride, c_face_child_size)] = packed_buf[idx];
 }
+// this kernel works for 3D data only.
+//  i,j,k are the array dimensions
+//  s* parameters are start values in each dimension.
+//  e* parameters are end values in each dimension.
+//  s* and e* are only necessary when the halo layers
+//    has different thickness along various directions.
+//  len_ is number of threads in a threadblock.
+//       This can be computed in the kernel itself.
+
+// work with 2D and 3D thread blocks
+__kernel void kernel_stencil_3d7p_db(const __global double * __restrict__ ind, __global double * __restrict__  outd,
+		int i, int j, int k,
+		int sx, int sy, int sz,
+		int ex, int ey, int ez,
+		int gz, int len_, __local double * bind) {
+	int x, y, z, itr;
+	bool boundx, boundy, boundz;
+
+	x = (get_group_id(0))*get_local_size(0)+get_local_id(0)+sx;
+	y = (get_group_id(1))*get_local_size(1)+get_local_id(1)+sy;
+
+	boundy = ((y > sy) && (y < ey));
+	boundx = ((x > sx) && (x < ex));
+	
+	for (itr = 0; itr < gz; itr++) {
+		z = itr*get_local_size(2)+get_local_id(2) +sz;
+		boundz = ((z > sz) && (z < ez));
+		if (boundx && boundy && boundz)
+			outd[x+y*i+z*i*j] = ( ind[x+y*i+(z-1)*i*j] + ind[(x-1)+y*i+z*i*j] + ind[x+(y-1)*i+z*i*j] +
+								  ind[x+y*i+z*i*j] + ind[x+(y+1)*i+z*i*j] + ind[(x+1)+y*i+z*i*j] +
+								  ind[x+y*i+(z+1)*i*j] ) / (double) 7;
+	}
+}
+
+#if 0
+//Read-only cache + Rigster blocking (Z) + smem blocking (X-Y)
+// work only with 2D thread blocks (use rectangular blocks, i.e. 64*4, 128*2)
+__kernel void kernel_stencil_3d7p_db_v2(const __global double * __restrict__ ind, __global double * __restrict__  outd,
+		int i, int j, int k,
+		int sx, int sy, int sz,
+		int ex, int ey, int ez,
+		int gz, int len_, __local double * bind) {
+	const int bi = (get_local_size(0)+2);
+	const int bc = (get_local_id(0)+1)+(get_local_id(1)+1)*bi;
+	double r0, rz1, rz2;
+	int x, y, z;
+	int ij = i*j;
+	int c;
+	bool boundx, boundy, boundz;
+
+	x = (get_group_id(0))*get_local_size(0)+get_local_id(0)+sx;
+	y = (get_group_id(1))*get_local_size(1)+get_local_id(1)+sy;
+	z = get_local_id(2) +sz; //blockDim.z ==1
+	c = x+y*i+z*ij;
+	r0 = ind[c];
+	rz1 = ind[c-ij];
+	rz2 = ind[c+ij];
+
+	boundy = ((y > sy) && (y < ey));
+	boundx = ((x > sx) && (x < ex));
+	#pragma unroll 8
+	for (; z < gz; z++) {
+		boundz = ((z > sz) && (z < ez));
+		bind[bc] = r0;
+
+		if(get_local_id(0) == 0)
+			bind[bc-1] = ind[c-1];
+		else if (get_local_id(0) == get_local_size(0)-1)
+			bind[bc+1] = ind[c+1];
+
+		if(get_local_id(1) == 0)
+			bind[bc-bi] = ind[c-i];
+		else if (get_local_id(1) == get_local_size(1)-1)
+			bind[bc+bi] = ind[c+i];
+
+		//barrier(CLK_LOCAL_MEM_FENCE | CLK_GLOBAL_MEM_FENCE);
+		barrier(CLK_LOCAL_MEM_FENCE);
+
+		if (boundx && boundy && boundz)
+			outd[c] = ( rz1 + bind[bc-1] + bind[bc-bi] + r0 +
+						bind[bc+bi] + bind[bc+1] + rz2 ) / (double) 7;
+		c += ij;
+		rz1 = r0;
+		r0 = rz2;
+		rz2 = ind[c+ij];
+		barrier(CLK_LOCAL_MEM_FENCE);
+	}
+}
+
+//Read-only cache + Rigster blocking (Z)
+// work only with 2D thread blocks
+__kernel void kernel_stencil_3d7p_db_v1(const __global double * __restrict__ ind, __global double * __restrict__  outd,
+		int i, int j, int k,
+		int sx, int sy, int sz,
+		int ex, int ey, int ez,
+		int gz, int len_, __local double * bind) {
+	double r0, rz1, rz2;
+	int x, y, z;
+	int ij = i*j;
+	int c;
+	bool boundx, boundy, boundz;
+
+	x = (get_group_id(0))*get_local_size(0)+get_local_id(0)+sx;
+	y = (get_group_id(1))*get_local_size(1)+get_local_id(1)+sy;
+	z = get_local_id(2) +sz; //blockDim.z ==1
+	c = x+y*i+z*ij;
+	r0 = ind[c];
+	rz1 = ind[c-ij];
+	rz2 = ind[c+ij];
+
+	boundy = ((y > sy) && (y < ey));
+	boundx = ((x > sx) && (x < ex));
+	#pragma unroll 8
+	for (; z < gz; z++) {
+		boundz = ((z > sz) && (z < ez));
+		if (boundx && boundy && boundz)
+			outd[c] = ( rz1 + ind[c-1] + ind[c-i] + r0 +
+						ind[c+i] + ind[c+1] + rz2 ) / (double) 7;
+		c += ij;
+		rz1 = r0;
+		r0 = rz2;
+		rz2 = ind[c+ij];
+	}
+}
+#endif
+
+// work with 2D and 3D thread blocks
+__kernel void kernel_stencil_3d7p_fl(const __global float * __restrict__ ind, __global float * __restrict__  outd,
+		int i, int j, int k,
+		int sx, int sy, int sz,
+		int ex, int ey, int ez,
+		int gz, int len_, __local float * bind) {
+	int x, y, z, itr;
+	bool boundx, boundy, boundz;
+
+	x = (get_group_id(0))*get_local_size(0)+get_local_id(0)+sx;
+	y = (get_group_id(1))*get_local_size(1)+get_local_id(1)+sy;
+
+	boundy = ((y > sy) && (y < ey));
+	boundx = ((x > sx) && (x < ex));
+	
+	for (itr = 0; itr < gz; itr++) {
+		z = itr*get_local_size(2)+get_local_id(2) +sz;
+		boundz = ((z > sz) && (z < ez));
+		if (boundx && boundy && boundz)
+			outd[x+y*i+z*i*j] = ( ind[x+y*i+(z-1)*i*j] + ind[(x-1)+y*i+z*i*j] + ind[x+(y-1)*i+z*i*j] +
+								  ind[x+y*i+z*i*j] + ind[x+(y+1)*i+z*i*j] + ind[(x+1)+y*i+z*i*j] +
+								  ind[x+y*i+(z+1)*i*j] ) / (float) 7;
+	}
+}
+
+
+// work with 2D and 3D thread blocks
+__kernel void kernel_stencil_3d7p_ul(const __global unsigned long * __restrict__ ind, __global unsigned long * __restrict__  outd,
+		int i, int j, int k,
+		int sx, int sy, int sz,
+		int ex, int ey, int ez,
+		int gz, int len_, __local unsigned long * bind) {
+	int x, y, z, itr;
+	bool boundx, boundy, boundz;
+
+	x = (get_group_id(0))*get_local_size(0)+get_local_id(0)+sx;
+	y = (get_group_id(1))*get_local_size(1)+get_local_id(1)+sy;
+
+	boundy = ((y > sy) && (y < ey));
+	boundx = ((x > sx) && (x < ex));
+	
+	for (itr = 0; itr < gz; itr++) {
+		z = itr*get_local_size(2)+get_local_id(2) +sz;
+		boundz = ((z > sz) && (z < ez));
+		if (boundx && boundy && boundz)
+			outd[x+y*i+z*i*j] = ( ind[x+y*i+(z-1)*i*j] + ind[(x-1)+y*i+z*i*j] + ind[x+(y-1)*i+z*i*j] +
+								  ind[x+y*i+z*i*j] + ind[x+(y+1)*i+z*i*j] + ind[(x+1)+y*i+z*i*j] +
+								  ind[x+y*i+(z+1)*i*j] ) / (unsigned long) 7;
+	}
+}
+
+// work with 2D and 3D thread blocks
+__kernel void kernel_stencil_3d7p_in(const __global int * __restrict__ ind, __global int * __restrict__  outd,
+		int i, int j, int k,
+		int sx, int sy, int sz,
+		int ex, int ey, int ez,
+		int gz, int len_, __local int * bind) {
+	int x, y, z, itr;
+	bool boundx, boundy, boundz;
+
+	x = (get_group_id(0))*get_local_size(0)+get_local_id(0)+sx;
+	y = (get_group_id(1))*get_local_size(1)+get_local_id(1)+sy;
+
+	boundy = ((y > sy) && (y < ey));
+	boundx = ((x > sx) && (x < ex));
+	
+	for (itr = 0; itr < gz; itr++) {
+		z = itr*get_local_size(2)+get_local_id(2) +sz;
+		boundz = ((z > sz) && (z < ez));
+		if (boundx && boundy && boundz)
+			outd[x+y*i+z*i*j] = ( ind[x+y*i+(z-1)*i*j] + ind[(x-1)+y*i+z*i*j] + ind[x+(y-1)*i+z*i*j] +
+								  ind[x+y*i+z*i*j] + ind[x+(y+1)*i+z*i*j] + ind[(x+1)+y*i+z*i*j] +
+								  ind[x+y*i+(z+1)*i*j] ) / (int) 7;
+	}
+}
+
+// work with 2D and 3D thread blocks
+__kernel void kernel_stencil_3d7p_ui(const __global unsigned int * __restrict__ ind, __global unsigned int * __restrict__  outd,
+		int i, int j, int k,
+		int sx, int sy, int sz,
+		int ex, int ey, int ez,
+		int gz, int len_, __local int * bind) {
+	int x, y, z, itr;
+	bool boundx, boundy, boundz;
+
+	x = (get_group_id(0))*get_local_size(0)+get_local_id(0)+sx;
+	y = (get_group_id(1))*get_local_size(1)+get_local_id(1)+sy;
+
+	boundy = ((y > sy) && (y < ey));
+	boundx = ((x > sx) && (x < ex));
+	
+	for (itr = 0; itr < gz; itr++) {
+		z = itr*get_local_size(2)+get_local_id(2) +sz;
+		boundz = ((z > sz) && (z < ez));
+		if (boundx && boundy && boundz)
+			outd[x+y*i+z*i*j] = ( ind[x+y*i+(z-1)*i*j] + ind[(x-1)+y*i+z*i*j] + ind[x+(y-1)*i+z*i*j] +
+								  ind[x+y*i+z*i*j] + ind[x+(y+1)*i+z*i*j] + ind[(x+1)+y*i+z*i*j] +
+								  ind[x+y*i+(z+1)*i*j] ) / (unsigned int) 7;
+	}
+}
 
