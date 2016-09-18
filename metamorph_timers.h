@@ -8,7 +8,7 @@
 
 //Include metamorph.h to grab the properly-defined enum for modes
 #ifndef METAMORPH_H
-	#include "metamorph.h"
+#include "metamorph.h"
 #endif
 #include <stdlib.h>
 
@@ -23,26 +23,26 @@
 #endif
 
 typedef union metaTimerEvent {
-	#ifdef WITH_CUDA
+#ifdef WITH_CUDA
 	cudaEvent_t cuda[2];
-	#endif 
-	#ifdef WITH_OPENCL
+#endif
+#ifdef WITH_OPENCL
 	cl_event opencl;
-	#endif
-	#ifdef WITH_OPENMP
+#endif
+#ifdef WITH_OPENMP
 	double openmp[2];
-	#endif
+#endif
 } metaTimerEvent;
 
 typedef struct metaTimerQueueFrame {
 //CUDA needs 2 events to use cudaEventElapsedTime
 //OpenCL only needs one, if using the event returned from an API call
 //OpenMP will either need 1 or 2, depending on if we keep start/end or just elapsed
-metaTimerEvent event;
+	metaTimerEvent event;
 //size_t size[6];
 //Hijack meta_preferred_mode enum to advise the user of the frame/node how to interpret event
-meta_preferred_mode mode; 
-size_t size;
+	meta_preferred_mode mode;
+	size_t size;
 //TODO add level 3 items
 } metaTimerQueueFrame;
 
@@ -52,29 +52,24 @@ typedef struct metaTimerQueueNode {
 //CUDA needs 2 events to use cudaEventElapsedTime
 //OpenCL only needs one, if using the event returned from an API call
 //OpenMP will either need 1 or 2, depending on if we keep start/end or just elapsed
-metaTimerEvent event;
+	metaTimerEvent event;
 //size_t size[6];
 //Hijack meta_preferred_mode enum to advise the user of the frame/node how to interpret event
-meta_preferred_mode mode;
-size_t size;
-struct metaTimerQueueNode * next;
+	meta_preferred_mode mode;
+	size_t size;
+	struct metaTimerQueueNode * next;
 } metaTimerQueueNode;
-
 
 typedef struct metaTimerQueue {
 	const char * name;
 	metaTimerQueueNode * head, *tail;
-}metaTimerQueue;
+} metaTimerQueue;
 
 //A convenience structure to tie logically-named queues to possibly-changing indicies in the Queue array
 // This way we can add a new type of timer (for a kernel or copy or whatever) and potentially change indicies without needing to change a bunch of hardcoded constants.
 
 enum metaTimerQueueEnum {
-	c_D2H,
-	c_H2D,
-	c_H2H,
-	c_D2D,
-	c_H2Dc, //Host to Device copies into __constant memory (cudaMemcpyToSymbol and CL_MEM_READ_ONLY)
+	c_D2H, c_H2D, c_H2H, c_D2D, c_H2Dc, //Host to Device copies into __constant memory (cudaMemcpyToSymbol and CL_MEM_READ_ONLY)
 	k_reduce,
 	k_dotProd,
 	k_transpose_2d_face,
