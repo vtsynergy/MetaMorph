@@ -22,6 +22,7 @@
  * plugin internally, and transparently.
  */
 
+/** The top-level user APIs **/
 #ifndef METAMORPH_MPI_H
 #define METAMORPH_MPI_H
 #include <mpi.h>
@@ -32,22 +33,22 @@
 #include "metamorph.h"
 #endif
 
-//POOL_SIZE must be a power of two for quick masks instead of modulos
-// behavior is left undefined if this is violated/
+//POOL_SIZE must be a power of two for quick masks instead of modulo.
+// Behavior is left undefined if this is violated.
 #ifndef META_MPI_POOL_SIZE
 #define META_MPI_POOL_SIZE 8
 #endif
 
-//To keep the structure lightweight, it's a simple ring array
-// this param specifies how many previous ring slots we should look
-// at for one of appropriate size before just reallocing the current one
-// The default is 4
-//This lookback is part of the "ratchet" behavior of the ring
+//To keep the structure lightweight, it's a simple ring array.
+// This param specifies how many previous ring slots we should look
+// at for one of appropriate size before just reallocating the current one.
+// The default is 4.
+//This lookback is part of the "ratchet" behavior of the ring.
 #ifndef META_MPI_POOL_LOOKBACK
 #define META_MPI_POOL_LOOKBACK 4
 #endif
 
-//Should never be user-editted, it's just for masking the bits needed for
+//Should never be user-edited, it's just for masking the bits needed for
 // fast indexing
 #define POOL_MASK (META_MPI_POOL_SIZE - 1)
 
@@ -107,7 +108,7 @@ typedef struct {
 	a_dim3 grid_size;
 	a_dim3 block_size;
 	meta_type_id type;
-	meta_2d_face_indexed *face;
+	meta_face *face;
 	void *dev_buf;
 } recv_and_unpack_record;
 
@@ -212,13 +213,13 @@ a_err meta_mpi_packed_face_recv(int src_rank, void * packed_buf,
 
 //A wrapper that, provided a face, will pack it, then send it
 a_err meta_mpi_pack_and_send_face(a_dim3 * grid_size, a_dim3 * block_size,
-		int dst_rank, meta_2d_face_indexed * face, void * buf,
+		int dst_rank, meta_face * face, void * buf,
 		void * packed_buf, int tag, MPI_Request * req, meta_type_id type,
 		int async);
 
 //A wrapper that, provided a face, will receive a buffer, and unpack it
 a_err meta_mpi_recv_and_unpack_face(a_dim3 * grid_size, a_dim3 * block_size,
-		int src_rank, meta_2d_face_indexed * face, void * buf,
+		int src_rank, meta_face * face, void * buf,
 		void * packed_buf, int tag, MPI_Request * req, meta_type_id type,
 		int async);
 

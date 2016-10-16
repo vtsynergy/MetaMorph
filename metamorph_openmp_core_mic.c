@@ -1,3 +1,4 @@
+/** OpenMP Back-End: MIC customization **/
 #include "metamorph_openmp_core.h"
 
 //#define	COLLAPSE
@@ -34,7 +35,6 @@ inline float hadd_ps(__m256 a) {
 #endif
 
 // Kernels
-#if 1
 static void omp_dotProd_kernel_db(double * __restrict__ data1,
 		double * __restrict__ data2, size_t (*array_size)[3],
 		size_t (*arr_start)[3], size_t (*arr_end)[3], double * reduction_var) {
@@ -93,14 +93,18 @@ static void omp_dotProd_kernel_db(double * __restrict__ data1,
 		{
 			int i, j, k;
 			double psum = 0;
+			//double *d1, *d2;
 #pragma omp for collapse(2)
 			//#pragma omp for
 			for (k = (*arr_start)[2]; k <= (*arr_end)[2]; k++) {
 				for (j = (*arr_start)[1]; j <= (*arr_end)[1]; j++) {
+					//d1 = &data1[j*ni+k*ni*nj];
+					//d2 = &data2[j*ni+k*ni*nj];
 					for (i = (*arr_start)[0]; i <= (*arr_end)[0]; i++) {
 						int x;
 						x = i + j * ni + k * ni * nj;
 						psum += data1[x] * data2[x];
+						//psum += d1[i] * d2[i];
 					}
 				}
 			}
@@ -115,87 +119,6 @@ static void omp_dotProd_kernel_db(double * __restrict__ data1,
 
 	*reduction_var += sum;
 }
-#else
-static void omp_dotProd_kernel_db( double * __restrict__ data1, double * __restrict__ data2, size_t (* array_size)[3], size_t (* arr_start)[3], size_t (* arr_end)[3], double * reduction_var)
-{
-	int ni, nj, nk;
-	double sum = 0;
-
-	ni = (* array_size)[0];
-	nj = (* array_size)[1];
-	nk = (* array_size)[2];
-
-#ifdef COLLAPSE
-	int n;
-	n = ((* arr_end)[0] - (* arr_start)[0] + 1) *
-	((* arr_end)[1] - (* arr_start)[1] + 1) *
-	((* arr_end)[2] - (* arr_start)[2] + 1);
-
-	if( n == ni*nj*nk )	// original 3d grid
-	{
-		int i;
-#ifdef USE_AVX
-#pragma omp parallel shared(n, data1, data2)  private(i) reduction(+: sum)
-		{
-			__m256d sum1 = _mm256_setzero_pd();
-			__m256d sum2 = _mm256_setzero_pd();
-			__m256d sum3 = _mm256_setzero_pd();
-			__m256d sum4 = _mm256_setzero_pd();
-			__m256d x4, y4;
-#pragma omp for
-			for (i = 0; i < n; i += 16) {
-				x4 = _mm256_loadu_pd(&data1[i]);
-				y4 = _mm256_loadu_pd(&data2[i]);
-				sum1 = _mm256_add_pd(_mm256_mul_pd(x4,y4),sum1);
-				x4 = _mm256_loadu_pd(&data1[i+4]);
-				y4 = _mm256_loadu_pd(&data2[i+4]);
-				sum2 = _mm256_add_pd(_mm256_mul_pd(x4,y4),sum2);
-				x4 = _mm256_loadu_pd(&data1[i+8]);
-				y4 = _mm256_loadu_pd(&data2[i+8]);
-				sum3 = _mm256_add_pd(_mm256_mul_pd(x4,y4),sum3);
-				x4 = _mm256_loadu_pd(&data1[i+12]);
-				y4 = _mm256_loadu_pd(&data2[i+12]);
-				sum4 = _mm256_add_pd(_mm256_mul_pd(x4,y4),sum4);
-			}
-			sum += hadd_pd(_mm256_add_pd(_mm256_add_pd(sum1,sum2),_mm256_add_pd(sum3,sum4)));
-		}
-#else
-#pragma omp parallel for shared(n, data1, data2)  private(i) reduction(+: sum)
-		for (i = 0; i < n; i++) {
-			sum += data1[i] * data2[i];
-		}
-#endif
-	}
-	else	// 3d sub-grid
-#endif
-	{
-#pragma omp parallel shared(ni, nj, nk, data1, data2, sum)
-		{
-			int i, j, k;
-			double psum = 0;
-			double *d1, *d2;
-#pragma omp for collapse(2)
-			for (k = (* arr_start)[2]; k <= (* arr_end)[2]; k++) {
-				for (j = (* arr_start)[1]; j <= (* arr_end)[1]; j++) {
-					d1 = &data1[j*ni+k*ni*nj];
-					d2 = &data2[j*ni+k*ni*nj];
-					for (i = (* arr_start)[0]; i <= (* arr_end)[0]; i++) {
-						psum += d1[i] * d2[i];
-					}
-				}
-			}
-
-#pragma omp critical
-			{
-				sum += psum;
-
-			}
-		}
-	} //endif if( n == ni*nj*nk )
-
-	*reduction_var += sum;
-}
-#endif
 
 static void omp_dotProd_kernel_fl(float * __restrict__ data1,
 		float * __restrict__ data2, size_t (*array_size)[3],
@@ -796,7 +719,7 @@ static void omp_reduce_kernel_ui(unsigned int * __restrict__ data,
 	*reduction_var += sum;
 }
 
-static void omp_transpose_2d_face_kernel_db(double * __restrict__ indata,
+static void omp_transpose_face_kernel_db(double * __restrict__ indata,
 		double * __restrict__ outdata, size_t (*arr_dim_xy)[3],
 		size_t (*tran_dim_xy)[3]) {
 	int ni, nj;
@@ -830,7 +753,7 @@ static void omp_transpose_2d_face_kernel_db(double * __restrict__ indata,
 
 }
 
-static void omp_transpose_2d_face_kernel_fl(float * __restrict__ indata,
+static void omp_transpose_face_kernel_fl(float * __restrict__ indata,
 		float * __restrict__ outdata, size_t (*arr_dim_xy)[3],
 		size_t (*tran_dim_xy)[3]) {
 	int ni, nj;
@@ -863,7 +786,7 @@ static void omp_transpose_2d_face_kernel_fl(float * __restrict__ indata,
 	}
 }
 
-static void omp_transpose_2d_face_kernel_ul(unsigned long * __restrict__ indata,
+static void omp_transpose_face_kernel_ul(unsigned long * __restrict__ indata,
 		unsigned long * __restrict__ outdata, size_t (*arr_dim_xy)[3],
 		size_t (*tran_dim_xy)[3]) {
 
@@ -897,7 +820,7 @@ static void omp_transpose_2d_face_kernel_ul(unsigned long * __restrict__ indata,
 	}
 }
 
-static void omp_transpose_2d_face_kernel_in(int * __restrict__ indata,
+static void omp_transpose_face_kernel_in(int * __restrict__ indata,
 		int * __restrict__ outdata, size_t (*arr_dim_xy)[3],
 		size_t (*tran_dim_xy)[3]) {
 	int ni, nj;
@@ -931,7 +854,7 @@ static void omp_transpose_2d_face_kernel_in(int * __restrict__ indata,
 
 }
 
-static void omp_transpose_2d_face_kernel_ui(unsigned int * __restrict__ indata,
+static void omp_transpose_face_kernel_ui(unsigned int * __restrict__ indata,
 		unsigned int * __restrict__ outdata, size_t (*arr_dim_xy)[3],
 		size_t (*tran_dim_xy)[3]) {
 	int ni, nj;
@@ -964,42 +887,7 @@ static void omp_transpose_2d_face_kernel_ui(unsigned int * __restrict__ indata,
 	}
 }
 
-#if 0
-static int get_pack_index (int idx, meta_2d_face_indexed *face, int *remain_dim) {
-	int pos;
-	int i, j, k, l;
-	int a[METAMORPH_FACE_MAX_DEPTH];
-
-	for(i = 0; i < face->count; i++)
-	a[i] = 0;
-
-	for(i = 0; i < face->count; i++)
-	{
-		k = 0;
-		for(j = 0; j < i; j++)
-		{
-			k += a[j] * remain_dim[j];
-		}
-		l = remain_dim[i];
-		for(j = 0; j < face->size[i]; j++)
-		{
-			if (idx - k < l)
-			break;
-			else
-			l += remain_dim[i];
-		}
-		a[i] = j;
-	}
-	pos = face->start;
-	for(i = 0; i < face->count; i++)
-	{
-		pos += a[i] * face->stride[i];
-	}
-	return pos;
-}
-#endif
-
-static int get_pack_index(int idx, meta_2d_face_indexed *face,
+static int get_pack_index(int idx, meta_face *face,
 		int * __restrict__ remain_dim) {
 	int pos;
 	int i, j, k, l;
@@ -1029,8 +917,8 @@ static int get_pack_index(int idx, meta_2d_face_indexed *face,
 	return pos;
 }
 
-void omp_pack_2d_face_kernel_db(double * __restrict__ packed_buf,
-		double * __restrict__ buf, meta_2d_face_indexed *face, int *remain_dim) {
+void omp_pack_face_kernel_db(double * __restrict__ packed_buf,
+		double * __restrict__ buf, meta_face *face, int *remain_dim) {
 	int size = face->size[0] * face->size[1] * face->size[2];
 
 #pragma omp parallel shared(size, packed_buf, buf, face, remain_dim)
@@ -1043,8 +931,8 @@ void omp_pack_2d_face_kernel_db(double * __restrict__ packed_buf,
 	}
 }
 
-void omp_pack_2d_face_kernel_fl(float * __restrict__ packed_buf,
-		float * __restrict__ buf, meta_2d_face_indexed *face, int *remain_dim) {
+void omp_pack_face_kernel_fl(float * __restrict__ packed_buf,
+		float * __restrict__ buf, meta_face *face, int *remain_dim) {
 	int size = face->size[0] * face->size[1] * face->size[2];
 
 #pragma omp parallel shared(size, packed_buf, buf, face, remain_dim)
@@ -1057,8 +945,8 @@ void omp_pack_2d_face_kernel_fl(float * __restrict__ packed_buf,
 	}
 }
 
-void omp_pack_2d_face_kernel_ul(unsigned long * __restrict__ packed_buf,
-		unsigned long * __restrict__ buf, meta_2d_face_indexed *face,
+void omp_pack_face_kernel_ul(unsigned long * __restrict__ packed_buf,
+		unsigned long * __restrict__ buf, meta_face *face,
 		int *remain_dim) {
 	int size = face->size[0] * face->size[1] * face->size[2];
 
@@ -1072,8 +960,8 @@ void omp_pack_2d_face_kernel_ul(unsigned long * __restrict__ packed_buf,
 	}
 }
 
-void omp_pack_2d_face_kernel_in(int * __restrict__ packed_buf,
-		int * __restrict__ buf, meta_2d_face_indexed *face, int *remain_dim) {
+void omp_pack_face_kernel_in(int * __restrict__ packed_buf,
+		int * __restrict__ buf, meta_face *face, int *remain_dim) {
 	int size = face->size[0] * face->size[1] * face->size[2];
 
 #pragma omp parallel shared(size, packed_buf, buf, face, remain_dim)
@@ -1086,8 +974,8 @@ void omp_pack_2d_face_kernel_in(int * __restrict__ packed_buf,
 	}
 }
 
-void omp_pack_2d_face_kernel_ui(unsigned int * __restrict__ packed_buf,
-		unsigned int * __restrict__ buf, meta_2d_face_indexed *face,
+void omp_pack_face_kernel_ui(unsigned int * __restrict__ packed_buf,
+		unsigned int * __restrict__ buf, meta_face *face,
 		int *remain_dim) {
 	int size = face->size[0] * face->size[1] * face->size[2];
 
@@ -1101,8 +989,8 @@ void omp_pack_2d_face_kernel_ui(unsigned int * __restrict__ packed_buf,
 	}
 }
 
-void omp_unpack_2d_face_kernel_db(double * __restrict__ packed_buf,
-		double * __restrict__ buf, meta_2d_face_indexed *face, int *remain_dim) {
+void omp_unpack_face_kernel_db(double * __restrict__ packed_buf,
+		double * __restrict__ buf, meta_face *face, int *remain_dim) {
 	int size = face->size[0] * face->size[1] * face->size[2];
 
 #pragma omp parallel shared(size, packed_buf, buf, face, remain_dim)
@@ -1115,8 +1003,8 @@ void omp_unpack_2d_face_kernel_db(double * __restrict__ packed_buf,
 	}
 }
 
-void omp_unpack_2d_face_kernel_fl(float * __restrict__ packed_buf,
-		float * __restrict__ buf, meta_2d_face_indexed *face, int *remain_dim) {
+void omp_unpack_face_kernel_fl(float * __restrict__ packed_buf,
+		float * __restrict__ buf, meta_face *face, int *remain_dim) {
 	int size = face->size[0] * face->size[1] * face->size[2];
 
 #pragma omp parallel shared(size, packed_buf, buf, face, remain_dim)
@@ -1129,8 +1017,8 @@ void omp_unpack_2d_face_kernel_fl(float * __restrict__ packed_buf,
 	}
 }
 
-void omp_unpack_2d_face_kernel_ul(unsigned long * __restrict__ packed_buf,
-		unsigned long * __restrict__ buf, meta_2d_face_indexed *face,
+void omp_unpack_face_kernel_ul(unsigned long * __restrict__ packed_buf,
+		unsigned long * __restrict__ buf, meta_face *face,
 		int *remain_dim) {
 	int size = face->size[0] * face->size[1] * face->size[2];
 
@@ -1144,8 +1032,8 @@ void omp_unpack_2d_face_kernel_ul(unsigned long * __restrict__ packed_buf,
 	}
 }
 
-void omp_unpack_2d_face_kernel_in(int * __restrict__ packed_buf,
-		int * __restrict__ buf, meta_2d_face_indexed *face, int *remain_dim) {
+void omp_unpack_face_kernel_in(int * __restrict__ packed_buf,
+		int * __restrict__ buf, meta_face *face, int *remain_dim) {
 	int size = face->size[0] * face->size[1] * face->size[2];
 
 #pragma omp parallel shared(size, packed_buf, buf, face, remain_dim)
@@ -1158,8 +1046,8 @@ void omp_unpack_2d_face_kernel_in(int * __restrict__ packed_buf,
 	}
 }
 
-void omp_unpack_2d_face_kernel_ui(unsigned int * __restrict__ packed_buf,
-		unsigned int * __restrict__ buf, meta_2d_face_indexed *face,
+void omp_unpack_face_kernel_ui(unsigned int * __restrict__ packed_buf,
+		unsigned int * __restrict__ buf, meta_face *face,
 		int *remain_dim) {
 	int size = face->size[0] * face->size[1] * face->size[2];
 
@@ -1186,10 +1074,13 @@ void omp_stencil_3d7p_kernel_db(double * __restrict__ indata,
 #pragma omp parallel shared(ni, nj, nk, indata, outdata)
 	{
 		int i, j, k;
+		//double *in, *out;
 #pragma omp for collapse(2) schedule(static) nowait
 		//#pragma omp for
 		for (k = (*arr_start)[2] + 1; k < (*arr_end)[2]; k++) {
 			for (j = (*arr_start)[1] + 1; j < (*arr_end)[1]; j++) {
+				//in = &indata[j*ni+k*ni*nj];
+				//out = &outdata[j*ni+k*ni*nj];
 				//#pragma unroll (8)
 				//#pragma prefetch indata:_MM_HINT_T2:8,outdata:_MM_HINT_NTA
 				//#pragma loop count (256)
@@ -1205,40 +1096,14 @@ void omp_stencil_3d7p_kernel_db(double * __restrict__ indata,
 							+ indata[(i + 1) + j * ni + k * ni * nj]
 							+ indata[i + j * ni + (k + 1) * ni * nj])
 							/ (double) 7.0;
+					//out[i] = ( in[i-ni*nj] + in[i-1] + in[i-ni] + in[i] +
+					//			in[i+ni] + in[i+1] + in[i+ni*nj] )
+					//			/ (double) 7.0;
 				}
 			}
 		}
 	}
 }
-#elif 0
-void omp_stencil_3d7p_kernel_db(double * __restrict__ indata, double * __restrict__ outdata, size_t (* array_size)[3], size_t (* arr_start)[3], size_t (* arr_end)[3])
-{
-	int ni, nj, nk;
-
-	ni = (* array_size)[0];
-	nj = (* array_size)[1];
-	nk = (* array_size)[2];
-
-#pragma omp parallel shared(ni, nj, nk, indata, outdata)
-	{
-		int i, j, k;
-		double *in, *out;
-
-#pragma omp for collapse(2) schedule(static) nowait
-		for (k = (* arr_start)[2]+1; k < (* arr_end)[2]; k++) {
-			for (j = (* arr_start)[1]+1; j < (* arr_end)[1]; j++) {
-				in = &indata[j*ni+k*ni*nj];
-				out = &outdata[j*ni+k*ni*nj];
-#pragma ivdep
-#pragma vector nontemporal (out)
-				for (i = (* arr_start)[0]+1; i < (* arr_end)[0]; i++) {
-					out[i] = ( in[i-ni*nj] + in[i-1] + in[i-ni] + in[i] + in[i+ni] + in[i+1] + in[i+ni*nj] ) / (double) 7.0;
-				}
-			}
-		}
-	}
-}
-
 #elif 0
 void omp_stencil_3d7p_kernel_db(double * indata, double * outdata, size_t (* array_size)[3], size_t (* arr_start)[3], size_t (* arr_end)[3])
 {
@@ -1621,7 +1486,7 @@ int omp_reduce(size_t (*grid_size)[3], size_t (*block_size)[3], void * data,
 	return (ret);
 }
 
-int omp_transpose_2d_face(size_t (*grid_size)[3], size_t (*block_size)[3],
+int omp_transpose_face(size_t (*grid_size)[3], size_t (*block_size)[3],
 		void * indata, void *outdata, size_t (*arr_dim_xy)[3],
 		size_t (*tran_dim_xy)[3], meta_type_id type, int async) {
 	int ret = 0; //Success
@@ -1630,41 +1495,41 @@ int omp_transpose_2d_face(size_t (*grid_size)[3], size_t (*block_size)[3],
 
 	switch (type) {
 	case a_db:
-		omp_transpose_2d_face_kernel_db((double*) indata, (double*) outdata,
+		omp_transpose_face_kernel_db((double*) indata, (double*) outdata,
 				arr_dim_xy, tran_dim_xy);
 		break;
 
 	case a_fl:
-		omp_transpose_2d_face_kernel_fl((float*) indata, (float*) outdata,
+		omp_transpose_face_kernel_fl((float*) indata, (float*) outdata,
 				arr_dim_xy, tran_dim_xy);
 		break;
 
 	case a_ul:
-		omp_transpose_2d_face_kernel_ul((unsigned long*) indata,
+		omp_transpose_face_kernel_ul((unsigned long*) indata,
 				(unsigned long*) outdata, arr_dim_xy, tran_dim_xy);
 		break;
 
 	case a_in:
-		omp_transpose_2d_face_kernel_in((int*) indata, (int*) outdata,
+		omp_transpose_face_kernel_in((int*) indata, (int*) outdata,
 				arr_dim_xy, tran_dim_xy);
 		break;
 
 	case a_ui:
-		omp_transpose_2d_face_kernel_ui((unsigned int*) indata,
+		omp_transpose_face_kernel_ui((unsigned int*) indata,
 				(unsigned int*) outdata, arr_dim_xy, tran_dim_xy);
 		break;
 
 	default:
 		fprintf(stderr,
-				"Error: Function 'omp_transpose_2d_face' not implemented for selected type!\n");
+				"Error: Function 'omp_transpose_face' not implemented for selected type!\n");
 		break;
 	}
 
 	return (ret);
 }
 
-int omp_pack_2d_face(size_t (*grid_size)[3], size_t (*block_size)[3],
-		void *packed_buf, void *buf, meta_2d_face_indexed *face,
+int omp_pack_face(size_t (*grid_size)[3], size_t (*block_size)[3],
+		void *packed_buf, void *buf, meta_face *face,
 		int *remain_dim, meta_type_id type, int async) {
 	int ret = 0; //Success
 
@@ -1672,41 +1537,41 @@ int omp_pack_2d_face(size_t (*grid_size)[3], size_t (*block_size)[3],
 
 	switch (type) {
 	case a_db:
-		omp_pack_2d_face_kernel_db((double*) packed_buf, (double*) buf, face,
+		omp_pack_face_kernel_db((double*) packed_buf, (double*) buf, face,
 				remain_dim);
 		break;
 
 	case a_fl:
-		omp_pack_2d_face_kernel_fl((float*) packed_buf, (float*) buf, face,
+		omp_pack_face_kernel_fl((float*) packed_buf, (float*) buf, face,
 				remain_dim);
 		break;
 
 	case a_ul:
-		omp_pack_2d_face_kernel_ul((unsigned long*) packed_buf,
+		omp_pack_face_kernel_ul((unsigned long*) packed_buf,
 				(unsigned long*) buf, face, remain_dim);
 		break;
 
 	case a_in:
-		omp_pack_2d_face_kernel_in((int*) packed_buf, (int*) buf, face,
+		omp_pack_face_kernel_in((int*) packed_buf, (int*) buf, face,
 				remain_dim);
 		break;
 
 	case a_ui:
-		omp_pack_2d_face_kernel_ui((unsigned int*) packed_buf,
+		omp_pack_face_kernel_ui((unsigned int*) packed_buf,
 				(unsigned int*) buf, face, remain_dim);
 		break;
 
 	default:
 		fprintf(stderr,
-				"Error: Function 'omp_transpose_2d_face' not implemented for selected type!\n");
+				"Error: Function 'omp_transpose_face' not implemented for selected type!\n");
 		break;
 	}
 
 	return (ret);
 }
 
-int omp_unpack_2d_face(size_t (*grid_size)[3], size_t (*block_size)[3],
-		void *packed_buf, void *buf, meta_2d_face_indexed *face,
+int omp_unpack_face(size_t (*grid_size)[3], size_t (*block_size)[3],
+		void *packed_buf, void *buf, meta_face *face,
 		int *remain_dim, meta_type_id type, int async) {
 	int ret = 0; //Success
 
@@ -1714,33 +1579,33 @@ int omp_unpack_2d_face(size_t (*grid_size)[3], size_t (*block_size)[3],
 
 	switch (type) {
 	case a_db:
-		omp_unpack_2d_face_kernel_db((double*) packed_buf, (double*) buf, face,
+		omp_unpack_face_kernel_db((double*) packed_buf, (double*) buf, face,
 				remain_dim);
 		break;
 
 	case a_fl:
-		omp_unpack_2d_face_kernel_fl((float*) packed_buf, (float*) buf, face,
+		omp_unpack_face_kernel_fl((float*) packed_buf, (float*) buf, face,
 				remain_dim);
 		break;
 
 	case a_ul:
-		omp_unpack_2d_face_kernel_ul((unsigned long*) packed_buf,
+		omp_unpack_face_kernel_ul((unsigned long*) packed_buf,
 				(unsigned long*) buf, face, remain_dim);
 		break;
 
 	case a_in:
-		omp_unpack_2d_face_kernel_in((int*) packed_buf, (int*) buf, face,
+		omp_unpack_face_kernel_in((int*) packed_buf, (int*) buf, face,
 				remain_dim);
 		break;
 
 	case a_ui:
-		omp_unpack_2d_face_kernel_ui((unsigned int*) packed_buf,
+		omp_unpack_face_kernel_ui((unsigned int*) packed_buf,
 				(unsigned int*) buf, face, remain_dim);
 		break;
 
 	default:
 		fprintf(stderr,
-				"Error: Function 'omp_transpose_2d_face' not implemented for selected type!\n");
+				"Error: Function 'omp_transpose_face' not implemented for selected type!\n");
 		break;
 	}
 

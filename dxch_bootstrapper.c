@@ -278,10 +278,10 @@ int check_face_sum(void * sum, int a, int b, int c) {
 }
 
 //Workhorse for computing a 2.5D slab from 3D grid
-meta_2d_face_indexed * make_slab2d_from_3d(int face, int ni, int nj, int nk,
+meta_face * make_slab2d_from_3d(int face, int ni, int nj, int nk,
 		int thickness) {
-	meta_2d_face_indexed * ret = (meta_2d_face_indexed*) malloc(
-			sizeof(meta_2d_face_indexed));
+	meta_face * ret = (meta_face*) malloc(
+			sizeof(meta_face));
 	ret->count = 3;
 	ret->size = (int*) malloc(sizeof(int) * 3);
 	ret->stride = (int*) malloc(sizeof(int) * 3);
@@ -311,7 +311,7 @@ meta_2d_face_indexed * make_slab2d_from_3d(int face, int ni, int nj, int nk,
 	return ret;
 }
 //FIXME: Left for compatibility, remove once dependencies are resolved
-meta_2d_face_indexed * make_face(int face, int ni, int nj, int nk) {
+meta_face * make_face(int face, int ni, int nj, int nk) {
 	return make_slab2d_from_3d(face, ni, nj, nk, 1);
 }
 
@@ -360,7 +360,7 @@ int main(int argc, char **argv) {
 	int i = argc;
 	int ni, nj, nk, tx, ty, tz, face_id, l_type;
 	a_bool async, autoconfig;
-	meta_2d_face_indexed * face_spec;
+	meta_face * face_spec;
 
 	a_dim3 dimgrid_red, dimblock_red, dimgrid_tr_red, dimarray_3d, arr_start,
 			arr_end, dim_array2d, start_2d, end_2d, trans_dim, rtrans_dim;
@@ -485,7 +485,7 @@ int main(int argc, char **argv) {
 		face_spec = make_face(face_id, ni, nj, nk);
 
 		gettimeofday(&start, NULL);
-		ret = meta_pack_2d_face(NULL, NULL, dev_face[face_id], dev_data3,
+		ret = meta_pack_face(NULL, NULL, dev_face[face_id], dev_data3,
 				face_spec, g_type, async);
 		gettimeofday(&end, NULL);
 		printf("Pack Return Val: %d\n", ret);
@@ -520,7 +520,7 @@ int main(int argc, char **argv) {
 								0)) ? "FAILED" : "PASSED");
 
 		gettimeofday(&start, NULL);
-		ret = meta_unpack_2d_face(NULL, NULL, dev_face[face_id], dev_data3,
+		ret = meta_unpack_face(NULL, NULL, dev_face[face_id], dev_data3,
 				face_spec, g_type, async);
 		gettimeofday(&end, NULL);
 		printf("unpack Return Val: %d\n", ret);
@@ -576,7 +576,7 @@ int main(int argc, char **argv) {
 		//check_dims(dimgrid_red, dimblock_red, trans_dim);
 		//TODO Figure out what's wrong with transpose and re-enable	
 		gettimeofday(&start, NULL);
-		ret = meta_transpose_2d_face(NULL, NULL, dev_face[face_id],
+		ret = meta_transpose_face(NULL, NULL, dev_face[face_id],
 				dev_face[(face_id & 1) ? face_id - 1 : face_id + 1], &trans_dim,
 				&trans_dim, g_type, async);
 		gettimeofday(&end, NULL);
@@ -618,7 +618,7 @@ int main(int argc, char **argv) {
 		//transpose the face back
 		//TODO figure out what's wrong with transpose and re-enable
 		gettimeofday(&start, NULL);
-		ret = meta_transpose_2d_face(NULL, NULL,
+		ret = meta_transpose_face(NULL, NULL,
 				dev_face[(face_id & 1) ? face_id - 1 : face_id + 1],
 				dev_face[face_id], &rtrans_dim, &rtrans_dim, g_type, async);
 		gettimeofday(&end, NULL);

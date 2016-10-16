@@ -634,8 +634,8 @@ int main(int argc, char **argv) {
 #ifdef KERNEL_TRANSPOSE
 	gettimeofday(&start, NULL);
 	for (iter = 0; iter < iters; iter++)
-		//ret = meta_transpose_2d_face(&dimgrid, &dimblock, dev_data3cp, dev_data3, &trans_2d, &trans_2d,  g_type, false);
-		ret = meta_transpose_2d_face(&dimgrid, &dimblock, dev_data3_2,
+		//ret = meta_transpose_face(&dimgrid, &dimblock, dev_data3cp, dev_data3, &trans_2d, &trans_2d,  g_type, false);
+		ret = meta_transpose_face(&dimgrid, &dimblock, dev_data3_2,
 				dev_data3, &trans_2d, &trans_2d, g_type, false);
 	gettimeofday(&end, NULL);
 	fprintf(stderr, "transpose Kernel Status: %d\n", ret);

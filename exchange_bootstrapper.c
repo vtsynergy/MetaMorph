@@ -269,10 +269,10 @@ int check_face_sum(void * sum, int a, int b, int c) {
 }
 
 //Workhorse for computing a 2.5D slab from 3D grid
-meta_2d_face_indexed * make_slab2d_from_3d(int face, int ni, int nj, int nk,
+meta_face * make_slab2d_from_3d(int face, int ni, int nj, int nk,
 		int thickness) {
-	meta_2d_face_indexed * ret = (meta_2d_face_indexed*) malloc(
-			sizeof(meta_2d_face_indexed));
+	meta_face * ret = (meta_face*) malloc(
+			sizeof(meta_face));
 	ret->count = 3;
 	ret->size = (int*) malloc(sizeof(int) * 3);
 	ret->stride = (int*) malloc(sizeof(int) * 3);
@@ -302,7 +302,7 @@ meta_2d_face_indexed * make_slab2d_from_3d(int face, int ni, int nj, int nk,
 	return ret;
 }
 //FIXME: Left for compatibility, remove once dependencies are resolved
-meta_2d_face_indexed * make_face(int face, int ni, int nj, int nk) {
+meta_face * make_face(int face, int ni, int nj, int nk) {
 	return make_slab2d_from_3d(face, ni, nj, nk, 1);
 }
 
@@ -356,7 +356,7 @@ int main(int argc, char **argv) {
 	int i = argc;
 	int ni, nj, nk, tx, ty, tz, face_id, l_type;
 	a_bool async, autoconfig;
-	meta_2d_face_indexed * face_spec;
+	meta_face * face_spec;
 
 	a_dim3 dimgrid_red, dimblock_red, dimgrid_tr_red, dimarray_3d, arr_start,
 			arr_end, dim_array2d, start_2d, end_2d, trans_dim, rtrans_dim;
@@ -476,7 +476,7 @@ int main(int argc, char **argv) {
 			//pack the face
 			//TODO set a_dim3 structs once the internal implementation respects them
 			face_spec = make_face(face_id, ni, nj, nk);
-			ret = meta_pack_2d_face(NULL, NULL, dev_face[face_id], dev_data3,
+			ret = meta_pack_face(NULL, NULL, dev_face[face_id], dev_data3,
 					face_spec, g_type, async);
 			printf("Pack Return Val: %d\n", ret);
 			//check_buffer(face[face_id], dev_face[face_id], face_spec->size[0]*face_spec->size[1]*face_spec->size[2]);
@@ -530,7 +530,7 @@ int main(int argc, char **argv) {
 			//printf("**********\n");
 			//check_dims(dimgrid_red, dimblock_red, trans_dim);
 			//TODO Figure out what's wrong with transpose and re-enable
-			ret = meta_transpose_2d_face(NULL, NULL, dev_face[face_id],
+			ret = meta_transpose_face(NULL, NULL, dev_face[face_id],
 					dev_face[(face_id & 1) ? face_id - 1 : face_id + 1],
 					&trans_dim, &trans_dim, g_type, async);
 			printf("Transpose error: %d\n", ret);
@@ -567,7 +567,7 @@ int main(int argc, char **argv) {
 
 			//transpose the face back
 			//TODO figure out what's wrong with transpose and re-enable
-			ret = meta_transpose_2d_face(autoconfig ? NULL : &dimgrid_red,
+			ret = meta_transpose_face(autoconfig ? NULL : &dimgrid_red,
 					autoconfig ? NULL : &dimblock_red,
 					dev_face[(face_id & 1) ? face_id - 1 : face_id + 1],
 					dev_face[face_id], &rtrans_dim, &rtrans_dim, g_type, async);
@@ -670,7 +670,7 @@ int main(int argc, char **argv) {
 			//receive the packed buf
 			//TODO fill in <buf_leng>
 			face_spec = make_face(face_id, ni, nj, nk);
-			meta_2d_face_indexed * opp_face = make_face(
+			meta_face * opp_face = make_face(
 					(face_id & 1 ? face_id - 1 : face_id + 1), ni, nj, nk);
 			//one of the faces should always be size = 1, since we're only taking a 1-deep subsection
 			// thus, the size of the recv buffer can be the product of all 3 elements
@@ -710,7 +710,7 @@ int main(int argc, char **argv) {
 
 			//unpack it, reduce/test the sum again
 			//TODO set a_dim3 structs - these should be fine until the lib respects user provided ones
-			ret = meta_unpack_2d_face(autoconfig ? NULL : &dimgrid_red,
+			ret = meta_unpack_face(autoconfig ? NULL : &dimgrid_red,
 					autoconfig ? NULL : &dimblock_red, dev_face[face_id],
 					dev_data3, face_spec, g_type, async);
 			printf("Unpack retval: %d\n", ret);

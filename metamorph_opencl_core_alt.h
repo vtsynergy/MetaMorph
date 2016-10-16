@@ -7,8 +7,9 @@
 #include <stdio.h>
 #include <string.h>
 
-#ifndef METAMORPH_OPENCL_CORE_H
-#define METAMORPH_OPENCL_CORE_H
+/** OpenCL Back-End: FPGA customization **/
+#ifndef METAMORPH_OPENCL_BACKEND_H
+#define METAMORPH_OPENCL_BACKEND_H
 
 #ifndef METAMORPH_H
 #include "metamorph.h"
@@ -48,7 +49,7 @@ extern "C" {
 
 //This is the exposed object for managing multiple OpenCL devices with the
 // library's built-in stack.
-//These frame objects are allocated and freed by the Init and Destroy calls, respectively
+//These frame objects are allocated and freed by the Init and Destroy calls, respectively.
 //All Stack operations (push, top and pop) make a copy of the frame's contents, therefore,
 // the frame itself is thread-private, and even if tampered with, cannot affect the thread
 // safety of the shared stack object.
@@ -187,9 +188,11 @@ cl_int metaOpenCLInitStackFrame(metaOpenCLStackFrame ** frame, cl_int device);
 //stop everything for a frame
 cl_int metaOpenCLDestroyStackFrame(metaOpenCLStackFrame * frame);
 
-cl_int metaOpenCLGetState(cl_platform_id * platform, cl_device_id * device,
+//share meta_context with with existing software
+//TODO: expose to the user
+cl_int metaOpenCL_get_state(cl_platform_id * platform, cl_device_id * device,
 		cl_context * context, cl_command_queue * queue);
-cl_int metaOpenCLSetState(cl_platform_id platform, cl_device_id device,
+cl_int metaOpenCL_set_state(cl_platform_id platform, cl_device_id device,
 		cl_context context, cl_command_queue queue);
 
 //support initialization of a default frame as well as environment variable
@@ -206,16 +209,16 @@ cl_int opencl_reduce(size_t (*grid_size)[3], size_t (*block_size)[3],
 		void * data, size_t (*array_size)[3], size_t (*arr_start)[3],
 		size_t (*arr_end)[3], void * reduced_val, meta_type_id type, int async,
 		cl_event * event);
-cl_int opencl_transpose_2d_face(size_t (*grid_size)[3], size_t (*block_size)[3],
+cl_int opencl_transpose_face(size_t (*grid_size)[3], size_t (*block_size)[3],
 		void *indata, void *outdata, size_t (*arr_dim_xy)[3],
 		size_t (*tran_dim_xy)[3], meta_type_id type, int async,
 		cl_event * event);
-cl_int opencl_pack_2d_face(size_t (*grid_size)[3], size_t (*block_size)[3],
-		void *packed_buf, void *buf, meta_2d_face_indexed *face,
+cl_int opencl_pack_face(size_t (*grid_size)[3], size_t (*block_size)[3],
+		void *packed_buf, void *buf, meta_face *face,
 		int *remain_dim, meta_type_id type, int async, cl_event * event_k1,
 		cl_event * event_c1, cl_event *event_c2, cl_event *event_c3);
-cl_int opencl_unpack_2d_face(size_t (*grid_size)[3], size_t (*block_size)[3],
-		void *packed_buf, void *buf, meta_2d_face_indexed *face,
+cl_int opencl_unpack_face(size_t (*grid_size)[3], size_t (*block_size)[3],
+		void *packed_buf, void *buf, meta_face *face,
 		int *remain_dim, meta_type_id type, int async, cl_event * event_k1,
 		cl_event * event_c1, cl_event *event_c2, cl_event *event_c3);
 cl_int opencl_stencil_3d7p(size_t (*grid_size)[3], size_t (*block_size)[3],
@@ -227,4 +230,4 @@ cl_int opencl_stencil_3d7p(size_t (*grid_size)[3], size_t (*block_size)[3],
 }
 #endif
 
-#endif //METAMORPH_OPENCL_CORE_H
+#endif //METAMORPH_OPENCL_BACKEND_H

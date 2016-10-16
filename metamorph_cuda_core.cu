@@ -1,5 +1,6 @@
 #include <stdio.h>
 
+/** CUDA Back-End **/
 #include "metamorph_cuda_core.cuh"
 
 // non-specialized class template
@@ -89,9 +90,9 @@ __device__ void block_reduction(T *psum, int tid, int len_) {
 	 __syncthreads();
 	 }*/
 }
+
 //TODO figure out how to use templates with the __X_as_Y intrinsics
 //Paul - Implementation of double atomicAdd from CUDA Programming Guide: Appendix B.12
-
 __device__ double atomicAdd(double* address, double val) {
 	unsigned long long int* address_as_ull = (unsigned long long int*) address;
 	unsigned long long int old = *address_as_ull, assumed;
@@ -417,7 +418,6 @@ __global__ void kernel_stencil_3d7p_v0(T *ind, T *outd,
 }
 
 template <typename T>
-
 //Read-only cache + Rigster blocking (Z)
 // work only with 2D thread blocks
 __global__ void kernel_stencil_3d7p_v1(const T * __restrict__ ind, T * __restrict__ outd,
@@ -455,7 +455,6 @@ __global__ void kernel_stencil_3d7p_v1(const T * __restrict__ ind, T * __restric
 }
 
 template <typename T>
-
 //Read-only cache + Rigster blocking (Z) + manual prefetch
 // work only with 2D thread blocks
 __global__ void kernel_stencil_3d7p_v2(const T * __restrict__ ind, T * __restrict__ outd,
@@ -735,7 +734,7 @@ cudaError_t cuda_reduce(size_t (*grid_size)[3], size_t (*block_size)[3],
 	return (ret);
 }
 
-cudaError_t cuda_transpose_2d_face(size_t (*grid_size)[3],
+cudaError_t cuda_transpose_face(size_t (*grid_size)[3],
 		size_t (*block_size)[3], void *indata, void *outdata,
 		size_t (*arr_dim_xy)[3], size_t (*tran_dim_xy)[3], meta_type_id type,
 		int async, cudaEvent_t ((*event)[2])) {
@@ -787,7 +786,7 @@ cudaError_t cuda_transpose_2d_face(size_t (*grid_size)[3],
 
 	default:
 		fprintf(stderr,
-				"Error: function 'cuda_transpose_2d_face' not implemented for selected type!\n");
+				"Error: function 'cuda_transpose_face' not implemented for selected type!\n");
 		break;
 	}
 	if (event != NULL) {
@@ -800,8 +799,8 @@ cudaError_t cuda_transpose_2d_face(size_t (*grid_size)[3],
 	return (ret);
 }
 
-cudaError_t cuda_pack_2d_face(size_t (*grid_size)[3], size_t (*block_size)[3],
-		void *packed_buf, void *buf, meta_2d_face_indexed *face,
+cudaError_t cuda_pack_face(size_t (*grid_size)[3], size_t (*block_size)[3],
+		void *packed_buf, void *buf, meta_face *face,
 		int *remain_dim, meta_type_id type, int async,
 		cudaEvent_t ((*event_k1)[2]), cudaEvent_t ((*event_c1)[2]),
 		cudaEvent_t ((*event_c2)[2]), cudaEvent_t ((*event_c3)[2])) {
@@ -890,7 +889,7 @@ cudaError_t cuda_pack_2d_face(size_t (*grid_size)[3], size_t (*block_size)[3],
 
 	default:
 		fprintf(stderr,
-				"Error: function 'cuda_pack_2d_face' not implemented for selected type!\n");
+				"Error: function 'cuda_pack_face' not implemented for selected type!\n");
 		break;
 	}
 	if (event_k1 != NULL) {
@@ -904,8 +903,8 @@ cudaError_t cuda_pack_2d_face(size_t (*grid_size)[3], size_t (*block_size)[3],
 
 }
 
-cudaError_t cuda_unpack_2d_face(size_t (*grid_size)[3], size_t (*block_size)[3],
-		void *packed_buf, void *buf, meta_2d_face_indexed *face,
+cudaError_t cuda_unpack_face(size_t (*grid_size)[3], size_t (*block_size)[3],
+		void *packed_buf, void *buf, meta_face *face,
 		int *remain_dim, meta_type_id type, int async,
 		cudaEvent_t ((*event_k1)[2]), cudaEvent_t ((*event_c1)[2]),
 		cudaEvent_t ((*event_c2)[2]), cudaEvent_t ((*event_c3)[2])) {
@@ -994,7 +993,7 @@ cudaError_t cuda_unpack_2d_face(size_t (*grid_size)[3], size_t (*block_size)[3],
 
 	default:
 		fprintf(stderr,
-				"Error: function 'cuda_unpack_2d_face' not implemented for selected type!\n");
+				"Error: function 'cuda_unpack_face' not implemented for selected type!\n");
 		break;
 	}
 	if (event_k1 != NULL) {

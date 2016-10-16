@@ -2,8 +2,8 @@
 
 metaTimerQueue metaBuiltinQueues[queue_count];
 
-//Take a copy of the frame and shove it on to the selected queue
-// Do nothing else with the frame, the caller should handle releasing it
+//Take a copy of the frame and insert it on to the selected queue.
+// Do nothing else with the frame, the caller should handle releasing it.
 a_err metaTimerEnqueue(metaTimerQueueFrame * frame, metaTimerQueue * queue) {
 	//allocate a new node - still in the thread-private allocated state
 	metaTimerQueueNode * newnode = (metaTimerQueueNode*) malloc(
@@ -17,7 +17,7 @@ a_err metaTimerEnqueue(metaTimerQueueFrame * frame, metaTimerQueue * queue) {
 	metaTimerQueueNode *t, *n;
 	while (1) {
 		t = queue->tail;
-		//Set a hazard pointer for tail, and check it
+		//Set a hazard pointer for tail, and check it.
 		if (queue->tail != t)
 			continue;
 		n = t->next;
@@ -313,5 +313,5 @@ a_err metaTimersFinish() {
 }
 
 //TODO expose a way for users to generate their own timer queues
-// Will likely require overloaded funciton headers for each call which
+// Will likely require overloaded function headers for each call which
 // take a queue list/count struct..

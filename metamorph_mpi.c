@@ -18,10 +18,13 @@ unsigned long internal_pool_token = 0;
 double internal_time = 0.0;
 #endif
 
-//Alloc never moves the token, this lets the ring queue "ratchet" forward
+//Alloc never moves the token, this lets the ring queue "ratchet" forward,
 // which has the beneficial property of releasing anything that's been sitting
-// in the pool for META_MPI_POOL_SIZE frees back to the OS
-//Additionally, this means the alloc token will always be on the oldest buffer (to avoid reallocing) but also be able to easily look back at the LOOKBACK-1 most recent buffers (to catch tight communication loops with heavy reuse of the same buffer)
+// in the pool for META_MPI_POOL_SIZE frees back to the OS.
+//Additionally, this means the alloc token will always be on the oldest buffer
+// (to avoid reallocating) but also be able to easily look back at the
+// LOOKBACK-1 most recent buffers (to catch tight communication loops with
+// heavy reuse of the same buffer).
 //NOT THREADSAFE
 void * pool_alloc(size_t size, int isHost) {
 	void * retval;
@@ -666,7 +669,7 @@ void sap_helper(request_record * sap_request) {
 
 //A wrapper that, provided a face, will pack it, then send it
 a_err meta_mpi_pack_and_send_face(a_dim3 *grid_size, a_dim3 *block_size,
-		int dst_rank, meta_2d_face_indexed * face, void * buf,
+		int dst_rank, meta_face * face, void * buf,
 		void * packed_buf, int tag, MPI_Request *req, meta_type_id type,
 		int async) {
 	//allocate space for a packed buffer
@@ -695,7 +698,7 @@ a_err meta_mpi_pack_and_send_face(a_dim3 *grid_size, a_dim3 *block_size,
 	if (run_mode == metaModePreferCUDA) {
 		//FIXME: add other data types
 		if(async) {
-			//TODO: Move this into a callback for meta_pack_2d_face_cb
+			//TODO: Move this into a callback for meta_pack_face_cb
 			meta_callback * call = (meta_callback*) pool_alloc(sizeof(meta_callback), 0);
 			call->cudaCallback = cuda_sap_isend_cb;
 			//Assemble the callback's necessary data elements
@@ -709,12 +712,12 @@ a_err meta_mpi_pack_and_send_face(a_dim3 *grid_size, a_dim3 *block_size,
 			call_pl->tag = tag;
 			call_pl->req = req;
 			//fprintf(stderr, "SAP Callback PL: %p %p %d %d %p\n", call_pl->host_packed_buf, call_pl->dev_packed_buf, call_pl->buf_leng, call_pl->tag, call_pl->req);
-			meta_pack_2d_face(grid_size, block_size, packed_buf, buf, face, type, 1);
+			meta_pack_face(grid_size, block_size, packed_buf, buf, face, type, 1);
 			meta_copy_d2h_cb(packed_buf_host, packed_buf, size*type_size, 1, call, call_pl);
 			//This was no longer valid after switching to host staging, as required by GPUDirect/CUDACallback interaction
-			//meta_pack_2d_face_cb(grid_size, block_size, packed_buf, buf, face, type, 1, call, call_pl);
+			//meta_pack_face_cb(grid_size, block_size, packed_buf, buf, face, type, 1, call, call_pl);
 		} else {
-			error |= meta_pack_2d_face(grid_size, block_size, packed_buf, buf, face, type, 0);
+			error |= meta_pack_face(grid_size, block_size, packed_buf, buf, face, type, 0);
 			MPI_Send(packed_buf, size, mpi_type, dst_rank, tag, MPI_COMM_WORLD);
 			//FIXME: remove associated async free
 			//meta_free(packed_buf);
@@ -726,7 +729,7 @@ a_err meta_mpi_pack_and_send_face(a_dim3 *grid_size, a_dim3 *block_size,
 
 	//DO all variants via copy to host
 	if (async) {
-		meta_pack_2d_face(grid_size, block_size, packed_buf, buf, face, type,
+		meta_pack_face(grid_size, block_size, packed_buf, buf, face, type,
 				1);
 		//Figure out whether to use CUDA or OpenCL callback
 		meta_callback * call = (meta_callback*) pool_alloc(
@@ -759,7 +762,7 @@ a_err meta_mpi_pack_and_send_face(a_dim3 *grid_size, a_dim3 *block_size,
 		meta_copy_d2h_cb(packed_buf_host, packed_buf, size * type_size, 1, call,
 				call_pl);
 	} else {
-		error |= meta_pack_2d_face(grid_size, block_size, packed_buf, buf, face,
+		error |= meta_pack_face(grid_size, block_size, packed_buf, buf, face,
 				type, 0);
 		error |= meta_copy_d2h(packed_buf_host, packed_buf, size * type_size,
 				0);
@@ -830,7 +833,7 @@ void rap_helper(request_record *rap_request) {
 	}
 	call_pl->packed_buf = rap_request->rap_rec.dev_packed_buf;
 	//check that the "NULL grid/block" flags aren't set with ternaries
-	meta_unpack_2d_face_cb(
+	meta_unpack_face_cb(
 			(rap_request->rap_rec.grid_size[0] == 0 ?
 					NULL : &(rap_request->rap_rec.grid_size)),
 			(rap_request->rap_rec.block_size[0] == 0 ?
@@ -842,7 +845,7 @@ void rap_helper(request_record *rap_request) {
 
 //A wrapper that, provided a face, will receive a buffer, and unpack it
 a_err meta_mpi_recv_and_unpack_face(a_dim3 * grid_size, a_dim3 * block_size,
-		int src_rank, meta_2d_face_indexed * face, void * buf,
+		int src_rank, meta_face * face, void * buf,
 		void * packed_buf, int tag, MPI_Request * req, meta_type_id type,
 		int async) {
 	//allocate space to receive the packed buffer
@@ -971,7 +974,7 @@ a_err meta_mpi_recv_and_unpack_face(a_dim3 * grid_size, a_dim3 * block_size,
 		//free the host temp buffer
 		pool_free(packed_buf_host, size * type_size, 1);
 		//Unpack on the device
-		error |= meta_unpack_2d_face(grid_size, block_size, packed_buf, buf,
+		error |= meta_unpack_face(grid_size, block_size, packed_buf, buf,
 				face, type, 0);
 		//free the device temp buffer
 		//FIXME: remove async frees

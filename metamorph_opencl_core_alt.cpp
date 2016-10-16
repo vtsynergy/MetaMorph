@@ -1,3 +1,4 @@
+/** OpenCL Back-End: FPGA customization **/
 #include "metamorph_opencl_core_alt.h"
 
 extern cl_context meta_context;
@@ -20,7 +21,8 @@ metaOpenCLStackNode * CLStack = NULL;
 const char *metaCLProgSrc;
 size_t metaCLProgLen;
 
-//Returns the first id in the device array of the desired device, or -1 if no such device is present
+//Returns the first id in the device array of the desired device,
+// or -1 if no such device is present.
 int metaOpenCLGetDeviceID(char * desired, cl_device_id * devices,
 		int numDevices) {
 	char buff[128];
@@ -34,8 +36,8 @@ int metaOpenCLGetDeviceID(char * desired, cl_device_id * devices,
 	return -1;
 }
 
-//Basic one-time scan of all platforms for all devices
-//This is not threadsafe, and I'm not sure we'll ever make it safe
+//Basic one-time scan of all platforms for all devices.
+//This is not threadsafe, and I'm not sure we'll ever make it safe.
 //If we need to though, it would likely be sufficient to CAS the num_platforms int or platforms pointer
 // first to a hazard flag (like -1) to claim it, then to the actual pointer.
 void metaOpenCLQueryDevices() {
@@ -602,7 +604,7 @@ metaOpenCLStackFrame * metaOpenCLPopStackFrame() {
 	return (frame);
 }
 
-cl_int metaOpenCLGetState(cl_platform_id * platform, cl_device_id * device,
+cl_int metaOpenCL_get_state(cl_platform_id * platform, cl_device_id * device,
 		cl_context * context, cl_command_queue * queue) {
 	metaOpenCLStackFrame * frame = metaOpenCLTopStackFrame();
 	if (platform != NULL)
@@ -615,12 +617,12 @@ cl_int metaOpenCLGetState(cl_platform_id * platform, cl_device_id * device,
 		*queue = frame->queue;
 }
 
-cl_int metaOpenCLSetState(cl_platform_id platform, cl_device_id device,
+cl_int metaOpenCL_set_state(cl_platform_id platform, cl_device_id device,
 		cl_context context, cl_command_queue queue) {
 	if (platform == NULL || device == NULL || context == NULL
 			|| queue == NULL) {
 		fprintf(stderr,
-				"Error: metaOpenCLSetState requires a full frame specification!\n");
+				"Error: metaOpenCL_set_state requires a full frame specification!\n");
 		return -1;
 	}
 	//Make a frame
@@ -675,10 +677,8 @@ cl_int metaOpenCLInitStackFrame(metaOpenCLStackFrame ** frame, cl_int device) {
 		return metaOpenCLInitStackFrameDefault(frame);
 
 	*frame = (metaOpenCLStackFrame *) malloc(sizeof(metaOpenCLStackFrame));
-
-	//TODO use the device array to do reverse lookup to figure out which platform to attach to the frame
-	//TODO retrofit to take an integer parameter indexing into the device array
-	//TODO ensure the device array has been initialized by somebody (even if I have to do it) before executing this blook
+	//TODO use the device array to do reverse lookup to figure out which platform to attach to the frame.
+	//TODO ensure the device array has been initialized by somebody (even if I have to do it) before executing this block
 	//TODO implement an intelligent catch for if the device number is out of range
 
 	//copy the chosen device from the array to the new frame
@@ -1155,7 +1155,7 @@ cl_int opencl_reduce(size_t (*grid_size)[3], size_t (*block_size)[3],
 	return (ret);
 }
 
-cl_int opencl_transpose_2d_face(size_t (*grid_size)[3], size_t (*block_size)[3],
+cl_int opencl_transpose_face(size_t (*grid_size)[3], size_t (*block_size)[3],
 		void * indata, void *outdata, size_t (*arr_dim_xy)[3],
 		size_t (*tran_dim_xy)[3], meta_type_id type, int async,
 		cl_event * event) {
@@ -1218,7 +1218,7 @@ cl_int opencl_transpose_2d_face(size_t (*grid_size)[3], size_t (*block_size)[3],
 #endif //FPGA_UNSIGNED_INTEGER 
 	default:
 		fprintf(stderr,
-				"Error: Function 'opencl_transpose_2d_face' not implemented for selected type!\n");
+				"Error: Function 'opencl_transpose_face' not implemented for selected type!\n");
 		return -1;
 		break;
 
@@ -1254,7 +1254,7 @@ cl_int opencl_transpose_2d_face(size_t (*grid_size)[3], size_t (*block_size)[3],
 		//Shouldn't be reachable, but cover our bases
 	default:
 		fprintf(stderr,
-				"Error: unexpected type, cannot set shared memory size in 'opencl_transpose_2d_face'!\n");
+				"Error: unexpected type, cannot set shared memory size in 'opencl_transpose_face'!\n");
 	}
 	ret |= clEnqueueNDRangeKernel(frame->queue, kern, 2, NULL, grid, block, 0,
 			NULL, event);
@@ -1268,8 +1268,8 @@ cl_int opencl_transpose_2d_face(size_t (*grid_size)[3], size_t (*block_size)[3],
 	return (ret);
 }
 
-cl_int opencl_pack_2d_face(size_t (*grid_size)[3], size_t (*block_size)[3],
-		void *packed_buf, void *buf, meta_2d_face_indexed *face,
+cl_int opencl_pack_face(size_t (*grid_size)[3], size_t (*block_size)[3],
+		void *packed_buf, void *buf, meta_face *face,
 		int *remain_dim, meta_type_id type, int async, cl_event * event_k1,
 		cl_event * event_c1, cl_event *event_c2, cl_event *event_c3) {
 	cl_int ret;
@@ -1347,7 +1347,7 @@ cl_int opencl_pack_2d_face(size_t (*grid_size)[3], size_t (*block_size)[3],
 
 	default:
 		fprintf(stderr,
-				"Error: Function 'opencl_pack_2d_face' not implemented for selected type!\n");
+				"Error: Function 'opencl_pack_face' not implemented for selected type!\n");
 		return -1;
 		break;
 
@@ -1385,8 +1385,8 @@ cl_int opencl_pack_2d_face(size_t (*grid_size)[3], size_t (*block_size)[3],
 	return (ret);
 }
 
-cl_int opencl_unpack_2d_face(size_t (*grid_size)[3], size_t (*block_size)[3],
-		void *packed_buf, void *buf, meta_2d_face_indexed *face,
+cl_int opencl_unpack_face(size_t (*grid_size)[3], size_t (*block_size)[3],
+		void *packed_buf, void *buf, meta_face *face,
 		int *remain_dim, meta_type_id type, int async, cl_event * event_k1,
 		cl_event * event_c1, cl_event *event_c2, cl_event *event_c3) {
 
@@ -1465,7 +1465,7 @@ cl_int opencl_unpack_2d_face(size_t (*grid_size)[3], size_t (*block_size)[3],
 #endif //FPGA_UNSIGNED_INTEGER 
 	default:
 		fprintf(stderr,
-				"Error: Function 'opencl_unpack_2d_face' not implemented for selected type!\n");
+				"Error: Function 'opencl_unpack_face' not implemented for selected type!\n");
 		return -1;
 		break;
 

@@ -1,8 +1,10 @@
 /*
- * Exclusively for the core mechanics of timer imlementationts
+ * Exclusively for the core mechanics of timer implementations
  * None of this file should be active at all if WITH_TIMERS is not defined
  * i.e. it should only be #included in a conditional-compile block
  */
+
+/** The top-level user APIs **/
 #ifndef METAMORPH_TIMERS_H
 #define METAMORPH_TIMERS_H
 
@@ -22,6 +24,9 @@
 #ifdef WITH_OPENMP
 #endif
 
+//CUDA needs 2 events to use cudaEventElapsedTime
+//OpenCL only needs one, if using the event returned from an API call
+//OpenMP needs 2 to keep start/end time
 typedef union metaTimerEvent {
 #ifdef WITH_CUDA
 	cudaEvent_t cuda[2];
@@ -35,11 +40,7 @@ typedef union metaTimerEvent {
 } metaTimerEvent;
 
 typedef struct metaTimerQueueFrame {
-//CUDA needs 2 events to use cudaEventElapsedTime
-//OpenCL only needs one, if using the event returned from an API call
-//OpenMP will either need 1 or 2, depending on if we keep start/end or just elapsed
 	metaTimerEvent event;
-//size_t size[6];
 //Hijack meta_preferred_mode enum to advise the user of the frame/node how to interpret event
 	meta_preferred_mode mode;
 	size_t size;
@@ -49,11 +50,7 @@ typedef struct metaTimerQueueFrame {
 //TODO refactor code to use a frame internally, so that the frame can be changed
 // without having to modify the QueueNode to match
 typedef struct metaTimerQueueNode {
-//CUDA needs 2 events to use cudaEventElapsedTime
-//OpenCL only needs one, if using the event returned from an API call
-//OpenMP will either need 1 or 2, depending on if we keep start/end or just elapsed
 	metaTimerEvent event;
-//size_t size[6];
 //Hijack meta_preferred_mode enum to advise the user of the frame/node how to interpret event
 	meta_preferred_mode mode;
 	size_t size;
@@ -65,11 +62,13 @@ typedef struct metaTimerQueue {
 	metaTimerQueueNode * head, *tail;
 } metaTimerQueue;
 
-//A convenience structure to tie logically-named queues to possibly-changing indicies in the Queue array
-// This way we can add a new type of timer (for a kernel or copy or whatever) and potentially change indicies without needing to change a bunch of hardcoded constants.
-
+//A convenience structure to tie logically-named queues to possibly-changing
+// indices in the Queue array. This way we can add a new type of timer
+// (for a kernel or copy or whatever) and potentially change indices without
+// needing to change a bunch of hardcoded constants.
 enum metaTimerQueueEnum {
-	c_D2H, c_H2D, c_H2H, c_D2D, c_H2Dc, //Host to Device copies into __constant memory (cudaMemcpyToSymbol and CL_MEM_READ_ONLY)
+	//Host to Device copies into __constant memory (cudaMemcpyToSymbol and CL_MEM_READ_ONLY)
+	c_D2H, c_H2D, c_H2H, c_D2D, c_H2Dc,
 	k_reduce,
 	k_dotProd,
 	k_transpose_2d_face,

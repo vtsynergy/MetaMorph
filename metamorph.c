@@ -2,13 +2,13 @@
  * The workhorse pass-through of the library. This file implements
  *  control over which modes are compiled in, and generic wrappers
  *  for all functions which must be passed through to a specific
- *  mode's backend "core" implementation.
+ *  mode's backend implementation.
  *
  * Should support targeting a specific class of device, a
  *  specific accelerator model (CUDA/OpenCL/OpenMP/...), and
  *  "choose best", which would be similar to Tom's CoreTSAR.
  *
- * For now, Generic, CUDA, and OpenCL are supported.
+ * For now, Generic, OpenMP, CUDA, and OpenCL are supported.
  * Generic simply uses environment variable "METAMORPH_MODE" to select
  *  a mode at runtime.
  * OpenCL mode also supports selecting the "-1st" device, which
@@ -45,7 +45,8 @@ void metaOpenCLFallBack() {
 	meta_queue = frame->queue;
 	meta_device = frame->device;
 	metaOpenCLPushStackFrame(frame);
-	free(frame); //This is safe, it's just a copy of what should now be the bottom of the stack
+	free(frame); //This is safe, it's just a copy of what should now be
+				 // the bottom of the stack
 }
 #endif
 
@@ -81,7 +82,7 @@ size_t get_atype_size(meta_type_id type) {
 }
 
 //TODO - Validate attempted allocation sizes against maximum supported by the device
-// particularly for OpenCL (AMD 7970 doesn't support 512 512 512 reduce size
+// particularly for OpenCL (AMD 7970 doesn't support 512 512 512 grid size)
 a_err meta_alloc(void ** ptr, size_t size) {
 	//TODO: should always set ret to a value
 	a_err ret;
@@ -121,7 +122,7 @@ a_err meta_alloc(void ** ptr, size_t size) {
 }
 
 //TODO implement a way for this to trigger destroying an OpenCL stack frame
-// iff all cl_mems in the frame's context, as well as the frame members themselves
+// if all cl_mems in the frame's context, as well as the frame members themselves
 // have been released.
 a_err meta_free(void * ptr) {
 	//TODO: should always set ret to a value
@@ -221,12 +222,17 @@ a_err meta_copy_h2d_cb(void * dst, void * src, size_t size, a_bool async,
 #ifdef WITH_OPENMP
 		case metaModePreferOpenMP:
 #ifdef WITH_TIMERS
-		frame->event.openmp[0]= omp_get_wtime();
+		{	struct timeval start, end;
+			gettimeofday(&start, NULL);
+			//		frame->event.openmp[0]= omp_get_wtime();
 #endif
 		memcpy(dst, src, size);
 		ret = 0;
 #ifdef WITH_TIMERS
-		frame->event.openmp[1]= omp_get_wtime();
+		gettimeofday(&end, NULL);
+		frame->event.openmp[0] = (start.tv_usec*0.000001)+start.tv_sec;
+		frame->event.openmp[1] = (end.tv_usec*0.000001)+end.tv_sec;}
+	//		frame->event.openmp[1]= omp_get_wtime();
 #endif
 		break;
 #endif
@@ -299,12 +305,17 @@ a_err meta_copy_d2h_cb(void * dst, void * src, size_t size, a_bool async,
 #ifdef WITH_OPENMP
 		case metaModePreferOpenMP:
 #ifdef WITH_TIMERS
-		frame->event.openmp[0]= omp_get_wtime();
+		{	struct timeval start, end;
+			gettimeofday(&start, NULL);
+			//		frame->event.openmp[0]= omp_get_wtime();
 #endif
 		memcpy(dst, src, size);
 		ret = 0;
 #ifdef WITH_TIMERS
-		frame->event.openmp[1]= omp_get_wtime();
+		gettimeofday(&end, NULL);
+		frame->event.openmp[0] = (start.tv_usec*0.000001)+start.tv_sec;
+		frame->event.openmp[1] = (end.tv_usec*0.000001)+end.tv_sec;}
+	//		frame->event.openmp[1]= omp_get_wtime();
 #endif
 		break;
 #endif
@@ -402,7 +413,7 @@ a_err meta_copy_d2d_cb(void * dst, void * src, size_t size, a_bool async,
 }
 
 //In CUDA choosing an accelerator is optional, make sure the OpenCL version
-// implements some reasonable default iff choose_accel is not called before the
+// implements some reasonable default if choose_accel is not called before the
 // first OpenCL command
 //TODO make this compatible with OpenCL initialization
 //TODO unpack OpenCL platform from the uint's high short, and the device from the low short
@@ -922,11 +933,16 @@ a_err meta_reduce_cb(a_dim3 * grid_size, a_dim3 * block_size, void * data,
 #ifdef WITH_OPENMP
 		case metaModePreferOpenMP:
 #ifdef WITH_TIMERS
-		frame->event.openmp[0]= omp_get_wtime();
+		{	struct timeval start, end;
+			gettimeofday(&start, NULL);
+			//		frame->event.openmp[0]= omp_get_wtime();
 #endif
 		ret = omp_reduce(grid_size, block_size, data, array_size, array_start, array_end, reduction_var, type, async);
 #ifdef WITH_TIMERS
-		frame->event.openmp[1]= omp_get_wtime();
+		gettimeofday(&end, NULL);
+		frame->event.openmp[0] = (start.tv_usec*0.000001)+start.tv_sec;
+		frame->event.openmp[1] = (end.tv_usec*0.000001)+end.tv_sec;}
+	//		frame->event.openmp[1]= omp_get_wtime();
 #endif
 		break;
 #endif
@@ -937,10 +953,10 @@ a_err meta_reduce_cb(a_dim3 * grid_size, a_dim3 * block_size, void * data,
 	return (ret);
 }
 
-meta_2d_face_indexed * meta_get_face_index(int s, int c, int *si, int *st) {
+meta_face * meta_get_face(int s, int c, int *si, int *st) {
 	//Unlike Kaixi's, we return a pointer copy, to ease Fortran implementation
-	meta_2d_face_indexed * face = (meta_2d_face_indexed*) malloc(
-			sizeof(meta_2d_face_indexed));
+	meta_face * face = (meta_face*) malloc(
+			sizeof(meta_face));
 	//We create our own copy of size and stride arrays to prevent
 	// issues if the user unexpectedly reuses or frees the original pointer
 	size_t sz = sizeof(int) * c;
@@ -953,24 +969,25 @@ meta_2d_face_indexed * meta_get_face_index(int s, int c, int *si, int *st) {
 	face->count = c;
 }
 
-//Simple deallocator for an meta_2d_face_indexed type
+//Simple deallocator for an meta_face type
 // Assumes face, face->size, and ->stride are unfreed
 //This is the only way a user should release a face returned
 // from meta_get_face_index, and should not be used
 // if the face was assembled by hand.
-int meta_free_face_index(meta_2d_face_indexed * face) {
+int meta_free_face(meta_face * face) {
 	free(face->size);
 	free(face->stride);
 	free(face);
 }
 
-a_err meta_transpose_2d_face(a_dim3 * grid_size, a_dim3 * block_size,
+//Workhorse for both sync and async transpose
+a_err meta_transpose_face(a_dim3 * grid_size, a_dim3 * block_size,
 		void *indata, void *outdata, a_dim3 * arr_dim_xy, a_dim3 * tran_dim_xy,
 		meta_type_id type, a_bool async) {
-	return meta_transpose_2d_face_cb(grid_size, block_size, indata, outdata,
+	return meta_transpose_face_cb(grid_size, block_size, indata, outdata,
 			arr_dim_xy, tran_dim_xy, type, async, (meta_callback*) NULL, NULL);
 }
-a_err meta_transpose_2d_face_cb(a_dim3 * grid_size, a_dim3 * block_size,
+a_err meta_transpose_face_cb(a_dim3 * grid_size, a_dim3 * block_size,
 		void *indata, void *outdata, a_dim3 * arr_dim_xy, a_dim3 * tran_dim_xy,
 		meta_type_id type, a_bool async, meta_callback *call, void *call_pl) {
 	a_err ret;
@@ -978,7 +995,7 @@ a_err meta_transpose_2d_face_cb(a_dim3 * grid_size, a_dim3 * block_size,
 	//Before we do anything, sanity check that trans_dim_xy fits inside arr_dim_xy
 	if (arr_dim_xy == NULL || tran_dim_xy == NULL) {
 		fprintf(stderr,
-				"ERROR in meta_transpose_2d_face: arr_dim_xy=[%p] or tran_dim_xy=[%p] is NULL!\n",
+				"ERROR in meta_transpose_face: arr_dim_xy=[%p] or tran_dim_xy=[%p] is NULL!\n",
 				arr_dim_xy, tran_dim_xy);
 		return -1;
 	}
@@ -986,13 +1003,13 @@ a_err meta_transpose_2d_face_cb(a_dim3 * grid_size, a_dim3 * block_size,
 	for (i = 0; i < 2; i++) {
 		if ((*arr_dim_xy)[i] < 1 || (*tran_dim_xy)[i] < 1) {
 			fprintf(stderr,
-					"ERROR in meta_transpose_2d_face: arr_dim_xy[%d]=[%ld] and tran_dim_xy[%d]=[%ld] must be >=1!\n",
+					"ERROR in meta_transpose_face: arr_dim_xy[%d]=[%ld] and tran_dim_xy[%d]=[%ld] must be >=1!\n",
 					i, (*arr_dim_xy)[i], i, (*tran_dim_xy)[i]);
 			return -1;
 		}
 		if ((*arr_dim_xy)[i] < (*tran_dim_xy)[i]) {
 			fprintf(stderr,
-					"ERROR in meta_transpose_2d_face: tran_dim_xy[%d]=[%ld] must be <= arr_dim_xy[%d]=[%ld]!\n",
+					"ERROR in meta_transpose_face: tran_dim_xy[%d]=[%ld] must be <= arr_dim_xy[%d]=[%ld]!\n",
 					i, (*tran_dim_xy)[i], i, (*arr_dim_xy)[i]);
 			return -1;
 		}
@@ -1012,9 +1029,9 @@ a_err meta_transpose_2d_face_cb(a_dim3 * grid_size, a_dim3 * block_size,
 #ifdef WITH_CUDA
 		case metaModePreferCUDA: {
 #ifdef WITH_TIMERS
-			ret = (a_err) cuda_transpose_2d_face(grid_size, block_size, indata, outdata, arr_dim_xy, tran_dim_xy, type, async, &(frame->event.cuda));
+			ret = (a_err) cuda_transpose_face(grid_size, block_size, indata, outdata, arr_dim_xy, tran_dim_xy, type, async, &(frame->event.cuda));
 #else
-			ret = (a_err) cuda_transpose_2d_face(grid_size, block_size, indata, outdata, arr_dim_xy, tran_dim_xy, type, async, NULL);
+			ret = (a_err) cuda_transpose_face(grid_size, block_size, indata, outdata, arr_dim_xy, tran_dim_xy, type, async, NULL);
 #endif
 			//If a callback is provided, register it immediately after returning from enqueuing the kernel
 			if ((void*)call != NULL && call_pl != NULL) cudaStreamAddCallback(0, call->cudaCallback, call_pl, 0);
@@ -1027,13 +1044,13 @@ a_err meta_transpose_2d_face_cb(a_dim3 * grid_size, a_dim3 * block_size,
 		//Make sure some context exists..
 		if (meta_context == NULL) metaOpenCLFallBack();
 #ifdef WITH_TIMERS
-		ret = (a_err) opencl_transpose_2d_face(grid_size, block_size, indata, outdata, arr_dim_xy, tran_dim_xy, type, async, &(frame->event.opencl));
+		ret = (a_err) opencl_transpose_face(grid_size, block_size, indata, outdata, arr_dim_xy, tran_dim_xy, type, async, &(frame->event.opencl));
 		//If timers exist, use their event to add the callback
 		if ((void*)call != NULL && call_pl != NULL) clSetEventCallback(frame->event.opencl, CL_COMPLETE, call->openclCallback, call_pl);
 #else
 		//If timers don't exist, get the event via a locally-scoped event to add to the callback
 		cl_event cb_event;
-		ret = (a_err) opencl_transpose_2d_face(grid_size, block_size, indata, outdata, arr_dim_xy, tran_dim_xy, type, async, &cb_event);
+		ret = (a_err) opencl_transpose_face(grid_size, block_size, indata, outdata, arr_dim_xy, tran_dim_xy, type, async, &cb_event);
 		if ((void*)call != NULL && call_pl != NULL) clSetEventCallback(cb_event, CL_COMPLETE, call->openclCallback, call_pl);
 #endif
 		break;
@@ -1042,11 +1059,16 @@ a_err meta_transpose_2d_face_cb(a_dim3 * grid_size, a_dim3 * block_size,
 #ifdef WITH_OPENMP
 		case metaModePreferOpenMP:
 #ifdef WITH_TIMERS
-		frame->event.openmp[0]= omp_get_wtime();
+		{	struct timeval start, end;
+			gettimeofday(&start, NULL);
+			//		frame->event.openmp[0]= omp_get_wtime();
 #endif
-		ret = omp_transpose_2d_face(grid_size, block_size, indata, outdata, arr_dim_xy, tran_dim_xy, type, async);
+		ret = omp_transpose_face(grid_size, block_size, indata, outdata, arr_dim_xy, tran_dim_xy, type, async);
 #ifdef WITH_TIMERS
-		frame->event.openmp[1]= omp_get_wtime();
+		gettimeofday(&end, NULL);
+		frame->event.openmp[0] = (start.tv_usec*0.000001)+start.tv_sec;
+		frame->event.openmp[1] = (end.tv_usec*0.000001)+end.tv_sec;}
+	//		frame->event.openmp[1]= omp_get_wtime();
 #endif
 		break;
 
@@ -1057,26 +1079,28 @@ a_err meta_transpose_2d_face_cb(a_dim3 * grid_size, a_dim3 * block_size,
 #endif
 	return (ret);
 }
-a_err meta_pack_2d_face(a_dim3 * grid_size, a_dim3 * block_size,
-		void *packed_buf, void *buf, meta_2d_face_indexed *face,
+
+//Workhorse for both sync and async pack
+a_err meta_pack_face(a_dim3 * grid_size, a_dim3 * block_size,
+		void *packed_buf, void *buf, meta_face *face,
 		meta_type_id type, a_bool async) {
-	return meta_pack_2d_face_cb(grid_size, block_size, packed_buf, buf, face,
+	return meta_pack_face_cb(grid_size, block_size, packed_buf, buf, face,
 			type, async, (meta_callback*) NULL, NULL);
 }
-a_err meta_pack_2d_face_cb(a_dim3 * grid_size, a_dim3 * block_size,
-		void *packed_buf, void *buf, meta_2d_face_indexed *face,
+a_err meta_pack_face_cb(a_dim3 * grid_size, a_dim3 * block_size,
+		void *packed_buf, void *buf, meta_face *face,
 		meta_type_id type, a_bool async, meta_callback *call, void *call_pl) {
 	a_err ret;
 	//FIXME? Consider adding a compiler flag "UNCHECKED_EXPLICIT" to streamline out sanity checks like this
 	//Before we do anything, sanity check that the face is set up
 	if (face == NULL) {
-		fprintf(stderr, "ERROR in meta_pack_2d_face: face=[%p] is NULL!\n",
+		fprintf(stderr, "ERROR in meta_pack_face: face=[%p] is NULL!\n",
 				face);
 		return -1;
 	}
 	if (face->size == NULL || face->stride == NULL) {
 		fprintf(stderr,
-				"ERROR in meta_pack_2d_face: face->size=[%p] or face->stride=[%p] is NULL!\n",
+				"ERROR in meta_pack_face: face->size=[%p] or face->stride=[%p] is NULL!\n",
 				face->size, face->stride);
 		return -1;
 	}
@@ -1128,9 +1152,9 @@ a_err meta_pack_2d_face_cb(a_dim3 * grid_size, a_dim3 * block_size,
 #ifdef WITH_CUDA
 		case metaModePreferCUDA: {
 #ifdef WITH_TIMERS
-			ret = (a_err) cuda_pack_2d_face(grid_size, block_size, packed_buf, buf, face, remain_dim, type, async, &(frame_k1->event.cuda), &(frame_c1->event.cuda), &(frame_c2->event.cuda), &(frame_c3->event.cuda));
+			ret = (a_err) cuda_pack_face(grid_size, block_size, packed_buf, buf, face, remain_dim, type, async, &(frame_k1->event.cuda), &(frame_c1->event.cuda), &(frame_c2->event.cuda), &(frame_c3->event.cuda));
 #else
-			ret = (a_err) cuda_pack_2d_face(grid_size, block_size, packed_buf, buf, face, remain_dim, type, async, NULL, NULL, NULL, NULL);
+			ret = (a_err) cuda_pack_face(grid_size, block_size, packed_buf, buf, face, remain_dim, type, async, NULL, NULL, NULL, NULL);
 #endif
 			//If a callback is provided, register it immediately after returning from enqueuing the kernel
 			if ((void*)call != NULL && call_pl != NULL) cudaStreamAddCallback(0, call->cudaCallback, call_pl, 0);
@@ -1143,13 +1167,13 @@ a_err meta_pack_2d_face_cb(a_dim3 * grid_size, a_dim3 * block_size,
 		//Make sure some context exists..
 		if (meta_context == NULL) metaOpenCLFallBack();
 #ifdef WITH_TIMERS
-		ret = (a_err) opencl_pack_2d_face(grid_size, block_size, packed_buf, buf, face, remain_dim, type, async, &(frame_k1->event.opencl), &(frame_c1->event.opencl), &(frame_c2->event.opencl), &(frame_c3->event.opencl));
+		ret = (a_err) opencl_pack_face(grid_size, block_size, packed_buf, buf, face, remain_dim, type, async, &(frame_k1->event.opencl), &(frame_c1->event.opencl), &(frame_c2->event.opencl), &(frame_c3->event.opencl));
 		//If timers exist, use their event to add the callback
 		if ((void*)call != NULL && call_pl != NULL) clSetEventCallback(frame_k1->event.opencl, CL_COMPLETE, call->openclCallback, call_pl);
 #else
 		//If timers don't exist, get the event via a locally-scoped event to add to the callback
 		cl_event cb_event;
-		ret = (a_err) opencl_pack_2d_face(grid_size, block_size, packed_buf, buf, face, remain_dim, type, async, &cb_event, NULL, NULL, NULL);
+		ret = (a_err) opencl_pack_face(grid_size, block_size, packed_buf, buf, face, remain_dim, type, async, &cb_event, NULL, NULL, NULL);
 		if ((void*)call != NULL && call_pl != NULL) clSetEventCallback(cb_event, CL_COMPLETE, call->openclCallback, call_pl);
 #endif
 		break;
@@ -1158,11 +1182,16 @@ a_err meta_pack_2d_face_cb(a_dim3 * grid_size, a_dim3 * block_size,
 #ifdef WITH_OPENMP
 		case metaModePreferOpenMP:
 #ifdef WITH_TIMERS
-		frame_k1->event.openmp[0]= omp_get_wtime();
+		{	struct timeval start, end;
+			gettimeofday(&start, NULL);
+			//		frame_k1->event.openmp[0]= omp_get_wtime();
 #endif
-		ret = omp_pack_2d_face(grid_size, block_size, packed_buf, buf, face, remain_dim, type, async);
+		ret = omp_pack_face(grid_size, block_size, packed_buf, buf, face, remain_dim, type, async);
 #ifdef WITH_TIMERS
-		frame_k1->event.openmp[1]= omp_get_wtime();
+		gettimeofday(&end, NULL);
+		frame_k1->event.openmp[0] = (start.tv_usec*0.000001)+start.tv_sec;
+		frame_k1->event.openmp[1] = (end.tv_usec*0.000001)+end.tv_sec;}
+	//		frame_k1->event.openmp[1]= omp_get_wtime();
 		frame_c1->event.openmp[0] = 0.0;
 		frame_c1->event.openmp[1] = 0.0;
 		frame_c2->event.openmp[0] = 0.0;
@@ -1183,27 +1212,28 @@ a_err meta_pack_2d_face_cb(a_dim3 * grid_size, a_dim3 * block_size,
 	return (ret);
 }
 
+//Workhorse for both sync and async unpack
 //TODO fix frame->size to reflect face size
-a_err meta_unpack_2d_face(a_dim3 * grid_size, a_dim3 * block_size,
-		void *packed_buf, void *buf, meta_2d_face_indexed *face,
+a_err meta_unpack_face(a_dim3 * grid_size, a_dim3 * block_size,
+		void *packed_buf, void *buf, meta_face *face,
 		meta_type_id type, a_bool async) {
-	return meta_unpack_2d_face_cb(grid_size, block_size, packed_buf, buf, face,
+	return meta_unpack_face_cb(grid_size, block_size, packed_buf, buf, face,
 			type, async, (meta_callback*) NULL, NULL);
 }
-a_err meta_unpack_2d_face_cb(a_dim3 * grid_size, a_dim3 * block_size,
-		void *packed_buf, void *buf, meta_2d_face_indexed *face,
+a_err meta_unpack_face_cb(a_dim3 * grid_size, a_dim3 * block_size,
+		void *packed_buf, void *buf, meta_face *face,
 		meta_type_id type, a_bool async, meta_callback *call, void *call_pl) {
 	a_err ret;
 	//FIXME? Consider adding a compiler flag "UNCHECKED_EXPLICIT" to streamline out sanity checks like this
 	//Before we do anything, sanity check that the face is set up
 	if (face == NULL) {
-		fprintf(stderr, "ERROR in meta_unpack_2d_face: face=[%p] is NULL!\n",
+		fprintf(stderr, "ERROR in meta_unpack_face: face=[%p] is NULL!\n",
 				face);
 		return -1;
 	}
 	if (face->size == NULL || face->stride == NULL) {
 		fprintf(stderr,
-				"ERROR in meta_unpack_2d_face: face->size=[%p] or face->stride=[%p] is NULL!\n",
+				"ERROR in meta_unpack_face: face->size=[%p] or face->stride=[%p] is NULL!\n",
 				face->size, face->stride);
 		return -1;
 	}
@@ -1246,9 +1276,9 @@ a_err meta_unpack_2d_face_cb(a_dim3 * grid_size, a_dim3 * block_size,
 #ifdef WITH_CUDA
 		case metaModePreferCUDA: {
 #ifdef WITH_TIMERS
-			ret = (a_err) cuda_unpack_2d_face(grid_size, block_size, packed_buf, buf, face, remain_dim, type, async, &(frame_k1->event.cuda), &(frame_c1->event.cuda), &(frame_c2->event.cuda), &(frame_c3->event.cuda));
+			ret = (a_err) cuda_unpack_face(grid_size, block_size, packed_buf, buf, face, remain_dim, type, async, &(frame_k1->event.cuda), &(frame_c1->event.cuda), &(frame_c2->event.cuda), &(frame_c3->event.cuda));
 #else
-			ret = (a_err) cuda_unpack_2d_face(grid_size, block_size, packed_buf, buf, face, remain_dim, type, async, NULL, NULL, NULL, NULL);
+			ret = (a_err) cuda_unpack_face(grid_size, block_size, packed_buf, buf, face, remain_dim, type, async, NULL, NULL, NULL, NULL);
 #endif
 			//If a callback is provided, register it immediately after returning from enqueuing the kernel
 			if ((void*)call != NULL && call_pl != NULL) cudaStreamAddCallback(0, call->cudaCallback, call_pl, 0);
@@ -1261,13 +1291,13 @@ a_err meta_unpack_2d_face_cb(a_dim3 * grid_size, a_dim3 * block_size,
 		//Make sure some context exists..
 		if (meta_context == NULL) metaOpenCLFallBack();
 #ifdef WITH_TIMERS
-		ret = (a_err) opencl_unpack_2d_face(grid_size, block_size, packed_buf, buf, face, remain_dim, type, async, &(frame_k1->event.opencl), &(frame_c1->event.opencl), &(frame_c2->event.opencl), &(frame_c3->event.opencl));
+		ret = (a_err) opencl_unpack_face(grid_size, block_size, packed_buf, buf, face, remain_dim, type, async, &(frame_k1->event.opencl), &(frame_c1->event.opencl), &(frame_c2->event.opencl), &(frame_c3->event.opencl));
 		//If timers exist, use their event to add the callback
 		if ((void*)call != NULL && call_pl != NULL) clSetEventCallback(frame_k1->event.opencl, CL_COMPLETE, call->openclCallback, call_pl);
 #else
 		//If timers don't exist, get the event via a locally-scoped event to add to the callback
 		cl_event cb_event;
-		ret = (a_err) opencl_unpack_2d_face(grid_size, block_size, packed_buf, buf, face, remain_dim, type, async, &cb_event, NULL, NULL, NULL);
+		ret = (a_err) opencl_unpack_face(grid_size, block_size, packed_buf, buf, face, remain_dim, type, async, &cb_event, NULL, NULL, NULL);
 		if ((void*)call != NULL && call_pl != NULL) clSetEventCallback(cb_event, CL_COMPLETE, call->openclCallback, call_pl);
 #endif
 		break;
@@ -1276,11 +1306,16 @@ a_err meta_unpack_2d_face_cb(a_dim3 * grid_size, a_dim3 * block_size,
 #ifdef WITH_OPENMP
 		case metaModePreferOpenMP:
 #ifdef WITH_TIMERS
-		frame_k1->event.openmp[0]= omp_get_wtime();;
+		{	struct timeval start, end;
+			gettimeofday(&start, NULL);
+			//		frame_k1->event.openmp[0]= omp_get_wtime();
 #endif
-		ret = omp_unpack_2d_face(grid_size, block_size, packed_buf, buf, face, remain_dim, type, async);
+		ret = omp_unpack_face(grid_size, block_size, packed_buf, buf, face, remain_dim, type, async);
 #ifdef WITH_TIMERS
-		frame_k1->event.openmp[1]= omp_get_wtime();
+		gettimeofday(&end, NULL);
+		frame_k1->event.openmp[0] = (start.tv_usec*0.000001)+start.tv_sec;
+		frame_k1->event.openmp[1] = (end.tv_usec*0.000001)+end.tv_sec;}
+	//		frame->event.openmp[1]= omp_get_wtime();
 		frame_c1->event.openmp[0] = 0.0;
 		frame_c1->event.openmp[1] = 0.0;
 		frame_c2->event.openmp[0] = 0.0;
@@ -1301,6 +1336,7 @@ a_err meta_unpack_2d_face_cb(a_dim3 * grid_size, a_dim3 * block_size,
 	return (ret);
 }
 
+//Workhorse for both sync and async stencil
 a_err meta_stencil_3d7p(a_dim3 * grid_size, a_dim3 * block_size, void *indata,
 		void *outdata, a_dim3 * array_size, a_dim3 * array_start,
 		a_dim3 * array_end, meta_type_id type, a_bool async) {
@@ -1308,7 +1344,6 @@ a_err meta_stencil_3d7p(a_dim3 * grid_size, a_dim3 * block_size, void *indata,
 			array_size, array_start, array_end, type, async,
 			(meta_callback*) NULL, NULL);
 }
-
 a_err meta_stencil_3d7p_cb(a_dim3 * grid_size, a_dim3 * block_size,
 		void *indata, void *outdata, a_dim3 * array_size, a_dim3 * array_start,
 		a_dim3 * array_end, meta_type_id type, a_bool async,
