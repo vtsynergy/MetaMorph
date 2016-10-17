@@ -1,5 +1,5 @@
 /** OpenCL Back-End: FPGA customization **/
-#include "mm_opencl_backend_alt.h"
+#include "../../metamorph-backends/opencl-backend/mm_opencl_backend_alt.h"
 
 extern cl_context meta_context;
 extern cl_command_queue meta_queue;

@@ -1,12 +1,12 @@
-/** OpenMP Back-End: MIC customization **/
-#include "mm_openmp_backend.h"
+/** OpenMP Back-End **/
+#include "../../metamorph-backends/openmp-backend/mm_openmp_backend.h"
 
 //#define	COLLAPSE
 //#define USE_AVX
 
 //TODO figure out how to use templates with the  intrinsics
 
-#define BLOCK 	16
+#define BLOCK 	8
 #define CX		256
 #define CY		32
 #define CZ		1
@@ -89,13 +89,17 @@ static void omp_dotProd_kernel_db(double * __restrict__ data1,
 	else	// 3d sub-grid
 #endif
 	{
-#pragma omp parallel shared(ni, nj, nk, data1, data2, sum) num_threads(60)
+#pragma omp parallel shared(ni, nj, nk, data1, data2, sum)
 		{
 			int i, j, k;
 			double psum = 0;
 			//double *d1, *d2;
+
+#ifdef COLLAPSE
 #pragma omp for collapse(2)
-			//#pragma omp for
+#else
+#pragma omp for
+#endif
 			for (k = (*arr_start)[2]; k <= (*arr_end)[2]; k++) {
 				for (j = (*arr_start)[1]; j <= (*arr_end)[1]; j++) {
 					//d1 = &data1[j*ni+k*ni*nj];
@@ -181,8 +185,11 @@ static void omp_dotProd_kernel_fl(float * __restrict__ data1,
 		{
 			int i, j, k;
 			float psum = 0;
+#ifdef COLLAPSE
 #pragma omp for collapse(2)
-			//#pragma omp for
+#else
+#pragma omp for
+#endif
 			for (k = (*arr_start)[2]; k <= (*arr_end)[2]; k++) {
 				for (j = (*arr_start)[1]; j <= (*arr_end)[1]; j++) {
 					for (i = (*arr_start)[0]; i <= (*arr_end)[0]; i++) {
@@ -246,8 +253,11 @@ static void omp_dotProd_kernel_ul(unsigned long * __restrict__ data1,
 		{
 			int i, j, k;
 			unsigned long psum = 0;
+#ifdef COLLAPSE
 #pragma omp for collapse(2)
-			//#pragma omp for
+#else
+#pragma omp for
+#endif
 			for (k = (*arr_start)[2]; k <= (*arr_end)[2]; k++) {
 				for (j = (*arr_start)[1]; j <= (*arr_end)[1]; j++) {
 					for (i = (*arr_start)[0]; i <= (*arr_end)[0]; i++) {
@@ -310,8 +320,11 @@ static void omp_dotProd_kernel_in(int * __restrict__ data1,
 		{
 			int i, j, k;
 			int psum = 0;
+#ifdef COLLAPSE
 #pragma omp for collapse(2)
-			//#pragma omp for
+#else
+#pragma omp for
+#endif
 			for (k = (*arr_start)[2]; k <= (*arr_end)[2]; k++) {
 				for (j = (*arr_start)[1]; j <= (*arr_end)[1]; j++) {
 					for (i = (*arr_start)[0]; i <= (*arr_end)[0]; i++) {
@@ -375,8 +388,11 @@ static void omp_dotProd_kernel_ui(unsigned int * __restrict__ data1,
 		{
 			int i, j, k;
 			unsigned int psum = 0;
+#ifdef COLLAPSE
 #pragma omp for collapse(2)
-			//#pragma omp for
+#else
+#pragma omp for
+#endif
 			for (k = (*arr_start)[2]; k <= (*arr_end)[2]; k++) {
 				for (j = (*arr_start)[1]; j <= (*arr_end)[1]; j++) {
 					for (i = (*arr_start)[0]; i <= (*arr_end)[0]; i++) {
@@ -440,8 +456,11 @@ static void omp_reduce_kernel_db(double * __restrict__ data,
 		{
 			int i, j, k;
 			double psum = 0;
+#ifdef COLLAPSE
 #pragma omp for collapse(2)
-			//#pragma omp for
+#else
+#pragma omp for
+#endif
 			for (k = (*arr_start)[2]; k <= (*arr_end)[2]; k++) {
 				for (j = (*arr_start)[1]; j <= (*arr_end)[1]; j++) {
 					for (i = (*arr_start)[0]; i <= (*arr_end)[0]; i++) {
@@ -504,8 +523,11 @@ static void omp_reduce_kernel_fl(float *__restrict__ data,
 		{
 			int i, j, k;
 			float psum = 0;
+#ifdef COLLAPSE
 #pragma omp for collapse(2)
-			//#pragma omp for
+#else
+#pragma omp for
+#endif
 			for (k = (*arr_start)[2]; k <= (*arr_end)[2]; k++) {
 				for (j = (*arr_start)[1]; j <= (*arr_end)[1]; j++) {
 					for (i = (*arr_start)[0]; i <= (*arr_end)[0]; i++) {
@@ -568,8 +590,11 @@ static void omp_reduce_kernel_ul(unsigned long * __restrict__ data,
 		{
 			int i, j, k;
 			unsigned long psum = 0;
+#ifdef COLLAPSE
 #pragma omp for collapse(2)
-			//#pragma omp for
+#else
+#pragma omp for
+#endif
 			for (k = (*arr_start)[2]; k <= (*arr_end)[2]; k++) {
 				for (j = (*arr_start)[1]; j <= (*arr_end)[1]; j++) {
 					for (i = (*arr_start)[0]; i <= (*arr_end)[0]; i++) {
@@ -632,8 +657,11 @@ static void omp_reduce_kernel_in(int * __restrict__ data,
 		{
 			int i, j, k;
 			int psum = 0;
+#ifdef COLLAPSE
 #pragma omp for collapse(2)
-			//#pragma omp for
+#else
+#pragma omp for
+#endif
 			for (k = (*arr_start)[2]; k <= (*arr_end)[2]; k++) {
 				for (j = (*arr_start)[1]; j <= (*arr_end)[1]; j++) {
 					for (i = (*arr_start)[0]; i <= (*arr_end)[0]; i++) {
@@ -696,8 +724,11 @@ static void omp_reduce_kernel_ui(unsigned int * __restrict__ data,
 		{
 			int i, j, k;
 			unsigned int psum = 0;
+#ifdef COLLAPSE
 #pragma omp for collapse(2)
-			//#pragma omp for
+#else
+#pragma omp for
+#endif
 			for (k = (*arr_start)[2]; k <= (*arr_end)[2]; k++) {
 				for (j = (*arr_start)[1]; j <= (*arr_end)[1]; j++) {
 					for (i = (*arr_start)[0]; i <= (*arr_end)[0]; i++) {
@@ -732,9 +763,8 @@ static void omp_transpose_face_kernel_db(double * __restrict__ indata,
 	{
 		int i, j, ii, jj;
 
-#pragma omp for schedule(static) nowait collapse(2)
-		//#pragma omp for schedule(static) nowait
-		//#pragma omp for schedule(dynamic, 1) nowait
+		//#pragma omp for schedule(static, 1)
+#pragma omp for schedule(dynamic, 1) nowait
 		for (j = 0; j < nj; j += BLOCK)
 		{
 			for (i = 0; i < ni; i += BLOCK)
@@ -766,9 +796,8 @@ static void omp_transpose_face_kernel_fl(float * __restrict__ indata,
 	{
 		int i, j, ii, jj;
 
-#pragma omp for schedule(static) nowait collapse(2)
-		//#pragma omp for schedule(static) nowait
-		//#pragma omp for schedule(dynamic, 1) nowait
+		//#pragma omp for schedule(static, 1)
+#pragma omp for schedule(dynamic, 1) nowait
 		for (j = 0; j < nj; j += BLOCK)
 		{
 			for (i = 0; i < ni; i += BLOCK)
@@ -800,9 +829,8 @@ static void omp_transpose_face_kernel_ul(unsigned long * __restrict__ indata,
 	{
 		int i, j, ii, jj;
 
-#pragma omp for schedule(static) nowait collapse(2)
-		//#pragma omp for schedule(static) nowait
-		//#pragma omp for schedule(dynamic, 1) nowait
+		//#pragma omp for schedule(static, 1)
+#pragma omp for schedule(dynamic, 1) nowait
 		for (j = 0; j < nj; j += BLOCK)
 		{
 			for (i = 0; i < ni; i += BLOCK)
@@ -833,9 +861,8 @@ static void omp_transpose_face_kernel_in(int * __restrict__ indata,
 	{
 		int i, j, ii, jj;
 
-#pragma omp for schedule(static) nowait collapse(2)
-		//#pragma omp for schedule(static) nowait
-		//#pragma omp for schedule(dynamic, 1) nowait
+		//#pragma omp for schedule(static, 1)
+#pragma omp for schedule(dynamic, 1) nowait
 		for (j = 0; j < nj; j += BLOCK)
 		{
 			for (i = 0; i < ni; i += BLOCK)
@@ -867,9 +894,8 @@ static void omp_transpose_face_kernel_ui(unsigned int * __restrict__ indata,
 	{
 		int i, j, ii, jj;
 
-#pragma omp for schedule(static) nowait collapse(2)
-		//#pragma omp for schedule(static) nowait
-		//#pragma omp for schedule(dynamic, 1) nowait
+		//#pragma omp for schedule(static, 1)
+#pragma omp for schedule(dynamic, 1) nowait
 		for (j = 0; j < nj; j += BLOCK)
 		{
 			for (i = 0; i < ni; i += BLOCK)
@@ -924,8 +950,7 @@ void omp_pack_face_kernel_db(double * __restrict__ packed_buf,
 #pragma omp parallel shared(size, packed_buf, buf, face, remain_dim)
 	{
 		int idx;
-#pragma omp for schedule(static) nowait
-		//#pragma omp for schedule(dynamic,16) nowait
+#pragma omp for schedule(dynamic,16) nowait
 		for (idx = 0; idx < size; idx++)
 			packed_buf[idx] = buf[get_pack_index(idx, face, remain_dim)];
 	}
@@ -938,8 +963,7 @@ void omp_pack_face_kernel_fl(float * __restrict__ packed_buf,
 #pragma omp parallel shared(size, packed_buf, buf, face, remain_dim)
 	{
 		int idx;
-#pragma omp for schedule(static) nowait
-		//#pragma omp for schedule(dynamic,16) nowait
+#pragma omp for schedule(dynamic,16) nowait
 		for (idx = 0; idx < size; idx++)
 			packed_buf[idx] = buf[get_pack_index(idx, face, remain_dim)];
 	}
@@ -953,8 +977,7 @@ void omp_pack_face_kernel_ul(unsigned long * __restrict__ packed_buf,
 #pragma omp parallel shared(size, packed_buf, buf, face, remain_dim)
 	{
 		int idx;
-#pragma omp for schedule(static) nowait
-		//#pragma omp for schedule(dynamic,16) nowait
+#pragma omp for schedule(dynamic,16) nowait
 		for (idx = 0; idx < size; idx++)
 			packed_buf[idx] = buf[get_pack_index(idx, face, remain_dim)];
 	}
@@ -967,8 +990,7 @@ void omp_pack_face_kernel_in(int * __restrict__ packed_buf,
 #pragma omp parallel shared(size, packed_buf, buf, face, remain_dim)
 	{
 		int idx;
-#pragma omp for schedule(static) nowait
-		//#pragma omp for schedule(dynamic,16) nowait
+#pragma omp for schedule(dynamic,16) nowait
 		for (idx = 0; idx < size; idx++)
 			packed_buf[idx] = buf[get_pack_index(idx, face, remain_dim)];
 	}
@@ -982,8 +1004,7 @@ void omp_pack_face_kernel_ui(unsigned int * __restrict__ packed_buf,
 #pragma omp parallel shared(size, packed_buf, buf, face, remain_dim)
 	{
 		int idx;
-#pragma omp for schedule(static) nowait
-		//#pragma omp for schedule(dynamic,16) nowait
+#pragma omp for schedule(dynamic,16) nowait
 		for (idx = 0; idx < size; idx++)
 			packed_buf[idx] = buf[get_pack_index(idx, face, remain_dim)];
 	}
@@ -996,8 +1017,7 @@ void omp_unpack_face_kernel_db(double * __restrict__ packed_buf,
 #pragma omp parallel shared(size, packed_buf, buf, face, remain_dim)
 	{
 		int idx;
-#pragma omp for schedule(static) nowait
-		//#pragma omp for schedule(dynamic,16) nowait
+#pragma omp for schedule(dynamic,16) nowait
 		for (idx = 0; idx < size; idx++)
 			buf[get_pack_index(idx, face, remain_dim)] = packed_buf[idx];
 	}
@@ -1010,8 +1030,7 @@ void omp_unpack_face_kernel_fl(float * __restrict__ packed_buf,
 #pragma omp parallel shared(size, packed_buf, buf, face, remain_dim)
 	{
 		int idx;
-#pragma omp for schedule(static) nowait
-		//#pragma omp for schedule(dynamic,16) nowait
+#pragma omp for schedule(dynamic,16) nowait
 		for (idx = 0; idx < size; idx++)
 			buf[get_pack_index(idx, face, remain_dim)] = packed_buf[idx];
 	}
@@ -1025,8 +1044,7 @@ void omp_unpack_face_kernel_ul(unsigned long * __restrict__ packed_buf,
 #pragma omp parallel shared(size, packed_buf, buf, face, remain_dim)
 	{
 		int idx;
-#pragma omp for schedule(static) nowait
-		//#pragma omp for schedule(dynamic,16) nowait
+#pragma omp for schedule(dynamic,16) nowait
 		for (idx = 0; idx < size; idx++)
 			buf[get_pack_index(idx, face, remain_dim)] = packed_buf[idx];
 	}
@@ -1039,8 +1057,7 @@ void omp_unpack_face_kernel_in(int * __restrict__ packed_buf,
 #pragma omp parallel shared(size, packed_buf, buf, face, remain_dim)
 	{
 		int idx;
-#pragma omp for schedule(static) nowait
-		//#pragma omp for schedule(dynamic,16) nowait
+#pragma omp for schedule(dynamic,16) nowait
 		for (idx = 0; idx < size; idx++)
 			buf[get_pack_index(idx, face, remain_dim)] = packed_buf[idx];
 	}
@@ -1054,8 +1071,7 @@ void omp_unpack_face_kernel_ui(unsigned int * __restrict__ packed_buf,
 #pragma omp parallel shared(size, packed_buf, buf, face, remain_dim)
 	{
 		int idx;
-#pragma omp for schedule(static) nowait
-		//#pragma omp for schedule(dynamic,16) nowait
+#pragma omp for schedule(dynamic,16) nowait
 		for (idx = 0; idx < size; idx++)
 			buf[get_pack_index(idx, face, remain_dim)] = packed_buf[idx];
 	}
@@ -1075,7 +1091,7 @@ void omp_stencil_3d7p_kernel_db(double * __restrict__ indata,
 	{
 		int i, j, k;
 		//double *in, *out;
-#pragma omp for collapse(2) schedule(static) nowait
+#pragma omp for collapse(2) schedule(static, 1) nowait
 		//#pragma omp for
 		for (k = (*arr_start)[2] + 1; k < (*arr_end)[2]; k++) {
 			for (j = (*arr_start)[1] + 1; j < (*arr_end)[1]; j++) {
@@ -1155,8 +1171,13 @@ void omp_stencil_3d7p_kernel_db(double * indata, double * outdata, size_t (* arr
 #pragma omp parallel shared(ni, nj, nk, indata, outdata)
 	{
 		int i, j, k, jj, kk;
-
-#pragma omp for collapse(2) schedule(static) nowait
+#ifdef COLLAPSE
+#pragma omp for collapse(2)
+#else
+		//#pragma omp for
+		//#pragma omp for schedule(static, 1)
+#pragma omp for schedule(dynamic, 1) nowait
+#endif
 		for (k = (* arr_start)[2]+1; k < (* arr_end)[2]; k+= CZ) {
 			for (j = (* arr_start)[1]+1; j < (* arr_end)[1]; j+= CY) {
 				int kkmax = ((* arr_end)[2] < k+CZ ? (* arr_end)[2] : k+CZ);
@@ -1268,7 +1289,7 @@ void omp_stencil_3d7p_kernel_fl(float * indata, float * outdata,
 #pragma omp parallel shared(ni, nj, nk, indata, outdata)
 	{
 		int i, j, k;
-#pragma omp for collapse(2) schedule(static) nowait
+#pragma omp for collapse(2) schedule(static, 1) nowait
 		//#pragma omp for
 		for (k = (*arr_start)[2] + 1; k < (*arr_end)[2]; k++) {
 			for (j = (*arr_start)[1] + 1; j < (*arr_end)[1]; j++) {
@@ -1304,7 +1325,7 @@ void omp_stencil_3d7p_kernel_ul(unsigned long * indata, unsigned long * outdata,
 #pragma omp parallel shared(ni, nj, nk, indata, outdata)
 	{
 		int i, j, k;
-#pragma omp for collapse(2) schedule(static) nowait
+#pragma omp for collapse(2) schedule(static, 1) nowait
 		//#pragma omp for
 		for (k = (*arr_start)[2] + 1; k < (*arr_end)[2]; k++) {
 			for (j = (*arr_start)[1] + 1; j < (*arr_end)[1]; j++) {
@@ -1340,7 +1361,7 @@ void omp_stencil_3d7p_kernel_in(int * indata, int * outdata,
 #pragma omp parallel shared(ni, nj, nk, indata, outdata)
 	{
 		int i, j, k;
-#pragma omp for collapse(2) schedule(static) nowait
+#pragma omp for collapse(2) schedule(static, 1) nowait
 		//#pragma omp for
 		for (k = (*arr_start)[2] + 1; k < (*arr_end)[2]; k++) {
 			for (j = (*arr_start)[1] + 1; j < (*arr_end)[1]; j++) {
@@ -1375,7 +1396,7 @@ void omp_stencil_3d7p_kernel_ui(unsigned int * indata, unsigned int * outdata,
 #pragma omp parallel shared(ni, nj, nk, indata, outdata)
 	{
 		int i, j, k;
-#pragma omp for collapse(2) schedule(static) nowait
+#pragma omp for collapse(2) schedule(static, 1) nowait
 		//#pragma omp for
 		for (k = (*arr_start)[2] + 1; k < (*arr_end)[2]; k++) {
 			for (j = (*arr_start)[1] + 1; j < (*arr_end)[1]; j++) {
@@ -1653,6 +1674,7 @@ int omp_stencil_3d7p(size_t (*grid_size)[3], size_t (*block_size)[3],
 	}
 
 	return (ret);
+
 }
 
 int omp_copy_d2d(void *dst, void *src, size_t size, int async) {
@@ -1668,3 +1690,4 @@ int omp_copy_d2d(void *dst, void *src, size_t size, int async) {
 		*((unsigned long *) dst + i) = *((unsigned long *) src + i);
 	}
 }
+

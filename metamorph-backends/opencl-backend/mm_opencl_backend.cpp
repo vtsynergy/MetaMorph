@@ -1,6 +1,6 @@
 /** OpenCL Back-End **/
 
-#include "mm_opencl_backend.h"
+#include "../../metamorph-backends/opencl-backend/mm_opencl_backend.h"
 
 extern cl_context meta_context;
 extern cl_command_queue meta_queue;
