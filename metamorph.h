@@ -102,19 +102,19 @@ int meta_free_face(meta_face * face);
 //TODO change core to back-end in file names
 #ifdef WITH_CUDA
 #ifndef METAMORPH_CUDA_BACKEND_H
-#include "metamorph_cuda_core.cuh"
+#include "mm_cuda_backend.cuh"
 #endif
 #endif
 
 #ifdef WITH_OPENCL
 #ifndef METAMORPH_OPENCL_BACKEND_H
-#include "metamorph_opencl_core.h"
+#include "mm_opencl_backend.h"
 #endif
 #endif
 
 #ifdef WITH_OPENMP
 #ifndef METAMORPH_OPENMP_BACKEND_H
-#include "metamorph_openmp_core.h"
+#include "mm_openmp_backend.h"
 #endif
 #endif
 

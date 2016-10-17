@@ -1,5 +1,6 @@
-/** OpenCL Back-End: MIC customization **/
-#include "metamorph_opencl_core.h"
+/** OpenCL Back-End **/
+
+#include "mm_opencl_backend.h"
 
 extern cl_context meta_context;
 extern cl_command_queue meta_queue;
@@ -98,8 +99,8 @@ size_t metaOpenCLLoadProgramSource(const char *filename, const char **progSrc) {
 cl_int metaOpenCLBuildProgram(metaOpenCLStackFrame * frame) {
 	cl_int ret = CL_SUCCESS;
 	if (metaCLProgLen == 0) {
-		metaCLProgLen = metaOpenCLLoadProgramSource(
-				"metamorph_opencl_core_mic.cl", &metaCLProgSrc);
+		metaCLProgLen = metaOpenCLLoadProgramSource("mm_opencl_backend.cl",
+				&metaCLProgSrc);
 	}
 	frame->program_opencl_core = clCreateProgramWithSource(frame->context, 1,
 			&metaCLProgSrc, &metaCLProgLen, NULL);
@@ -465,7 +466,7 @@ cl_int metaOpenCLInitStackFrame(metaOpenCLStackFrame ** frame, cl_int device) {
 	(*frame)->queue = clCreateCommandQueue((*frame)->context, (*frame)->device,
 			CL_QUEUE_PROFILING_ENABLE, NULL);
 	metaOpenCLBuildProgram((*frame));
-	// Add this debug string if needed: -g -s\"./metamorph_opencl_core.cl\"
+	// Add this debug string if needed: -g -s\"./mm_opencl_backend.cl\"
 	//Allocate any internal buffers necessary for kernel functions
 	(*frame)->constant_face_size = clCreateBuffer((*frame)->context,
 			CL_MEM_READ_ONLY, sizeof(cl_int) * METAMORPH_FACE_MAX_DEPTH, NULL,
@@ -709,7 +710,6 @@ cl_int opencl_dotProd(size_t (*grid_size)[3], size_t (*block_size)[3],
 		fprintf(stderr,
 				"Error: unexpected type, cannot set shared memory size in 'opencl_dotProd'!\n");
 	}
-	ret |= clSetKernelArg(kern, 15, sizeof(cl_mem *), &frame->red_loc);
 
 	ret |= clEnqueueNDRangeKernel(frame->queue, kern, 3, NULL, grid, block, 0,
 			NULL, event);
@@ -829,7 +829,6 @@ cl_int opencl_reduce(size_t (*grid_size)[3], size_t (*block_size)[3],
 		fprintf(stderr,
 				"Error: unexpected type, cannot set shared memory size in 'opencl_reduce'!\n");
 	}
-	ret |= clSetKernelArg(kern, 14, sizeof(cl_mem *), &frame->red_loc);
 	ret |= clEnqueueNDRangeKernel(frame->queue, kern, 3, NULL, grid, block, 0,
 			NULL, event);
 
@@ -1178,7 +1177,8 @@ cl_int opencl_stencil_3d7p(size_t (*grid_size)[3], size_t (*block_size)[3],
 	cl_kernel kern;
 	cl_int smem_len;
 	size_t grid[3] = { 1, 1, 1 };
-	size_t block[3] = METAMORPH_OCL_DEFAULT_BLOCK;
+	size_t block[3] = { 128, 2, 1 };
+	//size_t block[3] = METAMORPH_OCL_DEFAULT_BLOCK;
 	int iters;
 	//Allow for auto-selected grid/block size if either is not specified
 	if (grid_size == NULL || block_size == NULL) {

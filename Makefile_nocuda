@@ -6,25 +6,25 @@ INCLUDE=-I ./
 LIB=-L ./ -L /usr/local/cuda/lib64 
 
 dxch_test_nocuda: libmetamorph_nocuda.so dxch_bootstrapper.c
-	$(CC) dxch_bootstrapper.c $(INCLUDE) $(DEFINES) $(LIB) -lmetamorph_nocuda -lmetamorph_opencl_core -o dxch_test_nocuda
+	$(CC) dxch_bootstrapper.c $(INCLUDE) $(DEFINES) $(LIB) -lmetamorph_nocuda -lmm_opencl_backend -o dxch_test_nocuda
 
-red_test_nocuda: libmetamorph_nocuda.so red_bootstrapper.c libmetamorph_nocuda.so libmetamorph_opencl_core.so
-	$(CC) red_bootstrapper.c $(INCLUDE) $(DEFINES)  $(LIB) -lmetamorph_nocuda -lmetamorph_opencl_core -o red_test_nocuda
+red_test_nocuda: libmetamorph_nocuda.so red_bootstrapper.c libmetamorph_nocuda.so libmm_opencl_backend.so
+	$(CC) red_bootstrapper.c $(INCLUDE) $(DEFINES)  $(LIB) -lmetamorph_nocuda -lmm_opencl_backend -o red_test_nocuda
 
-libmetamorph_nocuda.so: libmetamorph_opencl_core.so metamorph.c metamorph_timers.c 
-	$(CC) metamorph.c metamorph_timers.c -fPIC -shared $(DEFINES)  $(INCLUDE) $(LIB) -lmetamorph_opencl_core -lOpenCL -o libmetamorph_nocuda.so
+libmetamorph_nocuda.so: libmm_opencl_backend.so metamorph.c metamorph_timers.c 
+	$(CC) metamorph.c metamorph_timers.c -fPIC -shared $(DEFINES)  $(INCLUDE) $(LIB) -lmm_opencl_backend -lOpenCL -o libmetamorph_nocuda.so
 
-libmetamorph_opencl_core.so: metamorph_opencl_core.cpp
-	$(CPP) metamorph_opencl_core.cpp -g -fPIC -shared $(INCLUDE) $(LIB) -lOpenCL -o libmetamorph_opencl_core.so -D __OPENCLCC__
+libmm_opencl_backend.so: mm_opencl_backend.cpp
+	$(CPP) mm_opencl_backend.cpp -g -fPIC -shared $(INCLUDE) $(LIB) -lOpenCL -o libmm_opencl_backend.so -D __OPENCLCC__
 
-red_test_nocuda_DEBUG: libmetamorph_nocuda_DEBUG.so red_bootstrapper.c libmetamorph_nocuda_DEBUG.so libmetamorph_opencl_core_DEBUG.so
-	$(CC) red_bootstrapper.c $(INCLUDE) $(DEFINES) -D WITH_OPENMP  $(LIB) -lmetamorph_nocuda_DEBUG -lmetamorph_opencl_core_DEBUG -o red_test_nocuda_DEBUG -g -O0
+red_test_nocuda_DEBUG: libmetamorph_nocuda_DEBUG.so red_bootstrapper.c libmetamorph_nocuda_DEBUG.so libmm_opencl_backend_DEBUG.so
+	$(CC) red_bootstrapper.c $(INCLUDE) $(DEFINES) -D WITH_OPENMP  $(LIB) -lmetamorph_nocuda_DEBUG -lmm_opencl_backend_DEBUG -o red_test_nocuda_DEBUG -g -O0
 
-libmetamorph_nocuda_DEBUG.so: libmetamorph_opencl_core_DEBUG.so metamorph.c metamorph_timers.c metamorph_fortran_compat.c libmetamorph_opencl_core_DEBUG.so
-	$(CC) metamorph.c metamorph_timers.c metamorph_fortran_compat.c -fPIC -shared  $(DEFINES) -D WITH_OPENMP  $(INCLUDE) $(LIB) -lmetamorph_opencl_core_DEBUG -lOpenCL -o libmetamorph_nocuda_DEBUG.so -g -O0
+libmetamorph_nocuda_DEBUG.so: libmm_opencl_backend_DEBUG.so metamorph.c metamorph_timers.c metamorph_fortran_compat.c libmm_opencl_backend_DEBUG.so
+	$(CC) metamorph.c metamorph_timers.c metamorph_fortran_compat.c -fPIC -shared  $(DEFINES) -D WITH_OPENMP  $(INCLUDE) $(LIB) -lmm_opencl_backend_DEBUG -lOpenCL -o libmetamorph_nocuda_DEBUG.so -g -O0
 
-libmetamorph_opencl_core_DEBUG.so: metamorph_opencl_core.cpp
-	g++ metamorph_opencl_core.cpp -fPIC -shared $(LIB) $(INCLUDE) -lOpenCL -o libmetamorph_opencl_core_DEBUG.so -D __OPENCLCC__ -g -O0
+libmm_opencl_backend_DEBUG.so: mm_opencl_backend.cpp
+	g++ mm_opencl_backend.cpp -fPIC -shared $(LIB) $(INCLUDE) -lOpenCL -o libmm_opencl_backend_DEBUG.so -D __OPENCLCC__ -g -O0
 	
 clean:
 	rm -f libmetamorph*.so *.mod dxch_test_nocuda xch_test red_test red_test_nocuda red_test_cuda red_test_omp red_test_notimers red_test_nocuda_notimers red_test_fortran red_test_fortran_nocuda red_test_fortran_notimers red_test_fortran_nocuda_notimers red_test_DEBUG red_test_nocuda_DEBUG red_test_cuda_DEBUG red_test_omp_DEBUG red_test_notimers_DEBUG red_test_nocuda_notimers_DEBUG red_test_fortran_DEBUG red_test_fortran_nocuda_DEBUG red_test_fortran_notimers_DEBUG red_test_fortran_nocuda_notimers_DEBUG

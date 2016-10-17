@@ -23,40 +23,40 @@ AOCL_LINK_CONFIG := $(shell aocl link-config)
 all : red_test run
 
 dxch_test: libmetamorph.so dxch_bootstrapper.c
-	$(CC) dxch_bootstrapper.c $(INCLUDE) $(DEFINES) $(LIB) -lmetamorph -lmetamorph_opencl_core -o dxch_test
+	$(CC) dxch_bootstrapper.c $(INCLUDE) $(DEFINES) $(LIB) -lmetamorph -lmm_opencl_backend -o dxch_test
 
 run: 
 	./red_test 16 16 16 1 16 8 1 0 10
 
-red_test: red_bootstrapper_alt.c libmetamorph.so libmetamorph_opencl_core_alt.so
-	$(CC) red_bootstrapper_alt.c $(INCLUDE) $(DEFINES)  $(LIB)  $(AOCL_LINK_CONFIG) -lmetamorph -lmetamorph_opencl_core_alt -o red_test
+red_test: red_bootstrapper_alt.c libmetamorph.so libmm_opencl_backend_alt.so
+	$(CC) red_bootstrapper_alt.c $(INCLUDE) $(DEFINES)  $(LIB)  $(AOCL_LINK_CONFIG) -lmetamorph -lmm_opencl_backend_alt -o red_test
 
-libmetamorph.so: libmetamorph_opencl_core_alt.so metamorph.c metamorph_timers.c 
-	$(CC) metamorph.c metamorph_timers.c -fPIC -shared $(DEFINES)  $(AOCL_COMPILE_CONFIG) $(LIB) -lmetamorph_opencl_core_alt  -o libmetamorph.so
+libmetamorph.so: libmm_opencl_backend_alt.so metamorph.c metamorph_timers.c 
+	$(CC) metamorph.c metamorph_timers.c -fPIC -shared $(DEFINES)  $(AOCL_COMPILE_CONFIG) $(LIB) -lmm_opencl_backend_alt  -o libmetamorph.so
 
-libmetamorph_opencl_core.so: metamorph_opencl_core.cpp
-	$(CPP) metamorph_opencl_core.cpp -g -c -fPIC -shared $(AOCL_COMPILE_CONFIG) -o libmetamorph_opencl_core.so -D __OPENCLCC__ -D __FPGA__
+libmm_opencl_backend.so: mm_opencl_backend.cpp
+	$(CPP) mm_opencl_backend.cpp -g -c -fPIC -shared $(AOCL_COMPILE_CONFIG) -o libmm_opencl_backend.so -D __OPENCLCC__ -D __FPGA__
 
-libmetamorph_opencl_core_alt.so: metamorph_opencl_core_alt.cpp metamorph_opencl_core.h
-	$(CPP) metamorph_opencl_core_alt.cpp -g -c -fPIC -shared $(AOCL_COMPILE_CONFIG) -o libmetamorph_opencl_core_alt.so -D __OPENCLCC__ -D __FPGA__ -D FPGA_DOUBLE -D KERNEL_STENCIL
+libmm_opencl_backend_alt.so: mm_opencl_backend_alt.cpp mm_opencl_backend.h
+	$(CPP) mm_opencl_backend_alt.cpp -g -c -fPIC -shared $(AOCL_COMPILE_CONFIG) -o libmm_opencl_backend_alt.so -D __OPENCLCC__ -D __FPGA__ -D FPGA_DOUBLE -D KERNEL_STENCIL
 
-red_test_DEBUG: libmetamorph_DEBUG.so red_bootstrapper.c libmetamorph_DEBUG.so libmetamorph_opencl_core_DEBUG.so
-	$(CC) red_bootstrapper.c $(INCLUDE) $(DEFINES) -D WITH_OPENMP  $(LIB) -lmetamorph_DEBUG -lmetamorph_opencl_core_DEBUG -o red_test_DEBUG -g -O0
+red_test_DEBUG: libmetamorph_DEBUG.so red_bootstrapper.c libmetamorph_DEBUG.so libmm_opencl_backend_DEBUG.so
+	$(CC) red_bootstrapper.c $(INCLUDE) $(DEFINES) -D WITH_OPENMP  $(LIB) -lmetamorph_DEBUG -lmm_opencl_backend_DEBUG -o red_test_DEBUG -g -O0
 
-libmetamorph_DEBUG.so: libmetamorph_opencl_core_DEBUG.so metamorph.c metamorph_timers.c metamorph_fortran_compat.c libmetamorph_opencl_core_DEBUG.so
-	$(CC) metamorph.c metamorph_timers.c metamorph_fortran_compat.c -fPIC -shared  $(DEFINES) -D WITH_OPENMP  $(INCLUDE) $(LIB) -lmetamorph_opencl_core_DEBUG -o libmetamorph_DEBUG.so -g -O0
+libmetamorph_DEBUG.so: libmm_opencl_backend_DEBUG.so metamorph.c metamorph_timers.c metamorph_fortran_compat.c libmm_opencl_backend_DEBUG.so
+	$(CC) metamorph.c metamorph_timers.c metamorph_fortran_compat.c -fPIC -shared  $(DEFINES) -D WITH_OPENMP  $(INCLUDE) $(LIB) -lmm_opencl_backend_DEBUG -o libmetamorph_DEBUG.so -g -O0
 
-libmetamorph_opencl_core_DEBUG.so: metamorph_opencl_core.cpp
-	g++ metamorph_opencl_core.cpp -fPIC -shared $(LIB) $(INCLUDE) -o libmetamorph_opencl_core_DEBUG.so -D __OPENCLCC__ -g -O0
+libmm_opencl_backend_DEBUG.so: mm_opencl_backend.cpp
+	g++ mm_opencl_backend.cpp -fPIC -shared $(LIB) $(INCLUDE) -o libmm_opencl_backend_DEBUG.so -D __OPENCLCC__ -g -O0
 	
 clean:;w
-	rm -f libmetamorph*.so *.mod dxch_test xch_test red_test red_test red_test_cuda red_test_omp red_test_notimers red_test_notimers red_test_fortran red_test_fortran red_test_fortran_notimers red_test_fortran_notimers red_test_DEBUG red_test_DEBUG red_test_cuda_DEBUG red_test_omp_DEBUG red_test_notimers_DEBUG red_test_notimers_DEBUG red_test_fortran_DEBUG red_test_fortran_DEBUG red_test_fortran_notimers_DEBUG red_test_fortran_notimers_DEBUG red_test libmetamorph_opencl_core_alt.so 
+	rm -f libmetamorph*.so *.mod dxch_test xch_test red_test red_test red_test_cuda red_test_omp red_test_notimers red_test_notimers red_test_fortran red_test_fortran red_test_fortran_notimers red_test_fortran_notimers red_test_DEBUG red_test_DEBUG red_test_cuda_DEBUG red_test_omp_DEBUG red_test_notimers_DEBUG red_test_notimers_DEBUG red_test_fortran_DEBUG red_test_fortran_DEBUG red_test_fortran_notimers_DEBUG red_test_fortran_notimers_DEBUG red_test libmm_opencl_backend_alt.so 
 
 
 emulate: red_test
 	env CL_CONTEXT_EMULATOR_DEVICE_ALTERA=s5phq_d8 ./red_test 16 16 16 1 16 8 1 0 10
 
-comp_emulate: metamorph_opencl_core_alt.cl
-	aoc -g -march=emulator metamorph_opencl_core_alt.cl -o metamorph_opencl_core.aocx $(DEFINES)
+comp_emulate: mm_opencl_backend_alt.cl
+	aoc -g -march=emulator mm_opencl_backend_alt.cl -o mm_opencl_backend.aocx $(DEFINES)
 
 .PHONY : all clean emulate

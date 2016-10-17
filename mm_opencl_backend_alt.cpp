@@ -1,6 +1,5 @@
-/** OpenCL Back-End **/
-
-#include "metamorph_opencl_core.h"
+/** OpenCL Back-End: FPGA customization **/
+#include "mm_opencl_backend_alt.h"
 
 extern cl_context meta_context;
 extern cl_command_queue meta_queue;
@@ -99,11 +98,20 @@ size_t metaOpenCLLoadProgramSource(const char *filename, const char **progSrc) {
 cl_int metaOpenCLBuildProgram(metaOpenCLStackFrame * frame) {
 	cl_int ret = CL_SUCCESS;
 	if (metaCLProgLen == 0) {
-		metaCLProgLen = metaOpenCLLoadProgramSource("metamorph_opencl_core.cl",
+#ifndef __FPGA__
+		metaCLProgLen = metaOpenCLLoadProgramSource("mm_opencl_backend.cl",
 				&metaCLProgSrc);
+#else
+		printf("Building Kernel for FPGA\n");
+		metaCLProgLen = metaOpenCLLoadProgramSource("mm_opencl_backend.aocx", &metaCLProgSrc);
+#endif
 	}
+#ifndef __FPGA__
 	frame->program_opencl_core = clCreateProgramWithSource(frame->context, 1,
 			&metaCLProgSrc, &metaCLProgLen, NULL);
+#else 
+	frame->program_opencl_core=clCreateProgramWithBinary(frame->context,1,&(frame->device), &metaCLProgLen,(const unsigned char**) &metaCLProgSrc,NULL,NULL);
+#endif
 
 	char * args = NULL;
 	if (getenv("METAMORPH_MODE") != NULL) {
@@ -157,66 +165,144 @@ cl_int metaOpenCLBuildProgram(metaOpenCLStackFrame * frame) {
 			CL_PROGRAM_BUILD_LOG, logsize, log, NULL);
 	fprintf(stderr, "CL_PROGRAM_BUILD_LOG:\n%s", log);
 	free(log);
+	//Not creating all the Kernels. Just the Kernels supposed to be optimized for FPGA. -Anshuman
+	//Reduction
+	//Dot product
+	//Transpose
+	//Pack
+	//Unpack
+	//Stencil
+#ifdef FPGA_DOUBLE
+#ifdef KERNEL_REDUCE
 	frame->kernel_reduce_db = clCreateKernel(frame->program_opencl_core,
 			"kernel_reduce_db", NULL);
-	frame->kernel_reduce_fl = clCreateKernel(frame->program_opencl_core,
-			"kernel_reduce_fl", NULL);
-	frame->kernel_reduce_ul = clCreateKernel(frame->program_opencl_core,
-			"kernel_reduce_ul", NULL);
-	frame->kernel_reduce_in = clCreateKernel(frame->program_opencl_core,
-			"kernel_reduce_in", NULL);
-	frame->kernel_reduce_ui = clCreateKernel(frame->program_opencl_core,
-			"kernel_reduce_ui", NULL);
+#endif // KERNEL_REDUCE
+#ifdef KERNEL_DOT_PROD
 	frame->kernel_dotProd_db = clCreateKernel(frame->program_opencl_core,
 			"kernel_dotProd_db", NULL);
-	frame->kernel_dotProd_fl = clCreateKernel(frame->program_opencl_core,
-			"kernel_dotProd_fl", NULL);
-	frame->kernel_dotProd_ul = clCreateKernel(frame->program_opencl_core,
-			"kernel_dotProd_ul", NULL);
-	frame->kernel_dotProd_in = clCreateKernel(frame->program_opencl_core,
-			"kernel_dotProd_in", NULL);
-	frame->kernel_dotProd_ui = clCreateKernel(frame->program_opencl_core,
-			"kernel_dotProd_ui", NULL);
+#endif // KERNEL_DOT_PROD
+#ifdef KERNEL_TRANSPOSE
 	frame->kernel_transpose_2d_face_db = clCreateKernel(
 			frame->program_opencl_core, "kernel_transpose_2d_db", NULL);
-	frame->kernel_transpose_2d_face_fl = clCreateKernel(
-			frame->program_opencl_core, "kernel_transpose_2d_fl", NULL);
-	frame->kernel_transpose_2d_face_ul = clCreateKernel(
-			frame->program_opencl_core, "kernel_transpose_2d_ul", NULL);
-	frame->kernel_transpose_2d_face_in = clCreateKernel(
-			frame->program_opencl_core, "kernel_transpose_2d_in", NULL);
-	frame->kernel_transpose_2d_face_ui = clCreateKernel(
-			frame->program_opencl_core, "kernel_transpose_2d_ui", NULL);
+#endif // KERNEL_TRANSPOSE
+#ifdef KERNEL_PACK
 	frame->kernel_pack_2d_face_db = clCreateKernel(frame->program_opencl_core,
 			"kernel_pack_db", NULL);
-	frame->kernel_pack_2d_face_fl = clCreateKernel(frame->program_opencl_core,
-			"kernel_pack_fl", NULL);
-	frame->kernel_pack_2d_face_ul = clCreateKernel(frame->program_opencl_core,
-			"kernel_pack_ul", NULL);
-	frame->kernel_pack_2d_face_in = clCreateKernel(frame->program_opencl_core,
-			"kernel_pack_in", NULL);
-	frame->kernel_pack_2d_face_ui = clCreateKernel(frame->program_opencl_core,
-			"kernel_pack_ui", NULL);
+#endif // KERNEL_PACK
+#ifdef KERNEL_UPACK
 	frame->kernel_unpack_2d_face_db = clCreateKernel(frame->program_opencl_core,
 			"kernel_unpack_db", NULL);
-	frame->kernel_unpack_2d_face_fl = clCreateKernel(frame->program_opencl_core,
-			"kernel_unpack_fl", NULL);
-	frame->kernel_unpack_2d_face_ul = clCreateKernel(frame->program_opencl_core,
-			"kernel_unpack_ul", NULL);
-	frame->kernel_unpack_2d_face_in = clCreateKernel(frame->program_opencl_core,
-			"kernel_unpack_in", NULL);
-	frame->kernel_unpack_2d_face_ui = clCreateKernel(frame->program_opencl_core,
-			"kernel_unpack_ui", NULL);
+#endif // KERNEL_UPACK
+#ifdef KERNEL_STENCIL
 	frame->kernel_stencil_3d7p_db = clCreateKernel(frame->program_opencl_core,
 			"kernel_stencil_3d7p_db", NULL);
+#endif // KERNL_STENCIL
+#endif //FPGA_DOUBLE
+#ifdef  FPGA_FLOAT
+#ifdef KERNEL_REDUCE
+	frame->kernel_dotProd_fl = clCreateKernel(frame->program_opencl_core,
+			"kernel_dotProd_fl", NULL);
+#endif // KERNEL_REDUCE
+#ifdef KERNEL_DOT_PROD
+	frame->kernel_reduce_fl = clCreateKernel(frame->program_opencl_core,
+			"kernel_reduce_fl", NULL);
+#endif // KERNEL_DOT_PROD
+#ifdef KERNEL_TRANSPOSE
+	frame->kernel_transpose_2d_face_fl = clCreateKernel(
+			frame->program_opencl_core, "kernel_transpose_2d_fl", NULL);
+#endif // KERNEL_TRANSPOSE
+#ifdef KERNEL_PACK
+	frame->kernel_pack_2d_face_fl = clCreateKernel(frame->program_opencl_core,
+			"kernel_pack_fl", NULL);
+#endif // KERNEL_PACK
+#ifdef KERNEL_UPACK
+	frame->kernel_unpack_2d_face_fl = clCreateKernel(frame->program_opencl_core,
+			"kernel_unpack_fl", NULL);
+#endif // KERNEL_UPACK
+#ifdef KERNEL_STENCIL
 	frame->kernel_stencil_3d7p_fl = clCreateKernel(frame->program_opencl_core,
 			"kernel_stencil_3d7p_fl", NULL);
+#endif // KERNL_STENCIL
+#endif //FPGA_FLOAT
+#ifdef FPGA_UNSIGNED_LONG
+#ifdef KERNEL_REDUCE
+	frame->kernel_reduce_ul = clCreateKernel(frame->program_opencl_core,
+			"kernel_reduce_ul", NULL);
+#endif // KERNEL_REDUCE
+#ifdef KERNEL_DOT_PROD
+	frame->kernel_dotProd_ul = clCreateKernel(frame->program_opencl_core,
+			"kernel_dotProd_ul", NULL);
+#endif // KERNEL_DOT_PROD
+#ifdef KERNEL_TRANSPOSE
+	frame->kernel_transpose_2d_face_ul = clCreateKernel(
+			frame->program_opencl_core, "kernel_transpose_2d_ul", NULL);
+#endif // KERNEL_TRANSPOSE
+#ifdef KERNEL_PACK
+	frame->kernel_pack_2d_face_ul = clCreateKernel(frame->program_opencl_core,
+			"kernel_pack_ul", NULL);
+#endif // KERNEL_PACK
+#ifdef KERNEL_UPACK
+	frame->kernel_unpack_2d_face_ul = clCreateKernel(frame->program_opencl_core,
+			"kernel_unpack_ul", NULL);
+#endif // KERNEL_UPACK
+#ifdef KERNEL_STENCIL
 	frame->kernel_stencil_3d7p_ul = clCreateKernel(frame->program_opencl_core,
 			"kernel_stencil_3d7p_ul", NULL);
+#endif // KERNL_STENCIL
+#endif //FPGA_UNSIGNED_LONG
+#ifdef FPGA_INTEGER
+#ifdef KERNEL_REDUCE
+	frame->kernel_reduce_in = clCreateKernel(frame->program_opencl_core,
+			"kernel_reduce_in", NULL);
+#endif // KERNEL_REDUCE
+#ifdef KERNEL_DOT_PROD
+	frame->kernel_dotProd_in = clCreateKernel(frame->program_opencl_core,
+			"kernel_dotProd_in", NULL);
+#endif // KERNEL_DOT_PROD
+#ifdef KERNEL_TRANSPOSE
+	frame->kernel_transpose_2d_face_in = clCreateKernel(
+			frame->program_opencl_core, "kernel_transpose_2d_in", NULL);
+#endif // KERNEL_TRANSPOSE
+#ifdef KERNEL_PACK
+	frame->kernel_pack_2d_face_in = clCreateKernel(frame->program_opencl_core,
+			"kernel_pack_in", NULL);
+#endif // KERNEL_PACK
+#ifdef KERNEL_UPACK
+	frame->kernel_unpack_2d_face_in = clCreateKernel(frame->program_opencl_core,
+			"kernel_unpack_in", NULL);
+#endif // KERNEL_UPACK
+#ifdef KERNEL_STENCIL
 	frame->kernel_stencil_3d7p_in = clCreateKernel(frame->program_opencl_core,
 			"kernel_stencil_3d7p_in", NULL);
+#endif // KERNL_STENCIL
+#endif //FPGA_INTEGER
+#ifdef FPGA_UNSIGNED_INTEGER
+#ifdef KERNEL_REDUCE
+	frame->kernel_reduce_ui = clCreateKernel(frame->program_opencl_core,
+			"kernel_reduce_ui", NULL);
+#endif // KERNEL_REDUCE
+#ifdef KERNEL_DOT_PROD
+	frame->kernel_dotProd_ui = clCreateKernel(frame->program_opencl_core,
+			"kernel_dotProd_ui", NULL);
+#endif // KERNEL_DOT_PROD
+#ifdef KERNEL_TRANSPOSE
+	frame->kernel_transpose_2d_face_ui = clCreateKernel(
+			frame->program_opencl_core, "kernel_transpose_2d_ui", NULL);
+#endif // KERNEL_TRANSPOSE
+#ifdef KERNEL_PACK
+	frame->kernel_pack_2d_face_ui = clCreateKernel(frame->program_opencl_core,
+			"kernel_pack_ui", NULL);
+#endif // KERNEL_PACK
+#ifdef KERNEL_UPACK
+	frame->kernel_unpack_2d_face_ui = clCreateKernel(frame->program_opencl_core,
+			"kernel_unpack_ui", NULL);
+#endif // KERNEL_UPACK
+#ifdef KERNEL_STENCIL
 	frame->kernel_stencil_3d7p_ui = clCreateKernel(frame->program_opencl_core,
 			"kernel_stencil_3d7p_ui", NULL);
+#endif // KERNL_STENCIL
+#endif //FPGA_UNSIGNED_INTEGER 
+	//return CL_BUILD_PROGRAM_FAILURE;
 }
 
 //This should not be exposed to the user, just the top and pop functions built on top of it
@@ -238,41 +324,111 @@ void copyStackNodeToFrame(metaOpenCLStackNode * t,
 	(*frame)->program_opencl_core = t->frame.program_opencl_core;
 
 	//Kernels
+#ifdef FPGA_DOUBLE
+#ifdef KERNEL_REDUCE
 	(*frame)->kernel_reduce_db = t->frame.kernel_reduce_db;
-	(*frame)->kernel_reduce_fl = t->frame.kernel_reduce_fl;
-	(*frame)->kernel_reduce_ul = t->frame.kernel_reduce_ul;
-	(*frame)->kernel_reduce_in = t->frame.kernel_reduce_in;
-	(*frame)->kernel_reduce_ui = t->frame.kernel_reduce_ui;
+#endif // KERNEL_REDUCE
+#ifdef KERNEL_DOT_PROD
 	(*frame)->kernel_dotProd_db = t->frame.kernel_dotProd_db;
-	(*frame)->kernel_dotProd_fl = t->frame.kernel_dotProd_fl;
-	(*frame)->kernel_dotProd_ul = t->frame.kernel_dotProd_ul;
-	(*frame)->kernel_dotProd_in = t->frame.kernel_dotProd_in;
-	(*frame)->kernel_dotProd_ui = t->frame.kernel_dotProd_ui;
+#endif // KERNEL_DOT_PROD
+#ifdef KERNEL_TRANSPOSE
 	(*frame)->kernel_transpose_2d_face_db =
 			t->frame.kernel_transpose_2d_face_db;
+#endif // KERNEL_TRANSPOSE
+#ifdef KERNEL_PACK
+	(*frame)->kernel_pack_2d_face_db = t->frame.kernel_pack_2d_face_db;
+#endif // KERNEL_PACK
+#ifdef KERNEL_UPACK
+	(*frame)->kernel_unpack_2d_face_db = t->frame.kernel_unpack_2d_face_db;
+#endif // KERNEL_UPACK
+#ifdef KERNEL_STENCIL
+	(*frame)->kernel_stencil_3d7p_db = t->frame.kernel_stencil_3d7p_db;
+#endif // KERNL_STENCIL
+#endif //FPGA_DOUBLE
+#ifdef FPGA_FLOAT
+#ifdef KERNEL_REDUCE
+	(*frame)->kernel_reduce_fl = t->frame.kernel_reduce_fl;
+#endif // KERNEL_REDUCE
+#ifdef KERNEL_DOT_PROD
+	(*frame)->kernel_dotProd_fl = t->frame.kernel_dotProd_fl;
+#endif // KERNEL_DOT_PROD
+#ifdef KERNEL_TRANSPOSE
 	(*frame)->kernel_transpose_2d_face_fl =
 			t->frame.kernel_transpose_2d_face_fl;
+#endif // KERNEL_TRANSPOSE
+#ifdef KERNEL_PACK
+	(*frame)->kernel_pack_2d_face_fl = t->frame.kernel_pack_2d_face_fl;
+#endif // KERNEL_PACK
+#ifdef KERNEL_UPACK
+	(*frame)->kernel_unpack_2d_face_fl = t->frame.kernel_unpack_2d_face_fl;
+#endif // KERNEL_UPACK
+#ifdef KERNEL_STENCIL
+	(*frame)->kernel_stencil_3d7p_fl = t->frame.kernel_stencil_3d7p_fl;
+#endif // KERNL_STENCIL
+#endif //FPGA_FLOAT
+#ifdef FPGA_UNSIGNED_LONG
+#ifdef KERNEL_REDUCE
+	(*frame)->kernel_reduce_ul = t->frame.kernel_reduce_ul;
+#endif // KERNEL_REDUCE
+#ifdef KERNEL_DOT_PROD
+	(*frame)->kernel_dotProd_ul = t->frame.kernel_dotProd_ul;
+#endif // KERNEL_DOT_PROD
+#ifdef KERNEL_TRANSPOSE
 	(*frame)->kernel_transpose_2d_face_ul =
 			t->frame.kernel_transpose_2d_face_ul;
+#endif // KERNEL_TRANSPOSE
+#ifdef KERNEL_PACK
+	(*frame)->kernel_pack_2d_face_ul = t->frame.kernel_pack_2d_face_ul;
+#endif // KERNEL_PACK
+#ifdef KERNEL_UPACK
+	(*frame)->kernel_unpack_2d_face_ul = t->frame.kernel_unpack_2d_face_ul;
+#endif // KERNEL_UPACK
+#ifdef KERNEL_STENCIL
+	(*frame)->kernel_stencil_3d7p_ul = t->frame.kernel_stencil_3d7p_ul;
+#endif // KERNL_STENCIL
+#endif //FPGA_UNSIGNED_LONG
+#ifdef FPGA_INTEGER
+#ifdef KERNEL_REDUCE
+	(*frame)->kernel_reduce_in = t->frame.kernel_reduce_in;
+#endif // KERNEL_REDUCE
+#ifdef KERNEL_DOT_PROD
+	(*frame)->kernel_dotProd_in = t->frame.kernel_dotProd_in;
+#endif // KERNEL_DOT_PROD
+#ifdef KERNEL_TRANSPOSE
 	(*frame)->kernel_transpose_2d_face_in =
 			t->frame.kernel_transpose_2d_face_in;
+#endif // KERNEL_TRANSPOSE
+#ifdef KERNEL_PACK
+	(*frame)->kernel_pack_2d_face_in = t->frame.kernel_pack_2d_face_in;
+#endif // KERNEL_PACK
+#ifdef KERNEL_UPACK
+	(*frame)->kernel_unpack_2d_face_in = t->frame.kernel_unpack_2d_face_in;
+#endif // KERNEL_UPACK
+#ifdef KERNEL_STENCIL
+	(*frame)->kernel_stencil_3d7p_in = t->frame.kernel_stencil_3d7p_in;
+#endif // KERNL_STENCIL
+#endif //FPGA_INTEGER
+#ifdef FPGA_UNSIGNED_INTEGER
+#ifdef KERNEL_REDUCE
+	(*frame)->kernel_reduce_ui = t->frame.kernel_reduce_ui;
+#endif // KERNEL_REDUCE
+#ifdef KERNEL_DOT_PROD
+	(*frame)->kernel_dotProd_ui = t->frame.kernel_dotProd_ui;
+#endif // KERNEL_DOT_PROD
+#ifdef KERNEL_TRANSPOSE
 	(*frame)->kernel_transpose_2d_face_ui =
 			t->frame.kernel_transpose_2d_face_ui;
-	(*frame)->kernel_pack_2d_face_db = t->frame.kernel_pack_2d_face_db;
-	(*frame)->kernel_pack_2d_face_fl = t->frame.kernel_pack_2d_face_fl;
-	(*frame)->kernel_pack_2d_face_ul = t->frame.kernel_pack_2d_face_ul;
-	(*frame)->kernel_pack_2d_face_in = t->frame.kernel_pack_2d_face_in;
+#endif // KERNEL_TRANSPOSE
+#ifdef KERNEL_PACK
 	(*frame)->kernel_pack_2d_face_ui = t->frame.kernel_pack_2d_face_ui;
-	(*frame)->kernel_unpack_2d_face_db = t->frame.kernel_unpack_2d_face_db;
-	(*frame)->kernel_unpack_2d_face_fl = t->frame.kernel_unpack_2d_face_fl;
-	(*frame)->kernel_unpack_2d_face_ul = t->frame.kernel_unpack_2d_face_ul;
-	(*frame)->kernel_unpack_2d_face_in = t->frame.kernel_unpack_2d_face_in;
+#endif // KERNEL_PACK
+#ifdef KERNEL_UPACK
 	(*frame)->kernel_unpack_2d_face_ui = t->frame.kernel_unpack_2d_face_ui;
-	(*frame)->kernel_stencil_3d7p_db = t->frame.kernel_stencil_3d7p_db;
-	(*frame)->kernel_stencil_3d7p_fl = t->frame.kernel_stencil_3d7p_fl;
-	(*frame)->kernel_stencil_3d7p_ul = t->frame.kernel_stencil_3d7p_ul;
-	(*frame)->kernel_stencil_3d7p_in = t->frame.kernel_stencil_3d7p_in;
+#endif // KERNEL_UPACK
+#ifdef KERNEL_STENCIL
 	(*frame)->kernel_stencil_3d7p_ui = t->frame.kernel_stencil_3d7p_ui;
+#endif // KERNL_STENCIL
+#endif //FPGA_UNSIGNED_INTEGER
 
 	//Internal buffers
 	(*frame)->constant_face_size = t->frame.constant_face_size;
@@ -294,37 +450,106 @@ void copyStackFrameToNode(metaOpenCLStackFrame * f,
 	(*node)->frame.program_opencl_core = f->program_opencl_core;
 
 	//Kernels
+#ifdef FPGA_DOUBLE
+#ifdef KERNEL_REDUCE
 	(*node)->frame.kernel_reduce_db = f->kernel_reduce_db;
-	(*node)->frame.kernel_reduce_fl = f->kernel_reduce_fl;
-	(*node)->frame.kernel_reduce_ul = f->kernel_reduce_ul;
-	(*node)->frame.kernel_reduce_in = f->kernel_reduce_in;
-	(*node)->frame.kernel_reduce_ui = f->kernel_reduce_ui;
+#endif // KERNEL_REDUCE
+#ifdef KERNEL_DOT_PROD
 	(*node)->frame.kernel_dotProd_db = f->kernel_dotProd_db;
-	(*node)->frame.kernel_dotProd_fl = f->kernel_dotProd_fl;
-	(*node)->frame.kernel_dotProd_ul = f->kernel_dotProd_ul;
-	(*node)->frame.kernel_dotProd_in = f->kernel_dotProd_in;
-	(*node)->frame.kernel_dotProd_ui = f->kernel_dotProd_ui;
+#endif // KERNEL_DOT_PROD
+#ifdef KERNEL_TRANSPOSE
 	(*node)->frame.kernel_transpose_2d_face_db = f->kernel_transpose_2d_face_db;
-	(*node)->frame.kernel_transpose_2d_face_fl = f->kernel_transpose_2d_face_fl;
-	(*node)->frame.kernel_transpose_2d_face_ul = f->kernel_transpose_2d_face_ul;
-	(*node)->frame.kernel_transpose_2d_face_in = f->kernel_transpose_2d_face_in;
-	(*node)->frame.kernel_transpose_2d_face_ui = f->kernel_transpose_2d_face_ui;
+#endif // KERNEL_TRANSPOSE
+#ifdef KERNEL_PACK
 	(*node)->frame.kernel_pack_2d_face_db = f->kernel_pack_2d_face_db;
-	(*node)->frame.kernel_pack_2d_face_fl = f->kernel_pack_2d_face_fl;
-	(*node)->frame.kernel_pack_2d_face_ul = f->kernel_pack_2d_face_ul;
-	(*node)->frame.kernel_pack_2d_face_in = f->kernel_pack_2d_face_in;
-	(*node)->frame.kernel_pack_2d_face_ui = f->kernel_pack_2d_face_ui;
+#endif // KERNEL_PACK
+#ifdef KERNEL_UPACK
 	(*node)->frame.kernel_unpack_2d_face_db = f->kernel_unpack_2d_face_db;
-	(*node)->frame.kernel_unpack_2d_face_fl = f->kernel_unpack_2d_face_fl;
-	(*node)->frame.kernel_unpack_2d_face_ul = f->kernel_unpack_2d_face_ul;
-	(*node)->frame.kernel_unpack_2d_face_in = f->kernel_unpack_2d_face_in;
-	(*node)->frame.kernel_unpack_2d_face_ui = f->kernel_unpack_2d_face_ui;
+#endif // KERNEL_UPACK
+#ifdef KERNEL_STENCIL
 	(*node)->frame.kernel_stencil_3d7p_db = f->kernel_stencil_3d7p_db;
+#endif // KERNL_STENCIL
+#endif //FPGA_DOUBLE
+#ifdef FPGA_FLOAT
+#ifdef KERNEL_REDUCE
+	(*node)->frame.kernel_reduce_fl = f->kernel_reduce_fl;
+#endif // KERNEL_REDUCE
+#ifdef KERNEL_DOT_PROD
+	(*node)->frame.kernel_dotProd_fl = f->kernel_dotProd_fl;
+#endif // KERNEL_DOT_PROD
+#ifdef KERNEL_TRANSPOSE
+	(*node)->frame.kernel_transpose_2d_face_fl = f->kernel_transpose_2d_face_fl;
+#endif // KERNEL_TRANSPOSE
+#ifdef KERNEL_PACK
+	(*node)->frame.kernel_pack_2d_face_fl = f->kernel_pack_2d_face_fl;
+#endif // KERNEL_PACK
+#ifdef KERNEL_UPACK
+	(*node)->frame.kernel_unpack_2d_face_fl = f->kernel_unpack_2d_face_fl;
+#endif // KERNEL_UPACK
+#ifdef KERNEL_STENCIL
 	(*node)->frame.kernel_stencil_3d7p_fl = f->kernel_stencil_3d7p_fl;
+#endif // KERNL_STENCIL
+#endif //FPGA_FLOAT 
+#ifdef FGPA_UNSIGNED_LONG
+#ifdef KERNEL_REDUCE
+	(*node)->frame.kernel_reduce_ul = f->kernel_reduce_ul;
+#endif // KERNEL_REDUCE
+#ifdef KERNEL_DOT_PROD
+	(*node)->frame.kernel_dotProd_ul = f->kernel_dotProd_ul;
+#endif // KERNEL_DOT_PROD
+#ifdef KERNEL_TRANSPOSE
+	(*node)->frame.kernel_transpose_2d_face_ul = f->kernel_transpose_2d_face_ul;
+#endif // KERNEL_TRANSPOSE
+#ifdef KERNEL_PACK
+	(*node)->frame.kernel_pack_2d_face_ul = f->kernel_pack_2d_face_ul;
+#endif // KERNEL_PACK
+#ifdef KERNEL_UPACK
+	(*node)->frame.kernel_unpack_2d_face_ul = f->kernel_unpack_2d_face_ul;
+#endif // KERNEL_UPACK
+#ifdef KERNEL_STENCIL
 	(*node)->frame.kernel_stencil_3d7p_ul = f->kernel_stencil_3d7p_ul;
+#endif // KERNL_STENCIL
+#endif //FGPA_UNSIGNED_LONG
+#ifdef FPGA_INTEGER
+#ifdef KERNEL_REDUCE
+	(*node)->frame.kernel_reduce_in = f->kernel_reduce_in;
+#endif // KERNEL_REDUCE
+#ifdef KERNEL_DOT_PROD
+	(*node)->frame.kernel_dotProd_in = f->kernel_dotProd_in;
+#endif // KERNEL_DOT_PROD
+#ifdef KERNEL_TRANSPOSE
+	(*node)->frame.kernel_transpose_2d_face_in = f->kernel_transpose_2d_face_in;
+#endif // KERNEL_TRANSPOSE
+#ifdef KERNEL_PACK
+	(*node)->frame.kernel_pack_2d_face_in = f->kernel_pack_2d_face_in;
+#endif // KERNEL_PACK
+#ifdef KERNEL_UPACK
+	(*node)->frame.kernel_unpack_2d_face_in = f->kernel_unpack_2d_face_in;
+#endif // KERNEL_UPACK
+#ifdef KERNEL_STENCIL
 	(*node)->frame.kernel_stencil_3d7p_in = f->kernel_stencil_3d7p_in;
+#endif // KERNL_STENCIL
+#endif //FPGA_INTEGER
+#ifdef FPGA_UNSIGNED_INTEGER
+#ifdef KERNEL_REDUCE
+	(*node)->frame.kernel_reduce_ui = f->kernel_reduce_ui;
+#endif // KERNEL_REDUCE
+#ifdef KERNEL_DOT_PROD
+	(*node)->frame.kernel_dotProd_ui = f->kernel_dotProd_ui;
+#endif // KERNEL_DOT_PROD
+#ifdef KERNEL_TRANSPOSE
+	(*node)->frame.kernel_transpose_2d_face_ui = f->kernel_transpose_2d_face_ui;
+#endif // KERNEL_TRANSPOSE
+#ifdef KERNEL_PACK
+	(*node)->frame.kernel_pack_2d_face_ui = f->kernel_pack_2d_face_ui;
+#endif // KERNEL_PACK
+#ifdef KERNEL_UPACK
+	(*node)->frame.kernel_unpack_2d_face_ui = f->kernel_unpack_2d_face_ui;
+#endif // KERNEL_UPACK
+#ifdef KERNEL_STENCIL
 	(*node)->frame.kernel_stencil_3d7p_ui = f->kernel_stencil_3d7p_ui;
-
+#endif // KERNL_STENCIL
+#endif //FPGA_UNSIGNED_INTEGER
 	//Internal Buffers
 	(*node)->frame.constant_face_size = f->constant_face_size;
 	(*node)->frame.constant_face_stride = f->constant_face_stride;
@@ -439,7 +664,8 @@ cl_int metaOpenCL_set_state(cl_platform_id platform, cl_device_id device,
 cl_int metaOpenCLInitStackFrame(metaOpenCLStackFrame ** frame, cl_int device) {
 	int zero = 0;
 	cl_int ret = CL_SUCCESS;
-	//First, make sure we've run the one-time query to initialize the device array.
+
+	//First, make sure we've run the one-time query to initialize the device array
 	//TODO, fix synchronization on the one-time device query.
 	if (platforms == NULL || devices == NULL || (((long) platforms) == -1)) {
 		//try to perform the scan, else wait while somebody else finishes it.
@@ -465,8 +691,9 @@ cl_int metaOpenCLInitStackFrame(metaOpenCLStackFrame ** frame, cl_int device) {
 			NULL, NULL);
 	(*frame)->queue = clCreateCommandQueue((*frame)->context, (*frame)->device,
 			CL_QUEUE_PROFILING_ENABLE, NULL);
+
 	metaOpenCLBuildProgram((*frame));
-	// Add this debug string if needed: -g -s\"./metamorph_opencl_core.cl\"
+	// Add this debug string if needed: -g -s\"./mm_opencl_backend.cl\"
 	//Allocate any internal buffers necessary for kernel functions
 	(*frame)->constant_face_size = clCreateBuffer((*frame)->context,
 			CL_MEM_READ_ONLY, sizeof(cl_int) * METAMORPH_FACE_MAX_DEPTH, NULL,
@@ -493,36 +720,107 @@ cl_int metaOpenCLInitStackFrame(metaOpenCLStackFrame ** frame, cl_int device) {
 cl_int metaOpenCLDestroyStackFrame(metaOpenCLStackFrame * frame) {
 
 	//Release Kernels
+
+#ifdef FPGA_DOUBLE
+#ifdef KERNEL_REDUCE
 	clReleaseKernel(frame->kernel_reduce_db);
-	clReleaseKernel(frame->kernel_reduce_fl);
-	clReleaseKernel(frame->kernel_reduce_ul);
-	clReleaseKernel(frame->kernel_reduce_in);
-	clReleaseKernel(frame->kernel_reduce_ui);
+#endif // KERNEL_REDUCE
+#ifdef KERNEL_DOT_PROD
 	clReleaseKernel(frame->kernel_dotProd_db);
-	clReleaseKernel(frame->kernel_dotProd_fl);
-	clReleaseKernel(frame->kernel_dotProd_ul);
-	clReleaseKernel(frame->kernel_dotProd_in);
-	clReleaseKernel(frame->kernel_dotProd_ui);
+#endif // KERNEL_DOT_PROD
+#ifdef KERNEL_TRANSPOSE
 	clReleaseKernel(frame->kernel_transpose_2d_face_db);
-	clReleaseKernel(frame->kernel_transpose_2d_face_fl);
-	clReleaseKernel(frame->kernel_transpose_2d_face_ul);
-	clReleaseKernel(frame->kernel_transpose_2d_face_in);
-	clReleaseKernel(frame->kernel_transpose_2d_face_ui);
+#endif // KERNEL_TRANSPOSE
+#ifdef KERNEL_PACK
 	clReleaseKernel(frame->kernel_pack_2d_face_db);
-	clReleaseKernel(frame->kernel_pack_2d_face_fl);
-	clReleaseKernel(frame->kernel_pack_2d_face_ul);
-	clReleaseKernel(frame->kernel_pack_2d_face_in);
-	clReleaseKernel(frame->kernel_pack_2d_face_ui);
+#endif // KERNEL_PACK
+#ifdef KERNEL_UPACK
 	clReleaseKernel(frame->kernel_unpack_2d_face_db);
-	clReleaseKernel(frame->kernel_unpack_2d_face_fl);
-	clReleaseKernel(frame->kernel_unpack_2d_face_ul);
-	clReleaseKernel(frame->kernel_unpack_2d_face_in);
-	clReleaseKernel(frame->kernel_unpack_2d_face_ui);
+#endif // KERNEL_UPACK
+#ifdef KERNEL_STENCIL
 	clReleaseKernel(frame->kernel_stencil_3d7p_db);
+#endif // KERNL_STENCIL
+#endif //FPGA_DOUBLE
+#ifdef  FPGA_FLOAT
+#ifdef KERNEL_REDUCE
+	clReleaseKernel(frame->kernel_reduce_fl);
+#endif // KERNEL_REDUCE
+#ifdef KERNEL_DOT_PROD
+	clReleaseKernel(frame->kernel_dotProd_fl);
+#endif // KERNEL_DOT_PROD
+#ifdef KERNEL_TRANSPOSE
+	clReleaseKernel(frame->kernel_transpose_2d_face_fl);
+#endif // KERNEL_TRANSPOSE
+#ifdef KERNEL_PACK
+	clReleaseKernel(frame->kernel_pack_2d_face_fl);
+#endif // KERNEL_PACK
+#ifdef KERNEL_UPACK
+	clReleaseKernel(frame->kernel_unpack_2d_face_fl);
+#endif // KERNEL_UPACK
+#ifdef KERNEL_STENCIL
 	clReleaseKernel(frame->kernel_stencil_3d7p_fl);
+#endif // KERNL_STENCIL
+#endif //FPGA_FLOAT
+#ifdef FPGA_UNSIGNED_LONG
+#ifdef KERNEL_REDUCE
+	clReleaseKernel(frame->kernel_reduce_ul);
+#endif // KERNEL_REDUCE
+#ifdef KERNEL_DOT_PROD
+	clReleaseKernel(frame->kernel_dotProd_ul);
+#endif // KERNEL_DOT_PROD
+#ifdef KERNEL_TRANSPOSE
+	clReleaseKernel(frame->kernel_transpose_2d_face_ul);
+#endif // KERNEL_TRANSPOSE
+#ifdef KERNEL_PACK
+	clReleaseKernel(frame->kernel_pack_2d_face_ul);
+#endif // KERNEL_PACK
+#ifdef KERNEL_UPACK
+	clReleaseKernel(frame->kernel_unpack_2d_face_ul);
+#endif // KERNEL_UPACK
+#ifdef KERNEL_STENCIL
 	clReleaseKernel(frame->kernel_stencil_3d7p_ul);
+#endif // KERNEL_STENCIL
+#endif //FPGA_UNSIGNED_LONG
+#ifdef FPGA_INTEGER
+#ifdef KERNEL_REDUCE
+	clReleaseKernel(frame->kernel_reduce_in);
+#endif // KERNEL_REDUCE
+#ifdef KERNEL_DOT_PROD
+	clReleaseKernel(frame->kernel_dotProd_in);
+#endif // KERNEL_DOT_PROD
+#ifdef KERNEL_TRANSPOSE
+	clReleaseKernel(frame->kernel_transpose_2d_face_in);
+#endif // KERNEL_TRANSPOSE
+#ifdef KERNEL_PACK
+	clReleaseKernel(frame->kernel_pack_2d_face_in);
+#endif // KERNEL_PACK
+#ifdef KERNEL_UPACK
+	clReleaseKernel(frame->kernel_unpack_2d_face_in);
+#endif // KERNEL_UPACK
+#ifdef KERNEL_STENCIL
 	clReleaseKernel(frame->kernel_stencil_3d7p_in);
+#endif // KERNL_STENCIL
+#endif //FPGA_INTEGER
+#ifdef FPGA_UNSIGNED_INTEGER
+#ifdef KERNEL_REDUCE
+	clReleaseKernel(frame->kernel_reduce_ui);
+#endif // KERNEL_REDUCE
+#ifdef KERNEL_DOT_PROD
+	clReleaseKernel(frame->kernel_dotProd_ui);
+#endif // KERNEL_DOT_PROD
+#ifdef KERNEL_TRANSPOSE
+	clReleaseKernel(frame->kernel_transpose_2d_face_ui);
+#endif // KERNEL_TRANSPOSE
+#ifdef KERNEL_PACK
+	clReleaseKernel(frame->kernel_pack_2d_face_ui);
+#endif // KERNEL_PACK
+#ifdef KERNEL_UPACK
+	clReleaseKernel(frame->kernel_unpack_2d_face_ui);
+#endif // KERNEL_UPACK
+#ifdef KERNEL_STENCIL
 	clReleaseKernel(frame->kernel_stencil_3d7p_ui);
+#endif // KERNL_STENCIL
+#endif //FPGA_UNSIGNED_INTEGER
 
 	//Release Internal Buffers
 	clReleaseMemObject(frame->constant_face_size);
@@ -635,27 +933,33 @@ cl_int opencl_dotProd(size_t (*grid_size)[3], size_t (*block_size)[3],
 	//before enqueuing, get a copy of the top stack frame
 	metaOpenCLStackFrame * frame = metaOpenCLTopStackFrame();
 
+#ifdef KERNEL_DOT_PROD
 	switch (type) {
+#ifdef FPGA_DOUBLE
 	case a_db:
 		kern = frame->kernel_dotProd_db;
 		break;
-
+#endif //FPGA_DOUBLE
+#ifdef  FPGA_FLOAT
 	case a_fl:
 		kern = frame->kernel_dotProd_fl;
 		break;
-
+#endif //FPGA_FLOAT
+#ifdef FPGA_UNSIGNED_LONG
 	case a_ul:
 		kern = frame->kernel_dotProd_ul;
 		break;
-
+#endif //FPGA_UNSIGNED_LONG
+#ifdef FPGA_INTEGER
 	case a_in:
 		kern = frame->kernel_dotProd_in;
 		break;
-
+#endif //FPGA_INTEGER
+#ifdef FPGA_UNSIGNED_INTEGER
 	case a_ui:
 		kern = frame->kernel_dotProd_ui;
 		break;
-
+#endif //FPGA_UNSIGNED_INTEGER 
 	default:
 		fprintf(stderr,
 				"Error: Function 'opencl_dotProd' not implemented for selected type!\n");
@@ -663,6 +967,7 @@ cl_int opencl_dotProd(size_t (*grid_size)[3], size_t (*block_size)[3],
 		break;
 
 	}
+#endif // KERNEL_DOT_PROD
 	//printf("Grid: %d %d %d\n", grid[0], grid[1], grid[2]);
 	//printf("Block: %d %d %d\n", block[0], block[1], block[2]);
 	//printf("Size: %d %d %d\n", (*array_size)[0], (*array_size)[1], (*array_size)[2]);
@@ -755,27 +1060,33 @@ cl_int opencl_reduce(size_t (*grid_size)[3], size_t (*block_size)[3],
 	//before enqueuing, get a copy of the top stack frame
 	metaOpenCLStackFrame * frame = metaOpenCLTopStackFrame();
 
+#ifdef KERNEL_REDUCE
 	switch (type) {
+#ifdef FPGA_DOUBLE
 	case a_db:
 		kern = frame->kernel_reduce_db;
 		break;
-
+#endif //FPGA_DOUBLE
+#ifdef  FPGA_FLOAT
 	case a_fl:
 		kern = frame->kernel_reduce_fl;
 		break;
-
+#endif //FPGA_FLOAT
+#ifdef FPGA_UNSIGNED_LONG
 	case a_ul:
 		kern = frame->kernel_reduce_ul;
 		break;
-
+#endif //FPGA_UNSIGNED_LONG
+#ifdef FPGA_INTEGER
 	case a_in:
 		kern = frame->kernel_reduce_in;
 		break;
-
+#endif //FPGA_INTEGER
+#ifdef FPGA_UNSIGNED_INTEGER
 	case a_ui:
 		kern = frame->kernel_reduce_ui;
 		break;
-
+#endif //FPGA_UNSIGNED_INTEGER 
 	default:
 		fprintf(stderr,
 				"Error: Function 'opencl_reduce' not implemented for selected type!\n");
@@ -783,6 +1094,7 @@ cl_int opencl_reduce(size_t (*grid_size)[3], size_t (*block_size)[3],
 		break;
 
 	}
+#endif // KERNEL_REDUCE
 	//printf("Grid: %d %d %d\n", grid[0], grid[1], grid[2]);
 	//printf("Block: %d %d %d\n", block[0], block[1], block[2]);
 	//printf("Size: %d %d %d\n", (*array_size)[0], (*array_size)[1], (*array_size)[2]);
@@ -803,6 +1115,7 @@ cl_int opencl_reduce(size_t (*grid_size)[3], size_t (*block_size)[3],
 	ret |= clSetKernelArg(kern, 10, sizeof(cl_int), &iters);
 	ret |= clSetKernelArg(kern, 11, sizeof(cl_mem *), &reduced_val);
 	ret |= clSetKernelArg(kern, 12, sizeof(cl_int), &smem_len);
+
 	switch (type) {
 	case a_db:
 		ret |= clSetKernelArg(kern, 13, smem_len * sizeof(cl_double), NULL);
@@ -876,27 +1189,33 @@ cl_int opencl_transpose_face(size_t (*grid_size)[3], size_t (*block_size)[3],
 	//before enqueuing, get a copy of the top stack frame
 	metaOpenCLStackFrame * frame = metaOpenCLTopStackFrame();
 
+#ifdef KERNEL_TRANSPOSE
 	switch (type) {
+#ifdef FPGA_DOUBLE
 	case a_db:
 		kern = frame->kernel_transpose_2d_face_db;
 		break;
-
+#endif //FPGA_DOUBLE
+#ifdef  FPGA_FLOAT
 	case a_fl:
 		kern = frame->kernel_transpose_2d_face_fl;
 		break;
-
+#endif //FPGA_FLOAT
+#ifdef FPGA_UNSIGNED_LONG
 	case a_ul:
 		kern = frame->kernel_transpose_2d_face_ul;
 		break;
-
+#endif //FPGA_UNSIGNED_LONG
+#ifdef FPGA_INTEGER
 	case a_in:
 		kern = frame->kernel_transpose_2d_face_in;
 		break;
-
+#endif //FPGA_INTEGER
+#ifdef FPGA_UNSIGNED_INTEGER
 	case a_ui:
 		kern = frame->kernel_transpose_2d_face_ui;
 		break;
-
+#endif //FPGA_UNSIGNED_INTEGER 
 	default:
 		fprintf(stderr,
 				"Error: Function 'opencl_transpose_face' not implemented for selected type!\n");
@@ -904,6 +1223,7 @@ cl_int opencl_transpose_face(size_t (*grid_size)[3], size_t (*block_size)[3],
 		break;
 
 	}
+#endif // KERNEL_TRANSPOSE
 	ret = clSetKernelArg(kern, 0, sizeof(cl_mem *), &outdata);
 	ret |= clSetKernelArg(kern, 1, sizeof(cl_mem *), &indata);
 	ret |= clSetKernelArg(kern, 2, sizeof(cl_int), &(*arr_dim_xy)[0]);
@@ -997,27 +1317,33 @@ cl_int opencl_pack_face(size_t (*grid_size)[3], size_t (*block_size)[3],
 	}
 	smem_size = face->count * block[0] * sizeof(int);
 //TODO Timing needs to be made consistent with CUDA (ie the event should return time for copying to constant memory and the kernel
-
+#ifdef KERNEL_PACK
 	switch (type) {
+#ifdef FPGA_DOUBLE
 	case a_db:
 		kern = frame->kernel_pack_2d_face_db;
 		break;
-
+#endif //FPGA_DOUBLE
+#ifdef  FPGA_FLOAT
 	case a_fl:
 		kern = frame->kernel_pack_2d_face_fl;
 		break;
-
+#endif //FPGA_FLOAT
+#ifdef FPGA_UNSIGNED_LONG
 	case a_ul:
 		kern = frame->kernel_pack_2d_face_ul;
 		break;
-
+#endif //FPGA_UNSIGNED_LONG
+#ifdef FPGA_INTEGER
 	case a_in:
 		kern = frame->kernel_pack_2d_face_in;
 		break;
-
+#endif //FPGA_INTEGER
+#ifdef FPGA_UNSIGNED_INTEGER
 	case a_ui:
 		kern = frame->kernel_pack_2d_face_ui;
 		break;
+#endif //FPGA_UNSIGNED_INTEGER 
 
 	default:
 		fprintf(stderr,
@@ -1026,6 +1352,7 @@ cl_int opencl_pack_face(size_t (*grid_size)[3], size_t (*block_size)[3],
 		break;
 
 	}
+#endif // KERNEL_PACK
 	//printf("Grid: %d %d %d\n", grid[0], grid[1], grid[2]);
 	//printf("Block: %d %d %d\n", block[0], block[1], block[2]);
 	//printf("Size: %d %d %d\n", (*array_size)[0], (*array_size)[1], (*array_size)[2]);
@@ -1109,27 +1436,33 @@ cl_int opencl_unpack_face(size_t (*grid_size)[3], size_t (*block_size)[3],
 	smem_size = face->count * block[0] * sizeof(int);
 //TODO Timing needs to be made consistent with CUDA (ie the event should return time for copying to constant memory and the kernel
 
+#ifdef KERNEL_UPACK
 	switch (type) {
+#ifdef FPGA_DOUBLE
 	case a_db:
 		kern = frame->kernel_unpack_2d_face_db;
 		break;
-
+#endif //FPGA_DOUBLE
+#ifdef  FPGA_FLOAT
 	case a_fl:
 		kern = frame->kernel_unpack_2d_face_fl;
 		break;
-
+#endif //FPGA_FLOAT
+#ifdef FPGA_UNSIGNED_LONG
 	case a_ul:
 		kern = frame->kernel_unpack_2d_face_ul;
 		break;
-
+#endif //FPGA_UNSIGNED_LONG
+#ifdef FPGA_INTEGER
 	case a_in:
 		kern = frame->kernel_unpack_2d_face_in;
 		break;
-
+#endif //FPGA_INTEGER
+#ifdef FPGA_UNSIGNED_INTEGER
 	case a_ui:
 		kern = frame->kernel_unpack_2d_face_ui;
 		break;
-
+#endif //FPGA_UNSIGNED_INTEGER 
 	default:
 		fprintf(stderr,
 				"Error: Function 'opencl_unpack_face' not implemented for selected type!\n");
@@ -1137,6 +1470,7 @@ cl_int opencl_unpack_face(size_t (*grid_size)[3], size_t (*block_size)[3],
 		break;
 
 	}
+#endif // KERNEL_UPACK
 	//printf("Grid: %d %d %d\n", grid[0], grid[1], grid[2]);
 	//printf("Block: %d %d %d\n", block[0], block[1], block[2]);
 	//printf("Size: %d %d %d\n", (*array_size)[0], (*array_size)[1], (*array_size)[2]);
@@ -1177,8 +1511,7 @@ cl_int opencl_stencil_3d7p(size_t (*grid_size)[3], size_t (*block_size)[3],
 	cl_kernel kern;
 	cl_int smem_len;
 	size_t grid[3] = { 1, 1, 1 };
-	size_t block[3] = { 128, 2, 1 };
-	//size_t block[3] = METAMORPH_OCL_DEFAULT_BLOCK;
+	size_t block[3] = METAMORPH_OCL_DEFAULT_BLOCK;
 	int iters;
 	//Allow for auto-selected grid/block size if either is not specified
 	if (grid_size == NULL || block_size == NULL) {
@@ -1202,38 +1535,43 @@ cl_int opencl_stencil_3d7p(size_t (*grid_size)[3], size_t (*block_size)[3],
 		iters = (*grid_size)[2];
 	}
 
-	//smem_len = (block[0]+2) * (block[1]+2) * block[2];
-	smem_len = 0;
+	smem_len = (block[0] + 2) * (block[1] + 2) * block[2];
+	//smem_len = 0;
 	metaOpenCLStackFrame * frame = metaOpenCLTopStackFrame();
-
+#ifdef KERNEL_STENCIL
 	switch (type) {
+#ifdef FPGA_DOUBLE
 	case a_db:
 		kern = frame->kernel_stencil_3d7p_db;
 		break;
-
+#endif //FPGA_DOUBLE
+#ifdef  FPGA_FLOAT
 	case a_fl:
 		kern = frame->kernel_stencil_3d7p_fl;
 		break;
-
+#endif //FPGA_FLOAT
+#ifdef FPGA_UNSIGNED_LONG
 	case a_ul:
 		kern = frame->kernel_stencil_3d7p_ul;
 		break;
-
+#endif //FPGA_UNSIGNED_LONG
+#ifdef FPGA_INTEGER
 	case a_in:
 		kern = frame->kernel_stencil_3d7p_in;
 		break;
-
+#endif //FPGA_INTEGER
+#ifdef FPGA_UNSIGNED_INTEGER
 	case a_ui:
 		kern = frame->kernel_stencil_3d7p_ui;
 		break;
-
+#endif //FPGA_UNSIGNED_INTEGER 
 	default:
 		fprintf(stderr,
 				"Error: Function 'opencl_stencil_3d7p' not implemented for selected type!\n");
 		return -1;
 		break;
 	}
-
+#endif // KERNL_STENCIL
 	ret = clSetKernelArg(kern, 0, sizeof(cl_mem *), &indata);
 	ret |= clSetKernelArg(kern, 1, sizeof(cl_mem *), &outdata);
 	ret |= clSetKernelArg(kern, 2, sizeof(cl_int), &(*array_size)[0]);

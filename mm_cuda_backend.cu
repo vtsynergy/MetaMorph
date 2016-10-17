@@ -1,7 +1,7 @@
 #include <stdio.h>
 
 /** CUDA Back-End **/
-#include "metamorph_cuda_core.cuh"
+#include "mm_cuda_backend.cuh"
 
 // non-specialized class template
 template<typename T>

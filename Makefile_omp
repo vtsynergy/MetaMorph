@@ -20,20 +20,20 @@ red_test_omp: libmetamorph_omp.so
 	$(CC) red_bootstrapper.c  $(CC_FLAGS) $(SIMD_FLAGS) -I ./ -D UNIFIED_MEMORY -D WITH_OPENMP -D WITH_TIMERS -L ./ -lmetamorph_omp -lmetamorph_omp_core -o red_test_omp
 
 
-libmetamorph_omp.so: libmetamorph_openmp_core.so metamorph.c
+libmetamorph_omp.so: libmm_openmp_backend.so metamorph.c
 	$(CC) metamorph.c metamorph_timers.c $(CC_FLAGS) $(SIMD_FLAGS) $(L_FLAGS) -D WITH_OPENMP -D WITH_TIMERS -I ./ -L ./ -lmetamorph_omp_core -o libmetamorph_omp.so
 
-libmetamorph_openmp_core.so:
-	$(CC) metamorph_openmp_core.c $(CC_FLAGS) -g $(SIMD_FLAGS) $(L_FLAGS) -I ./ -o libmetamorph_openmp_core.so
+libmm_openmp_backend.so:
+	$(CC) mm_openmp_backend.c $(CC_FLAGS) -g $(SIMD_FLAGS) $(L_FLAGS) -I ./ -o libmm_openmp_backend.so
 
 red_test_omp_DEBUG: libmetamorph_omp_DEBUG.so
 	$(CC) red_bootstrapper.c $(CC_FLAGS) -I ./ -D WITH_OPENMP -D WITH_TIMERS -L ./ -lmetamorph_omp_DEBUG -lmetamorph_omp_core_DEBUG -o red_test_omp_DEBUG -g -O0
 
-libmetamorph_omp_DEBUG.so: libmetamorph_openmp_core_DEBUG.so metamorph.c
+libmetamorph_omp_DEBUG.so: libmm_openmp_backend_DEBUG.so metamorph.c
 	$(CC) metamorph.c metamorph_timers.c $(CC_FLAGS) $(L_FLAGS) -D WITH_OPENMP -D WITH_TIMERS -I ./ -L ./ -lmetamorph_omp_core_DEBUG -o libmetamorph_omp_DEBUG.so -g -O0
 
-libmetamorph_openmp_core_DEBUG.so:
-	$(CC) metamorph_openmp_core.c $(CC_FLAGS) -g $(L_FLAGS) -I ./ -o libmetamorph_openmp_core_DEBUG.so -g -O0
+libmm_openmp_backend_DEBUG.so:
+	$(CC) mm_openmp_backend.c $(CC_FLAGS) -g $(L_FLAGS) -I ./ -o libmm_openmp_backend_DEBUG.so -g -O0
 	
 
 clean:
