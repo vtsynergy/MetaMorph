@@ -32,7 +32,6 @@ G_TYPE global_sum;
 a_err err;
 a_dim3 grid, block, array, a_start, a_end;
 
-
 void init(int rank) {
 #ifdef WITH_CUDA
 	if (rank == 0) meta_set_acc(0, metaModePreferCUDA);
@@ -56,9 +55,6 @@ void init(int rank) {
 #endif
 }
 
-void cleanup() {
-}
-
 void data_allocate() {
 	domain = malloc(sizeof(G_TYPE) * (ni + 1) * nj * nk);
 	domain2 = malloc(sizeof(G_TYPE) * (ni + 1) * nj * nk);
@@ -80,8 +76,8 @@ void data_allocate() {
 }
 
 void data_initialize(int rank) {
-	G_TYPE * l_domain = (G_TYPE *) domain;
-	G_TYPE * l_domain2 = (G_TYPE *) domain2;
+	G_TYPE *l_domain = (G_TYPE *) domain;
+	G_TYPE *l_domain2 = (G_TYPE *) domain2;
 
 	int iter;
 	int i, j, k;
@@ -106,7 +102,6 @@ void data_initialize(int rank) {
 			}
 		}
 	}
-
 }
 
 void deallocate() {
@@ -160,8 +155,9 @@ int main(int argc, char **argv) {
 	printf("<%d> <%d> <%d> <%d> <%d> <%d>\n", ni, nj, nk, niters, async,
 			autoconfig);
 
-	init(rank); //MM
-	metaTimersInit(); //MM
+	//Initialization
+	init(rank);
+	metaTimersInit();
 	data_allocate();
 	data_initialize(rank);
 
@@ -169,16 +165,14 @@ int main(int argc, char **argv) {
 	print_grid((G_TYPE * ) domain);
 #endif
 
-	//(The zero face is actually the max face from the far process
+	//The zero face is actually the max face from the far process
 	// so compute the sum including the max face, and subtract off the min face that doesn't exist
 	G_TYPE check = SUM_REG((ni*comm_sz+1),nj,nk) - SUM_REG(1, nj, nk);
-	int ct, flag = 0;
+	int ct;
 	struct timeval start, end;
 	G_TYPE zero = 0.0;
-	//grid[0] = ni/32, grid[1] = nj/4, grid[2] = nk/2; //Assume powers of 2, for simplicity
-	//block[0] = 32, block[1] = 4, block[2] = 2; //Hardcoded to good values
 	grid[0] = ni / 4, grid[1] = nj / 4, grid[2] = nk / 2; //Assume powers of 2, for simplicity
-	block[0] = 4, block[1] = 4, block[2] = 2; //Hardcoded to good values
+	block[0] = 4, block[1] = 4, block[2] = 2;
 	array[0] = ni + 1, array[1] = nj, array[2] = nk;
 	a_start[0] = a_start[1] = a_start[2] = 0;
 	a_end[0] = ni - 1, a_end[1] = nj - 1, a_end[2] = nk - 1;
@@ -222,7 +216,7 @@ int main(int argc, char **argv) {
 #endif
 		//MM flush
 		meta_flush();
-		//local reduction
+
 #ifdef DEBUG
 		printf("Pre-reduce domain");
 		if (err = meta_alloc(&result, sizeof(G_TYPE))) fprintf(stderr, "ERROR allocating result: [%d]\n", err);
@@ -232,7 +226,7 @@ int main(int argc, char **argv) {
 		print_grid(domain);
 #endif	
 
-		//MM: dotP + Data copy
+		//MM: global dot Product
 #if defined(DOUBLE)
 		meta_copy_h2d(result, &zero, sizeof(G_TYPE), true);
 		meta_dotProd(autoconfig ? NULL: &grid, autoconfig ? NULL : &block, d_domain, d_domain2, &array, &a_start, &a_end, result, a_db, true);
@@ -262,8 +256,7 @@ int main(int argc, char **argv) {
 	deallocate();
 
 	metaTimersFinish();
-	cleanup();
 
 	meta_mpi_finalize();
-	return flag;
+	return 0;
 }
