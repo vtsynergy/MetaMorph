@@ -1,7 +1,7 @@
 ========================================
 MetaMorph Beta Release (0.1b)
 ========================================
-This is the first public release of our library framework for interoperable kernels on multi- and many-core Clusters, namely MetaMorph. Since this release is a work-in-progress academic prototype, and it is not production-ready, you are likely to face issues. Email the authors for more details. 
+This is the first public release of our library framework for interoperable kernels on multi- and many-core Clusters, namely MetaMorph. Since this release is a work-in-progress academic prototype, and it is not production-ready, you are likely to face issues. MetaMorph will incorporate additional HPC kernels (e.g. sorting, dynamic programming, n-body) and run-time services developed by the Synergy Laboratory @ Virginia Tech (http://synergy.cs.vt.edu/). Email the authors for more details. 
 
 MetaMorph is created as part of the Air Force Office of Scientific Research (AFOSR) Computational Mathematics Program via Grant number FA9550-12-1-0442. 
 
