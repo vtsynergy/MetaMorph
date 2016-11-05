@@ -62,10 +62,15 @@ void cleanup() {
 void data_allocate() {
 	domain = malloc(sizeof(G_TYPE) * (ni + 1) * nj * nk);
 	domain2 = malloc(sizeof(G_TYPE) * (ni + 1) * nj * nk);
+#ifndef USE_UNIFIED_MEMORY
 	if (err = meta_alloc(&d_domain, sizeof(G_TYPE) * (ni + 1) * nj * nk))
 		fprintf(stderr, "ERROR allocating d_domain: [%d]\n", err);
 	if (err = meta_alloc(&d_domain2, sizeof(G_TYPE) * (ni + 1) * nj * nk))
 		fprintf(stderr, "ERROR allocating d_domain: [%d]\n", err);
+#else
+	d_domain = domain;
+	d_domain2 = domain2;
+#endif
 	if (err = meta_alloc(&result, sizeof(G_TYPE)))
 		fprintf(stderr, "ERROR allocating result: [%d]\n", err);
 	if (err = meta_alloc(&d_sendbuf, sizeof(G_TYPE) * nj * nk))
@@ -107,8 +112,10 @@ void data_initialize(int rank) {
 void deallocate() {
 	free(domain);
 	free(domain2);
+#ifndef USE_UNIFIED_MEMORY
 	meta_free(d_domain);
 	meta_free(d_domain2);
+#endif
 	meta_free(result);
 	meta_free(d_sendbuf);
 	meta_free(d_recvbuf);
@@ -213,14 +220,18 @@ int main(int argc, char **argv) {
 	recv_face = make_slab2d_from_3d(2, ni + 1, nj, nk, 1);
 
 	//MM: Data-copy
+#ifndef USE_UNIFIED_MEMORY
 	if (err = meta_copy_h2d(d_domain, domain, sizeof(G_TYPE) * (ni + 1) * nj * nk, false))
 		fprintf(stderr, "ERROR Init d_domain failed: [%d]\n", err);
 	if (err = meta_copy_h2d(d_domain2, domain2, sizeof(G_TYPE) * (ni + 1) * nj * nk, false))
 		fprintf(stderr, "ERROR Init dev_d3 failed: [%d]\n", err);
+#endif
 
 #ifdef DEBUG
 	printf("Post-H2D domain");
+#ifndef USE_UNIFIED_MEMORY
 	meta_copy_d2h(domain, d_domain, sizeof(G_TYPE)*(ni+1)*nj*nk, false);
+#endif
 	print_grid(domain);
 #endif
 
@@ -246,7 +257,9 @@ int main(int argc, char **argv) {
 #ifdef DEBUG
 		printf("Pre-reduce domain");
 		if (err = meta_alloc(&result, sizeof(G_TYPE))) fprintf(stderr, "ERROR allocating result: [%d]\n", err);
+#ifndef USE_UNIFIED_MEMORY
 		meta_copy_d2h(domain, d_domain, sizeof(G_TYPE)*(ni+1)*nj*nk, false);
+#endif
 		print_grid(domain);
 #endif	
 
