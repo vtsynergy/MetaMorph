@@ -980,6 +980,37 @@ int meta_free_face(meta_face * face) {
 	free(face);
 }
 
+meta_face * make_slab_from_3d(int face, int ni, int nj, int nk, int thickness) {
+	meta_face * ret = (meta_face*) malloc(sizeof(meta_face));
+	ret->count = 3;
+	ret->size = (int*) malloc(sizeof(int) * 3);
+	ret->stride = (int*) malloc(sizeof(int) * 3);
+	//all even faces start at the origin, all others start at some offset
+	// defined by the dimensions of the prism
+	if (face & 1) {
+		if (face == 1)
+			ret->start = ni * nj * (nk - thickness);
+		if (face == 3)
+			ret->start = ni - thickness;
+		if (face == 5)
+			ret->start = ni * (nj - thickness);
+	} else
+		ret->start = 0;
+	ret->size[0] = nk, ret->size[1] = nj, ret->size[2] = ni;
+	if (face < 2)
+		ret->size[0] = thickness;
+	if (face > 3)
+		ret->size[1] = thickness;
+	if (face > 1 && face < 4)
+		ret->size[2] = thickness;
+	ret->stride[0] = ni * nj, ret->stride[1] = ni, ret->stride[2] = 1;
+	printf(
+			"Generated Face:\n\tcount: %d\n\tstart: %d\n\tsize: %d %d %d\n\tstride: %d %d %d\n",
+			ret->count, ret->start, ret->size[0], ret->size[1], ret->size[2],
+			ret->stride[0], ret->stride[1], ret->stride[2]);
+	return ret;
+}
+
 //Workhorse for both sync and async transpose
 a_err meta_transpose_face(a_dim3 * grid_size, a_dim3 * block_size,
 		void *indata, void *outdata, a_dim3 * arr_dim_xy, a_dim3 * tran_dim_xy,

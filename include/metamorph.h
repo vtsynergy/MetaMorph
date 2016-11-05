@@ -90,6 +90,7 @@ typedef struct {
 } meta_face;
 meta_face * meta_get_face(int s, int c, int *si, int *st);
 int meta_free_face(meta_face * face);
+meta_face * make_slab_from_3d(int face, int ni, int nj, int nk, int thickness);
 
 //These are global controls over which accelerator "back-end" are
 // compiled in. Companion features (plugins), such as timers, should support
