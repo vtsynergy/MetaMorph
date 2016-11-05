@@ -96,13 +96,6 @@ cl_int metaOpenCLInitStackFrame(metaOpenCLStackFrame ** frame, cl_int device);
 //stop everything for a frame
 cl_int metaOpenCLDestroyStackFrame(metaOpenCLStackFrame * frame);
 
-//share meta_context with with existing software
-//TODO: expose to the user
-cl_int metaOpenCL_get_state(cl_platform_id * platform, cl_device_id * device,
-		cl_context * context, cl_command_queue * queue);
-cl_int metaOpenCL_set_state(cl_platform_id platform, cl_device_id device,
-		cl_context context, cl_command_queue queue);
-
 //support initialization of a default frame as well as environment variable
 // -based control, via $TARGET_DEVICE="Some Device Name"
 cl_int metaOpenCLInitStackFrameDefault(metaOpenCLStackFrame ** frame);

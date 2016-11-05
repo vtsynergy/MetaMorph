@@ -181,6 +181,11 @@ a_err meta_set_acc(int accel, meta_preferred_mode mode);
 a_err meta_get_acc(int * accel, meta_preferred_mode * mode);
 a_err meta_validate_worksize(a_dim3 * grid_size, a_dim3 * block_size);
 a_err meta_flush();
+//share meta_context with with existing software
+a_int meta_get_state_OpenCL(cl_platform_id * platform, cl_device_id * device,
+		cl_context * context, cl_command_queue * queue);
+a_int meta_set_state_OpenCL(cl_platform_id platform, cl_device_id device,
+		cl_context context, cl_command_queue queue);
 
 //Some OpenCL implementations (may) not provide the CL_CALLBACK convention
 #ifdef WITH_OPENCL

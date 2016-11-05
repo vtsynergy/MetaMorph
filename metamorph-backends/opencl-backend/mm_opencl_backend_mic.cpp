@@ -378,7 +378,7 @@ metaOpenCLStackFrame * metaOpenCLPopStackFrame() {
 	return (frame);
 }
 
-cl_int metaOpenCL_get_state(cl_platform_id * platform, cl_device_id * device,
+a_int meta_get_state_OpenCL(cl_platform_id * platform, cl_device_id * device,
 		cl_context * context, cl_command_queue * queue) {
 	metaOpenCLStackFrame * frame = metaOpenCLTopStackFrame();
 	if (platform != NULL)
@@ -391,12 +391,12 @@ cl_int metaOpenCL_get_state(cl_platform_id * platform, cl_device_id * device,
 		*queue = frame->queue;
 }
 
-cl_int metaOpenCL_set_state(cl_platform_id platform, cl_device_id device,
+a_int meta_set_state_OpenCL(cl_platform_id platform, cl_device_id device,
 		cl_context context, cl_command_queue queue) {
 	if (platform == NULL || device == NULL || context == NULL
 			|| queue == NULL) {
 		fprintf(stderr,
-				"Error: metaOpenCL_set_state requires a full frame specification!\n");
+				"Error: meta_set_state_OpenCL requires a full frame specification!\n");
 		return -1;
 	}
 	//Make a frame
