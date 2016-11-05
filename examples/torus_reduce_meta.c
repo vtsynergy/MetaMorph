@@ -21,10 +21,10 @@
 #define SUM_REG(a,b,c) ((((a)*(b)*(c))/2.0)*((a)+(b)+(c)-3))
 
 // host buffers
-void *data3, *data3_2;
+void *domain, *domain2;
 
 // dev buffers
-void * dev_d3, *dev_d32, *result, *dev_sendbuf, *dev_recvbuf;
+void *d_domain, *d_domain2, *result, *d_sendbuf, *d_recvbuf;
 
 int ni, nj, nk;
 G_TYPE r_val;
@@ -60,41 +60,32 @@ void cleanup() {
 }
 
 void data_allocate() {
-	data3 = malloc(sizeof(G_TYPE) * (ni + 1) * nj * nk);
-	data3_2 = malloc(sizeof(G_TYPE) * (ni + 1) * nj * nk);
-	if (err = meta_alloc(&dev_d3, sizeof(G_TYPE) * (ni + 1) * nj * nk))
-		fprintf(stderr, "ERROR allocating dev_d3: [%d]\n", err);
-	if (err = meta_alloc(&dev_d32, sizeof(G_TYPE) * (ni + 1) * nj * nk))
-		fprintf(stderr, "ERROR allocating dev_d3: [%d]\n", err);
+	domain = malloc(sizeof(G_TYPE) * (ni + 1) * nj * nk);
+	domain2 = malloc(sizeof(G_TYPE) * (ni + 1) * nj * nk);
+	if (err = meta_alloc(&d_domain, sizeof(G_TYPE) * (ni + 1) * nj * nk))
+		fprintf(stderr, "ERROR allocating d_domain: [%d]\n", err);
+	if (err = meta_alloc(&d_domain2, sizeof(G_TYPE) * (ni + 1) * nj * nk))
+		fprintf(stderr, "ERROR allocating d_domain: [%d]\n", err);
 	if (err = meta_alloc(&result, sizeof(G_TYPE)))
 		fprintf(stderr, "ERROR allocating result: [%d]\n", err);
-	if (err = meta_alloc(&dev_sendbuf, sizeof(G_TYPE) * nj * nk))
-		fprintf(stderr, "Error allocating dev_sendbuf: [%d]\n", err);
-	if (err = meta_alloc(&dev_recvbuf, sizeof(G_TYPE) * nj * nk))
-		fprintf(stderr, "Error allocating dev_recvbuf: [%d]\n", err);
+	if (err = meta_alloc(&d_sendbuf, sizeof(G_TYPE) * nj * nk))
+		fprintf(stderr, "Error allocating d_sendbuf: [%d]\n", err);
+	if (err = meta_alloc(&d_recvbuf, sizeof(G_TYPE) * nj * nk))
+		fprintf(stderr, "Error allocating d_recvbuf: [%d]\n", err);
 }
 
 void data_initialize(int rank) {
-	G_TYPE * l_data3 = (G_TYPE *) data3;
-	G_TYPE * l_data3_2 = (G_TYPE *) data3_2;
+	G_TYPE * l_domain = (G_TYPE *) domain;
+	G_TYPE * l_domain2 = (G_TYPE *) domain2;
 
 	int iter;
 	int i, j, k;
 
-#if DEBUG2
-	for (i = ni; i >= 0; i--) {
-		for (j = nj - 1; j >= 0; j--) {
-			for (k = nk - 1; k >= 0; k--) {
-				l_data3_2[i + j * (ni + 1) + k * (ni + 1) * nj] = 1.0f;
-			}
-		}
-	}
-#else
 	for (i = ni; i >= 0; i--) {
 		for (j = nj - 1; j >= 0; j--) {
 			for (k = nk - 1; k >= 0; k--) {
 				if (i == 0) {
-					l_data3[i + j * (ni + 1) + k * (ni + 1) * nj] = 0.0f;
+					l_domain[i + j * (ni + 1) + k * (ni + 1) * nj] = 0.0f;
 				} else {
 					l_data3[i + j * (ni + 1) + k * (ni + 1) * nj] = i + j + k
 							+ (ni * rank);
@@ -102,17 +93,25 @@ void data_initialize(int rank) {
 			}
 		}
 	}
-#endif
+
+	for (i = ni; i >= 0; i--) {
+		for (j = nj - 1; j >= 0; j--) {
+			for (k = nk - 1; k >= 0; k--) {
+				l_domain2[i + j * (ni + 1) + k * (ni + 1) * nj] = 1.0f;
+			}
+		}
+	}
+
 }
 
 void deallocate() {
-	free(data3);
-	free(data3_2);
-	meta_free(dev_d3);
-	meta_free(dev_d32);
+	free(domain);
+	free(domain2);
+	meta_free(d_domain);
+	meta_free(d_domain2);
 	meta_free(result);
-	meta_free(dev_sendbuf);
-	meta_free(dev_recvbuf);
+	meta_free(d_sendbuf);
+	meta_free(d_recvbuf);
 }
 
 meta_face * make_slab2d_from_3d(int face, int ni, int nj, int nk, int thickness) {
@@ -191,7 +190,7 @@ int main(int argc, char **argv) {
 	data_initialize(rank);
 
 #ifdef DEBUG
-	print_grid((G_TYPE * ) data3);
+	print_grid((G_TYPE * ) domain);
 #endif
 
 	//(The zero face is actually the max face from the far process
@@ -214,15 +213,15 @@ int main(int argc, char **argv) {
 	recv_face = make_slab2d_from_3d(2, ni + 1, nj, nk, 1);
 
 	//MM: Data-copy
-	if (err = meta_copy_h2d(dev_d3, data3, sizeof(G_TYPE) * (ni + 1) * nj * nk, false))
-		fprintf(stderr, "ERROR Init dev_d3 failed: [%d]\n", err);
-	if (err = meta_copy_h2d(dev_d32, data3_2, sizeof(G_TYPE) * (ni + 1) * nj * nk, false))
+	if (err = meta_copy_h2d(d_domain, domain, sizeof(G_TYPE) * (ni + 1) * nj * nk, false))
+		fprintf(stderr, "ERROR Init d_domain failed: [%d]\n", err);
+	if (err = meta_copy_h2d(d_domain2, domain2, sizeof(G_TYPE) * (ni + 1) * nj * nk, false))
 		fprintf(stderr, "ERROR Init dev_d3 failed: [%d]\n", err);
 
 #ifdef DEBUG
-	printf("Post-H2D grid");
-	meta_copy_d2h(data3, dev_d3, sizeof(G_TYPE)*(ni+1)*nj*nk, false);
-	print_grid(data3);
+	printf("Post-H2D domain");
+	meta_copy_d2h(domain, d_domain, sizeof(G_TYPE)*(ni+1)*nj*nk, false);
+	print_grid(domain);
 #endif
 
 	gettimeofday(&start, NULL);
@@ -230,14 +229,14 @@ int main(int argc, char **argv) {
 		//MM: data marshaling
 #if defined(DOUBLE)
 		//set up async recv and unpack
-		err = meta_mpi_recv_and_unpack_face(autoconfig ? NULL : &grid, autoconfig ? NULL : &block, (rank+comm_sz-1)%comm_sz, recv_face, dev_d3, dev_recvbuf, ct, &request, a_db, 1);
+		err = meta_mpi_recv_and_unpack_face(autoconfig ? NULL : &grid, autoconfig ? NULL : &block, (rank+comm_sz-1)%comm_sz, recv_face, d_domain, d_recvbuf, ct, &request, a_db, 1);
 		//pack and send
-		err = meta_mpi_pack_and_send_face(autoconfig ? NULL : &grid, autoconfig ? NULL : &block, (rank+1)%comm_sz, send_face, dev_d3, dev_sendbuf, ct, &request, a_db, 0);
+		err = meta_mpi_pack_and_send_face(autoconfig ? NULL : &grid, autoconfig ? NULL : &block, (rank+1)%comm_sz, send_face, d_domain, d_sendbuf, ct, &request, a_db, 0);
 #elif defined(FLOAT)
 		//set up async recv and unpack
-		err = meta_mpi_recv_and_unpack_face(autoconfig ? NULL : &grid, autoconfig ? NULL : &block, (rank+comm_sz-1)%comm_sz, recv_face, dev_d3, dev_recvbuf, ct, &request, a_fl, 1);
+		err = meta_mpi_recv_and_unpack_face(autoconfig ? NULL : &grid, autoconfig ? NULL : &block, (rank+comm_sz-1)%comm_sz, recv_face, d_domain, d_recvbuf, ct, &request, a_fl, 1);
 		//pack and send
-		err = meta_mpi_pack_and_send_face(autoconfig ? NULL : &grid, autoconfig ? NULL : &block, (rank+1)%comm_sz, send_face, dev_d3, dev_sendbuf, ct, &request, a_fl, 0);
+		err = meta_mpi_pack_and_send_face(autoconfig ? NULL : &grid, autoconfig ? NULL : &block, (rank+1)%comm_sz, send_face, d_domain, d_sendbuf, ct, &request, a_fl, 0);
 #else
 #error Unsupported G_TYPE, must be double or float
 #endif
@@ -245,21 +244,21 @@ int main(int argc, char **argv) {
 		meta_flush();
 		//local reduction
 #ifdef DEBUG
-		printf("Pre-reduce grid");
+		printf("Pre-reduce domain");
 		if (err = meta_alloc(&result, sizeof(G_TYPE))) fprintf(stderr, "ERROR allocating result: [%d]\n", err);
-		meta_copy_d2h(data3, dev_d3, sizeof(G_TYPE)*(ni+1)*nj*nk, false);
-		print_grid(data3);
+		meta_copy_d2h(domain, d_domain, sizeof(G_TYPE)*(ni+1)*nj*nk, false);
+		print_grid(domain);
 #endif	
 
 		//MM: dotP + Data copy
 #if defined(DOUBLE)
 		meta_copy_h2d(result, &zero, sizeof(G_TYPE), true);
-		meta_dotProd(autoconfig ? NULL: &grid, autoconfig ? NULL : &block, dev_d3, dev_d32, &array, &a_start, &a_end, result, a_db, true);
+		meta_dotProd(autoconfig ? NULL: &grid, autoconfig ? NULL : &block, d_domain, d_domain2, &array, &a_start, &a_end, result, a_db, true);
 		meta_copy_d2h(&r_val, result, sizeof(G_TYPE), false);
 		MPI_Reduce(&r_val, &global_sum, 1, MPI_DOUBLE, MPI_SUM, 0, MPI_COMM_WORLD);
 #elif defined(FLOAT)
 		meta_copy_h2d(result, &zero, sizeof(G_TYPE), true);
-		meta_dotProd(autoconfig ? NULL: &grid, autoconfig ? NULL : &block, dev_d3, dev_d32, &array, &a_start, &a_end, result, a_fl, true);
+		meta_dotProd(autoconfig ? NULL: &grid, autoconfig ? NULL : &block, d_domain, d_domain2, &array, &a_start, &a_end, result, a_fl, true);
 		meta_copy_d2h(&r_val, result, sizeof(G_TYPE), true);
 		MPI_Reduce(&r_val, &global_sum, 1, MPI_FLOAT, MPI_SUM, 0, MPI_COMM_WORLD);
 #else
