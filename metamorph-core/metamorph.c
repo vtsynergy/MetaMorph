@@ -413,11 +413,11 @@ a_err meta_copy_d2d_cb(void * dst, void * src, size_t size, a_bool async,
 }
 
 //In CUDA choosing an accelerator is optional, make sure the OpenCL version
-// implements some reasonable default if choose_accel is not called before the
+// implements some reasonable default if meta_set_acc is not called before the
 // first OpenCL command
 //TODO make this compatible with OpenCL initialization
 //TODO unpack OpenCL platform from the uint's high short, and the device from the low short
-a_err choose_accel(int accel, meta_preferred_mode mode) {
+a_err meta_set_acc(int accel, meta_preferred_mode mode) {
 	a_err ret;
 	run_mode = mode;
 	switch (run_mode) {
@@ -427,15 +427,15 @@ a_err choose_accel(int accel, meta_preferred_mode mode) {
 		//TODO support "METAMORPH_MODE" environment variable.
 		if (getenv("METAMORPH_MODE") != NULL) {
 #ifdef WITH_CUDA
-			if (strcmp(getenv("METAMORPH_MODE"), "CUDA") == 0) return choose_accel(accel, metaModePreferCUDA);
+			if (strcmp(getenv("METAMORPH_MODE"), "CUDA") == 0) return meta_set_acc(accel, metaModePreferCUDA);
 #endif
 
 #ifdef WITH_OPENCL
-			if (strcmp(getenv("METAMORPH_MODE"), "OpenCL") == 0 || strcmp(getenv("METAMORPH_MODE"), "OpenCL_DEBUG") == 0) return choose_accel(accel, metaModePreferOpenCL);
+			if (strcmp(getenv("METAMORPH_MODE"), "OpenCL") == 0 || strcmp(getenv("METAMORPH_MODE"), "OpenCL_DEBUG") == 0) return meta_set_acc(accel, metaModePreferOpenCL);
 #endif
 
 #ifdef WITH_OPENMP
-			if (strcmp(getenv("METAMORPH_MODE"), "OpenMP") == 0) return choose_accel(accel, metaModePreferOpenMP);
+			if (strcmp(getenv("METAMORPH_MODE"), "OpenMP") == 0) return meta_set_acc(accel, metaModePreferOpenMP);
 #endif
 
 #ifdef WITH_CORETSAR
@@ -508,7 +508,7 @@ a_err choose_accel(int accel, meta_preferred_mode mode) {
 
 //TODO make this compatible with OpenCL device querying
 //TODO pack OpenCL platform into the uint's high short, and the device into the low short
-a_err get_accel(int * accel, meta_preferred_mode * mode) {
+a_err meta_get_acc(int * accel, meta_preferred_mode * mode) {
 	a_err ret;
 	switch (run_mode) {
 	default:

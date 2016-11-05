@@ -540,9 +540,9 @@ cl_int metaOpenCLDestroyStackFrame(metaOpenCLStackFrame * frame) {
 
 //This is a fallback catchall to ensure some context is initialized
 // iff the user calls an accelerator function in OpenCL mode before
-// calling choose_accel in OpenCL mode.
+// calling meta_set_acc in OpenCL mode.
 //It will pick some valid OpenCL device, and emit a warning to stderr
-// that all OpenCL calls until choose_accel will refer to this device
+// that all OpenCL calls until meta_set_acc will refer to this device
 //It also implements environment-variable-controlled device selection
 // via the "TARGET_DEVICE" string environemnt variable, which must match
 // EXACTLY the device name reported to the OpenCL runtime.

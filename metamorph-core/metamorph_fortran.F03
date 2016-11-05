@@ -22,22 +22,22 @@
       end function meta_free_c
       end interface
 
-      interface choose_accel
-      function choose_accel_c(accel, mode)
+      interface meta_set_acc
+      function meta_set_acc_c(accel, mode)
       use ISO_C_BINDING
-      integer (C_INT) :: choose_accel
+      integer (C_INT) :: meta_set_acc
       integer (C_INT) :: accel
       integer (C_INT) :: mode
-      end function choose_accel_c
+      end function meta_set_acc_c
       end interface
 
-      interface get_accel
-      function get_accel_c(accel, mode)
+      interface meta_get_acc
+      function meta_get_acc_c(accel, mode)
       use ISO_C_BINDING
-      integer (C_INT) :: get_accel
+      integer (C_INT) :: meta_get_acc
       integer (C_INT) :: accel
       integer (C_INT) :: mode
-      end function get_accel_c
+      end function meta_get_acc_c
       end interface
 
       interface meta_validate_worksize_c

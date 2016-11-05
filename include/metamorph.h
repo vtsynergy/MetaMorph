@@ -176,8 +176,8 @@ metaModePreferOpenMP = 3
 // Memory/Context Management
 a_err meta_alloc(void ** ptr, size_t size);
 a_err meta_free(void * ptr);
-a_err choose_accel(int accel, meta_preferred_mode mode);
-a_err get_accel(int * accel, meta_preferred_mode * mode);
+a_err meta_set_acc(int accel, meta_preferred_mode mode);
+a_err meta_get_acc(int * accel, meta_preferred_mode * mode);
 a_err meta_validate_worksize(a_dim3 * grid_size, a_dim3 * block_size);
 a_err meta_flush();
 

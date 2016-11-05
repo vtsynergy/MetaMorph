@@ -201,16 +201,16 @@ void gpu_initialize(int rank) {
 	int istat, deviceused, idevice = rank; //integer::istat, deviceused, idevice
 
 //            ! Initialize GPU
-	//istat = choose_accel(idevice, (rank & 1 ? metaModePreferCUDA : metaModePreferOpenCL)); //TODO make "choose_accel"
-	//istat = choose_accel(idevice, (rank & 1 ? metaModePreferOpenCL : metaModePreferCUDA)); //TODO make "choose_accel"
-	istat = choose_accel(idevice, metaModePreferCUDA); //TODO make "choose_accel"3
-	//istat = choose_accel(idevice, metaModePreferOpenCL);
-	//istat = choose_accel(idevice, metaModePreferGeneric); //TODO make "choose_accel"
+	//istat = meta_set_acc(idevice, (rank & 1 ? metaModePreferCUDA : metaModePreferOpenCL)); //TODO make "meta_set_acc"
+	//istat = meta_set_acc(idevice, (rank & 1 ? metaModePreferOpenCL : metaModePreferCUDA)); //TODO make "meta_set_acc"
+	istat = meta_set_acc(idevice, metaModePreferCUDA); //TODO make "meta_set_acc"3
+	//istat = meta_set_acc(idevice, metaModePreferOpenCL);
+	//istat = meta_set_acc(idevice, metaModePreferGeneric); //TODO make "meta_set_acc"
 
 //            ! cudaChooseDevice
 //            ! Tell me which GPU I use
 	meta_preferred_mode mode;
-	istat = get_accel(&deviceused, &mode); //TODO make "get_accel"
+	istat = meta_get_acc(&deviceused, &mode); //TODO make "meta_get_acc"
 	printf("Device used\t%d\n", deviceused); //print *, 'Device used', deviceused
 	//Test	
 

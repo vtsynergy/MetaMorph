@@ -231,12 +231,12 @@
             idevice = -1
             ! Initialize GPU
 !            istat = cudaSetDevice(idevice)
-            istat = choose_accel(idevice, 0)
+            istat = meta_set_acc(idevice, 0)
 
             ! cudaChooseDevice
             ! Tell me which GPU I use
 !            istat = cudaGetDevice(deviceused)
-            istat = get_accel(deviceused, mode)
+            istat = meta_get_acc(deviceused, mode)
             print *, 'Device used', deviceused
 
       end subroutine gpu_initialize

@@ -25,8 +25,8 @@
 int elapsed_(double *sec);
 int meta_alloc_c_(void ** ptr, size_t * size);
 int meta_free_c_(void * ptr);
-int choose_accel_c_(int * accel, int * mode);
-int get_accel_c_(int * accel, int * mode);
+int meta_set_acc_c_(int * accel, int * mode);
+int meta_get_acc_c_(int * accel, int * mode);
 int meta_validate_worksize_c_(size_t * grid_x, size_t * grid_y, size_t * grid_z,
 		size_t * block_x, size_t * block_y, size_t * block_z);
 int meta_dotprod_c_(size_t * grid_x, size_t * grid_y, size_t * grid_z,

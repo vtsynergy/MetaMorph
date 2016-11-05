@@ -35,20 +35,20 @@ a_dim3 grid, block, array, a_start, a_end;
 
 void init(int rank) {
 #ifdef WITH_CUDA
-	if (rank == 0) choose_accel(0, metaModePreferCUDA);
+	if (rank == 0) meta_set_acc(0, metaModePreferCUDA);
 	else fprintf(stderr, "WITH_CUDA should only be defined for rank 0, I have rank [%d]\n", rank);
 #elif defined(WITH_OPENCL)
 #ifdef DEBUG2
-	if (rank ==0) choose_accel(-1, metaModePreferOpenCL);
+	if (rank ==0) meta_set_acc(-1, metaModePreferOpenCL);
 #else
-	if (rank ==2) choose_accel(0, metaModePreferOpenCL);
+	if (rank ==2) meta_set_acc(0, metaModePreferOpenCL);
 #endif
 	else fprintf(stderr, "WITH_OPENCL should only be defined for rank 2, I have rank [%d]\n", rank);
 #elif defined(WITH_OPENMP)
 #ifdef DEBUG2
-	if (rank ==0) choose_accel(0, metaModePreferOpenMP);
+	if (rank ==0) meta_set_acc(0, metaModePreferOpenMP);
 #else
-	if (rank == 1 || rank == 3) choose_accel(0, metaModePreferOpenMP);
+	if (rank == 1 || rank == 3) meta_set_acc(0, metaModePreferOpenMP);
 #endif
 	else fprintf(stderr, "WITH_OPENMP should only be defined for ranks 1 and 3, I have rank [%d]\n", rank);
 #else

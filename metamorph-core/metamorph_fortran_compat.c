@@ -29,11 +29,11 @@ int meta_alloc_c_(void ** ptr, size_t * size) {
 int meta_free_c_(void * ptr) {
 	return (int) meta_free(ptr);
 }
-int choose_accel_c_(int * accel, int * mode) {
-	return (int) choose_accel(*accel, (meta_preferred_mode) (*mode));
+int meta_set_acc_c_(int * accel, int * mode) {
+	return (int) meta_set_acc(*accel, (meta_preferred_mode) (*mode));
 }
-int get_accel_c_(int * accel, int * mode) {
-	return (int) get_accel(accel, (meta_preferred_mode *) mode);
+int meta_get_acc_c_(int * accel, int * mode) {
+	return (int) meta_get_acc(accel, (meta_preferred_mode *) mode);
 }
 int meta_validate_worksize_c_(size_t * grid_x, size_t * grid_y, size_t * grid_z,
 		size_t * block_x, size_t * block_y, size_t * block_z) {
