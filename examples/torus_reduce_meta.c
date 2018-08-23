@@ -88,7 +88,7 @@ void data_initialize(int rank) {
 				if (i == 0) {
 					l_domain[i + j * (ni + 1) + k * (ni + 1) * nj] = 0.0f;
 				} else {
-					l_data3[i + j * (ni + 1) + k * (ni + 1) * nj] = i + j + k
+					l_domain[i + j * (ni + 1) + k * (ni + 1) * nj] = i + j + k
 							+ (ni * rank);
 				}
 			}

@@ -1,6 +1,6 @@
 #root directories 
 export MPICH_DIR =/home/ammhelal/MPICH-3.2/install
-export MM_DIR=/home/ammhelal/workspace_sy/metamorph
+export MM_DIR=/home/ammhelal/metamorph-public
 
 export MM_CORE=$(MM_DIR)/metamorph-core
 export MM_MP=$(MM_DIR)/metamorph-backends/openmp-backend
@@ -40,9 +40,9 @@ metamorph_all: libmetamorph.so libmetamorph_mp.so libmetamorph_mic.so libmetamor
 
 libmetamorph.so: libmm_openmp_backend.so libmm_cuda_backend.so libmm_opencl_backend.so
 ifeq ($(USE_MPI),TRUE)
-	mpicc $(MM_CORE)/ metamorph.c $(MM_CORE)/metamorph_timers.c $(MM_CORE)/metamorph_mpi.c $(CC_FLAGS) $(INCLUDES) -L $(MM_LIB) -D WITH_OPENMP -D WITH_OPENCL -D WITH_CUDA -D WITH_TIMERS -D WITH_MPI -I $(MPICH_DIR)/include -L $(MPICH_DIR)/lib -L /usr/local/cuda/lib64 -lmm_openmp_backend -lmm_cuda_backend -lmm_opencl_backend -lOpenCL -lcudart -o $(MM_LIB)/libmetamorph.so
+	mpicc $(MM_CORE)/metamorph.c $(MM_CORE)/metamorph_timers.c $(MM_CORE)/metamorph_mpi.c $(CC_FLAGS) $(INCLUDES) -L $(MM_LIB) -D WITH_OPENMP -D WITH_OPENCL -D WITH_CUDA -D WITH_TIMERS -D WITH_MPI -I $(MPICH_DIR)/include -L $(MPICH_DIR)/lib -L /usr/local/cuda/lib64 -lmm_openmp_backend  -lmm_cuda_backend -lmm_opencl_backend -lOpenCL -lcudart -o $(MM_LIB)/libmetamorph.so
 else
-	$(CC) $(MM_CORE)/ metamorph.c $(MM_CORE)/metamorph_timers.c $(CC_FLAGS) $(INCLUDES) -L $(MM_LIB) -D WITH_OPENMP -D WITH_OPENCL -D WITH_CUDA -D WITH_TIMERS -L /usr/local/cuda/lib64 -lmm_openmp_backend -lmm_cuda_backend -lmm_opencl_backend -lOpenCL -lcudart -o $(MM_LIB)/libmetamorph.so
+	$(CC) $(MM_CORE)/metamorph.c $(MM_CORE)/metamorph_timers.c $(CC_FLAGS) $(INCLUDES) -L $(MM_LIB) -D WITH_OPENMP -D WITH_OPENCL -D WITH_CUDA -D WITH_TIMERS -L /usr/local/cuda/lib64 -lmm_openmp_backend  -lmm_cuda_backend -lmm_opencl_backend -lOpenCL -lcudart -o $(MM_LIB)/libmetamorph.so
 endif
 
 libmetamorph_mp.so: libmm_openmp_backend.so
@@ -86,6 +86,8 @@ libmm_opencl_backend.so:
 	cd $(MM_CL) && $(MAKE) libmm_opencl_backend.so $(MFLAGS)
 
 examples: 
-	cd $(MM_EX) && $(MAKE) torus_reduce_test_mp torus_reduce_test_cu torus_reduce_test_cl $(MFLAGS)
+	cd $(MM_EX) && $(MAKE) torus_reduce_test $(MFLAGS)
+#	cd $(MM_EX) && $(MAKE) torus_reduce_test_mp torus_reduce_test_mic torus_reduce_test_cu torus_reduce_test_cl $(MFLAGS)
 	
-	
+clean:
+	rm $(MM_LIB)/libmetamorph*.so $(MM_LIB)/libmm*.so

@@ -1,7 +1,10 @@
 /*
- * Implementation of the Fortran-compatible variants of all
+ * Implementation of the Fortran-compatible variants of some
  * top-level C library functions. Currently implemented as
  * an opt-in plugin with the -D WITH_FORTRAN compiler define.
+ *
+ * TODO: Implement the remaining top-level C library functions:
+ * communication interface, data marshaling, stencil,...
  *
  * These functions should be as efficient as possible, but the
  * C interface always takes priority w.r.t. performance. It is
