@@ -26,7 +26,6 @@ using namespace clang::tooling;
 
 //Ternary checks the status of the inline-error-check variable to easily eliminate all checks added through the macro
 #define ERROR_CHECK(errorcode, text) (InlineErrorCheck.getValue() ? "  if (" errorcode " != CL_SUCCESS) fprintf(stderr, \"" text " \%d at \%s:\%d\\n\", " errorcode ", __FILE__, __LINE__);\n" : "")
-//#define ERROR_CHECK(errorcode, text) "  if (" errorcode " != CL_SUCCESS) fprintf(stderr, \"" text " \%d at \%s:\%d\\n\", " errorcode ", __FILE__, __LINE__);\n"
 #define APPEND_ERROR_CHECK(string, errorcode, text) string += ERROR_CHECK(errorcode, text)
 
 static llvm::cl::OptionCategory MetaGenCLCategory("MetaGen-CL Options");
@@ -104,93 +103,6 @@ template<> struct less<QualType> {
 //For a given Qualtype will do a postorder traversal of all required records and typedefs to ensure they are generated in the given output header file
 //Returns the host-side name of the imported type
 std::map<raw_ostream *, std::map<QualType, std::string> > ImportedTypes;
-/*std::string importTypeDependencies(QualType type, ASTContext &Context, raw_ostream * out_header, bool alreadyImported = false) {
-  //If it's a primitive type, just return it without import
-  if (isa<BuiltinType>(type)) {
-    return type.getAsString();
-  }
-  //If it's an OpenCL "primitive" type with embedded typedef (like uchar --> unsigned char) don't import it
-  //We can recognize these by their presence in Clang's opencl-c.h file
-  if (const TypedefType * t = dyn_cast<TypedefType>(type)) {
-    //llvm::errs() << "Typedef from: " << Context.getSourceManager().getBufferName(t->getDecl()->getLocation()) << "\n";
-    if (Context.getSourceManager().getBufferName(t->getDecl()->getLocation()).str().find("opencl-c.h") != std::string::npos) {
-      return type.getAsString();
-    }
-  }
-  if (type.getAsString().find("popiu") != std::string::npos) type.dump();
-  //type.dump();
-  //If we haven't imported anything for this output header files yet
-  if (ImportedTypes.find(out_header) == ImportedTypes.end()) {
-    //Just initialize a new list for this header file
-    //ImportedTypes[out_header] = new std::list<QualType>();
-  }
-  //If the specific type we need is not copied yet
-  llvm::errs() << "Type: " << type.getAsString() << " UnqualType: " << type.getUnqualifiedType().getAsString() << "\n";
-  //if (std::find(ImportedTypes[out_header].begin(), ImportedTypes[out_header].first.end(), type) == ImportedTypes[out_header].first.end()) {
-  if (ImportedTypes[out_header].find(type) == ImportedTypes[out_header].end()) {
-    llvm::errs() << "Recursing... " << type.getSingleStepDesugaredType(Context).getAsString() << "\n";
-    //We have to record that we've imported it before we recurse so that it acts as it's own base case (else it'll recurse infinitely)
-    (ImportedTypes[out_header])[type] = "";
-    //If this is a combined Typedef/Record decl, the internal recursions for the ElaboratedType and RecordType do not need to re-import the text;
-    if (isa<TypedefType>(type) && isa<ElaboratedType>(type.getSingleStepDesugaredType(Context))) {
-      //Skipping
-      llvm::errs () << "DO NOT PRINT CHILDREN of a Typedef's ElaboratedType\n";
-      importTypeDependencies(type.getSingleStepDesugaredType(Context), Context, out_header, true);
-    } else if (isa<ElaboratedType>(type) && isa<RecordType>(type.getSingleStepDesugaredType(Context))) {
-      llvm::errs () << "DO NOT PRINT CHILDREN of an ElaboratedType's RecordDecl\n";
-      importTypeDependencies(type.getSingleStepDesugaredType(Context), Context, out_header, true);
-    } else {
-      //Remember the outer recursive instance's import status
-      importTypeDependencies(type.getSingleStepDesugaredType(Context), Context, out_header, alreadyImported);
-    }
-    //TODO loop over record members before we do our own work
-    //TODO But we have to actually do the source copy work after the recursive call so that dependencies for this type are satisfied
-    if (const TypedefType * t = dyn_cast<TypedefType>(type)) {
-      if (!alreadyImported) {
-        llvm::errs() << "Decl: " << t << " TypeDefType Decl Text: " << getDeclText(Context, t->getDecl()) << "\n";
-        SourceRange sr1 = t->getDecl()->getSourceRange();
-        SourceRange sr2 = ((Decl *)t->getDecl())->getSourceRange();
-	llvm::errs() << "TypedefDecl: " << sr1.getBegin().printToString(Context.getSourceManager()) << "," << sr1.getEnd().printToString(Context.getSourceManager()) << " Decl: " << sr2.getBegin().printToString(Context.getSourceManager()) << "," << sr2.getEnd().printToString(Context.getSourceManager()) << "\n";
-        //Directly record the text
-        (ImportedTypes[out_header])[type] = getDeclText(Context, t->getDecl()) + ";\n";
-        //TODO: Scan the recorded text to eliminate any device types that need to be converted to cl_<type>s
-        //If the child is an ElaboratedType, check to see if we already have it recorded, if so, delete it's recorded string without removing the import record
-        if (isa<ElaboratedType>(type.getSingleStepDesugaredType(Context))) {
-          //Only if the specification of the elaborated type is inside the typedef's declaration
-          const ElaboratedType * e = dyn_cast<ElaboratedType>(type.getSingleStepDesugaredType(Context));
-	  if (Context.getSourceManager().isPointWithin(e->getAsTagDecl()->getLocStart(), t->getDecl()->getLocStart(), t->getDecl()->getLocEnd())) {
-            //llvm::errs() << "Decl" << t->getDecl() << " ElaboratedNonClosureContext: " << dyn_cast<ElaboratedType>(type.getSingleStepDesugaredType(Context))->getAsTagDecl()->getNonClosureContext() << "\n";
-            llvm::errs() << "Eliminating internal Elaborated type: " + (ImportedTypes[out_header])[type.getSingleStepDesugaredType(Context)] + "\n";
-          (ImportedTypes[out_header])[type.getSingleStepDesugaredType(Context)] = "";
-          }
-        }
-        //if (!t->getDecl()->getDeclContext()->isTranslationUnit()) t->getDecl()->getDeclContext()->dumpDeclContext();
-      }
-    }
-    if (const ElaboratedType * e = dyn_cast<ElaboratedType>(type)) {
-      if (!alreadyImported) {
-        llvm::errs() << "ElaborateType TagDecl Text: " << getDeclText(Context, e->getAsTagDecl()) << "\n";
-        (ImportedTypes[out_header])[type] = getDeclText(Context, e->getAsTagDecl()) + ";\n";
-        //if (!e->getAsTagDecl()->getDeclContext()->isTranslationUnit()) e->getAsTagDecl()->getDeclContext()->dumpDeclContext();
-      }
-    }
-    if (const RecordType * r = dyn_cast<RecordType>(type)) {
-      if (!alreadyImported) {
-        llvm::errs() << "RecordDecl Text: " << getDeclText(Context, r->getDecl()) << "\n";
-        (ImportedTypes[out_header])[type] = getDeclText(Context, r->getDecl()) + ";\n";
-      //if (!r->getDecl()->getDeclContext()->isTranslationUnit()) r->getDecl()->getDeclContext()->dumpDeclContext();
-      }
-    }
-    //Do not need to steop a recursive loop as the check against the imported types list will prevent us from re-processing the same type, regardless of when it was imported (either as the prior step in the current traversal, or during some previous traversal from another type)
-    //TODO Recurse into any type depnedencies it has, so they are declared in advance
-    //TODO How do we detect if it has an internal type? There should be a chain of references
-    //TODO typedefs of anonymous records should only be copied once, as a combined typedefdecl and recorddecl, otherwise they should be standalone things
-    //If it is a typedef of a scalar type or another typedef, only one dependency to resolve
-    //Else if it is a record, we need all member types
-  
-  }
-  return "";
-}*/
 std::string getHostType(QualType type, ASTContext &Context, raw_ostream * out_header);
 
 std::string importTypeDependencies(QualType type, ASTContext &Context, raw_ostream * out_header, bool alreadyImported = false) {
@@ -198,8 +110,6 @@ std::string importTypeDependencies(QualType type, ASTContext &Context, raw_ostre
   if (isa<BuiltinType>(type)) {
     return getHostType(type, Context, out_header);
   }
-
-  //if it's an array type, just import whatever the scalar vesion is
 
   //If it's an OpenCL "primitive" type with embedded typedef (like uchar --> unsigned char) don't import it
   //We can recognize these by their presence in Clang's opencl-c.h file
@@ -211,36 +121,30 @@ std::string importTypeDependencies(QualType type, ASTContext &Context, raw_ostre
 
   //If it's an array type, make sure we resolve the element types dependencies/rewrites
   if (const ArrayType * a = dyn_cast<ArrayType>(type)) {
- //   type.dump(); 
     std::string imported = importTypeDependencies(a->getElementType(), Context, out_header);
     //to ensure the type is rewritten properly we must reconstruct the array type after import
     std::string type_str = type.getAsString();
     std::string elem_str = a->getElementType().getAsString();
     //if the imported type is an array, we don't need the extra size tags for modifying our own return type
-//    llvm::errs() << "Imported: " << imported << " Type_str: " << type_str << " Elem_str: " << elem_str;
     std::string::size_type pos;
     if ((pos = elem_str.find(' ')) != std::string::npos) elem_str.erase(pos);
     if ((pos = imported.find(' ')) != std::string::npos) imported.erase(pos);
-//    llvm::errs() << "Imported: " << imported << " Type_str: " << type_str << " Elem_str: " << elem_str;
     type_str.replace(type_str.find(elem_str), elem_str.length(), imported);
-//    llvm::errs() << " Modified: " << type_str << "\n";
     return type_str;
   }
 
   //If the specific type we need is not constructed yet
   if (ImportedTypes[out_header].find(type) == ImportedTypes[out_header].end()) {
     //We have to record that we've imported it before we recurse so that it acts as it's own base case (else it'll recurse infinitely)
-    bool firstEncountered = false;
     (ImportedTypes[out_header])[type] = "";
+    //Remember if an outer typdef is responsible for defining an interior RecordType
+    bool firstEncountered = false;
     //If this is a combined Typedef/Record decl, the internal recursions for the ElaboratedType and RecordType do not need to re-import the text;
     if (isa<TypedefType>(type) && isa<ElaboratedType>(type.getSingleStepDesugaredType(Context))) {
-      //Skipping
-      //llvm::errs () << "DO NOT PRINT CHILDREN of a Typedef's ElaboratedType\n";
     //If this is the first time the internal elaborated struct is encountered, remember that we need to implement it ourselves because it will be inhibited
       firstEncountered = (ImportedTypes[out_header].find(type.getSingleStepDesugaredType(Context)) == ImportedTypes[out_header].end());
       importTypeDependencies(type.getSingleStepDesugaredType(Context), Context, out_header, true);
     } else if (isa<ElaboratedType>(type) && isa<RecordType>(type.getSingleStepDesugaredType(Context))) {
-      //llvm::errs () << "DO NOT PRINT CHILDREN of an ElaboratedType's RecordDecl\n";
       importTypeDependencies(type.getSingleStepDesugaredType(Context), Context, out_header, true);
     } else {
       //Remember the outer recursive instance's import status
@@ -274,7 +178,6 @@ std::string importTypeDependencies(QualType type, ASTContext &Context, raw_ostre
           }
         } else {
           //Typedefs of named types (either scalars or records)
-//	  if (isa<ElaboratedType>(t->getDecl()->getUnderlyingType())) llvm::errs() << dyn_cast<RecordType>(type.getSingleStepDesugaredType(Context).getSingleStepDesugaredType(Context))->getDecl()->getName() << " vs " << t->getDecl()->getName() << "\n";
          //If the underlying type is a record and hasn't been constructed yet, it will be inhibited from generating itself so we have to handle it here
          if (isa<ElaboratedType>(t->getDecl()->getUnderlyingType()) && firstEncountered) {
             std::string record = "typedef " + t->getDecl()->getUnderlyingType().getAsString() + " {\n";
@@ -293,94 +196,41 @@ std::string importTypeDependencies(QualType type, ASTContext &Context, raw_ostre
             (ImportedTypes[out_header])[type] = "typedef " + importTypeDependencies(t->getDecl()->getUnderlyingType(), Context, out_header) + " " + type.getAsString() + ";\n";
           }
         }
-        //t->getDecl()->getUnderlyingType().dump();
-        //SourceRange sr1 = t->getDecl()->getSourceRange();
-        //SourceRange sr2 = ((Decl *)t->getDecl())->getSourceRange();
-	//llvm::errs() << "TypedefDecl: " << sr1.getBegin().printToString(Context.getSourceManager()) << "," << sr1.getEnd().printToString(Context.getSourceManager()) << " Decl: " << sr2.getBegin().printToString(Context.getSourceManager()) << "," << sr2.getEnd().printToString(Context.getSourceManager()) << "\n";
-        //Directly record the text
-        //(ImportedTypes[out_header])[type] = getDeclText(Context, t->getDecl()) + ";\n";
-        //TODO: Scan the recorded text to eliminate any device types that need to be converted to cl_<type>s
-        //If the child is an ElaboratedType, check to see if we already have it recorded, if so, delete it's recorded string without removing the import record
-        /*if (isa<ElaboratedType>(type.getSingleStepDesugaredType(Context))) {
-          //Only if the specification of the elaborated type is inside the typedef's declaration
-          const ElaboratedType * e = dyn_cast<ElaboratedType>(type.getSingleStepDesugaredType(Context));
-	  if (Context.getSourceManager().isPointWithin(e->getAsTagDecl()->getLocStart(), t->getDecl()->getLocStart(), t->getDecl()->getLocEnd())) {
-            //llvm::errs() << "Decl" << t->getDecl() << " ElaboratedNonClosureContext: " << dyn_cast<ElaboratedType>(type.getSingleStepDesugaredType(Context))->getAsTagDecl()->getNonClosureContext() << "\n";
-            llvm::errs() << "Eliminating internal Elaborated type: " + (ImportedTypes[out_header])[type.getSingleStepDesugaredType(Context)] + "\n";
-          (ImportedTypes[out_header])[type.getSingleStepDesugaredType(Context)] = "";
-          }
-        }*/
-        //if (!t->getDecl()->getDeclContext()->isTranslationUnit()) t->getDecl()->getDeclContext()->dumpDeclContext();
       }
     }
+    //If it's an ElaboratedType without a wrapping typedef
     if (const ElaboratedType * e = dyn_cast<ElaboratedType>(type)) {
       if (!alreadyImported) {
-        //llvm::errs() << "ElaborateType TagDecl Text: " << getDeclText(Context, e->getAsTagDecl()) << "\n";
-	    //construct the record in-place
-	    std::string record = type.getAsString() + " {\n";
-	    for (const FieldDecl * field : dyn_cast<RecordType>(type.getSingleStepDesugaredType(Context))->getDecl()->fields()) {
-              //TODO if the underlying type of the field has an associated cl_type, replace it
-              record += "  " + importTypeDependencies(field->getType(), Context, out_header) + " " + field->getName().str() + ";\n";
-            }
-            record += "};\n";
-            (ImportedTypes[out_header])[type] = record;
-        //(ImportedTypes[out_header])[type] = getDeclText(Context, e->getAsTagDecl()) + ";\n";
-        //if (!e->getAsTagDecl()->getDeclContext()->isTranslationUnit()) e->getAsTagDecl()->getDeclContext()->dumpDeclContext();
+        //construct the record in-place
+        std::string record = type.getAsString() + " {\n";
+        for (const FieldDecl * field : dyn_cast<RecordType>(type.getSingleStepDesugaredType(Context))->getDecl()->fields()) {
+          record += "  " + importTypeDependencies(field->getType(), Context, out_header) + " " + field->getName().str() + ";\n";
+        }
+        record += "};\n";
+        (ImportedTypes[out_header])[type] = record;
       }
     }
+    //If it's a Record without an explicit keyword (like struct or union)
     if (const RecordType * r = dyn_cast<RecordType>(type)) {
       if (!alreadyImported) {
-//        llvm::errs() << "RecordDecl Text: " << getDeclText(Context, r->getDecl()) << "\n";
-	    std::string record = type.getAsString() + " {\n";
-	    for (const FieldDecl * field : r->getDecl()->fields()) {
-              //TODO if the underlying type of the field has an associated cl_type, replace it
-              record += "  " + importTypeDependencies(field->getType(), Context, out_header) + " " + field->getName().str() + ";\n";
-            }
-            record += "};\n";
-            (ImportedTypes[out_header])[type] = record;
-//        (ImportedTypes[out_header])[type] = getDeclText(Context, r->getDecl()) + ";\n";
-      //if (!r->getDecl()->getDeclContext()->isTranslationUnit()) r->getDecl()->getDeclContext()->dumpDeclContext();
+        std::string record = type.getAsString() + " {\n";
+        for (const FieldDecl * field : r->getDecl()->fields()) {
+          record += "  " + importTypeDependencies(field->getType(), Context, out_header) + " " + field->getName().str() + ";\n";
+        }
+        record += "};\n";
+        (ImportedTypes[out_header])[type] = record;
       }
     }
-    //Do not need to steop a recursive loop as the check against the imported types list will prevent us from re-processing the same type, regardless of when it was imported (either as the prior step in the current traversal, or during some previous traversal from another type)
-    //TODO Recurse into any type depnedencies it has, so they are declared in advance
-    //TODO How do we detect if it has an internal type? There should be a chain of references
-    //TODO typedefs of anonymous records should only be copied once, as a combined typedefdecl and recorddecl, otherwise they should be standalone things
-    //If it is a typedef of a scalar type or another typedef, only one dependency to resolve
-    //Else if it is a record, we need all member types
-  
   }
-  //Anything that isn't caught by the builtin and OpenCL filters is going to preserve it's own name
+  //Anything that isn't caught by the builtin, OpenCL, and array filters is going to preserve it's own name
   return type.getAsString();
 }
-//TODO implement dev-->host mapping
 std::string getHostType(QualType devType, ASTContext &Context, raw_ostream * stream) {
   std::string retType = "";
   //TODO handle types that don't directly map to a cl_type (images, vectors)
   retType += "cl_";
-  //FIXME retType += devType.getCanonicalType().getUnqualifiedType().getAsString();
-//  QualType devUnqual = devType.getCanonicalType().getUnqualifiedType();
-//  std::string canon = devUnqual.getAsString();
   std::string canon = devType.getAsString();
-  //TODO strip off all qualifiers
-  //Strip address space qualifiers
   std::string::size_type pos;
-/*  if ((pos = canon.find("__local ")) != std::string::npos) {
-    canon.erase(pos, 8);
-    if ((pos = canon.find(" *")) != std::string::npos) canon.erase(pos, 2);
-    else if ((pos = canon.find("*")) != std::string::npos) canon.erase(pos, 1);
-  }
-  if ((pos = canon.find("__global ")) != std::string::npos) {
-    canon.erase(pos, 9);
-    if ((pos = canon.find(" *")) != std::string::npos) canon.erase(pos, 2);
-    else if ((pos = canon.find("*")) != std::string::npos) canon.erase(pos, 1);
-  }
-  if ((pos = canon.find("__constant ")) != std::string::npos) {
-    canon.erase(pos, 11);
-    if ((pos = canon.find(" *")) != std::string::npos) canon.erase(pos, 2);
-    else if ((pos = canon.find("*")) != std::string::npos) canon.erase(pos, 1);
-  }*/
-  //collapse "unsigned" to "u", if it exists
   if ((pos = canon.find("unsigned ")) != std::string::npos) canon.replace(pos, 9, "u"); 
   //strip off and appropriately modify vectorization attributes "__attribute__((ext_vector_type(<width>)))
   //Assumes the intervening pointer type has already been removed
@@ -394,112 +244,6 @@ std::string getHostType(QualType devType, ASTContext &Context, raw_ostream * str
   if (canon == "_Bool") return "\n#error passing a boolean through a pointer or struct pointer in OpenCL is undefined\n" + "cl_" + canon;
   
   return "cl_" + canon;
-
-/*  if ((pos = canon.find("constant ")) != std::string::npos) {
-    llvm::errs() << "TODO: handle \"constant\" qualifier\n";
-    canon.erase(pos, 9);
-  }
-
-  if ((pos = canon.find("const ")) != std::string::npos) {
-    llvm::errs() << "TODO: handle \"const\" qualifier\n";
-    canon.erase(pos, 6);
-  }
-
-  if ((pos = canon.find("volatile ")) != std::string::npos) {
-    llvm::errs() << "TODO: handle \"volatile\" qualifier\n";
-    canon.erase(pos, 9);
-  }
-*/
-//  llvm::errs() << "QualType: " << devType.getCanonicalType().getUnqualifiedType().getAsString() << " StrippedType: " << canon << "\n";
-
-//  devType.dump();
-//  llvm::errs() << "\nCanonUnqual: ";
-//  devUnqual.dump();
-//  llvm::errs() << "\nSSDesugar: ";
-//  devUnqual.getSingleStepDesugaredType(Context).dump();
-//  llvm::errs() << "\nFullDesugar: ";
-//  devUnqual.getDesugaredType(Context).dump();
-//  if (devUnqual->isAnyPointerType()) {
-//    llvm::errs() << "\nPointeeSSDesugar: ";
-//    devUnqual->getPointeeType().getSingleStepDesugaredType(Context).dump();
-//    llvm::errs() << "\nPointeeFullDesugar: ";
-//    devUnqual->getPointeeType().getDesugaredType(Context).dump();
-//  }
-  
-//  llvm::errs() << "\n";
-
-  //This part handles ensuring that each outputfile has the appropriate typedef and records added
-  //If the type is not a primitive cl type then check all it's dependent type declarations (records and typedefs
-
-//TODO add a diagnostic option to show the typedef chain
-
-  //TODO how to handle an anonymous typedef (i.e. typedef struct { ... } name;
-
-  //if (devUnqual->isAnyPointerType()) {
-/*  if (devType->isAnyPointerType()) {
-    llvm::errs() << "DEVUNQUAL\n";
-    //importTypeDependencies(devUnqual->getPointeeType(), Context, stream);
-    llvm::errs() << "DEVTYPE\n";
-    std::string host_type = importTypeDependencies(devType->getPointeeType().getUnqualifiedType(), Context, stream);
-    llvm::errs() << "HOSTTYPE: " << host_type << "\n";
-    return host_type;
-  } else {
-  //  importTypeDependencies(devUnqual, Context, stream);
-    std::string host_type = importTypeDependencies(devType.getUnqualifiedType(), Context, stream);
-    llvm::errs() << "HOSTTYPE: " << host_type << "\n";
-    return host_type;
-  }*/
-/*
-  if (!isa<RecordType>(devUnqual) && !(devUnqual->isAnyPointerType() && isa<RecordType>(devUnqual->getPointeeType())) && (devType.getTypePtr() == devUnqual.getTypePtr())) {
-    llvm::errs() << "CATCHALL for naked scalars\n";
-    return "cl_" + canon;
-  } else {
-    llvm::errs() << "CATCHALL for everything else\n";
-    llvm::errs() << "DevType: " << devType.getAsString() << " DevUnqual: " << devUnqual.getAsString() << "\n";
-    devType.dump();
-    devUnqual.dump();
-    return canon;
-  }
-
-  if (isa<RecordType>(devUnqual)) {
-    RecordDecl * rec = dyn_cast<RecordType>(devUnqual)->getDecl()->getDefinition();
-    llvm::errs() << "Imported record for scalar\n";
-//    llvm::errs() << std::string(Context.getSourceManager().getCharacterData(rec->getLocStart()), Context.getSourceManager().getCharacterData(Lexer::getLocForEndOfToken(rec->getLocEnd(), 0, Context.getSourceManager(), Context.getLangOpts())) - Context.getSourceManager().getCharacterData(rec->getLocStart())) << "\n";
-    return canon;
-  } else if (devUnqual->isAnyPointerType() && isa<RecordType>(devUnqual->getPointeeType())) {
-  //Should catch all struct/unions (including typedef'd ones apparently)
-    RecordDecl * rec = dyn_cast<RecordType>(devUnqual->getPointeeType())->getDecl()->getDefinition();
-    llvm::errs() << "Imported record for buffer\n";
-    //TODO import the struct to the host
-    return canon;
-//  } else if (isa<TypedefType>(devUnqual) || (devUnqual->isAnyPointerType() && isa<TypedefType>(devUnqual->getPointeeType()))) {
-//    //Catch typedef'd primitive types
-//    //These should not exist because they are stripped off by the getCanonicalType
-//    llvm::errs() << "Catchall for typedef'd primitive types\n";
-//    return canon;
-//
-//  //If it is a scalar/vector, do another
-//  } else if (devType.getCanonicalType().getUnqualifiedType()->getAs<TypedefType>()) {
-//    llvm::errs() << "TODO: handle typedef'd scalar types\n";
-//    //Need to drill into them repeatedly and see if they define a primitive type, if so, explain the chain of typedefs that got us there, and map the host type to the appropriate cl_primitive
-//    //TODO we probably need to do all that drilling before we strip attributes?
-//    return canon;
-//  } else if (devType.getCanonicalType().getUnqualifiedType()->isAnyPointerType() && devType.getCanonicalType().getUnqualifiedType()->getPointeeType()->getAs<TypedefType>()) {
-//    llvm::errs() << "TODO: handle typedef'd pointer types\n";
-//    return canon;
-//  } else if (devType.getCanonicalType().getUnqualifiedType()->isAnyPointerType() && dyn_cast<RecordType>(devType.getCanonicalType().getUnqualifiedType()->getPointeeType())) {
-//    llvm::errs() << "TODO: handle record types with or without struct\n";
-//    return canon;
-//  } else if ((pos = canon.find("struct")) != std::string::npos) {
-//    llvm::errs() << "TODO: handle struct types\n";
-//    return canon;
-//  } else if ((pos = canon.find("union")) != std::string::npos) {
-//    llvm::errs() << "TODO: handle union types\n";
-//    return canon;
-  } else {
-    return retType + canon;
-  }
-*/
 }
 
 PrototypeHandler::argInfo * analyzeDevParam(ParmVarDecl * devParam, ASTContext &Context, raw_ostream * stream) {
@@ -860,7 +604,7 @@ int populateOutputFiles() {
       //Get the output files
       raw_ostream * out_c = fileCachePair.second->outfile_c;
       raw_ostream * out_h = fileCachePair.second->outfile_h;
-      //User-defined types for the header file
+      //Emit user-defined types in the header file
       for (std::pair<QualType, std::string> t : ImportedTypes[out_h]) {
         *out_h << t.second;
       }
