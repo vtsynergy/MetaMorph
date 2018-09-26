@@ -105,6 +105,10 @@ a_err meta_register_module(a_module_record * (*module_registry_func)(a_module_re
   
   //TODO add this registry object to a list of currently-registered modules;
   a_module_record * new_record = (a_module_record *)malloc(sizeof(a_module_record));
+  new_record->module_init = NULL;
+  new_record->module_deinit = NULL;
+  new_record->implements = module_implements_none;
+  new_record->initialized = 0;
   a_module_record * returned = (*module_registry_func)(new_record);
   //TODO make this threadsafe
   //If we trust that the registration function will only accept one registry, then we just have to check that the one returned is the same as the one we created. otherwise release the new one
