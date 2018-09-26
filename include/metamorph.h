@@ -174,6 +174,31 @@ metaModePreferOpenMP = 3
 #endif
 } meta_preferred_mode;
 
+//Module Management
+//TODO need a bitfield to store the type of backend
+typedef enum {
+  module_implements_none = 0;
+  module_implements_cuda = 1;
+  module_implements_opencl = 2;
+  module_implements_openmp = 4;
+  module_implements_all = 7;
+  module_implements_general = INT_MIN; //general operations not related to a backend
+} a_module_implements_backend;
+
+typedef struct {
+  //void function pointer to the initializer
+  void (*module_init)(void) = NULL;
+  //void function pointer to the deinitializer
+  void (*module_deinit)(void) = NULL;
+  //enum "bitfield" defining which backend(s) (or general) the module provides implementations for
+  module_implements_backend implements = module_implements_none;
+  char initialized = 0;
+} a_module_record;
+
+
+a_err meta_register_module(a_module_record * (*module_registry_func)(a_module_record * record));
+a_err meta_deregister_module(a_module_record * (*module_registry_func)(a_module_record * record));
+a_err meta_reinitialize_modules(a_module_implements_backend module_type);
 // Memory/Context Management
 a_err meta_alloc(void ** ptr, size_t size);
 a_err meta_free(void * ptr);

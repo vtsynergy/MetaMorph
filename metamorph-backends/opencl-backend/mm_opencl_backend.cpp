@@ -217,6 +217,9 @@ cl_int metaOpenCLBuildProgram(metaOpenCLStackFrame * frame) {
 			"kernel_stencil_3d7p_in", NULL);
 	frame->kernel_stencil_3d7p_ui = clCreateKernel(frame->program_opencl_core,
 			"kernel_stencil_3d7p_ui", NULL);
+
+        //Reinitialize OpenCL add-on modules
+        meta_reinitialize_modules(module_implements_opencl);
 }
 
 //This should not be exposed to the user, just the top and pop functions built on top of it

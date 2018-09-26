@@ -31,6 +31,131 @@
 //Globally-set mode
 meta_preferred_mode run_mode = metaModePreferGeneric;
 
+//Module Management
+//The global list always maintains a sentinel
+struct a_module_record_listelem;
+typedef struct a_module_record_listelem {
+  a_module_record * rec;
+  struct a_module_record_listelem * next;
+} a_module_list;
+a_module_list global_modules = {NULL, NULL};
+//Returns true if the provided record is already in the list
+//TODO Make Hazard-aware
+bool __module_registered(a_module_record * record) {
+  if (record == NULL) return false;
+  if (global_modules.next == NULL) return false;
+  for (a_module_list * elem = global_modules.next; elem != NULL; elem = elem->next) {
+    if (elem->rec == rec) return true;
+  }
+  return false;
+}
+//Only adds a module to our records, does not initialize it
+// returns true iff added, false otherwise
+//TODO Make Hazard-aware
+bool __record_module(a_module_record * record) {
+  if (record == NULL) return false;
+  if (__module_registered(record) != false) return false;
+  a_module_list * new_elem = (a_module_list *)malloc(sizeof(a_module_list));
+  new_elem->rec = record;
+  new_elem->next = NULL;
+  //begin hazards
+  while (new_elem->next != global_modules.next) {
+    new_elem->next = global_modules.next;
+  }
+  //TODO atomic CAS the pointer in
+  global_modules.next = new_elem;
+  return true; //TODO return the eventual true from CAS
+}
+//Only removes a module from our records, does not deinitialize it
+// returns true iff removed, false otherwise
+//TODO Make Hazard-aware
+bool __remove_module(a_module_record * record) {
+  if (record == NULL) return false;
+  a_module_list * curr = global->modules.next, prev = &global_modules;
+  //begin hazards
+  while(prev->next == curr && curr != NULL) {
+    //TODO Ensure curr w/ atomic CAS
+    if (curr->rec == record) {
+      //TODO Remove w/ atomic CAS
+      prev->next = curr->next;
+      free(curr); //Just the list wrapper
+      return true;
+    }
+    curr = curr->next;
+    prev = prev->next;
+  }
+  return false;
+}
+//Allow add-on modules to pass a pointer to their registration function to
+// metamorph-core, so that the core can then initialize and exchange the appropriate internal data structs
+a_err meta_register_module(a_module_record * (*module_registry_func)(a_module_record * record)) {
+  //Do nothing if they don't specify a pointer
+  if (module_registry_func == NULL) return -1;
+  //Each module contains a referency to it's own registry object
+  //We can check if it's registered by calling the registry function with a NULL record
+  a_module_record * existing = (*module_registry_func)(NULL);
+  //if there is an existing record, make sure we know about it
+  if (existing != NULL) {
+    __record_module(existing); //Don't need to check, __record_module will check before insertion
+    //But don't call the registration function with the existing record, because that will de-register it
+    return 0;
+  }
+  //It has not already been registered
+
+  
+  //TODO add this registry object to a list of currently-registered modules;
+  a_module_record * new_record = (a_module_record *)malloc(sizeof(a_module_record));
+  a_module_record * returned = (*module_registry_func)(new_record);
+  //TODO make this threadsafe
+  //If we trust that the registration function will only accept one registry, then we just have to check that the one returned is the same as the one we created. otherwise release the new one
+  if (returned == NULL) {
+    __record_module(returned); //shouldn't be able to return false, because we should block recording records that aren't our own;
+    //Only initialize if it's a new registration, do nothing if it's a re-register
+    //It's been explicitly registered, immediately initialize it
+    (if new_record->module_init != NULL) (*new_record->module_init)();
+  } else if (new_record == returned) {
+    //Somewhere between checking whether the module was registered and trying to register it, someone else has already done so, just release our new record and move on
+    //TODO if we want to support re-registration we will change this mechanism
+    free(new_record);
+  } //There should not be an else unless we support multiple registrations, in which case returned will belong to the module's previous registration
+  
+  return 0;
+}
+
+//Explicitly remove an external module from metamorph-core, causing it to trigger
+// any deconstruction code necessary to clean up the module
+a_err meta_deregister_module(a_module_record * (*module_registry_func)(a_module_record * record)) {
+  //If they gave us NULL, nothing to do
+  if (module_registry_func == NULL) return -1;
+  //Get the registration from the module
+  a_module_record * existing = (*module_registry_func)(NULL);
+  //If the module doesn't think it's registered, we can't do anything with it
+  if (existing == NULL) return 0;
+
+  //If it does exist, remove our record of it
+  //TODO make threadsafe
+  //Tell the module to forget itself
+  a_module_record * returned = (*module_registry_func)(existing);
+  //Check that the module indeed thinks it's deregistered (to distinguish from the multiple-registration case that also immediately returns the same record)
+  a_module_record * double_check = (*module_registry_func)(NULL);
+  if (returned == existing && double_check == NULL) { //The module has forgotten its registration
+    //Then deinitialize the module
+    __remove_module(existing); //We have no record of it outside this function call
+    if (existing->module_deinit != NULL) (*existing->module_deinit)(); //It has been deinitialized
+    free(existing); //Record memory released and this function's reference invalidated, we are done
+  }
+  return 0;
+}
+
+//Reinitialize all modules with a given implements_backend mask
+a_err meta_reinitialize_modules(a_module_implements_backend module_type) {
+  if (global_modules.next == NULL) return -1;
+  for (a_module_list * elem = global_modules.next; elem != NULL; elem = elem->next) {
+    if (elem->rec != NULL && (elem->rec->implements & module_type) && elem->rec->module_init != NULL) (*elem->rec->module_init)();
+  }
+  return 0;
+}
+
 #ifdef WITH_OPENCL
 cl_context meta_context = NULL;
 cl_command_queue meta_queue = NULL;
