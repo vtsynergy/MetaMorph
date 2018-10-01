@@ -182,7 +182,7 @@ typedef enum {
   module_implements_opencl = 2,
   module_implements_openmp = 4,
   module_implements_all = 7,
-  module_implements_general = INT_MIN; //general operations not related to a backend
+  module_implements_general = 8 //general operations not related to a backend
 } a_module_implements_backend;
 
 typedef struct {
@@ -191,7 +191,7 @@ typedef struct {
   //void function pointer to the deinitializer
   void (*module_deinit)(void);// = NULL;
   //enum "bitfield" defining which backend(s) (or general) the module provides implementations for
-  module_implements_backend implements;// = module_implements_none;
+  a_module_implements_backend implements;// = module_implements_none;
   char initialized;// = 0;
 } a_module_record;
 

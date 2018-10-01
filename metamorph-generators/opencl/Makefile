@@ -1,4 +1,9 @@
-LLVM_BUILD_PATH := ../clang-6.0.1-ubuntu-16.04/clang+llvm-6.0.1-x86_64-linux-gnu-ubuntu-16.04
+LLVM_BASE_PATH := clang_tarball
+LLVM_VERSION := 6.0.1
+LLVM_OS_STRING := x86_64-linux-gnu-ubuntu-16.04
+LLVM_TARBALL := clang+llvm-$(LLVM_VERSION)-$(LLVM_OS_STRING)
+LLVM_WGET := http://releases.llvm.org/$(LLVM_VERSION)/$(LLVM_TARBALL).tar.xz
+LLVM_BUILD_PATH := $(LLVM_BASE_PATH)/$(LLVM_TARBALL)
 LLVM_BIN_PATH := $(LLVM_BUILD_PATH)/bin
 LLVM_HEADER_PATH := $(LLVM_BUILD_PATH)/include
 
@@ -42,5 +47,15 @@ CLANG_LIBS := -L $(LLVM_BUILD_PATH)/lib \
 
 all: metagen-cl
 
-metagen-cl: metagen-cl.cpp
+metagen-cl: metagen-cl.cpp | $(LLVM_BUILD_PATH)
 	$(CXX) $(CXXFLAGS) $(CLANG_INCLUDES) metagen-cl.cpp -o metagen-cl $(CLANG_LDFLAGS) $(CLANG_LIBS)
+
+$(LLVM_BUILD_PATH): | $(LLVM_BASE_PATH)/$(LLVM_TARBALL).tar.xz
+	tar -xf $(LLVM_BASE_PATH)/$(LLVM_TARBALL).tar.xz -C $(LLVM_BASE_PATH)
+
+$(LLVM_BASE_PATH)/$(LLVM_TARBALL).tar.xz: | $(LLVM_BASE_PATH)
+	echo $(LLVM_BASE_PATH)/$(LLVM_TARBALL).tar.xz && cd $(LLVM_BASE_PATH) && wget $(LLVM_WGET)
+
+$(LLVM_BASE_PATH):
+	mkdir -p $(LLVM_BASE_PATH)
+

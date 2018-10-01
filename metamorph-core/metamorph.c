@@ -41,18 +41,19 @@ typedef struct a_module_record_listelem {
 a_module_list global_modules = {NULL, NULL};
 //Returns true if the provided record is already in the list
 //TODO Make Hazard-aware
-bool __module_registered(a_module_record * record) {
+a_bool __module_registered(a_module_record * record) {
   if (record == NULL) return false;
   if (global_modules.next == NULL) return false;
-  for (a_module_list * elem = global_modules.next; elem != NULL; elem = elem->next) {
-    if (elem->rec == rec) return true;
+  a_module_list * elem;
+  for (elem = global_modules.next; elem != NULL; elem = elem->next) {
+    if (elem->rec == record) return true;
   }
   return false;
 }
 //Only adds a module to our records, does not initialize it
 // returns true iff added, false otherwise
 //TODO Make Hazard-aware
-bool __record_module(a_module_record * record) {
+a_bool __record_module(a_module_record * record) {
   if (record == NULL) return false;
   if (__module_registered(record) != false) return false;
   a_module_list * new_elem = (a_module_list *)malloc(sizeof(a_module_list));
@@ -69,9 +70,9 @@ bool __record_module(a_module_record * record) {
 //Only removes a module from our records, does not deinitialize it
 // returns true iff removed, false otherwise
 //TODO Make Hazard-aware
-bool __remove_module(a_module_record * record) {
+a_bool __remove_module(a_module_record * record) {
   if (record == NULL) return false;
-  a_module_list * curr = global->modules.next, prev = &global_modules;
+  a_module_list * curr = global_modules.next, * prev = &global_modules;
   //begin hazards
   while(prev->next == curr && curr != NULL) {
     //TODO Ensure curr w/ atomic CAS
@@ -116,7 +117,7 @@ a_err meta_register_module(a_module_record * (*module_registry_func)(a_module_re
     __record_module(returned); //shouldn't be able to return false, because we should block recording records that aren't our own;
     //Only initialize if it's a new registration, do nothing if it's a re-register
     //It's been explicitly registered, immediately initialize it
-    (if new_record->module_init != NULL) (*new_record->module_init)();
+    if (new_record->module_init != NULL) (*new_record->module_init)();
   } else if (new_record == returned) {
     //Somewhere between checking whether the module was registered and trying to register it, someone else has already done so, just release our new record and move on
     //TODO if we want to support re-registration we will change this mechanism
@@ -154,7 +155,8 @@ a_err meta_deregister_module(a_module_record * (*module_registry_func)(a_module_
 //Reinitialize all modules with a given implements_backend mask
 a_err meta_reinitialize_modules(a_module_implements_backend module_type) {
   if (global_modules.next == NULL) return -1;
-  for (a_module_list * elem = global_modules.next; elem != NULL; elem = elem->next) {
+  a_module_list * elem;
+  for (elem = global_modules.next; elem != NULL; elem = elem->next) {
     if (elem->rec != NULL && (elem->rec->implements & module_type) && elem->rec->module_init != NULL) (*elem->rec->module_init)();
   }
   return 0;
