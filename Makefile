@@ -1,7 +1,12 @@
-#root directories 
-export MPICH_DIR =/home/psath/MPICH-3.1.4/install
-export MM_DIR=/home/psath/metamorphWorkspace/metamorph
+#Most build options are just an explicit TRUE/FALSE
+#Options that default on: USE_OPENMP
+#Options that attempt to autodetect: USE_CUDA, USE_OPENCL
+#Options that must be explicitly enabled: USE_TIMERS, USE_MPI, USE_FPGA, USE_MIC 
 
+#Configure root directories (usually just wherever you pulled MetaMorph and run the makefile from)
+ifndef MM_DIR
+export MM_DIR=$(shell pwd)
+endif
 export MM_CORE=$(MM_DIR)/metamorph-core
 export MM_MP=$(MM_DIR)/metamorph-backends/openmp-backend
 export MM_CU=$(MM_DIR)/metamorph-backends/cuda-backend
@@ -12,25 +17,187 @@ export MM_LIB=$(MM_DIR)/lib
 
 export MM_GEN_CL=$(MM_DIR)/metamorph-generators/opencl
 
+#check if 64-bit libs should be used
+ifeq ($(shell arch),x86_64)
+ARCH_64 = x86_64
+else
+ARCH_64 =
+endif
+
+#Timers default to off
+ifndef USE_TIMERS
+USE_TIMERS=FALSE
+else
+USE_TIMERS := $(shell echo $(USE_TIMERS) | tr '[:lower:]' '[:upper:]')
+endif
+
+#CHECK for an MPI environment
+ifndef MPI_DIR
+#attempt to autodetect
+ifneq ($(shell which mpicc),)
+export MPI_DIR =$(patsubst $/bin/mpicc,%,$(shell which mpicc))
+else
+export MPI_DIR
+endif
+else
+#confirm existence
+ifneq ($(shell test -e $(MPI_DIR)/bin/mpicc && echo -n yes),yes) #check if mpicc exists
+$(error bin/mpicc not found at MPI_DIR=$(MPI_DIR))
+endif
+endif
+ifdef USE_MPI
+#make uppercase
+USE_MPI := $(shell echo $(USE_MPI) | tr '[:lower:]' '[:upper:]')
+ifeq ($(USE_MPI),TRUE)
+ifeq ($(MPI_DIR),)
+$(error USE_MPI is set but no MPI environment found)
+endif
+endif
+else
+USE_MPI=FALSE
+endif
+
+
+#Ensure CUDA environment
+ifndef CUDA_LIB_DIR #Autodetect a cuda installation
+ifeq ($(shell which nvcc),)
+#none found
+export CUDA_LIB_DIR
+else
+#found
+export CUDA_LIB_DIR=$(patsubst %/bin/nvcc,%,$(shell which nvcc))/$(if ARCH_64,lib64,lib)
+export NVCC=nvcc
+endif
+else #User has provided one, check it exists
+ifeq ($(shell test -e $(CUDA_LIB_DIR)/libcudart.so && echo -n yes),yes) #Check if the CUDA libs exist where they told us
+export NVCC=$(patsubst %/lib,%,$(patsubst %/lib64,%,$(CUDA_LIB_DIR)))/bin/nvcc
+else
+$(error Cannot find CUDA installation at CUDA_LIB_DIR=$(CUDA_LIB_DIR))
+endif
+endif
+
+ifndef USE_CUDA #if not explicitly set
+ifeq ($(CUDA_LIB_DIR),) #see if we found nvcc
+#nope, disable
 USE_CUDA=FALSE
-CUDA_LIB_DIR=/usr/local/cuda/lib64
+else
+#otherwise enable
+USE_CUDA=TRUE
+endif
+else
+#make uppercase if set by user
+USE_CUDA := $(shell echo $(USE_CUDA) | tr '[:lower:]' '[:upper:]')
+endif
+#if true, make sure we have a working CUDA environment
+ifeq ($(USE_CUDA),TRUE)
+ifeq ($(CUDA_LIB_DIR),)
+$(error CUDA_LIB_DIR is unset and not autodetected)
+endif
+endif
+
+
+#Ensure at least one OpenCL environment
+#if they explicitly set an environment they need to point us to both libs and headers
+ifdef OPENCL_LIB_DIR
+ifdef OPENCL_INCL_DIR
+#both are set, validate things exist
+ifeq ($(shell test -e $(OPENCL_INCL_DIR)/CL/opencl.h && echo -n yes),yes)
+ifeq ($(shell test -e $(OPENCL_LIB_DIR)/libOpenCL.so && echo -n yes),yes)
+else
+$(error libOpenCL.so not found in OPENCL_LIB_DIR=$(OPENCL_LIB_DIR))
+endif
+else
+$(error CL/opencl.h not found in OPENCL_INCL_DIR=$(OPENCL_INCL_DIR))
+endif
+else
+$(error OPENCL_LIB_DIR set without setting OPENCL_INCL_DIR)
+endif
+ifdef OPENCL_INCL_DIR
+$(error OPENCL_INCL_DIR set without setting OPENCL_LIB_DIR)
+endif
+else
+#NVIDIA installations
+ifneq ($(CUDA_LIB_DIR),)
+export OPENCL_LIB_DIR=$(CUDA_LIB_DIR)
+export OPENCL_INCL_DIR=$(patsubst %/lib,%,$(patsubst %/lib64,%,$(CUDA_LIB_DIR)))/include
+endif
+#TODO AMD APP SDK installations (though deprecated)
+
+#AMD ROCM installations
+ifeq ($(shell test -e /opt/rocm/opencl/include/CL/opencl.h && echo -n yes),yes)
+export OPENCL_LIB_DIR=/opt/rocm/opencl/lib/x86_64
+export OPENCL_INCL_DIR=/opt/rocm/opencl/include
+endif
+ifeq ($(shell test -e /opt/intel/opencl/lib64/libOpenCL.so && echo -n yes),yes)
+ifeq ($(shell test -e /opt/intel/opencl/include/CL/opencl.h && echo -n yes),yes)
+export OPENCL_LIB_DIR=/opt/intel/opencl/lib64
+export OPENCL_INCL_DIR=/opt/intel/opencl/include
+endif
+endif
+
+#fallback to a find
+ifeq ($(OPENCL_LIB_DIR),)
+export OPENCL_LIB_DIR=$(patsubst %/libOpenCL.so,%,$(shell find / -path /home -prune -o -name libOpenCL.so -print -quit 2>/dev/null))
+endif
+ifeq ($(OPENCL_INCL_DIR),)
+export OPENCL_INCL_DIR=$(patsubst %/CL/opencl.h,%,$(shell find / -path /home -prune -o -name opencl.h -print -quit 2>/dev/null))
+endif
+endif #end autodetect/validate
+
+ifndef USE_OPENCL #if not explicitly set
+ifeq ($(OPENCL_LIB_DIR),) #see if we found an environment
+#nope, disable
+USE_OPENCL=FALSE
+else
+#otherwise enable
 USE_OPENCL=TRUE
-OPENCL_LIB_DIR=/opt/rocm/opencl/lib/x86_64/
+endif
+else
+#make uppercase if set by user
+USE_OPENCL := $(shell echo $(USE_OPENCL) | tr '[:lower:]' '[:upper:]')
+endif
+
+ifeq ($(USE_OPENCL),TRUE)
+ifeq ($(OPENCL_LIB_DIR),)
+$(error OPENCL_LIB_DIR and OPENCL_INCL_DIR unset and not autodetected)
+endif
+endif
+#TODO add FPGA options
 #Set to one of INTEL, XILINX, or blank
 USE_FPGA=
 MM_AOCX_DIR=$(MM_LIB)
-USE_OPENMP=FALSE
+
+#Ensure OpenMP (simple other than MIC stuff)
+ifndef USE_OPENMP
+USE_OPENMP=TRUE
+else
+USE_OPENMP := $(shell echo $(USE_OPENMP) | tr '[:lower:]' '[:upper:]')
+endif
+ifndef USE_MIC
 USE_MIC=FALSE
-ICC_BIN=/opt/intel/bin/icc
-USE_MPI=FALSE
-USE_TIMERS=TRUE
+else
+USE_MIC := $(shell echo $(USE_MIC) | tr '[:lower:]' '[:upper:]')
+endif
+ifeq ($(USE_MIC),TRUE)
+ifneq ($(USE_OPENMP),TRUE)
+$(warning USE_MIC requires USE_OPENMP, overriding USE_OPENMP=$(USE_OPENMP))
+USE_OPENMP=TRUE
+endif
+ifndef ICC_BIN
+ICC_BIN=$(shell which icc 2>/dev/null)
+else
+#validate their path
+ifneq ($(shell test -e $(ICC_BIN) && echo -n yes),yes)
+$(error icc not found at ICC_BIN=$(ICC_BIN))
+endif
+endif
+ifeq ($(ICC_BIN),)
+$(error cannot compile for Intel MIC without ICC \(ICC_BIN=$(ICC_BIN)\))
+endif
+endif
 
-INCLUDES  = -I $(MM_DIR)/include
-INCLUDES += -I$(MM_MP)
-INCLUDES += -I$(MM_CU)
-INCLUDES += -I$(MM_CL)
 
-export INCLUDES
+
 
 export G_TYPE = DOUBLE
 #export OPT_LVL = -g -DDEBUG
@@ -39,27 +206,36 @@ export L_FLAGS= -fPIC -shared
 
 CC=gcc
 #CC=icc
+CC_FLAGS = $(OPT_LVL) $(L_FLAGS)
+INCLUDES  = -I $(MM_DIR)/include
 
 
-#Configure backends to compile in
+#Configure compilation to the machine's availability
 MM_DEPS= $(MM_CORE)/metamorph.c
 MM_COMPONENTS=
+#MPI features
 ifeq ($(USE_MPI),TRUE)
-MM_COMPONENTS += -D WITH_MPI $(MM_CORE)/metamorph_mpi.c
+MM_COMPONENTS += -D WITH_MPI $(MM_CORE)/metamorph_mpi.c -I$(MPI_DIR)/include -L$(MPI_DIR)/lib
 MM_DEPS += $(MM_CORE)/metamorph_mpi.c
-CC = mpicc -cc=$(CC)
+CC = $(MPI_DIR)/bin/mpicc -cc=$(CC)
 endif
+#timer features
 ifeq ($(USE_TIMERS),TRUE)
 MM_COMPONENTS += -D WITH_TIMERS $(MM_CORE)/metamorph_timers.c
 MM_DEPS += $(MM_CORE)/metamorph_timers.c
 endif
 
+#CUDA backend
 ifeq ($(USE_CUDA),TRUE)
 MM_COMPONENTS += -D WITH_CUDA -lmm_cuda_backend -L$(CUDA_LIB_DIR) -lcudart
 MM_DEPS += libmm_cuda_backend.so
+INCLUDES += -I$(MM_CU)
 endif
+
+#OpenCL backend
 ifeq ($(USE_OPENCL),TRUE)
 MM_COMPONENTS += -D WITH_OPENCL
+INCLUDES += -I$(MM_CL)
 ifeq ($(USE_FPGA),INTEL)
 MM_COMPONENTS += -D WITH_INTELFPGA -lmm_opencl_intelfpga_backend
 MM_DEPS += libmm_opencl_intelfpga_backend.so
@@ -70,16 +246,21 @@ else
 MM_COMPONENTS += -lmm_opencl_backend
 MM_DEPS += libmm_opencl_backend.so
 endif
-MM_COMPONENTS += -L$(OPENCL_LIB_DIR) -lOpenCL
+MM_COMPONENTS += -I$(OPENCL_INCL_DIR) -L$(OPENCL_LIB_DIR) -lOpenCL
 endif
+
 ifeq ($(USE_OPENMP),TRUE)
 MM_COMPONENTS += -D WITH_OPENMP
+INCLUDES += -I$(MM_MP)
+
 ifeq ($(USE_MIC),TRUE)
-ifeq($(USE_MPI),TRUE)
-CC = mpicc -cc=$(ICC_BIN)
+
+ifeq ($(USE_MPI),TRUE)
+CC = $(MPI_DIR)/bin/mpicc -cc=$(ICC_BIN)
 else
 CC = $(ICC_BIN)
 endif
+
 CC_FLAGS += -mmic
 MM_COMPONENTS += -lmm_openmp_backend_mic
 MM_DEPS += libmm_openmp_mic_backend.so
@@ -87,16 +268,19 @@ else
 MM_COMPONENTS += -lmm_openmp_backend
 MM_DEPS += libmm_openmp_backend.so
 endif
+
 ifeq ($(CC),gcc)
-CC_FLAGS = $(OPT_LVL) $(L_FLAGS) -fopenmp
+CC_FLAGS += -fopenmp
 else
-CC_FLAGS= $(OPT_LVL) $(L_FLAGS) -openmp
+CC_FLAGS += -openmp
+endif
 endif
 
-
+export INCLUDES
 
 #.PHONY: metamorph_all examples
 .PHONY: libmetamorph.so examples
+all: libmetamorph.so
 #metamorph_all: libmetamorph.so libmetamorph_mp.so libmetamorph_mic.so libmetamorph_cl.so libmetamorph_cu.so
 
 #libmetamorph.so: libmm_openmp_backend.so libmm_cuda_backend.so libmm_opencl_backend.so
@@ -106,9 +290,9 @@ endif
 #	$(CC) $(MM_CORE)/metamorph.c $(MM_CORE)/metamorph_timers.c $(CC_FLAGS) $(INCLUDES) -L $(MM_LIB) -D WITH_OPENMP -D WITH_OPENCL -D WITH_CUDA -D WITH_TIMERS -L /usr/local/cuda/lib64 -lmm_openmp_backend  -lmm_cuda_backend -lmm_opencl_backend -lOpenCL -lcudart -o $(MM_LIB)/libmetamorph.so
 #endif
 libmetamorph.so: $(MM_DEPS)
-	$(CC) $(MM_CORE)/metamorph.c $(CC_FLAGS) $(INCLUDES) -L $(MM_LIB) $(MM_COMPONENTS) -o $(MM_LIB)/libmetamorph.so
+	$(CC) $(MM_CORE)/metamorph.c $(CC_FLAGS) $(INCLUDES) -L$(MM_LIB) $(MM_COMPONENTS) -o $(MM_LIB)/libmetamorph.so
 
-#do we need these old single-backend targets now that the above is modular?
+#these old single-backend targets are deprecated now that the above is modular
 libmetamorph_mp.so: libmm_openmp_backend.so
 ifeq ($(USE_MPI),TRUE)
 	mpicc -cc=$(CC) $(MM_CORE)/metamorph.c $(MM_CORE)/metamorph_timers.c $(MM_CORE)/metamorph_mpi.c $(CC_FLAGS) $(INCLUDES) -I $(MPICH_DIR)/include -L $(MM_LIB) -L $(MPICH_DIR)/lib -D WITH_OPENMP -D WITH_TIMERS -D WITH_MPI  -lmm_openmp_backend -o $(MM_LIB)/libmetamorph_mp.so

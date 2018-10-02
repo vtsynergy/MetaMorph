@@ -753,8 +753,9 @@ a_err meta_flush() {
 #endif
 
 #ifdef WITH_OPENMP
-		case metaModePreferOpenMP:
+		case metaModePreferOpenMP: {
 #pragma omp barrier // synchronize threads
+}
 		break;
 #endif
 	}
