@@ -35,9 +35,9 @@ endif
 ifndef MPI_DIR
 #attempt to autodetect
 ifneq ($(shell which mpicc),)
-export MPI_DIR =$(patsubst $/bin/mpicc,%,$(shell which mpicc))
+MPI_DIR=$(patsubst %/bin/mpicc,%,$(shell which mpicc))
 else
-export MPI_DIR
+MPI_DIR=
 endif
 else
 #confirm existence
@@ -62,15 +62,15 @@ endif
 ifndef CUDA_LIB_DIR #Autodetect a cuda installation
 ifeq ($(shell which nvcc),)
 #none found
-export CUDA_LIB_DIR
+CUDA_LIB_DIR=
 else
 #found
-export CUDA_LIB_DIR=$(patsubst %/bin/nvcc,%,$(shell which nvcc))/$(if ARCH_64,lib64,lib)
-export NVCC=nvcc
+CUDA_LIB_DIR=$(patsubst %/bin/nvcc,%,$(shell which nvcc))/$(if ARCH_64,lib64,lib)
+NVCC=nvcc
 endif
 else #User has provided one, check it exists
 ifeq ($(shell test -e $(CUDA_LIB_DIR)/libcudart.so && echo -n yes),yes) #Check if the CUDA libs exist where they told us
-export NVCC=$(patsubst %/lib,%,$(patsubst %/lib64,%,$(CUDA_LIB_DIR)))/bin/nvcc
+NVCC=$(patsubst %/lib,%,$(patsubst %/lib64,%,$(CUDA_LIB_DIR)))/bin/nvcc
 else
 $(error Cannot find CUDA installation at CUDA_LIB_DIR=$(CUDA_LIB_DIR))
 endif
@@ -118,29 +118,29 @@ endif
 else
 #NVIDIA installations
 ifneq ($(CUDA_LIB_DIR),)
-export OPENCL_LIB_DIR=$(CUDA_LIB_DIR)
-export OPENCL_INCL_DIR=$(patsubst %/lib,%,$(patsubst %/lib64,%,$(CUDA_LIB_DIR)))/include
+OPENCL_LIB_DIR=$(CUDA_LIB_DIR)
+OPENCL_INCL_DIR=$(patsubst %/lib,%,$(patsubst %/lib64,%,$(CUDA_LIB_DIR)))/include
 endif
 #TODO AMD APP SDK installations (though deprecated)
 
 #AMD ROCM installations
 ifeq ($(shell test -e /opt/rocm/opencl/include/CL/opencl.h && echo -n yes),yes)
-export OPENCL_LIB_DIR=/opt/rocm/opencl/lib/x86_64
-export OPENCL_INCL_DIR=/opt/rocm/opencl/include
+OPENCL_LIB_DIR=/opt/rocm/opencl/lib/x86_64
+OPENCL_INCL_DIR=/opt/rocm/opencl/include
 endif
 ifeq ($(shell test -e /opt/intel/opencl/lib64/libOpenCL.so && echo -n yes),yes)
 ifeq ($(shell test -e /opt/intel/opencl/include/CL/opencl.h && echo -n yes),yes)
-export OPENCL_LIB_DIR=/opt/intel/opencl/lib64
-export OPENCL_INCL_DIR=/opt/intel/opencl/include
+OPENCL_LIB_DIR=/opt/intel/opencl/lib64
+OPENCL_INCL_DIR=/opt/intel/opencl/include
 endif
 endif
 
 #fallback to a find
 ifeq ($(OPENCL_LIB_DIR),)
-export OPENCL_LIB_DIR=$(patsubst %/libOpenCL.so,%,$(shell find / -path /home -prune -o -name libOpenCL.so -print -quit 2>/dev/null))
+OPENCL_LIB_DIR=$(patsubst %/libOpenCL.so,%,$(shell find / -path /home -prune -o -name libOpenCL.so -print -quit 2>/dev/null))
 endif
 ifeq ($(OPENCL_INCL_DIR),)
-export OPENCL_INCL_DIR=$(patsubst %/CL/opencl.h,%,$(shell find / -path /home -prune -o -name opencl.h -print -quit 2>/dev/null))
+OPENCL_INCL_DIR=$(patsubst %/CL/opencl.h,%,$(shell find / -path /home -prune -o -name opencl.h -print -quit 2>/dev/null))
 endif
 endif #end autodetect/validate
 
@@ -217,7 +217,7 @@ MM_COMPONENTS=
 ifeq ($(USE_MPI),TRUE)
 MM_COMPONENTS += -D WITH_MPI $(MM_CORE)/metamorph_mpi.c -I$(MPI_DIR)/include -L$(MPI_DIR)/lib
 MM_DEPS += $(MM_CORE)/metamorph_mpi.c
-CC = $(MPI_DIR)/bin/mpicc -cc=$(CC)
+CC := $(MPI_DIR)/bin/mpicc -cc=$(CC)
 endif
 #timer features
 ifeq ($(USE_TIMERS),TRUE)
@@ -278,6 +278,8 @@ endif
 
 export INCLUDES
 
+MFLAGS := USE_CUDA=$(USE_CUDA) CUDA_LIB_DIR=$(CUDA_LIB_DIR) USE_OPENCL=$(USE_OPENCL) OPENCL_LIB_DIR=$(OPENCL_LIB_DIR) OPENCL_INCL_DIR=$(OPENCL_INCL_DIR) USE_OPENMP=$(USE_OPENMP) USE_MIC=$(USE_MIC) ICC_BIN=$(ICC_BIN) USE_TIMER=$(USE_TIMERS) USE_MPI=$(USE_MPI) MPI_DIR=$(MPI_DIR) USE_FPGA=$(USE_FPGA) CC="$(CC)" NVCC=$(NVCC)
+
 #.PHONY: metamorph_all examples
 .PHONY: libmetamorph.so examples
 all: libmetamorph.so
@@ -290,7 +292,7 @@ all: libmetamorph.so
 #	$(CC) $(MM_CORE)/metamorph.c $(MM_CORE)/metamorph_timers.c $(CC_FLAGS) $(INCLUDES) -L $(MM_LIB) -D WITH_OPENMP -D WITH_OPENCL -D WITH_CUDA -D WITH_TIMERS -L /usr/local/cuda/lib64 -lmm_openmp_backend  -lmm_cuda_backend -lmm_opencl_backend -lOpenCL -lcudart -o $(MM_LIB)/libmetamorph.so
 #endif
 libmetamorph.so: $(MM_DEPS)
-	$(CC) $(MM_CORE)/metamorph.c $(CC_FLAGS) $(INCLUDES) -L$(MM_LIB) $(MM_COMPONENTS) -o $(MM_LIB)/libmetamorph.so
+	$(CC) $(MM_CORE)/metamorph.c $(CC_FLAGS) $(INCLUDES) -L$(MM_LIB) $(MM_COMPONENTS) -o $(MM_LIB)/libmetamorph.so -shared -Wl,-soname,libmetamorph.so
 
 #these old single-backend targets are deprecated now that the above is modular
 libmetamorph_mp.so: libmm_openmp_backend.so
@@ -322,25 +324,25 @@ else
 endif
 
 libmm_openmp_backend.so:	
-	cd $(MM_MP) && $(MAKE) libmm_openmp_backend.so $(MFLAGS)
+	cd $(MM_MP) && $(MFLAGS) $(MAKE) libmm_openmp_backend.so
 	
 libmm_openmp_mic_backend.so:
-	cd $(MM_MP) && $(MAKE) libmm_openmp_backend_mic.so $(MFLAGS)
+	cd $(MM_MP) && $(MFLAGS) $(MAKE) libmm_openmp_backend_mic.so
 
 libmm_cuda_backend.so:
-	cd $(MM_CU) && $(MAKE) libmm_cuda_backend.so $(MFLAGS)
+	cd $(MM_CU) && $(MFLAGS) $(MAKE) libmm_cuda_backend.so
 
 libmm_opencl_backend.so:
-	cd $(MM_CL) && $(MAKE) libmm_opencl_backend.so $(MFLAGS)
+	cd $(MM_CL) && $(MFLAGS) $(MAKE) libmm_opencl_backend.so
 
 examples: 
-	cd $(MM_EX) && $(MAKE) torus_reduce_test $(MFLAGS)
+	cd $(MM_EX) && $(MFLAGS) $(MAKE) torus_reduce_test
 #	cd $(MM_EX) && $(MAKE) torus_reduce_test_mp torus_reduce_test_mic torus_reduce_test_cu torus_reduce_test_cl $(MFLAGS)
 
 generators: MetaGen-CL
 
 MetaGen-CL:
-	cd $(MM_GEN_CL) && $(MAKE) metagen-cl $(MFLAGS)
+	cd $(MM_GEN_CL) && $(MAKE) metagen-cl
 	
 clean:
 	rm $(MM_LIB)/libmetamorph*.so $(MM_LIB)/libmm*.so

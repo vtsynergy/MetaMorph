@@ -12,7 +12,9 @@
 #define METAMORPH_OPENCL_BACKEND_H
 
 #ifndef METAMORPH_H
+extern "C" {
 #include "metamorph.h"
+}
 #endif
 
 //If the user doesn't override default threadblock size..
