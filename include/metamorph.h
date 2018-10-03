@@ -110,6 +110,7 @@ meta_face * make_slab_from_3d(int face, int ni, int nj, int nk, int thickness);
 #ifdef WITH_OPENCL
 #ifndef METAMORPH_OPENCL_BACKEND_H
 #include "mm_opencl_backend.h"
+#include "mm_opencl_backend_alt.h"
 #endif
 #endif
 
@@ -271,11 +272,11 @@ opencl_callback_payload opencl_pl;
 //Kernels and transfers with callback params, necessary for MPI helpers
 // These are **NOT** intended to be used externally, only by the library itself
 // The callback/payload structure is not built for user-specified callbacks
-a_err meta_copy_h2d_cb(void * dst, void * src, size_t size, a_bool async,
+a_err meta_copy_h2d_cb(void * dst, void * src, size_t size, a_bool async, char * event_name, cl_event * wait,
 	meta_callback *call, void *call_pl);
-a_err meta_copy_d2h_cb(void * dst, void * src, size_t size, a_bool async,
+a_err meta_copy_d2h_cb(void * dst, void * src, size_t size, a_bool async, char * event_name, cl_event * wait,
 	meta_callback *call, void *call_pl);
-a_err meta_copy_d2d_cb(void * dst, void * src, size_t size, a_bool async,
+a_err meta_copy_d2d_cb(void * dst, void * src, size_t size, a_bool async, char * event_name, cl_event * wait,
 	meta_callback *call, void *call_pl);
 a_err meta_transpose_face_cb(a_dim3 * grid_size, a_dim3 * block_size,
 	void *indata, void *outdata, a_dim3 * arr_dim_xy, a_dim3 * tran_dim_xy,
@@ -298,15 +299,29 @@ a_err meta_stencil_3d7p_cb(a_dim3 * grid_size, a_dim3 * block_size,
 	void *indata, void *outdata, a_dim3 * array_size, a_dim3 * array_start,
 	a_dim3 * array_end, meta_type_id type, a_bool async, meta_callback *call,
 	void *call_pl);
+a_err meta_csr_cb(size_t global_size, size_t local_size, void * csr_ap, void * csr_aj, void * csr_ax, void * x_loc, void * y_loc,
+		size_t wg_size, meta_type_id type, a_bool async, cl_event * wait,
+		meta_callback *call, void *call_pl);
+a_err meta_crc_cb(size_t global_size, size_t local_size, void * dev_input, int page_size, int num_words, int numpages, void * dev_output,
+		meta_type_id type, a_bool async, cl_event * wait,
+		meta_callback *call, void *call_pl);
+		
+		
+#ifdef WITH_TIMERS
+#ifdef WITH_OPENCL
+//getting a pointer to specific event  
+a_err meta_get_event(char * qname, char * ename, cl_event ** e);
+#endif // WITH_OPENCL
+#endif // WITH_TIMERS
 
 //Reduced-complexity calls
 // These are the ones applications built on top of the library should use
 // Memory copy host to device
-a_err meta_copy_h2d(void * dst, void * src, size_t size, a_bool async);
+a_err meta_copy_h2d(void * dst, void * src, size_t size, a_bool async, char * event_name, cl_event * wait);
 // Memory copy device to host
-a_err meta_copy_d2h(void * dst, void * src, size_t size, a_bool async);
+a_err meta_copy_d2h(void * dst, void * src, size_t size, a_bool async, char * event_name, cl_event * wait);
 // Memory copy device to device
-a_err meta_copy_d2d(void * dst, void * src, size_t size, a_bool async);
+a_err meta_copy_d2d(void * dst, void * src, size_t size, a_bool async, char * event_name, cl_event * wait);
 a_err meta_transpose_face(a_dim3 * grid_size, a_dim3 * block_size,
 	void *indata, void *outdata, a_dim3 * arr_dim_xy, a_dim3 * tran_dim_xy,
 	meta_type_id type, a_bool async);
@@ -325,6 +340,10 @@ a_err meta_reduce(a_dim3 * grid_size, a_dim3 * block_size, void * data,
 a_err meta_stencil_3d7p(a_dim3 * grid_size, a_dim3 * block_size, void *indata,
 	void *outdata, a_dim3 * array_size, a_dim3 * array_start,
 	a_dim3 * array_end, meta_type_id type, a_bool async);
+a_err meta_csr(size_t global_size, size_t local_size, void * csr_ap, void * csr_aj, void * csr_ax, void * x_loc, void * y_loc, 
+	size_t wg_size, meta_type_id type, a_bool async, cl_event * wait);
+a_err meta_crc(size_t global_size, size_t local_size, void * dev_input, int page_size, int num_words, int numpages, void * dev_output, 
+	meta_type_id type, a_bool async, cl_event * wait);
 
 //MPI functions need access to all top-level calls and types
 //MPI needs to be before timers, so that timers can output rank info - if available

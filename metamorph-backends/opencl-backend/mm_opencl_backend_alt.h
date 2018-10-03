@@ -6,7 +6,7 @@
 #include <stdlib.h>
 #include <stdio.h>
 #include <string.h>
-
+//#include "../../include/eth_crc32_lut.h"
 /** OpenCL Back-End: FPGA customization **/
 #ifndef METAMORPH_OPENCL_BACKEND_H
 #define METAMORPH_OPENCL_BACKEND_H
@@ -18,6 +18,10 @@
 //If the user doesn't override default threadblock size..
 #ifndef METAMORPH_OCL_DEFAULT_BLOCK
 #define METAMORPH_OCL_DEFAULT_BLOCK {16, 8, 1}
+#endif
+
+#ifndef METAMORPH_OCL_DEFAULT_1D_BLOCK
+#define METAMORPH_OCL_DEFAULT_1D_BLOCK 16
 #endif
 
 #ifndef __FPGA__
@@ -32,13 +36,15 @@
 #define KERNEL_PACK
 #define KERNEL_UPACK
 #define KERNEL_STENCIL
+#define KERNEL_CSR
+#define KERNEL_CRC
 #endif 
 
 #if (!defined(FPGA_DOUBLE) && !defined(FPGA_FLOAT) && !defined(FPGA_UNSIGNED_LONG) && !defined(FPGA_INTEGER) && !defined(FPGA_UNSIGNED_INTEGER))
 #error Macro is Undefined,Please define one of FPGA_DOUBLE, FPGA_FLOAT, FPGA_UNSIGNED_LONG, FPGA_INTEGER, FPGA_UNSIGNED_INTEGER
 #endif 
 
-#if (!defined(KERNEL_REDUCE) && !defined(KERNEL_DOT_PROD) && !defined(KERNEL_TRANSPOSE) && !defined(KERNEL_PACK) && !defined(KERNEL_UPACK) && !defined(KERNEL_STENCIL))
+#if (!defined(KERNEL_REDUCE) && !defined(KERNEL_DOT_PROD) && !defined(KERNEL_TRANSPOSE) && !defined(KERNEL_PACK) && !defined(KERNEL_UPACK) && !defined(KERNEL_STENCIL) && !defined(KERNEL_CSR) && !defined(KERNEL_CRC) )
 #error Macro is undefined. Define at least one of the kernel.
 #endif 
 
@@ -87,7 +93,15 @@ typedef struct metaOpenCLStackFrame {
 #ifdef KERNEL_STENCIL
 	cl_kernel kernel_stencil_3d7p_db;
 #endif // KERNL_STENCIL
+#ifdef KERNEL_CSR
+	cl_kernel kernel_csr_fl;
+#endif // KERNL_CSR
+#ifdef KERNEL_CRC
+	cl_kernel kernel_crc_ui;
+#endif // KERNL_CRC
 #endif // FPGA_DOUBLE
+
+
 #ifdef  FPGA_FLOAT
 #ifdef KERNEL_REDUCE
 	cl_kernel kernel_reduce_fl;
@@ -107,7 +121,15 @@ typedef struct metaOpenCLStackFrame {
 #ifdef KERNEL_STENCIL
 	cl_kernel kernel_stencil_3d7p_fl;
 #endif // KERNL_STENCIL
+#ifdef KERNEL_CSR
+	cl_kernel kernel_csr_fl;
+#endif // KERNL_CSR
+#ifdef KERNEL_CRC
+	cl_kernel kernel_crc_ui;
+#endif // KERNL_CRC
 #endif // FPGA_FLOAT
+
+
 #ifdef FPGA_UNSIGNED_LONG
 #ifdef KERNEL_REDUCE
 	cl_kernel kernel_reduce_ul;
@@ -127,7 +149,15 @@ typedef struct metaOpenCLStackFrame {
 #ifdef KERNEL_STENCIL
 	cl_kernel kernel_stencil_3d7p_ul;
 #endif // KERNL_STENCIL
+#ifdef KERNEL_CSR
+	cl_kernel kernel_csr_fl;
+#endif // KERNL_CSR
+#ifdef KERNEL_CRC
+	cl_kernel kernel_crc_ui;
+#endif // KERNL_CRC
 #endif // FPGA_UNSIGNED_LONG
+
+
 #ifdef FPGA_INTEGER
 #ifdef KERNEL_REDUCE
 	cl_kernel kernel_reduce_in;
@@ -147,7 +177,15 @@ typedef struct metaOpenCLStackFrame {
 #ifdef KERNEL_STENCIL
 	cl_kernel kernel_stencil_3d7p_in;
 #endif // KERNL_STENCIL
+#ifdef KERNEL_CSR
+	cl_kernel kernel_csr_fl;
+#endif // KERNL_CSR
+#ifdef KERNEL_CRC
+	cl_kernel kernel_crc_ui;
+#endif // KERNL_CRC
 #endif // FPGA_INTEGER
+
+
 #ifdef FPGA_UNSIGNED_INTEGER
 #ifdef KERNEL_REDUCE
 	cl_kernel kernel_reduce_ui;
@@ -167,6 +205,12 @@ typedef struct metaOpenCLStackFrame {
 #ifdef KERNEL_STENCIL
 	cl_kernel kernel_stencil_3d7p_ui;
 #endif // KERNL_STENCIL
+#ifdef KERNEL_CSR
+	cl_kernel kernel_csr_fl;
+#endif // KERNL_CSR
+#ifdef KERNEL_CRC
+	cl_kernel kernel_crc_ui;
+#endif // KERNL_CRC
 #endif // FPGA_UNSIGNED_INTEGER 
 
 	cl_mem constant_face_size;
@@ -175,6 +219,11 @@ typedef struct metaOpenCLStackFrame {
 	cl_mem red_loc;
 
 } metaOpenCLStackFrame;
+
+
+
+
+
 //TODO these shouldn't need to be exposed to the user, unless there's a CUDA call we need to emulate
 void metaOpenCLPushStackFrame(metaOpenCLStackFrame * frame);
 
@@ -218,6 +267,12 @@ cl_int opencl_stencil_3d7p(size_t (*grid_size)[3], size_t (*block_size)[3],
 		void * indata, void * outdata, size_t (*array_size)[3],
 		size_t (*arr_start)[3], size_t (*arr_end)[3], meta_type_id type,
 		int async, cl_event * event);
+cl_int opencl_csr(size_t global_size, size_t local_size,
+		void * csr_ap, void * csr_aj, void * csr_ax, void * x_loc, void * y_loc, 
+		meta_type_id type, int async, cl_event * wait, cl_event * event);
+cl_int opencl_crc(size_t global_size, size_t local_size,
+		void * dev_input, int page_size, int num_words, int numpages, void * dev_output, 
+		meta_type_id type, int async, cl_event * wait, cl_event * event);
 
 #ifdef __OPENCLCC__
 }

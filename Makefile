@@ -199,7 +199,7 @@ endif
 
 
 
-export G_TYPE = DOUBLE
+export G_TYPE = UNSIGNED_INTEGER
 #export OPT_LVL = -g -DDEBUG
 export OPT_LVL = -O3
 export L_FLAGS= -fPIC -shared
@@ -209,6 +209,11 @@ CC=gcc
 CC_FLAGS = $(OPT_LVL) $(L_FLAGS)
 INCLUDES  = -I $(MM_DIR)/include
 
+ifndef USE_EMULATOR
+USE_EMULATOR=FALSE
+else
+USE_EMULATOR := $(shell echo $(USE_EMULATOR) | tr '[:lower:]' '[:upper:]')
+endif
 
 #Configure compilation to the machine's availability
 MM_DEPS= $(MM_CORE)/metamorph.c
@@ -248,6 +253,33 @@ MM_DEPS += libmm_opencl_backend.so
 endif
 MM_COMPONENTS += -I$(OPENCL_INCL_DIR) -L$(OPENCL_LIB_DIR) -lOpenCL
 endif
+
+####################### FPGA ##################################
+# Where is the Intel(R) FPGA SDK for OpenCL(TM) software?
+ifeq ($(wildcard $(ALTERAOCLSDKROOT)),)
+$(error Set ALTERAOCLSDKROOT to the root directory of the Intel(R) FPGA SDK for OpenCL(TM) software installation)
+endif
+ifeq ($(wildcard $(ALTERAOCLSDKROOT)/host/include/CL/opencl.h),)
+$(error Set ALTERAOCLSDKROOT to the root directory of the Intel(R) FPGA SDK for OpenCL(TM) software installation.)
+endif
+
+# OpenCL compile and link flags.
+export AOCL_COMPILE_CONFIG := $(shell aocl compile-config )
+export AOCL_LINK_CONFIG := $(shell aocl link-config )
+
+
+ifeq ($(USE_EMULATOR),TRUE)
+export AOC_DEF= -march=emulator -v --board bdw_fpga_v1.0
+else
+export AOC_DEF= -v --board bdw_fpga_v1.0
+endif
+
+#-D WITH_TIMERS
+export FPGA_DEF=-D WITH_OPENCL -D __FPGA__ -D WITH_TIMERS -D KERNEL_CRC -D FPGA_UNSIGNED_INTEGER
+#export FPGA_DEF=-D WITH_OPENCL -D WITH_TIMERS -D __FPGA__ -D KERNEL_STENCIL -D FPGA_DOUBLE
+#export FPGA_LIB=/home/jehandad/rte/opt/altera/aocl-rte/host/linux64/lib/
+export FPGA_LIB=-L /media/hdd/jehandad/altera_pro/16.0/hld/host/linux64/lib -L $(AALSDK)/lib
+
 
 ifeq ($(USE_OPENMP),TRUE)
 MM_COMPONENTS += -D WITH_OPENMP
@@ -320,9 +352,10 @@ libmetamorph_cl.so: libmm_opencl_backend.so
 ifeq ($(USE_MPI),TRUE)
 	$(CC) $(MM_CORE)/metamorph.c $(MM_CORE)/metamorph_timers.c $(MM_CORE)/metamorph_mpi.c $(CC_FLAGS) $(INCLUDES) -L $(MM_LIB) -D WITH_OPENCL -D WITH_TIMERS -D WITH_MPI -I $(MPICH_DIR)/include -L $(MPICH_DIR)/lib -lmm_opencl_backend -lOpenCL -o $(MM_LIB)/libmetamorph_cl.so
 else
-	$(CC) $(MM_CORE)/metamorph.c $(MM_CORE)/metamorph_timers.c $(CC_FLAGS) $(INCLUDES) -L $(MM_LIB) -D WITH_OPENCL -D WITH_TIMERS  -lmm_opencl_backend -lOpenCL -o $(MM_LIB)/libmetamorph_cl.so
+	$(CC) $(MM_CORE)/metamorph.c $(MM_CORE)/metamorph_timers.c $(CC_FLAGS) $(AOCL_COMPILE_CONFIG) $(INCLUDES) -L $(MM_LIB) $(FPGA_LIB) -D WITH_OPENCL -D WITH_TIMERS -lmm_opencl_backend -lOpenCL -o $(MM_LIB)/libmetamorph_cl.so
 endif
 
+#/media/hdd/jehandad/altera_pro/16.0/hld/host/linux64/lib 
 libmm_openmp_backend.so:	
 	cd $(MM_MP) && $(MFLAGS) $(MAKE) libmm_openmp_backend.so
 	
@@ -335,14 +368,25 @@ libmm_cuda_backend.so:
 libmm_opencl_backend.so:
 	cd $(MM_CL) && $(MFLAGS) $(MAKE) libmm_opencl_backend.so
 
-examples: 
-	cd $(MM_EX) && $(MFLAGS) $(MAKE) torus_reduce_test
-#	cd $(MM_EX) && $(MAKE) torus_reduce_test_mp torus_reduce_test_mic torus_reduce_test_cu torus_reduce_test_cl $(MFLAGS)
-
 generators: MetaGen-CL
 
 MetaGen-CL:
 	cd $(MM_GEN_CL) && $(MAKE) metagen-cl
 	
+examples: torus_ex csr_ex crc_ex
+
+torus_ex:
+	cd $(MM_EX) && $(MFLAGS) $(MAKE) torus_reduce_test
+#	cd $(MM_EX) && $(MAKE) torus_reduce_test_mp torus_reduce_test_mic torus_reduce_test_cu torus_reduce_test_cl $(MFLAGS)
+
+csr_ex:
+	cd $(MM_EX) && $(MFLAGS) $(MAKE) csr_alt
+#	cd $(MM_EX) && $(MAKE) torus_reduce_test_mp torus_reduce_test_mic torus_reduce_test_cu torus_reduce_test_cl $(MFLAGS)
+
+crc_ex:
+	cd $(MM_EX) && $(MFLAGS) $(MAKE) crc_alt
 clean:
 	rm $(MM_LIB)/libmetamorph*.so $(MM_LIB)/libmm*.so
+
+refresh:
+	rm $(MM_EX)/crc_alt $(MM_EX)/mm_opencl_backend_alt.aocx
