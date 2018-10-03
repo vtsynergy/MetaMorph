@@ -182,7 +182,10 @@ typedef enum {
   module_implements_opencl = 2,
   module_implements_openmp = 4,
   module_implements_all = 7,
-  module_implements_general = 8 //general operations not related to a backend
+  module_implements_timers = 8,
+  module_implements_mpi = 16,
+  module_implements_fortran = 32,
+  module_implements_general = 64 //general operations not related to a backend
 } a_module_implements_backend;
 
 typedef struct {
