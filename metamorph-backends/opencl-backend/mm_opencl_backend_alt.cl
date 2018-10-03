@@ -3,7 +3,7 @@
 #pragma OPENCL EXTENSION cl_khr_int64_extended_atomics : enable
 
 //Making  it Define based. I would rather have it define based than splitting it in five files. 
-
+#include "../../include/eth_crc32_lut.h"
 #ifndef __FPGA__
 #define FPGA_DOUBLE
 #define FPGA_FLOAT
@@ -16,12 +16,15 @@
 #define KERNEL_PACK
 #define KERNEL_UPACK
 #define KERNEL_STENCIL
+#define KERNEL_CSR
+#define KERNEL_CRC
 #endif 
+
 
 #if (!defined(FPGA_DOUBLE) && !defined(FPGA_FLOAT) && !defined(FPGA_UNSIGNED_LONG) && !defined(FPGA_INTEGER) && !defined(FPGA_UNSIGNED_INTEGER))
 #error Macro is Undefined,Please define one of FPGA_DOUBLE, FPGA_FLOAT, FPGA_UNSIGNED_LONG, FPGA_INTEGER, FPGA_UNSIGNED_INTEGER
 #endif 
-#if (!defined(KERNEL_REDUCE) && !defined(KERNEL_DOT_PROD) && !defined(KERNEL_TRANSPOSE) && !defined(KERNEL_PACK) && !defined(KERNEL_UPACK) && !defined(KERNEL_STENCIL))
+#if (!defined(KERNEL_REDUCE) && !defined(KERNEL_DOT_PROD) && !defined(KERNEL_TRANSPOSE) && !defined(KERNEL_PACK) && !defined(KERNEL_UPACK) && !defined(KERNEL_STENCIL) && !defined(KERNEL_CSR) && !defined(KERNEL_CRC))
 #error Macro is undefined. Define at least one of the kernel. 
 #endif 
 
@@ -1118,7 +1121,7 @@ __kernel void kernel_stencil_3d7p_db(const __global double * __restrict__ ind, _
 		else if (get_local_id(1) == get_local_size(1)-1)
 		bind[bc+bi] = ind[c+i];
 
-		barrier(CLK_LOCAL_MEM_FENCE | CLK_GLOBAL_MEM_FENCE);
+		//barrier(CLK_LOCAL_MEM_FENCE | CLK_GLOBAL_MEM_FENCE);
 
 		if (boundx && boundy && boundz)
 		outd[c] = ( rz1 + bind[bc-1] + bind[bc-bi] + r0 +
@@ -1357,3 +1360,94 @@ __kernel void kernel_stencil_3d7p_ui(const __global unsigned int * __restrict__ 
 }
 #endif // KERNL_STENCIL
 #endif // FPGA_UNSIGNED_INTEGER 
+
+
+//CSR kernel 
+// work only with 1D 
+#ifdef FPGA_FLOAT
+#ifdef KERNEL_CSR
+__kernel void kernel_csr_fl(const unsigned int num_rows,
+                __global unsigned int * Ap,
+                __global unsigned int * Aj,
+                __global float * Ax,
+                __global float * x,
+                __global float * y) {
+	
+	unsigned int row = get_global_id(0);
+
+	if(row < num_rows)
+	{
+		float sum = y[row];
+
+		const unsigned int row_start = Ap[row];
+		const unsigned int row_end = Ap[row+1];
+
+		unsigned int jj = 0;
+		for (jj = row_start; jj < row_end; jj++)
+				sum += Ax[jj] * x[Aj[jj]];
+
+		y[row] = sum;
+	}
+}
+#endif // KERNL_CSR
+#endif // FPGA_FLOAT
+
+
+//CRC kernel 
+#ifdef FPGA_UNSIGNED_INTEGER
+#ifdef KERNEL_CRC
+__kernel void kernel_crc_ui(__global const uint* restrict data, 
+		uint length_bytes, 
+		const uint length_ints,
+		uint num_pages ,
+		__global uint* restrict res)
+{
+
+	__private uint crc;
+	__private uchar* currentChar;
+	__private uint one,two;
+	__private size_t i,j,gid;
+	 uint pages = num_pages;
+        uint loc_length_bytes = length_bytes;
+
+	crc = 0xFFFFFFFF;
+	gid = 0;
+
+for(gid = 0; gid <  pages ; gid++)
+{
+	i = gid * length_ints;
+	loc_length_bytes = length_bytes;
+        crc = 0xFFFFFFFF;
+	while (loc_length_bytes >= 8) // process eight bytes at once
+	{
+		one = data[i++] ^ crc;
+		two = data[i++];
+		crc = crc32Lookup[7][ one      & 0xFF] ^
+			crc32Lookup[6][(one>> 8) & 0xFF] ^
+			crc32Lookup[5][(one>>16) & 0xFF] ^
+			crc32Lookup[4][ one>>24        ] ^
+			crc32Lookup[3][ two      & 0xFF] ^
+			crc32Lookup[2][(two>> 8) & 0xFF] ^
+			crc32Lookup[1][(two>>16) & 0xFF] ^
+			crc32Lookup[0][ two>>24        ];
+		loc_length_bytes -= 8;
+	}
+
+	while(loc_length_bytes) // remaining 1 to 7 bytes
+	{
+		one = data[i++];
+		currentChar = (unsigned char*) &one;
+		j=0;
+		while (loc_length_bytes && j < 4) 
+		{
+			loc_length_bytes = loc_length_bytes - 1;
+			crc = (crc >> 8) ^ crc32Lookup[0][(crc & 0xFF) ^ currentChar[j]];
+			j = j + 1;
+		}
+	}
+
+	res[gid] = ~crc;
+}
+}
+#endif // KERNL_CRC
+#endif // FPGA_UNSIGNED_INTEGER

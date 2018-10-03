@@ -1,6 +1,11 @@
 /** OpenCL Back-End: FPGA customization **/
 #include "../../metamorph-backends/opencl-backend/mm_opencl_backend_alt.h"
-
+#define CHKERR(err, str)\
+if ( err != CL_SUCCESS)\
+{\
+	fprintf(stderr, "Error in executing \"%s\", %d\n", str, err);  \
+	exit(EXIT_FAILURE);\
+}
 extern cl_context meta_context;
 extern cl_command_queue meta_queue;
 extern cl_device_id meta_device;
@@ -103,7 +108,7 @@ cl_int metaOpenCLBuildProgram(metaOpenCLStackFrame * frame) {
 				&metaCLProgSrc);
 #else
 		printf("Building Kernel for FPGA\n");
-		metaCLProgLen = metaOpenCLLoadProgramSource("mm_opencl_backend.aocx", &metaCLProgSrc);
+		metaCLProgLen = metaOpenCLLoadProgramSource("mm_opencl_backend_alt.aocx", &metaCLProgSrc);
 #endif
 	}
 #ifndef __FPGA__
@@ -118,33 +123,33 @@ cl_int metaOpenCLBuildProgram(metaOpenCLStackFrame * frame) {
 		if (strcmp(getenv("METAMORPH_MODE"), "OpenCL") == 0) {
 			size_t needed =
 					snprintf(NULL, 0,
-							"-I . -D TRANSPOSE_TILE_DIM=(%d) -D TRANSPOSE_TILE_BLOCK_ROWS=(%d)",
+							"-I . -D TRANSPOSE_TILE_DIM=(%d) -D OPENCL -D TRANSPOSE_TILE_BLOCK_ROWS=(%d)",
 							TRANSPOSE_TILE_DIM, TRANSPOSE_TILE_BLOCK_ROWS);
 			args = (char *) malloc(needed);
 			snprintf(args, needed,
-					"-I . -D TRANSPOSE_TILE_DIM=(%d) -D TRANSPOSE_TILE_BLOCK_ROWS=(%d)",
+					"-I . -D TRANSPOSE_TILE_DIM=(%d) -D OPENCL -D TRANSPOSE_TILE_BLOCK_ROWS=(%d)",
 					TRANSPOSE_TILE_DIM, TRANSPOSE_TILE_BLOCK_ROWS);
 			ret |= clBuildProgram(frame->program_opencl_core, 1,
 					&(frame->device), args, NULL, NULL);
 		} else if (strcmp(getenv("METAMORPH_MODE"), "OpenCL_DEBUG") == 0) {
 			size_t needed =
 					snprintf(NULL, 0,
-							"-I . -D TRANSPOSE_TILE_DIM=(%d) -D TRANSPOSE_TILE_BLOCK_ROWS=(%d) -g -cl-opt-disable",
+							"-I . -D TRANSPOSE_TILE_DIM=(%d) -D OPENCL -D TRANSPOSE_TILE_BLOCK_ROWS=(%d) -g -cl-opt-disable",
 							TRANSPOSE_TILE_DIM, TRANSPOSE_TILE_BLOCK_ROWS);
 			args = (char *) malloc(needed);
 			snprintf(args, needed,
-					"-I . -D TRANSPOSE_TILE_DIM=(%d) -D TRANSPOSE_TILE_BLOCK_ROWS=(%d) -g -cl-opt-disable",
+					"-I . -D TRANSPOSE_TILE_DIM=(%d) -D OPENCL -D TRANSPOSE_TILE_BLOCK_ROWS=(%d) -g -cl-opt-disable",
 					TRANSPOSE_TILE_DIM, TRANSPOSE_TILE_BLOCK_ROWS);
 		}
 	} else {
 		//Do the same as if METAMORPH_MODE was set as OpenCL
 		size_t needed =
 				snprintf(NULL, 0,
-						"-I . -D TRANSPOSE_TILE_DIM=(%d) -D TRANSPOSE_TILE_BLOCK_ROWS=(%d)",
+						"-I . -D TRANSPOSE_TILE_DIM=(%d) -D OPENCL -D TRANSPOSE_TILE_BLOCK_ROWS=(%d)",
 						TRANSPOSE_TILE_DIM, TRANSPOSE_TILE_BLOCK_ROWS);
 		args = (char *) malloc(needed);
 		snprintf(args, needed,
-				"-I . -D TRANSPOSE_TILE_DIM=(%d) -D TRANSPOSE_TILE_BLOCK_ROWS=(%d)",
+				"-I . -D TRANSPOSE_TILE_DIM=(%d) -D OPENCL -D TRANSPOSE_TILE_BLOCK_ROWS=(%d)",
 				TRANSPOSE_TILE_DIM, TRANSPOSE_TILE_BLOCK_ROWS);
 		//	ret |= clBuildProgram(frame->program_opencl_core, 1, &(frame->device), args, NULL, NULL);
 
@@ -165,13 +170,18 @@ cl_int metaOpenCLBuildProgram(metaOpenCLStackFrame * frame) {
 			CL_PROGRAM_BUILD_LOG, logsize, log, NULL);
 	fprintf(stderr, "CL_PROGRAM_BUILD_LOG:\n%s", log);
 	free(log);
-	//Not creating all the Kernels. Just the Kernels supposed to be optimized for FPGA. -Anshuman
+	//Not creating all the Kernels. Just the Kernels supposed to be optimized for FPGA.
 	//Reduction
 	//Dot product
 	//Transpose
 	//Pack
 	//Unpack
 	//Stencil
+	//csr
+	//crc
+
+cl_int err;
+
 #ifdef FPGA_DOUBLE
 #ifdef KERNEL_REDUCE
 	frame->kernel_reduce_db = clCreateKernel(frame->program_opencl_core,
@@ -197,7 +207,19 @@ cl_int metaOpenCLBuildProgram(metaOpenCLStackFrame * frame) {
 	frame->kernel_stencil_3d7p_db = clCreateKernel(frame->program_opencl_core,
 			"kernel_stencil_3d7p_db", NULL);
 #endif // KERNL_STENCIL
+#ifdef KERNEL_CSR
+	frame->kernel_csr_fl = clCreateKernel(frame->program_opencl_core,
+			"kernel_csr_fl", &err);
+	CHKERR(err, "Failed to create a compute kernel!");
+#endif // KERNL_CSR
+#ifdef KERNEL_CRC
+	frame->kernel_crc_ui = clCreateKernel(frame->program_opencl_core,
+			"kernel_crc_ui", &err);
+	CHKERR(err, "Failed to create a compute kernel!");
+#endif // KERNL_CRC
 #endif //FPGA_DOUBLE
+
+
 #ifdef  FPGA_FLOAT
 #ifdef KERNEL_REDUCE
 	frame->kernel_dotProd_fl = clCreateKernel(frame->program_opencl_core,
@@ -223,7 +245,19 @@ cl_int metaOpenCLBuildProgram(metaOpenCLStackFrame * frame) {
 	frame->kernel_stencil_3d7p_fl = clCreateKernel(frame->program_opencl_core,
 			"kernel_stencil_3d7p_fl", NULL);
 #endif // KERNL_STENCIL
+#ifdef KERNEL_CSR
+	frame->kernel_csr_fl = clCreateKernel(frame->program_opencl_core,
+			"kernel_csr_fl", &err);
+	CHKERR(err, "Failed to create a compute kernel!");
+#endif // KERNL_CSR
+#ifdef KERNEL_CRC
+	frame->kernel_crc_ui = clCreateKernel(frame->program_opencl_core,
+			"kernel_crc_ui", &err);
+	CHKERR(err, "Failed to create a compute kernel!");
+#endif // KERNL_CRC
 #endif //FPGA_FLOAT
+
+
 #ifdef FPGA_UNSIGNED_LONG
 #ifdef KERNEL_REDUCE
 	frame->kernel_reduce_ul = clCreateKernel(frame->program_opencl_core,
@@ -249,7 +283,19 @@ cl_int metaOpenCLBuildProgram(metaOpenCLStackFrame * frame) {
 	frame->kernel_stencil_3d7p_ul = clCreateKernel(frame->program_opencl_core,
 			"kernel_stencil_3d7p_ul", NULL);
 #endif // KERNL_STENCIL
+#ifdef KERNEL_CSR
+	frame->kernel_csr_fl = clCreateKernel(frame->program_opencl_core,
+			"kernel_csr_fl", &err);
+	CHKERR(err, "Failed to create a compute kernel!");
+#endif // KERNL_CSR
+#ifdef KERNEL_CRC
+	frame->kernel_crc_ui = clCreateKernel(frame->program_opencl_core,
+			"kernel_crc_ui", &err);
+	CHKERR(err, "Failed to create a compute kernel!");
+#endif // KERNL_CRC
 #endif //FPGA_UNSIGNED_LONG
+
+
 #ifdef FPGA_INTEGER
 #ifdef KERNEL_REDUCE
 	frame->kernel_reduce_in = clCreateKernel(frame->program_opencl_core,
@@ -275,7 +321,19 @@ cl_int metaOpenCLBuildProgram(metaOpenCLStackFrame * frame) {
 	frame->kernel_stencil_3d7p_in = clCreateKernel(frame->program_opencl_core,
 			"kernel_stencil_3d7p_in", NULL);
 #endif // KERNL_STENCIL
+#ifdef KERNEL_CSR
+	frame->kernel_csr_fl = clCreateKernel(frame->program_opencl_core,
+			"kernel_csr_fl", &err);
+	CHKERR(err, "Failed to create a compute kernel!");
+#endif // KERNL_CSR
+#ifdef KERNEL_CRC
+	frame->kernel_crc_ui = clCreateKernel(frame->program_opencl_core,
+			"kernel_crc_ui", &err);
+	CHKERR(err, "Failed to create a compute kernel!");
+#endif // KERNL_CRC
 #endif //FPGA_INTEGER
+
+
 #ifdef FPGA_UNSIGNED_INTEGER
 #ifdef KERNEL_REDUCE
 	frame->kernel_reduce_ui = clCreateKernel(frame->program_opencl_core,
@@ -301,7 +359,19 @@ cl_int metaOpenCLBuildProgram(metaOpenCLStackFrame * frame) {
 	frame->kernel_stencil_3d7p_ui = clCreateKernel(frame->program_opencl_core,
 			"kernel_stencil_3d7p_ui", NULL);
 #endif // KERNL_STENCIL
+#ifdef KERNEL_CSR
+	frame->kernel_csr_fl = clCreateKernel(frame->program_opencl_core,
+			"kernel_csr_fl", &err);
+	CHKERR(err, "Failed to create a compute kernel!");
+#endif // KERNL_CSR
+#ifdef KERNEL_CRC
+	frame->kernel_crc_ui = clCreateKernel(frame->program_opencl_core,
+			"kernel_crc_ui", &err);
+	CHKERR(err, "Failed to create a compute kernel!");
+#endif // KERNL_CRC
 #endif //FPGA_UNSIGNED_INTEGER 
+
+
 	//return CL_BUILD_PROGRAM_FAILURE;
 }
 
@@ -344,7 +414,15 @@ void copyStackNodeToFrame(metaOpenCLStackNode * t,
 #ifdef KERNEL_STENCIL
 	(*frame)->kernel_stencil_3d7p_db = t->frame.kernel_stencil_3d7p_db;
 #endif // KERNL_STENCIL
+#ifdef KERNEL_CSR
+	(*frame)->kernel_csr_fl = t->frame.kernel_csr_fl;
+#endif // KERNL_CSR
+#ifdef KERNEL_CRC
+	(*frame)->kernel_crc_ui = t->frame.kernel_crc_ui;
+#endif // KERNL_CRC
 #endif //FPGA_DOUBLE
+
+
 #ifdef FPGA_FLOAT
 #ifdef KERNEL_REDUCE
 	(*frame)->kernel_reduce_fl = t->frame.kernel_reduce_fl;
@@ -365,7 +443,15 @@ void copyStackNodeToFrame(metaOpenCLStackNode * t,
 #ifdef KERNEL_STENCIL
 	(*frame)->kernel_stencil_3d7p_fl = t->frame.kernel_stencil_3d7p_fl;
 #endif // KERNL_STENCIL
+#ifdef KERNEL_CSR
+	(*frame)->kernel_csr_fl = t->frame.kernel_csr_fl;
+#endif // KERNL_CSR
+#ifdef KERNEL_CRC
+	(*frame)->kernel_crc_ui = t->frame.kernel_crc_ui;
+#endif // KERNL_CRC
 #endif //FPGA_FLOAT
+
+
 #ifdef FPGA_UNSIGNED_LONG
 #ifdef KERNEL_REDUCE
 	(*frame)->kernel_reduce_ul = t->frame.kernel_reduce_ul;
@@ -386,7 +472,15 @@ void copyStackNodeToFrame(metaOpenCLStackNode * t,
 #ifdef KERNEL_STENCIL
 	(*frame)->kernel_stencil_3d7p_ul = t->frame.kernel_stencil_3d7p_ul;
 #endif // KERNL_STENCIL
+#ifdef KERNEL_CSR
+	(*frame)->kernel_csr_fl = t->frame.kernel_csr_fl;
+#endif // KERNL_CSR
+#ifdef KERNEL_CRC
+	(*frame)->kernel_crc_ui = t->frame.kernel_crc_ui;
+#endif // KERNL_CRC
 #endif //FPGA_UNSIGNED_LONG
+
+
 #ifdef FPGA_INTEGER
 #ifdef KERNEL_REDUCE
 	(*frame)->kernel_reduce_in = t->frame.kernel_reduce_in;
@@ -407,7 +501,15 @@ void copyStackNodeToFrame(metaOpenCLStackNode * t,
 #ifdef KERNEL_STENCIL
 	(*frame)->kernel_stencil_3d7p_in = t->frame.kernel_stencil_3d7p_in;
 #endif // KERNL_STENCIL
+#ifdef KERNEL_CSR
+	(*frame)->kernel_csr_fl = t->frame.kernel_csr_fl;
+#endif // KERNL_CSR
+#ifdef KERNEL_CRC
+	(*frame)->kernel_crc_ui = t->frame.kernel_crc_ui;
+#endif // KERNL_CRC
 #endif //FPGA_INTEGER
+
+
 #ifdef FPGA_UNSIGNED_INTEGER
 #ifdef KERNEL_REDUCE
 	(*frame)->kernel_reduce_ui = t->frame.kernel_reduce_ui;
@@ -428,6 +530,12 @@ void copyStackNodeToFrame(metaOpenCLStackNode * t,
 #ifdef KERNEL_STENCIL
 	(*frame)->kernel_stencil_3d7p_ui = t->frame.kernel_stencil_3d7p_ui;
 #endif // KERNL_STENCIL
+#ifdef KERNEL_CSR
+	(*frame)->kernel_csr_fl = t->frame.kernel_csr_fl;
+#endif // KERNL_CSR
+#ifdef KERNEL_CRC
+	(*frame)->kernel_crc_ui = t->frame.kernel_crc_ui;
+#endif // KERNL_CRC
 #endif //FPGA_UNSIGNED_INTEGER
 
 	//Internal buffers
@@ -469,7 +577,15 @@ void copyStackFrameToNode(metaOpenCLStackFrame * f,
 #ifdef KERNEL_STENCIL
 	(*node)->frame.kernel_stencil_3d7p_db = f->kernel_stencil_3d7p_db;
 #endif // KERNL_STENCIL
+#ifdef KERNEL_CSR
+	(*node)->frame.kernel_csr_fl = f->kernel_csr_fl;
+#endif // KERNL_CSR
+#ifdef KERNEL_CRC
+	(*node)->frame.kernel_crc_ui = f->kernel_crc_ui;
+#endif // KERNL_CRC
 #endif //FPGA_DOUBLE
+
+
 #ifdef FPGA_FLOAT
 #ifdef KERNEL_REDUCE
 	(*node)->frame.kernel_reduce_fl = f->kernel_reduce_fl;
@@ -489,7 +605,15 @@ void copyStackFrameToNode(metaOpenCLStackFrame * f,
 #ifdef KERNEL_STENCIL
 	(*node)->frame.kernel_stencil_3d7p_fl = f->kernel_stencil_3d7p_fl;
 #endif // KERNL_STENCIL
+#ifdef KERNEL_CSR
+	(*node)->frame.kernel_csr_fl = f->kernel_csr_fl;
+#endif // KERNL_CSR
+#ifdef KERNEL_CRC
+	(*node)->frame.kernel_crc_ui = f->kernel_crc_ui;
+#endif // KERNL_CRC
 #endif //FPGA_FLOAT 
+
+
 #ifdef FGPA_UNSIGNED_LONG
 #ifdef KERNEL_REDUCE
 	(*node)->frame.kernel_reduce_ul = f->kernel_reduce_ul;
@@ -509,7 +633,15 @@ void copyStackFrameToNode(metaOpenCLStackFrame * f,
 #ifdef KERNEL_STENCIL
 	(*node)->frame.kernel_stencil_3d7p_ul = f->kernel_stencil_3d7p_ul;
 #endif // KERNL_STENCIL
+#ifdef KERNEL_CSR
+	(*node)->frame.kernel_csr_fl = f->kernel_csr_fl;
+#endif // KERNL_CSR
+#ifdef KERNEL_CRC
+	(*node)->frame.kernel_crc_ui = f->kernel_crc_ui;
+#endif // KERNL_CRC
 #endif //FGPA_UNSIGNED_LONG
+
+
 #ifdef FPGA_INTEGER
 #ifdef KERNEL_REDUCE
 	(*node)->frame.kernel_reduce_in = f->kernel_reduce_in;
@@ -529,7 +661,15 @@ void copyStackFrameToNode(metaOpenCLStackFrame * f,
 #ifdef KERNEL_STENCIL
 	(*node)->frame.kernel_stencil_3d7p_in = f->kernel_stencil_3d7p_in;
 #endif // KERNL_STENCIL
+#ifdef KERNEL_CSR
+	(*node)->frame.kernel_csr_fl = f->kernel_csr_fl;
+#endif // KERNL_CSR
+#ifdef KERNEL_CRC
+	(*node)->frame.kernel_crc_ui = f->kernel_crc_ui;
+#endif // KERNL_CRC
 #endif //FPGA_INTEGER
+
+
 #ifdef FPGA_UNSIGNED_INTEGER
 #ifdef KERNEL_REDUCE
 	(*node)->frame.kernel_reduce_ui = f->kernel_reduce_ui;
@@ -549,7 +689,15 @@ void copyStackFrameToNode(metaOpenCLStackFrame * f,
 #ifdef KERNEL_STENCIL
 	(*node)->frame.kernel_stencil_3d7p_ui = f->kernel_stencil_3d7p_ui;
 #endif // KERNL_STENCIL
+#ifdef KERNEL_CSR
+	(*node)->frame.kernel_csr_fl = f->kernel_csr_fl;
+#endif // KERNL_CSR
+#ifdef KERNEL_CRC
+	(*node)->frame.kernel_crc_ui = f->kernel_crc_ui;
+#endif // KERNL_CRC
 #endif //FPGA_UNSIGNED_INTEGER
+
+
 	//Internal Buffers
 	(*node)->frame.constant_face_size = f->constant_face_size;
 	(*node)->frame.constant_face_stride = f->constant_face_stride;
@@ -740,7 +888,15 @@ cl_int metaOpenCLDestroyStackFrame(metaOpenCLStackFrame * frame) {
 #ifdef KERNEL_STENCIL
 	clReleaseKernel(frame->kernel_stencil_3d7p_db);
 #endif // KERNL_STENCIL
+#ifdef KERNEL_CSR
+	clReleaseKernel(frame->kernel_csr_fl);
+#endif // KERNL_CSR
+#ifdef KERNEL_CRC
+	clReleaseKernel(frame->kernel_crc_ui);
+#endif // KERNL_CRC
 #endif //FPGA_DOUBLE
+
+
 #ifdef  FPGA_FLOAT
 #ifdef KERNEL_REDUCE
 	clReleaseKernel(frame->kernel_reduce_fl);
@@ -760,7 +916,15 @@ cl_int metaOpenCLDestroyStackFrame(metaOpenCLStackFrame * frame) {
 #ifdef KERNEL_STENCIL
 	clReleaseKernel(frame->kernel_stencil_3d7p_fl);
 #endif // KERNL_STENCIL
+#ifdef KERNEL_CSR
+	clReleaseKernel(frame->kernel_csr_fl);
+#endif // KERNL_CSR
+#ifdef KERNEL_CRC
+	clReleaseKernel(frame->kernel_crc_ui);
+#endif // KERNL_CRC
 #endif //FPGA_FLOAT
+
+
 #ifdef FPGA_UNSIGNED_LONG
 #ifdef KERNEL_REDUCE
 	clReleaseKernel(frame->kernel_reduce_ul);
@@ -780,7 +944,15 @@ cl_int metaOpenCLDestroyStackFrame(metaOpenCLStackFrame * frame) {
 #ifdef KERNEL_STENCIL
 	clReleaseKernel(frame->kernel_stencil_3d7p_ul);
 #endif // KERNEL_STENCIL
+#ifdef KERNEL_CSR
+	clReleaseKernel(frame->kernel_csr_fl);
+#endif // KERNL_CSR
+#ifdef KERNEL_CRC
+	clReleaseKernel(frame->kernel_crc_ui);
+#endif // KERNL_CRC
 #endif //FPGA_UNSIGNED_LONG
+
+
 #ifdef FPGA_INTEGER
 #ifdef KERNEL_REDUCE
 	clReleaseKernel(frame->kernel_reduce_in);
@@ -800,7 +972,15 @@ cl_int metaOpenCLDestroyStackFrame(metaOpenCLStackFrame * frame) {
 #ifdef KERNEL_STENCIL
 	clReleaseKernel(frame->kernel_stencil_3d7p_in);
 #endif // KERNL_STENCIL
+#ifdef KERNEL_CSR
+	clReleaseKernel(frame->kernel_csr_fl);
+#endif // KERNL_CSR
+#ifdef KERNEL_CRC
+	clReleaseKernel(frame->kernel_crc_ui);
+#endif // KERNL_CRC
 #endif //FPGA_INTEGER
+
+
 #ifdef FPGA_UNSIGNED_INTEGER
 #ifdef KERNEL_REDUCE
 	clReleaseKernel(frame->kernel_reduce_ui);
@@ -820,6 +1000,12 @@ cl_int metaOpenCLDestroyStackFrame(metaOpenCLStackFrame * frame) {
 #ifdef KERNEL_STENCIL
 	clReleaseKernel(frame->kernel_stencil_3d7p_ui);
 #endif // KERNL_STENCIL
+#ifdef KERNEL_CSR
+	clReleaseKernel(frame->kernel_csr_fl);
+#endif // KERNL_CSR
+#ifdef KERNEL_CRC
+	clReleaseKernel(frame->kernel_crc_ui);
+#endif // KERNL_CRC
 #endif //FPGA_UNSIGNED_INTEGER
 
 	//Release Internal Buffers
@@ -1622,3 +1808,146 @@ cl_int opencl_stencil_3d7p(size_t (*grid_size)[3], size_t (*block_size)[3],
 
 }
 
+
+cl_int opencl_csr(size_t global_size, size_t local_size,
+		void * csr_ap, void * csr_aj, void * csr_ax, void * x_loc, void * y_loc, 
+		meta_type_id type, int async, cl_event * wait, cl_event * event) {
+
+	cl_int ret = CL_SUCCESS;
+	cl_kernel kern;
+	
+	size_t grid = 1;
+	size_t block = METAMORPH_OCL_DEFAULT_1D_BLOCK;
+	
+	if (global_size == NULL || local_size == NULL) {
+
+	} else {
+		grid = global_size;
+		block = local_size;
+	}
+	
+	metaOpenCLStackFrame * frame = metaOpenCLTopStackFrame();
+#ifdef KERNEL_CSR
+	switch (type) {
+#ifdef FPGA_DOUBLE
+	case a_db:
+		kern = frame->kernel_csr_fl;
+		break;
+#endif //FPGA_DOUBLE
+#ifdef  FPGA_FLOAT
+	case a_fl:
+		kern = frame->kernel_csr_fl;
+		break;
+#endif //FPGA_FLOAT
+#ifdef FPGA_UNSIGNED_LONG
+	case a_ul:
+		kern = frame->kernel_csr_fl;
+		break;
+#endif //FPGA_UNSIGNED_LONG
+#ifdef FPGA_INTEGER
+	case a_in:
+		kern = frame->kernel_csr_fl;
+		break;
+#endif //FPGA_INTEGER
+#ifdef FPGA_UNSIGNED_INTEGER
+	case a_ui:
+		kern = frame->kernel_csr_fl;
+		break;
+#endif //FPGA_UNSIGNED_INTEGER 
+	default:
+		fprintf(stderr,
+				"Error: Function 'opencl_csr' not implemented for selected type!\n");
+		return -1;
+		break;
+	}
+#endif // KERNL_CSR
+
+	cl_int err;
+
+	err = clSetKernelArg(kern, 0, sizeof(int), &global_size);
+	err |= clSetKernelArg(kern, 1, sizeof(cl_mem *), &csr_ap);
+	err |= clSetKernelArg(kern, 2, sizeof(cl_mem *), &csr_aj);
+	err |= clSetKernelArg(kern, 3, sizeof(cl_mem *), &csr_ax);
+	err |= clSetKernelArg(kern, 4, sizeof(cl_mem *), &x_loc);
+	err |= clSetKernelArg(kern, 5, sizeof(cl_mem *), &y_loc);
+	CHKERR(err, "Failed to set kernel arguments!");
+	
+	printf("kernel arguments set and executing kernel...\n");
+	err = clEnqueueNDRangeKernel(frame->queue, kern, 1, NULL, &grid, &block, 1, wait, event);
+	CHKERR(err, "Failed to compute kernel.....");
+	//ret |= clEnqueueNDRangeKernel(frame->queue, kern, 1, NULL, &grid, &block, 0, NULL, event);
+	printf("kernel executed...\n");
+	if (!async)
+		ret |= clFinish(frame->queue);
+	free(frame);
+
+	return (ret);
+
+}
+
+
+cl_int opencl_crc(size_t global_size, size_t local_size,
+		void * dev_input, int page_size, int num_words, int numpages, void * dev_output, 
+		meta_type_id type, int async, cl_event * wait, cl_event * event) {
+
+	cl_int ret = CL_SUCCESS;
+	cl_kernel kern;
+	
+	
+	metaOpenCLStackFrame * frame = metaOpenCLTopStackFrame();
+#ifdef KERNEL_CRC
+	switch (type) {
+#ifdef FPGA_DOUBLE
+	case a_db:
+		kern = frame->kernel_crc_ui;
+		break;
+#endif //FPGA_DOUBLE
+#ifdef  FPGA_FLOAT
+	case a_fl:
+		kern = frame->kernel_crc_ui;
+		break;
+#endif //FPGA_FLOAT
+#ifdef FPGA_UNSIGNED_LONG
+	case a_ul:
+		kern = frame->kernel_crc_ui;
+		break;
+#endif //FPGA_UNSIGNED_LONG
+#ifdef FPGA_INTEGER
+	case a_in:
+		kern = frame->kernel_crc_ui;
+		break;
+#endif //FPGA_INTEGER
+#ifdef FPGA_UNSIGNED_INTEGER
+	case a_ui:
+		kern = frame->kernel_crc_ui;
+		break;
+#endif //FPGA_UNSIGNED_INTEGER 
+	default:
+		fprintf(stderr,
+				"Error: Function 'opencl_csr' not implemented for selected type!\n");
+		return -1;
+		break;
+	}
+#endif // KERNL_CRC
+
+	cl_int err;
+
+	err = clSetKernelArg(kern, 0, sizeof(cl_mem *), &dev_input);
+	err |= clSetKernelArg(kern, 1, sizeof(int), &page_size);
+	err |= clSetKernelArg(kern, 2, sizeof(int), &num_words);
+	err |= clSetKernelArg(kern, 3, sizeof(int), &numpages);
+	err |= clSetKernelArg(kern, 4, sizeof(cl_mem *), &dev_output);
+	CHKERR(err, "Failed to set kernel arguments!");
+	
+	printf("kernel arguments set and executing kernel...\n");
+	err = clEnqueueTask(frame->queue, kern, 1, wait, event);
+	CHKERR(err, "Failed to compute kernel.....");
+	
+	printf("kernel executed...\n");
+	if (!async)
+		ret |= clFinish(frame->queue);
+	free(frame);
+
+	return (ret);
+
+}

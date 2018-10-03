@@ -40,6 +40,7 @@ typedef union metaTimerEvent {
 } metaTimerEvent;
 
 typedef struct metaTimerQueueFrame {
+	char * name;
 	metaTimerEvent event;
 //Hijack meta_preferred_mode enum to advise the user of the frame/node how to interpret event
 	meta_preferred_mode mode;
@@ -50,6 +51,7 @@ typedef struct metaTimerQueueFrame {
 //TODO refactor code to use a frame internally, so that the frame can be changed
 // without having to modify the QueueNode to match
 typedef struct metaTimerQueueNode {
+	char * name;
 	metaTimerEvent event;
 //Hijack meta_preferred_mode enum to advise the user of the frame/node how to interpret event
 	meta_preferred_mode mode;
@@ -75,11 +77,14 @@ enum metaTimerQueueEnum {
 	k_pack_2d_face,
 	k_unpack_2d_face,
 	k_stencil_3d7p,
+	k_csr,
+	k_crc,
 	//Special value used just to determine the size of the enum automagically
 	// only works if we don't set explicit values for anything, and let it start from 0
 	queue_count
 };
 
+a_err cl_get_event_node(metaTimerQueue * queue, char * ename,  metaTimerQueueFrame ** frame);
 a_err metaTimerEnqueue(metaTimerQueueFrame * frame, metaTimerQueue * queue);
 a_err metaTimerDequeue(metaTimerQueueFrame ** frame, metaTimerQueue * queue);
 a_err metaTimersInit();

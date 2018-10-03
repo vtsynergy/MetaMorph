@@ -2,6 +2,84 @@
 
 metaTimerQueue metaBuiltinQueues[queue_count];
 
+a_err cl_get_event_node(metaTimerQueue * queue, char * ename, metaTimerQueueFrame ** frame)
+{
+	printf("searching for event : %s\n",ename);
+	metaTimerQueueNode * temp;
+	metaTimerQueueNode * temp2;
+	metaTimerQueueNode * h;
+	metaTimerQueueNode * t;
+	metaTimerQueueNode * prev;
+	
+	int flag = 1;
+	while(1)
+	{
+		h = queue->head;
+		if (queue->head != h)
+			continue;
+
+		t = queue->tail;
+		temp = h->next;
+		if (queue->head != h)
+			continue;
+		if (temp == NULL)
+			return -1; //empty status
+		/*if (h == t) {
+			__sync_bool_compare_and_swap(&(queue->tail), t, n);
+			continue;
+		}*/
+		//printf("head event is %s\n",temp->name);
+		//printf("tail event is %s\n",t->name);
+		while(flag > 0)
+		{
+/*
+cl_ulong start_time;
+size_t return_bytes;
+cl_int err;
+err = clGetEventProfilingInfo(temp->event.opencl,CL_PROFILING_COMMAND_QUEUED,sizeof(cl_ulong),&start_time,&return_bytes);
+printf("passing profiling event '%s' (timer side) %lu and the error is %d\n",temp->name,start_time,err);
+*/	
+			if(temp == t) // exit if reached end of queue
+			{
+					//printf("last event search iteration\n");
+					flag = 0;
+			}
+			//printf("entering event search ...\n");
+			if(flag != 0)
+				temp2 = temp->next;
+			if(strcmp(temp->name , ename) == 0)//found the event
+			{
+				printf("found event : %s\n", temp->name);
+				(*frame)->name = temp->name;
+				(*frame)->event = temp->event;
+				(*frame)->mode = temp->mode;
+				(*frame)->size = temp->size;
+				//printf("finished node to frame copy...\n");
+/*
+cl_ulong start_time;
+size_t return_bytes;
+clGetEventProfilingInfo(temp->event.opencl,CL_PROFILING_COMMAND_QUEUED,sizeof(cl_ulong),&start_time,&return_bytes);
+printf("POI profiling event '%s' (timer side) %lu\n",temp->name,start_time);
+*/				break;
+			}
+			else // keep looking
+			{
+				temp = temp2;
+			}
+		}
+		if((*frame) == NULL)
+		{
+			printf("search for event : %s is causing an error ...\n", ename);
+			exit(-1);
+		}
+		else
+		{
+			break;
+		}
+	}
+	return 0; //success
+}
+
 //Take a copy of the frame and insert it on to the selected queue.
 // Do nothing else with the frame, the caller should handle releasing it.
 a_err metaTimerEnqueue(metaTimerQueueFrame * frame, metaTimerQueue * queue) {
@@ -10,6 +88,7 @@ a_err metaTimerEnqueue(metaTimerQueueFrame * frame, metaTimerQueue * queue) {
 			sizeof(metaTimerQueueNode));
 	//initialize the new node
 //	printf("ENQUEUE %x\n", newnode);
+	newnode->name = frame->name;
 	newnode->event = frame->event;
 	newnode->mode = frame->mode;
 	newnode->size = frame->size;
@@ -31,6 +110,7 @@ a_err metaTimerEnqueue(metaTimerQueueFrame * frame, metaTimerQueue * queue) {
 			break;
 	}
 	__sync_bool_compare_and_swap(&(queue->tail), t, newnode);
+	//printf("Event %s created ..... in queue %s\n",newnode->name,queue->name);
 }
 
 //Take the copy of the front frame on the queue, and then remove it from the queue
@@ -59,6 +139,7 @@ a_err metaTimerDequeue(metaTimerQueueFrame ** frame, metaTimerQueue * queue) {
 			continue;
 		}
 		//Copy the node's data to the caller-allocated frame
+		(*frame)->name = n->name;
 		(*frame)->event = n->event;
 		(*frame)->mode = n->mode;
 		(*frame)->size = n->size;
@@ -160,6 +241,22 @@ a_err metaTimersInit() {
 	metaBuiltinQueues[k_stencil_3d7p].head->mode = metaModeUnset;
 	metaBuiltinQueues[k_stencil_3d7p].head->next = NULL;
 	metaBuiltinQueues[k_stencil_3d7p].name = "stencil_3d7p kernel call";
+	
+	//Init the csr kernel queue
+	metaBuiltinQueues[k_csr].head =
+			metaBuiltinQueues[k_csr].tail =
+					(metaTimerQueueNode*) malloc(sizeof(metaTimerQueueNode));
+	metaBuiltinQueues[k_csr].head->mode = metaModeUnset;
+	metaBuiltinQueues[k_csr].head->next = NULL;
+	metaBuiltinQueues[k_csr].name = "csr kernel call";
+	
+	//Init the csr kernel queue
+	metaBuiltinQueues[k_crc].head =
+			metaBuiltinQueues[k_crc].tail =
+					(metaTimerQueueNode*) malloc(sizeof(metaTimerQueueNode));
+	metaBuiltinQueues[k_crc].head->mode = metaModeUnset;
+	metaBuiltinQueues[k_crc].head->next = NULL;
+	metaBuiltinQueues[k_crc].name = "crc kernel call";
 }
 
 //Workhorse that loops over a queue until it receives an empty signal
@@ -176,6 +273,19 @@ void flushWorker(metaTimerQueue * queue, int level) {
 	while ((val = metaTimerDequeue(&frame, queue)) != -1) {
 		//use one loop to do everything
 //		printf("JUST CHECKING %d\n", val);
+
+		if(level == 0)
+		{
+#ifdef WITH_OPENCL
+			if (frame->mode == metaModePreferOpenCL)
+			{
+				clGetEventProfilingInfo(frame->event.opencl, CL_PROFILING_COMMAND_START, sizeof(unsigned long), &start, NULL);
+				clGetEventProfilingInfo(frame->event.opencl, CL_PROFILING_COMMAND_END, sizeof(unsigned long), &end, NULL);
+				temp_t = (end-start)*0.001;
+			}
+#endif
+		}
+
 		if (level >= 1) {
 			if (frame->mode == metaModePreferGeneric) {
 				//TODO add some generic stuff
@@ -239,6 +349,7 @@ void flushWorker(metaTimerQueue * queue, int level) {
 				(size > 0 && time > 0) ? size * .001 / time : 0.0);
 #endif
 	}
+printf("Profiling event time for %s = %f\n",queue->name, time);
 }
 
 //Flush out properly-formatted timers/bandwidths/diagnostics
