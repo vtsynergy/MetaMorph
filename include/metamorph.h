@@ -110,7 +110,7 @@ meta_face * make_slab_from_3d(int face, int ni, int nj, int nk, int thickness);
 #ifdef WITH_OPENCL
 #ifndef METAMORPH_OPENCL_BACKEND_H
 #include "mm_opencl_backend.h"
-#include "mm_opencl_backend_alt.h"
+#include "mm_opencl_intelfpga_backend.h"
 #endif
 #endif
 

@@ -389,4 +389,4 @@ clean:
 	rm $(MM_LIB)/libmetamorph*.so $(MM_LIB)/libmm*.so
 
 refresh:
-	rm $(MM_EX)/crc_alt $(MM_EX)/mm_opencl_backend_alt.aocx
+	rm $(MM_EX)/crc_alt $(MM_EX)/mm_opencl_intelfpga_backend.aocx

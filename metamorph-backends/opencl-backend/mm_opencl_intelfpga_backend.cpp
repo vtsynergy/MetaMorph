@@ -1,5 +1,5 @@
 /** OpenCL Back-End: FPGA customization **/
-#include "../../metamorph-backends/opencl-backend/mm_opencl_backend_alt.h"
+#include "../../metamorph-backends/opencl-backend/mm_opencl_intelfpga_backend.h"
 #define CHKERR(err, str)\
 if ( err != CL_SUCCESS)\
 {\
@@ -108,7 +108,7 @@ cl_int metaOpenCLBuildProgram(metaOpenCLStackFrame * frame) {
 				&metaCLProgSrc);
 #else
 		printf("Building Kernel for FPGA\n");
-		metaCLProgLen = metaOpenCLLoadProgramSource("mm_opencl_backend_alt.aocx", &metaCLProgSrc);
+		metaCLProgLen = metaOpenCLLoadProgramSource("mm_opencl_intelfpga_backend.aocx", &metaCLProgSrc);
 #endif
 	}
 #ifndef __FPGA__
