@@ -18,8 +18,14 @@ extern "C" {
 #endif
 
 //If the user doesn't override default threadblock size..
-#ifndef METAMORPH_OCL_DEFAULT_BLOCK
-#define METAMORPH_OCL_DEFAULT_BLOCK {16, 8, 1}
+#ifndef METAMORPH_OCL_DEFAULT_BLOCK_3D
+#define METAMORPH_OCL_DEFAULT_BLOCK_3D {16, 8, 1}
+#endif
+#ifndef METAMORPH_OCL_DEFAULT_BLOCK_2D
+#define METAMORPH_OCL_DEFAULT_BLOCK_3D {16, 8}
+#endif
+#ifndef METAMORPH_OCL_DEFAULT_BLOCK_1D
+#define METAMORPH_OCL_DEFAULT_BLOCK_3D 16
 #endif
 
 //Not sure if these C compatibility stubs will actually be needed

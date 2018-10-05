@@ -614,7 +614,7 @@ cl_int opencl_dotProd(size_t (*grid_size)[3], size_t (*block_size)[3],
 	cl_kernel kern;
 	cl_int smem_len;
 	size_t grid[3];
-	size_t block[3] = METAMORPH_OCL_DEFAULT_BLOCK;
+	size_t block[3] = METAMORPH_OCL_DEFAULT_BLOCK_3D;
 	int iters;
 
 	//Allow for auto-selected grid/block size if either is not specified
@@ -735,7 +735,7 @@ cl_int opencl_reduce(size_t (*grid_size)[3], size_t (*block_size)[3],
 	cl_kernel kern;
 	cl_int smem_len;
 	size_t grid[3];
-	size_t block[3] = METAMORPH_OCL_DEFAULT_BLOCK;
+	size_t block[3] = METAMORPH_OCL_DEFAULT_BLOCK_3D;
 	int iters;
 	//Allow for auto-selected grid/block size if either is not specified
 	if (grid_size == NULL || block_size == NULL) {
