@@ -128,6 +128,17 @@ cl_int opencl_stencil_3d7p(size_t (*grid_size)[3], size_t (*block_size)[3],
 		void * indata, void * outdata, size_t (*array_size)[3],
 		size_t (*arr_start)[3], size_t (*arr_end)[3], meta_type_id type,
 		int async, cl_event * event);
+cl_int opencl_csr(size_t global_size, size_t local_size,
+		void * csr_ap, void * csr_aj, void * csr_ax, void * x_loc, void * y_loc, 
+		meta_type_id type, int async,
+		// cl_event * wait, 
+		cl_event * event);
+cl_int opencl_crc(size_t global_size, size_t local_size,
+		void * dev_input, int page_size, int num_words, int numpages, void * dev_output, 
+		meta_type_id type, int async,
+		// cl_event * wait, 
+		cl_event * event);
+
 
 #ifdef __OPENCLCC__
 }

@@ -132,13 +132,15 @@ void print_grid(G_TYPE * grid) {
 #endif
 
 int main(int argc, char **argv) {
-	int comm_sz;
 	int rank;
-	//MPI_Request request;
+	int comm_sz;
+#ifdef USE_MPI
+	MPI_Request request;
 
-	//meta_mpi_init(&argc, &argv); //MM
-	//MPI_Comm_size(MPI_COMM_WORLD, &comm_sz);
-	//MPI_Comm_rank(MPI_COMM_WORLD, &rank);
+	meta_mpi_init(&argc, &argv); //MM
+	MPI_Comm_size(MPI_COMM_WORLD, &comm_sz);
+	MPI_Comm_rank(MPI_COMM_WORLD, &rank);
+#endif
 
 	int niters, async, autoconfig;
 	if (argc < 7) {
@@ -201,7 +203,8 @@ int main(int argc, char **argv) {
 	gettimeofday(&start, NULL);
 	for (ct = niters - 1; ct > -1; ct--) {
 		//MM: data marshaling
-/*#if defined(DOUBLE)
+#ifdef USE_MPI
+#if defined(DOUBLE)
 		//set up async recv and unpack
 		err = meta_mpi_recv_and_unpack_face(autoconfig ? NULL : &grid, autoconfig ? NULL : &block, (rank+comm_sz-1)%comm_sz, recv_face, d_domain, d_recvbuf, ct, &request, a_db, 1);
 		//pack and send
@@ -216,7 +219,7 @@ int main(int argc, char **argv) {
 #endif
 		//MM flush
 		meta_flush();
-*/
+#endif
 #ifdef DEBUG
 		printf("Pre-reduce domain");
 		if (err = meta_alloc(&result, sizeof(G_TYPE))) fprintf(stderr, "ERROR allocating result: [%d]\n", err);
@@ -231,12 +234,16 @@ int main(int argc, char **argv) {
 		meta_copy_h2d(result, &zero, sizeof(G_TYPE), true);
 		meta_dotProd(autoconfig ? NULL: &grid, autoconfig ? NULL : &block, d_domain, d_domain2, &array, &a_start, &a_end, result, a_db, true);
 		meta_copy_d2h(&r_val, result, sizeof(G_TYPE), false);
-		//MPI_Reduce(&r_val, &global_sum, 1, MPI_DOUBLE, MPI_SUM, 0, MPI_COMM_WORLD);
+#ifdef USE_MPI
+		MPI_Reduce(&r_val, &global_sum, 1, MPI_DOUBLE, MPI_SUM, 0, MPI_COMM_WORLD);
+#endif
 #elif defined(FLOAT)
 		meta_copy_h2d(result, &zero, sizeof(G_TYPE), true);
 		meta_dotProd(autoconfig ? NULL: &grid, autoconfig ? NULL : &block, d_domain, d_domain2, &array, &a_start, &a_end, result, a_fl, true);
 		meta_copy_d2h(&r_val, result, sizeof(G_TYPE), true);
-		//MPI_Reduce(&r_val, &global_sum, 1, MPI_FLOAT, MPI_SUM, 0, MPI_COMM_WORLD);
+#ifdef USE_MPI
+		MPI_Reduce(&r_val, &global_sum, 1, MPI_FLOAT, MPI_SUM, 0, MPI_COMM_WORLD);
+#endif
 #else
 #error Unsupported G_TYPE, must be double or float
 #endif
@@ -257,6 +264,8 @@ int main(int argc, char **argv) {
 
 	metaTimersFinish();
 
-	//meta_mpi_finalize();
+#ifdef USE_MPI
+	meta_mpi_finalize();
+#endif
 	return 0;
 }

@@ -349,10 +349,13 @@ printf("check profiling event is correct (MM side) %lu\n",start_time);
 //	return meta_copy_h2d(dst, src, size, true);
 //}
 //Workhorse for both sync and async variants
-a_err meta_copy_h2d(void * dst, void * src, size_t size, a_bool async, char * event_name, cl_event * wait) {
-	return meta_copy_h2d_cb(dst, src, size, async, event_name, wait, (meta_callback*) NULL, NULL);
+a_err meta_copy_h2d(void * dst, void * src, size_t size, a_bool async) {//, char * event_name, cl_event * wait) {
+	return meta_copy_h2d_cb(dst, src, size, async,
+	// event_name, wait,
+	 (meta_callback*) NULL, NULL);
 }
-a_err meta_copy_h2d_cb(void * dst, void * src, size_t size, a_bool async, char * event_name, cl_event * wait,
+a_err meta_copy_h2d_cb(void * dst, void * src, size_t size, a_bool async,
+		// char * event_name, cl_event * wait,
 		meta_callback *call, void *call_pl) {
 	a_err ret;
 	cl_int err;
@@ -394,13 +397,13 @@ a_err meta_copy_h2d_cb(void * dst, void * src, size_t size, a_bool async, char *
 		//Make sure some context exists..
 		if (meta_context == NULL) metaOpenCLFallBack();
 #ifdef WITH_TIMERS
-		if(wait != NULL)
-		{
+		//if(wait != NULL)
+		//{
 			err = clEnqueueWriteBuffer(meta_queue, (cl_mem) dst, ((async) ? CL_FALSE : CL_TRUE), 0, size, src, 1, wait, &(frame->event.opencl));
 			CHKERR(err, "Failed to write to source array!");
-		}
-		else
-		{
+		//}
+		//else
+		//{
 			err = clEnqueueWriteBuffer(meta_queue, (cl_mem) dst, ((async) ? CL_FALSE : CL_TRUE), 0, size, src, 0, NULL, &(frame->event.opencl));
 			CHKERR(err, "Failed to write to source array!");
 		}
@@ -451,10 +454,13 @@ printf("check profiling event '%s' (MM side) %lu\n",frame->name,start_time);
 //	return meta_copy_d2h(dst, src, size, true);
 //}
 //Workhorse for both sync and async copies
-a_err meta_copy_d2h(void *dst, void *src, size_t size, a_bool async, char * event_name, cl_event * wait) {
-	return meta_copy_d2h_cb(dst, src, size, async, event_name, wait, (meta_callback*) NULL, NULL);
+a_err meta_copy_d2h(void *dst, void *src, size_t size, a_bool async) {//, char * event_name, cl_event * wait) {
+	return meta_copy_d2h_cb(dst, src, size, async,
+	// event_name, wait,
+	 (meta_callback*) NULL, NULL);
 }
-a_err meta_copy_d2h_cb(void * dst, void * src, size_t size, a_bool async, char * event_name, cl_event * wait,
+a_err meta_copy_d2h_cb(void * dst, void * src, size_t size, a_bool async,
+		// char * event_name, cl_event * wait,
 		meta_callback *call, void *call_pl) {
 	a_err ret;
 #ifdef WITH_TIMERS
@@ -494,15 +500,15 @@ a_err meta_copy_d2h_cb(void * dst, void * src, size_t size, a_bool async, char *
 		//Make sure some context exists..
 		if (meta_context == NULL) metaOpenCLFallBack();
 #ifdef WITH_TIMERS
-		if(wait != NULL)
-		{
-			ret = clEnqueueReadBuffer(meta_queue, (cl_mem) src, ((async) ? CL_FALSE : CL_TRUE), 0, size, dst, 1, wait, &(frame->event.opencl));
+		//if(wait != NULL)
+		//{
+		//	ret = clEnqueueReadBuffer(meta_queue, (cl_mem) src, ((async) ? CL_FALSE : CL_TRUE), 0, size, dst, 1, wait, &(frame->event.opencl));
 			//ret = clEnqueueReadBuffer(meta_queue, (cl_mem) src, ((async) ? CL_FALSE : CL_TRUE), 0, size, dst, 0, NULL, &(frame->event.opencl));
-		}
-		else
-		{
+		//}
+		//else
+		//{
 			ret = clEnqueueReadBuffer(meta_queue, (cl_mem) src, ((async) ? CL_FALSE : CL_TRUE), 0, size, dst, 0, NULL, &(frame->event.opencl));
-		}
+		//}
 
 		//If timers exist, use their event to add the callback
 		if ((void*)call != NULL && call_pl != NULL) clSetEventCallback(frame->event.opencl, CL_COMPLETE, call->openclCallback, call_pl);
@@ -544,10 +550,13 @@ a_err meta_copy_d2h_cb(void * dst, void * src, size_t size, a_bool async, char *
 //	return (dst, src, size, true);
 //}
 //Workhorse for both sync and async copies
-a_err meta_copy_d2d(void *dst, void *src, size_t size, a_bool async, char * event_name, cl_event * wait) {
-	return meta_copy_d2d_cb(dst, src, size, async, event_name, wait, (meta_callback*) NULL, NULL);
+a_err meta_copy_d2d(void *dst, void *src, size_t size, a_bool async) {//, char * event_name, cl_event * wait) {
+	return meta_copy_d2d_cb(dst, src, size, async,
+	// event_name, wait, 
+	(meta_callback*) NULL, NULL);
 }
-a_err meta_copy_d2d_cb(void * dst, void * src, size_t size, a_bool async, char * event_name, cl_event * wait,
+a_err meta_copy_d2d_cb(void * dst, void * src, size_t size, a_bool async,
+		// char * event_name, cl_event * wait,
 		meta_callback *call, void *call_pl) {
 	a_err ret;
 #ifdef WITH_TIMERS
@@ -587,14 +596,14 @@ a_err meta_copy_d2d_cb(void * dst, void * src, size_t size, a_bool async, char *
 		//Make sure some context exists..
 		if (meta_context == NULL) metaOpenCLFallBack();
 #ifdef WITH_TIMERS
-		if(wait != NULL)
-		{
+		//if(wait != NULL)
+		//{
 			ret = clEnqueueCopyBuffer(meta_queue, (cl_mem) src, (cl_mem) dst, 0, 0, size, 1, wait, &(frame->event.opencl));
-		}
-		else
-		{
+		//}
+		//else
+		//{
 			ret = clEnqueueCopyBuffer(meta_queue, (cl_mem) src, (cl_mem) dst, 0, 0, size, 0, NULL, &(frame->event.opencl));
-		}
+		//}
 		//If timers exist, use their event to add the callback
 		if ((void*)call != NULL && call_pl != NULL) clSetEventCallback(frame->event.opencl, CL_COMPLETE, call->openclCallback, call_pl);
 #else
@@ -1748,13 +1757,15 @@ a_err meta_stencil_3d7p_cb(a_dim3 * grid_size, a_dim3 * block_size,
 //SPMV API (meta_csr)//
 ///////////////////////
 a_err meta_csr(size_t global_size, size_t local_size, void * csr_ap, void * csr_aj, void * csr_ax, void * x_loc, void * y_loc, 
-		size_t wg_size, meta_type_id type, a_bool async, cl_event * wait) {
+		size_t wg_size, meta_type_id type, a_bool async) {//, cl_event * wait) {
 	return meta_csr_cb(global_size, local_size, csr_ap, csr_aj, csr_ax, x_loc, y_loc,
-			wg_size, type, async, wait,
+			wg_size, type, async,
+			// wait,
 			(meta_callback*) NULL, NULL);
 }
 a_err meta_csr_cb(size_t global_size, size_t local_size, void * csr_ap, void * csr_aj, void * csr_ax, void * x_loc, void * y_loc,
-		size_t wg_size, meta_type_id type, a_bool async, cl_event * wait,
+		size_t wg_size, meta_type_id type, a_bool async,
+		// cl_event * wait,
 		meta_callback *call, void *call_pl) {
 	a_err ret;
 	cl_event cb_event;
@@ -1781,14 +1792,18 @@ a_err meta_csr_cb(size_t global_size, size_t local_size, void * csr_ap, void * c
 		//Make sure some context exists..
 		if (meta_context == NULL) metaOpenCLFallBack();
 #ifdef WITH_TIMERS
-		ret = (a_err) opencl_csr(global_size, local_size, csr_ap, csr_aj, csr_ax, x_loc, y_loc, type, async, wait, &(frame->event.opencl));
+		ret = (a_err) opencl_csr(global_size, local_size, csr_ap, csr_aj, csr_ax, x_loc, y_loc, type, async,
+		// wait,
+		 &(frame->event.opencl));
 		//If timers exist, use their event to add the callback
 		if ((void*)call != NULL && call_pl != NULL) clSetEventCallback(frame->event.opencl, CL_COMPLETE, call->openclCallback, call_pl);
 #else
 		//If timers don't exist, get the event via a locally-scoped event to add to the callback
 		//cl_event cb_event;
 		printf("launching csr...\n");
-		ret = (a_err) opencl_csr(global_size, local_size, csr_ap, csr_aj, csr_ax, x_loc, y_loc, type, async, wait, &cb_event);
+		ret = (a_err) opencl_csr(global_size, local_size, csr_ap, csr_aj, csr_ax, x_loc, y_loc, type, async,
+		// wait,
+		 &cb_event);
 
 		if ((void*)call != NULL && call_pl != NULL) clSetEventCallback(cb_event, CL_COMPLETE, call->openclCallback, call_pl);
 #endif
@@ -1810,13 +1825,14 @@ a_err meta_csr_cb(size_t global_size, size_t local_size, void * csr_ap, void * c
 //CRC API (meta_crc)//
 ///////////////////////
 a_err meta_crc(size_t global_size, size_t local_size, void * dev_input, int page_size, int num_words, int numpages, void * dev_output, 
-		meta_type_id type, a_bool async, cl_event * wait) {
+		meta_type_id type, a_bool async) {//, cl_event * wait) {
 	return meta_crc_cb(global_size, local_size, dev_input, page_size, num_words, numpages, dev_output,
-			type, async, wait,
+			type, async,// wait,
 			(meta_callback*) NULL, NULL);
 }
 a_err meta_crc_cb(size_t global_size, size_t local_size, void * dev_input, int page_size, int num_words, int numpages, void * dev_output,
-		meta_type_id type, a_bool async, cl_event * wait,
+		meta_type_id type, a_bool async,
+		// cl_event * wait,
 		meta_callback *call, void *call_pl) {
 	a_err ret;
 	cl_event cb_event;
@@ -1843,11 +1859,15 @@ a_err meta_crc_cb(size_t global_size, size_t local_size, void * dev_input, int p
 		//Make sure some context exists..
 		if (meta_context == NULL) metaOpenCLFallBack();
 #ifdef WITH_TIMERS
-		ret = (a_err) opencl_crc(global_size, local_size, dev_input, page_size, num_words, numpages, dev_output, type, async, wait, &(frame->event.opencl));
+		ret = (a_err) opencl_crc(global_size, local_size, dev_input, page_size, num_words, numpages, dev_output, type, async,
+		// wait,
+		 &(frame->event.opencl));
 		
 		if ((void*)call != NULL && call_pl != NULL) clSetEventCallback(frame->event.opencl, CL_COMPLETE, call->openclCallback, call_pl);
 #else
-		ret = (a_err) opencl_crc(global_size, local_size, dev_input, page_size, num_words, numpages, dev_output, type, async, wait, &cb_event);
+		ret = (a_err) opencl_crc(global_size, local_size, dev_input, page_size, num_words, numpages, dev_output, type, async,
+		// wait,
+		 &cb_event);
 
 		if ((void*)call != NULL && call_pl != NULL) clSetEventCallback(cb_event, CL_COMPLETE, call->openclCallback, call_pl);
 #endif
