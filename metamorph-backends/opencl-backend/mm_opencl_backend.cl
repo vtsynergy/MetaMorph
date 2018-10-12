@@ -4,6 +4,23 @@
 #pragma OPENCL EXTENSION cl_khr_int64_base_atomics: enable
 #pragma OPENCL EXTENSION cl_khr_int64_extended_atomics : enable
 
+#ifndef SINGLE_KERNEL_PROGS
+#define DOUBLE
+#define FLOAT
+#define UNSIGNED_LONG
+#define INTEGER
+#define UNSIGNED_INTEGER
+#define KERNEL_REDUCE
+#define KERNEL_DOT_PROD
+#define KERNEL_TRANSPOSE
+#define KERNEL_PACK
+#define KERNEL_UPACK
+#define KERNEL_STENCIL
+#define KERNEL_CSR
+#define KERNEL_CRC
+#endif
+
+#if (defined(DOUBLE) && (defined(KERNEL_REDUCE) || defined(KERNEL_DOT_PROD)))
 void block_reduction_db(__local volatile double *psum, int tid, int len_) {
 	int stride = len_ >> 1;
 	while (stride > 0) {
@@ -30,7 +47,9 @@ void block_reduction_db(__local volatile double *psum, int tid, int len_) {
 	 barrier(CLK_LOCAL_MEM_FENCE | CLK_GLOBAL_MEM_FENCE);
 	 } */
 }
+#endif
 
+#if (defined(FLOAT) && (defined(KERNEL_REDUCE) || defined(KERNEL_DOT_PROD)))
 void block_reduction_fl(__local volatile float *psum, int tid, int len_) {
 	int stride = len_ >> 1;
 	while (stride > 0) {
@@ -57,7 +76,9 @@ void block_reduction_fl(__local volatile float *psum, int tid, int len_) {
 	 barrier(CLK_LOCAL_MEM_FENCE | CLK_GLOBAL_MEM_FENCE);
 	 } */
 }
+#endif
 
+#if (defined(UNSIGNED_LONG) && (defined(KERNEL_REDUCE) || defined(KERNEL_DOT_PROD)))
 void block_reduction_ul(__local volatile unsigned long *psum, int tid, int len_) {
 	int stride = len_ >> 1;
 	while (stride > 0) {
@@ -84,7 +105,9 @@ void block_reduction_ul(__local volatile unsigned long *psum, int tid, int len_)
 	 barrier(CLK_LOCAL_MEM_FENCE | CLK_GLOBAL_MEM_FENCE);
 	 } */
 }
+#endif
 
+#if (defined(INTEGER) && (defined(KERNEL_REDUCE) || defined(KERNEL_DOT_PROD)))
 void block_reduction_in(__local volatile int *psum, int tid, int len_) {
 	int stride = len_ >> 1;
 	while (stride > 0) {
@@ -111,7 +134,9 @@ void block_reduction_in(__local volatile int *psum, int tid, int len_) {
 	 barrier(CLK_LOCAL_MEM_FENCE | CLK_GLOBAL_MEM_FENCE);
 	 } */
 }
+#endif
 
+#if (defined(UNSIGNED_INTEGER) && (defined(KERNEL_REDUCE) || defined(KERNEL_DOT_PROD)))
 void block_reduction_ui(__local volatile unsigned int *psum, int tid, int len_) {
 	int stride = len_ >> 1;
 	while (stride > 0) {
@@ -138,9 +163,11 @@ void block_reduction_ui(__local volatile unsigned int *psum, int tid, int len_) 
 	 barrier(CLK_LOCAL_MEM_FENCE | CLK_GLOBAL_MEM_FENCE);
 	 } */
 }
+#endif
 
 //Paul - Implementation of double atomicAdd from CUDA Programming Guide: Appendix B.12
 // ported to OpenCL
+#if (defined(DOUBLE) && (defined(KERNEL_REDUCE) || defined(KERNEL_DOT_PROD)))
 double atomicAdd_db(__global double* address, double val)
 {
 	__global unsigned long * address_as_ul =
@@ -155,7 +182,9 @@ double atomicAdd_db(__global double* address, double val)
 	}while (assumed != old);
 	return as_double(old);
 }
+#endif
 
+#if (defined FLOAT && (defined(KERNEL_REDUCE) || defined(KERNEL_DOT_PROD)))
 double atomicAdd_fl(__global float* address, float val)
 {
 	__global unsigned int * address_as_ui =
@@ -170,6 +199,7 @@ double atomicAdd_fl(__global float* address, float val)
 	}while (assumed != old);
 	return as_float(old);
 }
+#endif
 
 //  !this kernel works for 3D data only.
 //  ! PHI1 and PHI2 are input arrays.
@@ -180,6 +210,7 @@ double atomicAdd_fl(__global float* address, float val)
 //  ! i,j,k are the array dimensions
 //  ! len_ is number of threads in a threadblock.
 //  !      This can be computed in the kernel itself.
+#if (defined(DOUBLE) && defined(KERNEL_DOT_PROD))
 __kernel void kernel_dotProd_db(__global double *phi1, __global double *phi2,
 		int i, int j, int k,
 		int sx, int sy, int sz,
@@ -209,7 +240,9 @@ __kernel void kernel_dotProd_db(__global double *phi1, __global double *phi2,
 
 	if(tid == 0) atomicAdd_db(reduction,psum[0]);
 }
+#endif
 
+#if (defined(FLOAT) && defined(KERNEL_DOT_PROD))
 __kernel void kernel_dotProd_fl(__global float *phi1, __global float *phi2,
 		int i, int j, int k,
 		int sx, int sy, int sz,
@@ -239,7 +272,9 @@ __kernel void kernel_dotProd_fl(__global float *phi1, __global float *phi2,
 
 	if(tid == 0) atomicAdd_fl(reduction,psum[0]);
 }
+#endif
 
+#if (defined(UNSIGNED_LONG) && defined(KERNEL_DOT_PROD))
 __kernel void kernel_dotProd_ul(__global unsigned long *phi1, __global unsigned long *phi2,
 		int i, int j, int k,
 		int sx, int sy, int sz,
@@ -269,7 +304,9 @@ __kernel void kernel_dotProd_ul(__global unsigned long *phi1, __global unsigned 
 
 	if(tid == 0) atom_add(reduction,psum[0]);
 }
+#endif
 
+#if (defined(INTEGER) && defined(KERNEL_DOT_PROD))
 __kernel void kernel_dotProd_in(__global int *phi1, __global int *phi2,
 		int i, int j, int k,
 		int sx, int sy, int sz,
@@ -299,7 +336,9 @@ __kernel void kernel_dotProd_in(__global int *phi1, __global int *phi2,
 
 	if(tid == 0) atomic_add(reduction,psum[0]);
 }
+#endif
 
+#if (defined(UNSIGNED_INTEGER) && defined(KERNEL_DOT_PROD))
 __kernel void kernel_dotProd_ui(__global unsigned int *phi1, __global unsigned int *phi2,
 		int i, int j, int k,
 		int sx, int sy, int sz,
@@ -329,7 +368,9 @@ __kernel void kernel_dotProd_ui(__global unsigned int *phi1, __global unsigned i
 
 	if(tid == 0) atomic_add(reduction,psum[0]);
 }
+#endif
 
+#if (defined(DOUBLE) && defined(KERNEL_REDUCE))
 __kernel void kernel_reduce_db(__global double *phi,
 		int i, int j, int k,
 		int sx, int sy, int sz,
@@ -361,7 +402,9 @@ __kernel void kernel_reduce_db(__global double *phi,
 
 	if(tid == 0) atomicAdd_db(reduction,psum[0]);
 }
+#endif
 
+#ifdef (defined(FLOAT) && defined(KERNEL_REDUCE))
 __kernel void kernel_reduce_fl(__global float *phi,
 		int i, int j, int k,
 		int sx, int sy, int sz,
@@ -393,7 +436,9 @@ __kernel void kernel_reduce_fl(__global float *phi,
 
 	if(tid == 0) atomicAdd_fl(reduction,psum[0]);
 }
+#endif
 
+#if (defined(UNSIGNED_LONG) && defined(KERNEL_REDUCE))
 __kernel void kernel_reduce_ul(__global unsigned long *phi,
 		int i, int j, int k,
 		int sx, int sy, int sz,
@@ -425,7 +470,9 @@ __kernel void kernel_reduce_ul(__global unsigned long *phi,
 
 	if(tid == 0) atom_add(reduction,psum[0]);
 }
+#endif
 
+#if (defined(INTEGER) && defined(KERNEL_REDUCE))
 __kernel void kernel_reduce_in(__global int *phi,
 		int i, int j, int k,
 		int sx, int sy, int sz,
@@ -457,7 +504,9 @@ __kernel void kernel_reduce_in(__global int *phi,
 
 	if(tid == 0) atomic_add(reduction,psum[0]);
 }
+#endif
 
+#if (defined(UNSIGNED_INTEGER) && defined(KERNEL_REDUCE))
 __kernel void kernel_reduce_ui(__global unsigned int *phi,
 		int i, int j, int k,
 		int sx, int sy, int sz,
@@ -489,7 +538,9 @@ __kernel void kernel_reduce_ui(__global unsigned int *phi,
 
 	if(tid == 0) atomic_add(reduction,psum[0]);
 }
+#endif
 
+#if (defined(DOUBLE) && defined(KERNEL_TRANSPOSE))
 __kernel void kernel_transpose_2d_db(__global double *odata, __global double *idata, int arr_width, int arr_height, int tran_width, int tran_height, __local double * tile)
 {
 //    __local double tile[TRANSPOSE_TILE_DIM][TRANSPOSE_TILE_DIM+1];
@@ -550,7 +601,9 @@ __kernel void kernel_transpose_2d_db(__global double *odata, __global double *id
 		barrier(CLK_LOCAL_MEM_FENCE | CLK_GLOBAL_MEM_FENCE);
 	}
 }
+#endif
 
+#if (defined(FLOAT) && defined(KERNEL_TRANSPOSE))
 __kernel void kernel_transpose_2d_fl(__global float *odata, __global float *idata, int arr_width, int arr_height, int tran_width, int tran_height, __local float * tile)
 {
 //    __local float tile[TRANSPOSE_TILE_DIM][TRANSPOSE_TILE_DIM+1];
@@ -611,7 +664,9 @@ __kernel void kernel_transpose_2d_fl(__global float *odata, __global float *idat
 		barrier(CLK_LOCAL_MEM_FENCE | CLK_GLOBAL_MEM_FENCE);
 	}
 }
+#endif
 
+#if (defined(UNSIGNED_LONG) && defined(KERNEL_TRANSPOSE))
 __kernel void kernel_transpose_2d_ul(__global unsigned long *odata, __global unsigned long *idata, int arr_width, int arr_height, int tran_width, int tran_height, __local unsigned long * tile)
 {
 //    __local unsigned long tile[TRANSPOSE_TILE_DIM][TRANSPOSE_TILE_DIM+1];
@@ -672,7 +727,9 @@ __kernel void kernel_transpose_2d_ul(__global unsigned long *odata, __global uns
 		barrier(CLK_LOCAL_MEM_FENCE | CLK_GLOBAL_MEM_FENCE);
 	}
 }
+#endif
 
+#if (defined(INTEGER) && defined(KERNEL_TRANSPOSE))
 __kernel void kernel_transpose_2d_in(__global int *odata, __global int *idata, int arr_width, int arr_height, int tran_width, int tran_height, __local int * tile)
 {
 //    __local int tile[TRANSPOSE_TILE_DIM][TRANSPOSE_TILE_DIM+1];
@@ -733,7 +790,9 @@ __kernel void kernel_transpose_2d_in(__global int *odata, __global int *idata, i
 		barrier(CLK_LOCAL_MEM_FENCE | CLK_GLOBAL_MEM_FENCE);
 	}
 }
+#endif
 
+#if (defined(UNSIGNED_INTEGER) && defined(KERNEL_TRANSPOSE))
 __kernel void kernel_transpose_2d_ui(__global unsigned int *odata, __global unsigned int *idata, int arr_width, int arr_height, int tran_width, int tran_height, __local unsigned int * tile)
 {
 //    __local unsigned int tile[TRANSPOSE_TILE_DIM][TRANSPOSE_TILE_DIM+1];
@@ -794,6 +853,9 @@ __kernel void kernel_transpose_2d_ui(__global unsigned int *odata, __global unsi
 		barrier(CLK_LOCAL_MEM_FENCE | CLK_GLOBAL_MEM_FENCE);
 	}
 }
+#endif
+
+#if (defined(KERNEL_PACK) || defined(KERNEL_UNPACK))
 int get_pack_index (int tid, __local int * a, int start, int count, __constant int * c_face_size, __constant int * c_face_stride, __constant int * c_face_child_size) {
 	int i, j, k, l;
 	int pos;
@@ -824,7 +886,9 @@ int get_pack_index (int tid, __local int * a, int start, int count, __constant i
 	}
 	return pos;
 }
+#endif
 
+#if (defined(DOUBLE) && defined(KERNEL_PACK))
 __kernel void kernel_pack_db(__global double *packed_buf, __global double *buf, int size, int start, int count, __constant int * c_face_size, __constant int * c_face_stride, __constant int * c_face_child_size, __local int *a)
 {
 	int idx = get_global_id(0);
@@ -833,7 +897,9 @@ __kernel void kernel_pack_db(__global double *packed_buf, __global double *buf, 
 	for (; idx < size; idx += nthreads)
 	packed_buf[idx] = buf[get_pack_index(idx, a, start, count, c_face_size, c_face_stride, c_face_child_size)];
 }
+#endif
 
+#if (defined(FLOAT) && defined (KERNEL_PACK))
 __kernel void kernel_pack_fl(__global float *packed_buf, __global float *buf, int size, int start, int count, __constant int * c_face_size, __constant int * c_face_stride, __constant int * c_face_child_size, __local int *a)
 {
 	int idx = get_global_id(0);
@@ -842,7 +908,9 @@ __kernel void kernel_pack_fl(__global float *packed_buf, __global float *buf, in
 	for (; idx < size; idx += nthreads)
 	packed_buf[idx] = buf[get_pack_index(idx, a, start, count, c_face_size, c_face_stride, c_face_child_size)];
 }
+#endif
 
+#if (defined(UNSIGNED_LONG) && defined(KERNEL_PACK))
 __kernel void kernel_pack_ul(__global unsigned long *packed_buf, __global unsigned long *buf, int size, int start, int count, __constant int * c_face_size, __constant int * c_face_stride, __constant int * c_face_child_size, __local int *a)
 {
 	int idx = get_global_id(0);
@@ -851,7 +919,9 @@ __kernel void kernel_pack_ul(__global unsigned long *packed_buf, __global unsign
 	for (; idx < size; idx += nthreads)
 	packed_buf[idx] = buf[get_pack_index(idx, a, start, count, c_face_size, c_face_stride, c_face_child_size)];
 }
+#endif
 
+#if (defined(INTEGER) && defined(KERNEL_PACK))
 __kernel void kernel_pack_in(__global int *packed_buf, __global int *buf, int size, int start, int count, __constant int * c_face_size, __constant int * c_face_stride, __constant int * c_face_child_size, __local int *a)
 {
 	int idx = get_global_id(0);
@@ -860,7 +930,9 @@ __kernel void kernel_pack_in(__global int *packed_buf, __global int *buf, int si
 	for (; idx < size; idx += nthreads)
 	packed_buf[idx] = buf[get_pack_index(idx, a, start, count, c_face_size, c_face_stride, c_face_child_size)];
 }
+#endif
 
+#if (defined(UNSIGNED_INTEGER) && defined(KERNEL_PACK))
 __kernel void kernel_pack_ui(__global unsigned int *packed_buf, __global unsigned int *buf, int size, int start, int count, __constant int * c_face_size, __constant int * c_face_stride, __constant int * c_face_child_size, __local int *a)
 {
 	int idx = get_global_id(0);
@@ -869,7 +941,9 @@ __kernel void kernel_pack_ui(__global unsigned int *packed_buf, __global unsigne
 	for (; idx < size; idx += nthreads)
 	packed_buf[idx] = buf[get_pack_index(idx, a, start, count, c_face_size, c_face_stride, c_face_child_size)];
 }
+#endif
 
+#if (defined(DOUBLE) && defined(KERNEL_UNPACK))
 __kernel void kernel_unpack_db(__global double *packed_buf, __global double *buf, int size, int start, int count, __constant int * c_face_size, __constant int * c_face_stride, __constant int * c_face_child_size, __local int *a)
 {
 	int idx = get_global_id(0);
@@ -878,7 +952,9 @@ __kernel void kernel_unpack_db(__global double *packed_buf, __global double *buf
 	for (; idx < size; idx += nthreads)
 	buf[get_pack_index(idx, a, start, count, c_face_size, c_face_stride, c_face_child_size)] = packed_buf[idx];
 }
+#endif
 
+#if (defined(FLOAT) && defined(KERNEL_UNPACK))
 __kernel void kernel_unpack_fl(__global float *packed_buf, __global float *buf, int size, int start, int count, __constant int * c_face_size, __constant int * c_face_stride, __constant int * c_face_child_size, __local int *a)
 {
 	int idx = get_global_id(0);
@@ -887,7 +963,9 @@ __kernel void kernel_unpack_fl(__global float *packed_buf, __global float *buf, 
 	for (; idx < size; idx += nthreads)
 	buf[get_pack_index(idx, a, start, count, c_face_size, c_face_stride, c_face_child_size)] = packed_buf[idx];
 }
+#endif
 
+#if (defined(UNSIGNED_LONG) && defined(KERNEL_UNPACK))
 __kernel void kernel_unpack_ul(__global unsigned long *packed_buf, __global unsigned long *buf, int size, int start, int count, __constant int * c_face_size, __constant int * c_face_stride, __constant int * c_face_child_size, __local int *a)
 {
 	int idx = get_global_id(0);
@@ -896,7 +974,9 @@ __kernel void kernel_unpack_ul(__global unsigned long *packed_buf, __global unsi
 	for (; idx < size; idx += nthreads)
 	buf[get_pack_index(idx, a, start, count, c_face_size, c_face_stride, c_face_child_size)] = packed_buf[idx];
 }
+#endif
 
+#if (defined(INTEGER) && defined(KERNEL_UNPACK))
 __kernel void kernel_unpack_in(__global int *packed_buf, __global int *buf, int size, int start, int count, __constant int * c_face_size, __constant int * c_face_stride, __constant int * c_face_child_size, __local int *a)
 {
 	int idx = get_global_id(0);
@@ -905,7 +985,9 @@ __kernel void kernel_unpack_in(__global int *packed_buf, __global int *buf, int 
 	for (; idx < size; idx += nthreads)
 	buf[get_pack_index(idx, a, start, count, c_face_size, c_face_stride, c_face_child_size)] = packed_buf[idx];
 }
+#endif
 
+#if (defined(UNSIGNED_INTEGER) && defined(KERNEL_UNPACK))
 __kernel void kernel_unpack_ui(__global unsigned int *packed_buf, __global unsigned int *buf, int size, int start, int count, __constant int * c_face_size, __constant int * c_face_stride, __constant int * c_face_child_size, __local int *a)
 {
 	int idx = get_global_id(0);
@@ -914,6 +996,8 @@ __kernel void kernel_unpack_ui(__global unsigned int *packed_buf, __global unsig
 	for (; idx < size; idx += nthreads)
 	buf[get_pack_index(idx, a, start, count, c_face_size, c_face_stride, c_face_child_size)] = packed_buf[idx];
 }
+#endif
+
 // this kernel works for 3D data only.
 //  i,j,k are the array dimensions
 //  s* parameters are start values in each dimension.
@@ -925,6 +1009,7 @@ __kernel void kernel_unpack_ui(__global unsigned int *packed_buf, __global unsig
 
 //Read-only cache + Rigster blocking (Z)
 // work only with 2D thread blocks
+#if (defined(DOUBLE) && defined(KERNEL_STENCIL))
 __kernel void kernel_stencil_3d7p_db(const __global double * __restrict__ ind, __global double * __restrict__ outd,
 		int i, int j, int k,
 		int sx, int sy, int sz,
@@ -958,8 +1043,10 @@ __kernel void kernel_stencil_3d7p_db(const __global double * __restrict__ ind, _
 		rz2 = ind[c+ij];
 	}
 }
+#endif
 
-#if 0
+//FIXME PS2018: why is this disabled?
+#if (0 && defined(DOUBLE) && defined(KERNEL_STENCIL_V2))
 // work with 2D and 3D thread blocks
 __kernel void kernel_stencil_3d7p_db_v0(const __global double * __restrict__ ind, __global double * __restrict__ outd,
 		int i, int j, int k,
@@ -984,9 +1071,11 @@ __kernel void kernel_stencil_3d7p_db_v0(const __global double * __restrict__ ind
 				ind[x+y*i+(z+1)*i*j] ) / (double) 7;
 	}
 }
+#endif
 
 //Read-only cache + Rigster blocking (Z) + smem blocking (X-Y)
 // work only with 2D thread blocks (use rectangular blocks, i.e. 64*4, 128*2)
+#if (0 && defined(DOUBLE) && defined(KERNEL_STENCIL_V2))
 __kernel void kernel_stencil_3d7p_db_v2(const __global double * __restrict__ ind, __global double * __restrict__ outd,
 		int i, int j, int k,
 		int sx, int sy, int sz,
@@ -1042,6 +1131,7 @@ __kernel void kernel_stencil_3d7p_db_v2(const __global double * __restrict__ ind
 
 //Read-only cache + Rigster blocking (Z)
 // work only with 2D thread blocks
+#if (defined(FLOAT) && defined(KERNEL_STENCIL))
 __kernel void kernel_stencil_3d7p_fl(const __global float * __restrict__ ind, __global float * __restrict__ outd,
 		int i, int j, int k,
 		int sx, int sy, int sz,
@@ -1075,9 +1165,11 @@ __kernel void kernel_stencil_3d7p_fl(const __global float * __restrict__ ind, __
 		rz2 = ind[c+ij];
 	}
 }
+#endif
 
 //Read-only cache + Rigster blocking (Z)
 // work only with 2D thread blocks
+#if (defined(UNSIGNED_LONG) && defined(KERNEL_STENCIL)
 __kernel void kernel_stencil_3d7p_ul(const __global unsigned long * __restrict__ ind, __global unsigned long * __restrict__ outd,
 		int i, int j, int k,
 		int sx, int sy, int sz,
@@ -1111,9 +1203,11 @@ __kernel void kernel_stencil_3d7p_ul(const __global unsigned long * __restrict__
 		rz2 = ind[c+ij];
 	}
 }
+#endif
 
 //Read-only cache + Rigster blocking (Z)
 // work only with 2D thread blocks
+#if (defined(INTEGER) && defined(KERNEL_STENCIL))
 __kernel void kernel_stencil_3d7p_in(const __global int * __restrict__ ind, __global int * __restrict__ outd,
 		int i, int j, int k,
 		int sx, int sy, int sz,
@@ -1147,9 +1241,12 @@ __kernel void kernel_stencil_3d7p_in(const __global int * __restrict__ ind, __gl
 		rz2 = ind[c+ij];
 	}
 }
+#endif
+
 
 //Read-only cache + Rigster blocking (Z)
 // work only with 2D thread blocks
+#if (defined(UNSIGNED_INTEGER) && defined(KERNEL_STENCIL))
 __kernel void kernel_stencil_3d7p_ui(const __global unsigned int * __restrict__ ind, __global unsigned int * __restrict__ outd,
 		int i, int j, int k,
 		int sx, int sy, int sz,
@@ -1183,3 +1280,91 @@ __kernel void kernel_stencil_3d7p_ui(const __global unsigned int * __restrict__ 
 		rz2 = ind[c+ij];
 	}
 }
+#endif
+
+
+//CSR kernel 
+// work only with 1D 
+#if (defined(FLOAT) && defined (KERNEL_CSR))
+__kernel void kernel_csr_fl(const unsigned int num_rows,
+                __global unsigned int * Ap,
+                __global unsigned int * Aj,
+                __global float * Ax,
+                __global float * x,
+                __global float * y) {
+	
+	unsigned int row = get_global_id(0);
+
+	if(row < num_rows)
+	{
+		float sum = y[row];
+
+		const unsigned int row_start = Ap[row];
+		const unsigned int row_end = Ap[row+1];
+
+		unsigned int jj = 0;
+		for (jj = row_start; jj < row_end; jj++)
+				sum += Ax[jj] * x[Aj[jj]];
+
+		y[row] = sum;
+	}
+}
+#endif
+
+
+//CRC kernel 
+#if (defined(UNSIGNED_INTEGER) && defined(KERNEL_CRC))
+__kernel void kernel_crc_ui(__global const uint* restrict data, 
+		uint length_bytes, 
+		const uint length_ints,
+		uint num_pages ,
+		__global uint* restrict res)
+{
+
+	__private uint crc;
+	__private uchar* currentChar;
+	__private uint one,two;
+	__private size_t i,j,gid;
+	 uint pages = num_pages;
+        uint loc_length_bytes = length_bytes;
+
+	crc = 0xFFFFFFFF;
+	gid = 0;
+
+for(gid = 0; gid <  pages ; gid++)
+{
+	i = gid * length_ints;
+	loc_length_bytes = length_bytes;
+        crc = 0xFFFFFFFF;
+	while (loc_length_bytes >= 8) // process eight bytes at once
+	{
+		one = data[i++] ^ crc;
+		two = data[i++];
+		crc = crc32Lookup[7][ one      & 0xFF] ^
+			crc32Lookup[6][(one>> 8) & 0xFF] ^
+			crc32Lookup[5][(one>>16) & 0xFF] ^
+			crc32Lookup[4][ one>>24        ] ^
+			crc32Lookup[3][ two      & 0xFF] ^
+			crc32Lookup[2][(two>> 8) & 0xFF] ^
+			crc32Lookup[1][(two>>16) & 0xFF] ^
+			crc32Lookup[0][ two>>24        ];
+		loc_length_bytes -= 8;
+	}
+
+	while(loc_length_bytes) // remaining 1 to 7 bytes
+	{
+		one = data[i++];
+		currentChar = (unsigned char*) &one;
+		j=0;
+		while (loc_length_bytes && j < 4) 
+		{
+			loc_length_bytes = loc_length_bytes - 1;
+			crc = (crc >> 8) ^ crc32Lookup[0][(crc & 0xFF) ^ currentChar[j]];
+			j = j + 1;
+		}
+	}
+
+	res[gid] = ~crc;
+}
+}
+#endif 

@@ -1,6 +1,6 @@
 CC=gcc
 CPP=g++
-DEFINES=-D WITH_OPENCL -D WITH_TIMERS -D __FPGA__ -D KERNEL_STENCIL -D FPGA_DOUBLE
+DEFINES=-D WITH_OPENCL -D WITH_TIMERS -D WITH_INTELFPGA -D KERNEL_STENCIL -D FPGA_DOUBLE
 INCLUDE=-I . 
 #Why does it need CUDA library with OpenCL? And yes, it does not work without this library //FIXME
 #LIB=-L ./ -L /usr/local/cuda/lib64 
@@ -35,10 +35,10 @@ libmetamorph.so: libmm_opencl_intelfpga_backend.so metamorph.c metamorph_timers.
 	$(CC) metamorph.c metamorph_timers.c -fPIC -shared $(DEFINES)  $(AOCL_COMPILE_CONFIG) $(LIB) -lmm_opencl_intelfpga_backend  -o libmetamorph.so
 
 libmm_opencl_backend.so: mm_opencl_backend.cpp
-	$(CPP) mm_opencl_backend.cpp -g -c -fPIC -shared $(AOCL_COMPILE_CONFIG) -o libmm_opencl_backend.so -D __OPENCLCC__ -D __FPGA__
+	$(CPP) mm_opencl_backend.cpp -g -c -fPIC -shared $(AOCL_COMPILE_CONFIG) -o libmm_opencl_backend.so -D __OPENCLCC__ -D WITH_INTELFPGA
 
 libmm_opencl_intelfpga_backend.so: mm_opencl_intelfpga_backend.cpp mm_opencl_backend.h
-	$(CPP) mm_opencl_intelfpga_backend.cpp -g -c -fPIC -shared $(AOCL_COMPILE_CONFIG) -o libmm_opencl_intelfpga_backend.so -D __OPENCLCC__ -D __FPGA__ -D FPGA_DOUBLE -D KERNEL_STENCIL
+	$(CPP) mm_opencl_intelfpga_backend.cpp -g -c -fPIC -shared $(AOCL_COMPILE_CONFIG) -o libmm_opencl_intelfpga_backend.so -D __OPENCLCC__ -D WITH_INTELFPGA -D FPGA_DOUBLE -D KERNEL_STENCIL
 
 red_test_DEBUG: libmetamorph_DEBUG.so red_bootstrapper.c libmetamorph_DEBUG.so libmm_opencl_backend_DEBUG.so
 	$(CC) red_bootstrapper.c $(INCLUDE) $(DEFINES) -D WITH_OPENMP  $(LIB) -lmetamorph_DEBUG -lmm_opencl_backend_DEBUG -o red_test_DEBUG -g -O0

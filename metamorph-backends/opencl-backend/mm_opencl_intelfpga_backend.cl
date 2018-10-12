@@ -4,7 +4,7 @@
 
 //Making  it Define based. I would rather have it define based than splitting it in five files. 
 #include "../../include/eth_crc32_lut.h"
-#ifndef __FPGA__
+#ifndef WITH_INTELFPGA
 #define FPGA_DOUBLE
 #define FPGA_FLOAT
 #define FPGA_UNSIGNED_LONG

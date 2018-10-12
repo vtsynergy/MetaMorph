@@ -24,7 +24,7 @@
 #define METAMORPH_OCL_DEFAULT_1D_BLOCK 16
 #endif
 
-#ifndef __FPGA__
+#ifndef WITH_INTELFPGA
 #define FPGA_DOUBLE
 #define FPGA_FLOAT
 #define FPGA_UNSIGNED_LONG

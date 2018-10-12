@@ -8,7 +8,7 @@
 #include <sys/time.h>
 #include "metamorph.h"
 
-#ifndef __FPGA__ 
+#ifndef WITH_INTELFPGA 
 #define KERNEL_REDUCE
 #define KERNEL_STENCIL
 #define KERNEL_DOT_PROD

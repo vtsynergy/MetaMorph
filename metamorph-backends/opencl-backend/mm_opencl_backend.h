@@ -22,10 +22,10 @@ extern "C" {
 #define METAMORPH_OCL_DEFAULT_BLOCK_3D {16, 8, 1}
 #endif
 #ifndef METAMORPH_OCL_DEFAULT_BLOCK_2D
-#define METAMORPH_OCL_DEFAULT_BLOCK_3D {16, 8}
+#define METAMORPH_OCL_DEFAULT_BLOCK_2D {16, 8}
 #endif
 #ifndef METAMORPH_OCL_DEFAULT_BLOCK_1D
-#define METAMORPH_OCL_DEFAULT_BLOCK_3D 16
+#define METAMORPH_OCL_DEFAULT_BLOCK_1D 16
 #endif
 
 //Not sure if these C compatibility stubs will actually be needed
@@ -52,7 +52,141 @@ typedef struct metaOpenCLStackFrame {
 	cl_context context;
 	cl_command_queue queue;
 
+//Trades host StackFrame size for smaller programs (sometimes necessary for FPGA)
+#if  (defined(WITH_INTELFPGA) && defined(OPENCL_SINGLE_KERNELPROGS))
+	//If we have separate binaries per kernel, then we need separate buffers
+	const char *metaCLbin_reduce_db;
+	size_t metaCLbinLen_reduce_db;
+	const char *metaCLbin_reduce_fl;
+	size_t metaCLbinLen_reduce_fl;
+	const char *metaCLbin_reduce_ul;
+	size_t metaCLbinLen_reduce_ul;
+	const char *metaCLbin_reduce_in;
+	size_t metaCLbinLen_reduce_in;
+	const char *metaCLbin_reduce_ui;
+	size_t metaCLbinLen_reduce_ui;
+	const char *metaCLbin_dotProd_db;
+	size_t metaCLbinLen_dotProd_db;
+	const char *metaCLbin_dotProd_fl;
+	size_t metaCLbinLen_dotProd_fl;
+	const char *metaCLbin_dotProd_ul;
+	size_t metaCLbinLen_dotProd_ul;
+	const char *metaCLbin_dotProd_in;
+	size_t metaCLbinLen_dotProd_in;
+	const char *metaCLbin_dotProd_ui;
+	size_t metaCLbinLen_dotProd_ui;
+	const char *metaCLbin_transpose_2d_face_db;
+	size_t metaCLbinLen_transpose_2d_face_db;
+	const char *metaCLbin_transpose_2d_face_fl;
+	size_t metaCLbinLen_transpose_2d_face_fl;
+	const char *metaCLbin_transpose_2d_face_ul;
+	size_t metaCLbinLen_transpose_2d_face_ul;
+	const char *metaCLbin_transpose_2d_face_in;
+	size_t metaCLbinLen_transpose_2d_face_in;
+	const char *metaCLbin_transpose_2d_face_ui;
+	size_t metaCLbinLen_transpose_2d_face_ui;
+	const char *metaCLbin_pack_2d_face_db;
+	size_t metaCLbinLen_pack_2d_face_db;
+	const char *metaCLbin_pack_2d_face_fl;
+	size_t metaCLbinLen_pack_2d_face_fl;
+	const char *metaCLbin_pack_2d_face_ul;
+	size_t metaCLbinLen_pack_2d_face_ul;
+	const char *metaCLbin_pack_2d_face_in;
+	size_t metaCLbinLen_pack_2d_face_in;
+	const char *metaCLbin_pack_2d_face_ui;
+	size_t metaCLbinLen_pack_2d_face_ui;
+	const char *metaCLbin_unpack_2d_face_db;
+	size_t metaCLbinLen_unpack_2d_face_db;
+	const char *metaCLbin_unpack_2d_face_fl;
+	size_t metaCLbinLen_unpack_2d_face_fl;
+	const char *metaCLbin_unpack_2d_face_ul;
+	size_t metaCLbinLen_unpack_2d_face_ul;
+	const char *metaCLbin_unpack_2d_face_in;
+	size_t metaCLbinLen_unpack_2d_face_in;
+	const char *metaCLbin_unpack_2d_face_ui;
+	size_t metaCLbinLen_unpack_2d_face_ui;
+	const char *metaCLbin_stencil_3d7p_db;
+	size_t metaCLbinLen_stencil_3d7p_db;
+	const char *metaCLbin_stencil_3d7p_fl;
+	size_t metaCLbinLen_stencil_3d7p_fl;
+	const char *metaCLbin_stencil_3d7p_ul;
+	size_t metaCLbinLen_stencil_3d7p_ul;
+	const char *metaCLbin_stencil_3d7p_in;
+	size_t metaCLbinLen_stencil_3d7p_in;
+	const char *metaCLbin_stencil_3d7p_ui;
+	size_t metaCLbinLen_stencil_3d7p_ui;
+	const char *metaCLbin_csr_db;
+	size_t metaCLbinLen_csr_db;
+	const char *metaCLbin_csr_fl;
+	size_t metaCLbinLen_csr_fl;
+	const char *metaCLbin_csr_ul;
+	size_t metaCLbinLen_csr_ul;
+	const char *metaCLbin_csr_in;
+	size_t metaCLbinLen_csr_in;
+	const char *metaCLbin_csr_ui;
+	size_t metaCLbinLen_csr_ui;
+	const char *metaCLbin_crc_db;
+	size_t metaCLbinLen_crc_db;
+	const char *metaCLbin_crc_fl;
+	size_t metaCLbinLen_crc_fl;
+	const char *metaCLbin_crc_ul;
+	size_t metaCLbinLen_crc_ul;
+	const char *metaCLbin_crc_in;
+	size_t metaCLbinLen_crc_in;
+	const char *metaCLbin_crc_ui;
+	size_t metaCLbinLen_crc_ui;
+#else
+	//If we still have access to the raw source, no need for separate copies
+	const char *metaCLProgSrc;
+	size_t metaCLProgLen;
+#endif
+
+
+#ifndef OPENCL_SINGLE_KERNEL_PROGS
+
 	cl_program program_opencl_core;
+#else
+	cl_program program_reduce_db;
+	cl_program program_reduce_fl;
+	cl_program program_reduce_ul;
+	cl_program program_reduce_in;
+	cl_program program_reduce_ui;
+	cl_program program_dotProd_db;
+	cl_program program_dotProd_fl;
+	cl_program program_dotProd_ul;
+	cl_program program_dotProd_in;
+	cl_program program_dotProd_ui;
+	cl_program program_transpose_2d_face_db;
+	cl_program program_transpose_2d_face_fl;
+	cl_program program_transpose_2d_face_ul;
+	cl_program program_transpose_2d_face_in;
+	cl_program program_transpose_2d_face_ui;
+	cl_program program_pack_2d_face_db;
+	cl_program program_pack_2d_face_fl;
+	cl_program program_pack_2d_face_ul;
+	cl_program program_pack_2d_face_in;
+	cl_program program_pack_2d_face_ui;
+	cl_program program_unpack_2d_face_db;
+	cl_program program_unpack_2d_face_fl;
+	cl_program program_unpack_2d_face_ul;
+	cl_program program_unpack_2d_face_in;
+	cl_program program_unpack_2d_face_ui;
+	cl_program program_stencil_3d7p_db;
+	cl_program program_stencil_3d7p_fl;
+	cl_program program_stencil_3d7p_ul;
+	cl_program program_stencil_3d7p_in;
+	cl_program program_stencil_3d7p_ui;
+	cl_program program_csr_db;
+	cl_program program_csr_fl;
+	cl_program program_csr_ul;
+	cl_program program_csr_in;
+	cl_program program_csr_ui;
+	cl_program program_crc_db;
+	cl_program program_crc_fl;
+	cl_program program_crc_ul;
+	cl_program program_crc_in;
+	cl_program program_crc_ui;
+#endif
 
 	cl_kernel kernel_reduce_db;
 	cl_kernel kernel_reduce_fl;
@@ -84,6 +218,16 @@ typedef struct metaOpenCLStackFrame {
 	cl_kernel kernel_stencil_3d7p_ul;
 	cl_kernel kernel_stencil_3d7p_in;
 	cl_kernel kernel_stencil_3d7p_ui;
+	cl_kernel kernel_csr_db;
+	cl_kernel kernel_csr_fl;
+	cl_kernel kernel_csr_ul;
+	cl_kernel kernel_csr_in;
+	cl_kernel kernel_csr_ui;
+	cl_kernel kernel_crc_db;
+	cl_kernel kernel_crc_fl;
+	cl_kernel kernel_crc_ul;
+	cl_kernel kernel_crc_in;
+	cl_kernel kernel_crc_ui;
 
 	cl_mem constant_face_size;
 	cl_mem constant_face_stride;

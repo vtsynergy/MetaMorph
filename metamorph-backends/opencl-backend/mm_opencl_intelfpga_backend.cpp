@@ -1,5 +1,6 @@
 /** OpenCL Back-End: FPGA customization **/
-#include "../../metamorph-backends/opencl-backend/mm_opencl_intelfpga_backend.h"
+#include "../../metamorph-backends/opencl-backend/mm_opencl_backend.h"
+
 #define CHKERR(err, str)\
 if ( err != CL_SUCCESS)\
 {\
@@ -103,7 +104,7 @@ size_t metaOpenCLLoadProgramSource(const char *filename, const char **progSrc) {
 cl_int metaOpenCLBuildProgram(metaOpenCLStackFrame * frame) {
 	cl_int ret = CL_SUCCESS;
 	if (metaCLProgLen == 0) {
-#ifndef __FPGA__
+#ifndef WITH_INTELFPGA
 		metaCLProgLen = metaOpenCLLoadProgramSource("mm_opencl_backend.cl",
 				&metaCLProgSrc);
 #else
@@ -111,7 +112,7 @@ cl_int metaOpenCLBuildProgram(metaOpenCLStackFrame * frame) {
 		metaCLProgLen = metaOpenCLLoadProgramSource("mm_opencl_intelfpga_backend.aocx", &metaCLProgSrc);
 #endif
 	}
-#ifndef __FPGA__
+#ifndef WITH_INTELFPGA
 	frame->program_opencl_core = clCreateProgramWithSource(frame->context, 1,
 			&metaCLProgSrc, &metaCLProgLen, NULL);
 #else 

@@ -14,6 +14,8 @@ export MM_CL=$(MM_DIR)/metamorph-backends/opencl-backend
 export MM_EX=$(MM_DIR)/examples
 
 export MM_LIB=$(MM_DIR)/lib
+#TODO does it need a custom dir?
+MM_AOCX_DIR=$(MM_LIB)
 
 export MM_GEN_CL=$(MM_DIR)/metamorph-generators/opencl
 
@@ -164,8 +166,16 @@ endif
 endif
 #TODO add FPGA options
 #Set to one of INTEL, XILINX, or blank
+ifndef USE_FPGA
 USE_FPGA=
-MM_AOCX_DIR=$(MM_LIB)
+else
+USE_FPGA := $(shell echo $(USE_FPGA) | tr '[:lower:]' '[:upper:]')
+endif
+ifndef OPENCL_SINGLE_KERNEL_PROGS
+OPENCL_SINGLE_KERNEL_PROGS=
+else
+OPENCL_SINGLE_KERNEL_PROGS := $(shell echo $(OPENCL_SINGLE_KERNEL_PROGS) | tr '[:lower:]' '[:upper:]')
+endif
 
 #Ensure OpenMP (simple other than MIC stuff)
 ifndef USE_OPENMP
@@ -209,10 +219,10 @@ CC=gcc
 CC_FLAGS = $(OPT_LVL) $(L_FLAGS)
 INCLUDES  = -I $(MM_DIR)/include
 
-ifndef USE_EMULATOR
-USE_EMULATOR=FALSE
+ifndef FPGA_USE_EMULATOR
+FPGA_USE_EMULATOR=FALSE
 else
-USE_EMULATOR := $(shell echo $(USE_EMULATOR) | tr '[:lower:]' '[:upper:]')
+FPGA_USE_EMULATOR := $(shell echo $(FPGA_USE_EMULATOR) | tr '[:lower:]' '[:upper:]')
 endif
 
 #Configure compilation to the machine's availability
@@ -239,46 +249,61 @@ endif
 
 #OpenCL backend
 ifeq ($(USE_OPENCL),TRUE)
-MM_COMPONENTS += -D WITH_OPENCL
-INCLUDES += -I$(MM_CL)
-ifeq ($(USE_FPGA),INTEL)
-MM_COMPONENTS += -D WITH_INTELFPGA -lmm_opencl_intelfpga_backend
-MM_DEPS += libmm_opencl_intelfpga_backend.so
-else ifeq ($(USE_FPGA),XILINX)
-MM_COMPONENTS += -D WITH_XILINXFPGA -lmm_opencl_xilinx_backend
-MM_DEPS += libmm_opencl_xilinx_backend.so
-else
-MM_COMPONENTS += -lmm_opencl_backend
-MM_DEPS += libmm_opencl_backend.so
-endif
-MM_COMPONENTS += -I$(OPENCL_INCL_DIR) -L$(OPENCL_LIB_DIR) -lOpenCL
+ MM_COMPONENTS += -D WITH_OPENCL
+ INCLUDES += -I$(MM_CL)
+ ifeq ($(USE_FPGA),INTEL)
+  MM_COMPONENTS += -D WITH_INTELFPGA -lmm_opencl_intelfpga_backend
+  MM_DEPS += libmm_opencl_intelfpga_backend.so
+  ####################### FPGA ##################################
+  # Where is the Intel(R) FPGA SDK for OpenCL(TM) software?
+  #TODO clean up this lookup
+  ifeq ($(wildcard $(ALTERAOCLSDKROOT)),)
+   $(error Set ALTERAOCLSDKROOT to the root directory of the Intel\(R\) FPGA SDK for OpenCL\(TM\) software installation)
+  endif
+  ifeq ($(wildcard $(ALTERAOCLSDKROOT)/host/include/CL/opencl.h),)
+   $(error Set ALTERAOCLSDKROOT to the root directory of the Intel\(R\) FPGA SDK for OpenCL\(TM\) software installation.)
+  endif
+  # OpenCL compile and link flags.
+  #TODO cleanup these variables to be explicitly passed instead of exported
+  export AOCL_COMPILE_CONFIG := $(shell aocl compile-config )
+  export AOCL_LINK_CONFIG := $(shell aocl link-config )
+
+  #TODO board should not be hardcoded, instead expose through INTEL_FPGA_AOC_FLAGS
+  #TODO if we expose the flags do we need an explicit FPGA_USE_EMULATOR variable?
+  ifeq ($(FPGA_USE_EMULATOR),TRUE)
+   export AOC_DEF= -march=emulator -v --board bdw_fpga_v1.0
+  else
+   export AOC_DEF= -v --board bdw_fpga_v1.0
+  endif
+
+  #-D WITH_TIMERS
+  #There is no reason this mechanic has to be specific to FPGA
+  ifeq ($(OPENCL_SINGLE_KERNEL_PROGS),TRUE)
+   export FPGA_DEF=-D WITH_OPENCL -D WITH_INTELFPGA -D OPENCL_SINGLE_KERNEL_PROGS
+  else
+   #TODO These FPGA options should not be hardcoded, and in fact should be subsumed by the OPENCL_SINGLE_KERNEL_PROGS option
+   export FPGA_DEF=-D WITH_OPENCL -D WITH_INTELFPGA -D WITH_TIMERS -D KERNEL_CRC -D FPGA_UNSIGNED_INTEGER
+  endif
+  #export FPGA_DEF=-D WITH_OPENCL -D WITH_TIMERS -D WITH_INTELFPGA -D KERNEL_STENCIL -D FPGA_DOUBLE
+  #export FPGA_LIB=/home/jehandad/rte/opt/altera/aocl-rte/host/linux64/lib/
+  #TODO Remove hardcode and expose as INTELFPGA_LIB_DIR
+  export FPGA_LIB=-L /media/hdd/jehandad/altera_pro/16.0/hld/host/linux64/lib -L $(AALSDK)/lib
+
+
+ else ifeq ($(USE_FPGA),XILINX)
+  MM_COMPONENTS += -D WITH_XILINXFPGA -lmm_opencl_xilinx_backend
+  MM_DEPS += libmm_opencl_xilinx_backend.so
+  $(error XILINX not yet supported)
+ else ifeq ($(USE_FPGA),) #The non-FPGA implementation has an empty string
+  MM_COMPONENTS += -lmm_opencl_backend
+  MM_DEPS += libmm_opencl_backend.so
+ else #They asked for an FPGA backend that is not explicitly supported
+  $(error USE_FPGA=$(USE_FPGA) is not supported)
+ endif
+ MM_COMPONENTS += -I$(OPENCL_INCL_DIR) -L$(OPENCL_LIB_DIR) -lOpenCL
 endif
 
-####################### FPGA ##################################
-# Where is the Intel(R) FPGA SDK for OpenCL(TM) software?
-ifeq ($(wildcard $(ALTERAOCLSDKROOT)),)
-$(error Set ALTERAOCLSDKROOT to the root directory of the Intel(R) FPGA SDK for OpenCL(TM) software installation)
-endif
-ifeq ($(wildcard $(ALTERAOCLSDKROOT)/host/include/CL/opencl.h),)
-$(error Set ALTERAOCLSDKROOT to the root directory of the Intel(R) FPGA SDK for OpenCL(TM) software installation.)
-endif
 
-# OpenCL compile and link flags.
-export AOCL_COMPILE_CONFIG := $(shell aocl compile-config )
-export AOCL_LINK_CONFIG := $(shell aocl link-config )
-
-
-ifeq ($(USE_EMULATOR),TRUE)
-export AOC_DEF= -march=emulator -v --board bdw_fpga_v1.0
-else
-export AOC_DEF= -v --board bdw_fpga_v1.0
-endif
-
-#-D WITH_TIMERS
-export FPGA_DEF=-D WITH_OPENCL -D __FPGA__ -D WITH_TIMERS -D KERNEL_CRC -D FPGA_UNSIGNED_INTEGER
-#export FPGA_DEF=-D WITH_OPENCL -D WITH_TIMERS -D __FPGA__ -D KERNEL_STENCIL -D FPGA_DOUBLE
-#export FPGA_LIB=/home/jehandad/rte/opt/altera/aocl-rte/host/linux64/lib/
-export FPGA_LIB=-L /media/hdd/jehandad/altera_pro/16.0/hld/host/linux64/lib -L $(AALSDK)/lib
 
 
 ifeq ($(USE_OPENMP),TRUE)
@@ -310,7 +335,7 @@ endif
 
 export INCLUDES
 
-MFLAGS := USE_CUDA=$(USE_CUDA) CUDA_LIB_DIR=$(CUDA_LIB_DIR) USE_OPENCL=$(USE_OPENCL) OPENCL_LIB_DIR=$(OPENCL_LIB_DIR) OPENCL_INCL_DIR=$(OPENCL_INCL_DIR) USE_OPENMP=$(USE_OPENMP) USE_MIC=$(USE_MIC) ICC_BIN=$(ICC_BIN) USE_TIMER=$(USE_TIMERS) USE_MPI=$(USE_MPI) MPI_DIR=$(MPI_DIR) USE_FPGA=$(USE_FPGA) CC="$(CC)" NVCC=$(NVCC)
+MFLAGS := USE_CUDA=$(USE_CUDA) CUDA_LIB_DIR=$(CUDA_LIB_DIR) USE_OPENCL=$(USE_OPENCL) OPENCL_LIB_DIR=$(OPENCL_LIB_DIR) OPENCL_INCL_DIR=$(OPENCL_INCL_DIR) OPENCL_SINGLE_KERNEL_PROGS=$(OPENCL_SINGLE_KERNEL_PROGS) USE_OPENMP=$(USE_OPENMP) USE_MIC=$(USE_MIC) ICC_BIN=$(ICC_BIN) USE_TIMER=$(USE_TIMERS) USE_MPI=$(USE_MPI) MPI_DIR=$(MPI_DIR) USE_FPGA=$(USE_FPGA) CC="$(CC)" NVCC=$(NVCC) $(MFLAGS)
 
 #.PHONY: metamorph_all examples
 .PHONY: libmetamorph.so examples
