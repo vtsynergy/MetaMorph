@@ -158,7 +158,7 @@ cl_int metaOpenCLBuildProgram(metaOpenCLStackFrame * frame) {
 	//will need a separate buffer for each kernel
 
 #define ENSURE_SRC(name) if (frame->metaCLbinLen_##name == 0) \
-	frame->metaCLbinLen_##name = metaOpenCLLoadProgramSource("mm_opencl_intelfpga_backend_"##name".aocx", &(frame->metaCLbin_##name)); \
+	frame->metaCLbinLen_##name = metaOpenCLLoadProgramSource("lib/mm_opencl_intelfpga_backend_"##name".aocx", &(frame->metaCLbin_##name)); \
 	} \
 	frame->program_##name = clCreateProgramWithBinary(frame->context, 1, &(frame->device), &(frame->metaCLbinLen_##name), (const unsigned char **) &(frame->metaCLbin_##name), NULL, NULL);
 
@@ -205,7 +205,7 @@ cl_int metaOpenCLBuildProgram(metaOpenCLStackFrame * frame) {
 #undef ENSURE_SRC
 #elif defined(WITH_INTELFPGA) && !defined(OPENCL_SINGLE_KERNEL_PROGS)
 	if (frame->metaCLProgLen == 0) {
-		frame->metaCLProgLen = metaOpenCLLoadProgramSource("mm_opencl_intelfpga_backend.aocx", &(frame->metaCLProgSrc));
+		frame->metaCLProgLen = metaOpenCLLoadProgramSource("lib/mm_opencl_intelfpga_backend.aocx", &(frame->metaCLProgSrc));
 	}
 	frame->program_opencl_core=clCreateProgramWithBinary(frame->context,1,&(frame->device), &(frame->metaCLProgLen),(const unsigned char**) &(frame->metaCLProgSrc),NULL,NULL);
 #elif !defined(WITH_INTELFPGA) && defined(OPENCL_SINGLE_KERNEL_PROGS)
