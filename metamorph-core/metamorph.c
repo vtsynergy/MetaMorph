@@ -362,7 +362,7 @@ a_err meta_copy_h2d_cb(void * dst, void * src, size_t size, a_bool async,
 	metaTimerQueueFrame * frame = (metaTimerQueueFrame *)malloc (sizeof(metaTimerQueueFrame));
 	frame->mode = run_mode;
 	frame->size = size;
-	frame->name = event_name;
+	//frame->name = event_name;
 #endif
 	switch (run_mode) {
 	default:
@@ -403,8 +403,8 @@ a_err meta_copy_h2d_cb(void * dst, void * src, size_t size, a_bool async,
 		//else
 		//{
 			ret = clEnqueueWriteBuffer(meta_queue, (cl_mem) dst, ((async) ? CL_FALSE : CL_TRUE), 0, size, src, 0, NULL, &(frame->event.opencl));
-			CHKERR(ret, "Failed to write to source array!");
-		}
+//			CHKERR(ret, "Failed to write to source array!");
+//		}
 		//If timers exist, use their event to add the callback
 		if ((void*)call != NULL && call_pl != NULL) clSetEventCallback(frame->event.opencl, CL_COMPLETE, call->openclCallback, call_pl);
 #else
@@ -465,7 +465,7 @@ a_err meta_copy_d2h_cb(void * dst, void * src, size_t size, a_bool async,
 	metaTimerQueueFrame * frame = (metaTimerQueueFrame*)malloc (sizeof(metaTimerQueueFrame));
 	frame->mode = run_mode;
 	frame->size = size;
-	frame->name = event_name;
+	//frame->name = event_name;
 #endif
 	switch (run_mode) {
 	default:
@@ -561,7 +561,7 @@ a_err meta_copy_d2d_cb(void * dst, void * src, size_t size, a_bool async,
 	metaTimerQueueFrame * frame = (metaTimerQueueFrame*)malloc (sizeof(metaTimerQueueFrame));
 	frame->mode = run_mode;
 	frame->size = size;
-	frame->name = event_name;
+	//frame->name = event_name;
 #endif
 	switch (run_mode) {
 	default:

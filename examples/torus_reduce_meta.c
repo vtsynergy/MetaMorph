@@ -12,6 +12,15 @@
 #elif defined(FLOAT)
 #define G_TYPE float
 #define CL_G_TYPE cl_float
+#elif defined(UNSIGNED_LONG)
+#define G_TYPE unsigned long
+#define CL_G_TYPE cl_ulong
+#elif defined(INTEGER)
+#define G_TYPE int
+#define CL_G_TYPE cl_int
+#elif defined(UNISGNED_INTEGER)
+#define G_TYPE unsigned int
+#define CL_G_TYPE cl_uint
 #else
 #define G_TYPE double
 #define CL_G_TYPE cl_double
@@ -33,26 +42,28 @@ a_err err;
 a_dim3 grid, block, array, a_start, a_end;
 
 void init(int rank) {
-#ifdef WITH_CUDA
-	if (rank == 0) meta_set_acc(0, metaModePreferCUDA);
-	else fprintf(stderr, "WITH_CUDA should only be defined for rank 0, I have rank [%d]\n", rank);
-#elif defined(WITH_OPENCL)
-#ifdef DEBUG2
-	if (rank ==0) meta_set_acc(-1, metaModePreferOpenCL);
-#else
-	if (rank ==2) meta_set_acc(0, metaModePreferOpenCL);
-#endif
-	else fprintf(stderr, "WITH_OPENCL should only be defined for rank 2, I have rank [%d]\n", rank);
-#elif defined(WITH_OPENMP)
-#ifdef DEBUG2
-	if (rank ==0) meta_set_acc(0, metaModePreferOpenMP);
-#else
-	if (rank == 1 || rank == 3) meta_set_acc(0, metaModePreferOpenMP);
-#endif
-	else fprintf(stderr, "WITH_OPENMP should only be defined for ranks 1 and 3, I have rank [%d]\n", rank);
-#else
-#error MetaMorph needs either WITH_CUDA, WITH_OPENCL, or WITH_OPENMP
-#endif
+//#ifdef WITH_CUDA
+	//Switched to using environment-based controls
+	meta_set_acc(-1, metaModePreferGeneric);
+//	if (rank == 0) meta_set_acc(0, metaModePreferCUDA);
+//	else fprintf(stderr, "WITH_CUDA should only be defined for rank 0, I have rank [%d]\n", rank);
+//#elif defined(WITH_OPENCL)
+//#ifdef DEBUG2
+//	if (rank ==0) meta_set_acc(-1, metaModePreferOpenCL);
+//#else
+//	if (rank ==2) meta_set_acc(0, metaModePreferOpenCL);
+//#endif
+//	else fprintf(stderr, "WITH_OPENCL should only be defined for rank 2, I have rank [%d]\n", rank);
+//#elif defined(WITH_OPENMP)
+//#ifdef DEBUG2
+//	if (rank ==0) meta_set_acc(0, metaModePreferOpenMP);
+//#else
+//	if (rank == 1 || rank == 3) meta_set_acc(0, metaModePreferOpenMP);
+//#endif
+//	else fprintf(stderr, "WITH_OPENMP should only be defined for ranks 1 and 3, I have rank [%d]\n", rank);
+//#else
+//#error MetaMorph needs either WITH_CUDA, WITH_OPENCL, or WITH_OPENMP
+//#endif
 }
 
 void data_allocate() {
@@ -132,8 +143,8 @@ void print_grid(G_TYPE * grid) {
 #endif
 
 int main(int argc, char **argv) {
-	int rank;
-	int comm_sz;
+	int rank = 0;
+	int comm_sz = 1;
 #ifdef USE_MPI
 	MPI_Request request;
 
@@ -214,8 +225,23 @@ int main(int argc, char **argv) {
 		err = meta_mpi_recv_and_unpack_face(autoconfig ? NULL : &grid, autoconfig ? NULL : &block, (rank+comm_sz-1)%comm_sz, recv_face, d_domain, d_recvbuf, ct, &request, a_fl, 1);
 		//pack and send
 		err = meta_mpi_pack_and_send_face(autoconfig ? NULL : &grid, autoconfig ? NULL : &block, (rank+1)%comm_sz, send_face, d_domain, d_sendbuf, ct, &request, a_fl, 0);
+#elif defined(UNSIGNED_LONG)
+		//set up async recv and unpack
+		err = meta_mpi_recv_and_unpack_face(autoconfig ? NULL : &grid, autoconfig ? NULL : &block, (rank+comm_sz-1)%comm_sz, recv_face, d_domain, d_recvbuf, ct, &request, a_ul, 1);
+		//pack and send
+		err = meta_mpi_pack_and_send_face(autoconfig ? NULL : &grid, autoconfig ? NULL : &block, (rank+1)%comm_sz, send_face, d_domain, d_sendbuf, ct, &request, a_ul, 0);
+#elif defined(INTEGER)
+		//set up async recv and unpack
+		err = meta_mpi_recv_and_unpack_face(autoconfig ? NULL : &grid, autoconfig ? NULL : &block, (rank+comm_sz-1)%comm_sz, recv_face, d_domain, d_recvbuf, ct, &request, a_in, 1);
+		//pack and send
+		err = meta_mpi_pack_and_send_face(autoconfig ? NULL : &grid, autoconfig ? NULL : &block, (rank+1)%comm_sz, send_face, d_domain, d_sendbuf, ct, &request, a_in, 0);
+#elif defined(UNSIGNED_INT)
+		//set up async recv and unpack
+		err = meta_mpi_recv_and_unpack_face(autoconfig ? NULL : &grid, autoconfig ? NULL : &block, (rank+comm_sz-1)%comm_sz, recv_face, d_domain, d_recvbuf, ct, &request, a_ui, 1);
+		//pack and send
+		err = meta_mpi_pack_and_send_face(autoconfig ? NULL : &grid, autoconfig ? NULL : &block, (rank+1)%comm_sz, send_face, d_domain, d_sendbuf, ct, &request, a_ui, 0);
 #else
-#error Unsupported G_TYPE, must be double or float
+#error Unsupported G_TYPE
 #endif
 		//MM flush
 		meta_flush();
@@ -230,23 +256,36 @@ int main(int argc, char **argv) {
 #endif	
 
 		//MM: global dot Product
-#if defined(DOUBLE)
 		meta_copy_h2d(result, &zero, sizeof(G_TYPE), true);
+#if defined(DOUBLE)
 		meta_dotProd(autoconfig ? NULL: &grid, autoconfig ? NULL : &block, d_domain, d_domain2, &array, &a_start, &a_end, result, a_db, true);
-		meta_copy_d2h(&r_val, result, sizeof(G_TYPE), false);
 #ifdef USE_MPI
 		MPI_Reduce(&r_val, &global_sum, 1, MPI_DOUBLE, MPI_SUM, 0, MPI_COMM_WORLD);
 #endif
 #elif defined(FLOAT)
-		meta_copy_h2d(result, &zero, sizeof(G_TYPE), true);
 		meta_dotProd(autoconfig ? NULL: &grid, autoconfig ? NULL : &block, d_domain, d_domain2, &array, &a_start, &a_end, result, a_fl, true);
-		meta_copy_d2h(&r_val, result, sizeof(G_TYPE), true);
 #ifdef USE_MPI
 		MPI_Reduce(&r_val, &global_sum, 1, MPI_FLOAT, MPI_SUM, 0, MPI_COMM_WORLD);
 #endif
-#else
-#error Unsupported G_TYPE, must be double or float
+#elif defined(UNSIGNED_LONG)
+		meta_dotProd(autoconfig ? NULL: &grid, autoconfig ? NULL : &block, d_domain, d_domain2, &array, &a_start, &a_end, result, a_ul, true);
+#ifdef USE_MPI
+		MPI_Reduce(&r_val, &global_sum, 1, MPI_UNSIGNED_LONG, MPI_SUM, 0, MPI_COMM_WORLD);
 #endif
+#elif defined(INTEGER)
+		meta_dotProd(autoconfig ? NULL: &grid, autoconfig ? NULL : &block, d_domain, d_domain2, &array, &a_start, &a_end, result, a_in, true);
+#ifdef USE_MPI
+		MPI_Reduce(&r_val, &global_sum, 1, MPI_INT, MPI_SUM, 0, MPI_COMM_WORLD);
+#endif
+#elif defined(UNSIGNED_INT)
+		meta_dotProd(autoconfig ? NULL: &grid, autoconfig ? NULL : &block, d_domain, d_domain2, &array, &a_start, &a_end, result, a_ui, true);
+#ifdef USE_MPI
+		MPI_Reduce(&r_val, &global_sum, 1, MPI_UNSIGNED, MPI_SUM, 0, MPI_COMM_WORLD);
+#endif
+#else
+#error Unsupported G_TYPE
+#endif
+		meta_copy_d2h(&r_val, result, sizeof(G_TYPE), false);
 	}
 	gettimeofday(&end, NULL);
 	double time = (end.tv_sec - start.tv_sec) * 1000000.0

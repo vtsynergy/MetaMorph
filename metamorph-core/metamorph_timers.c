@@ -87,7 +87,7 @@ a_err metaTimerEnqueue(metaTimerQueueFrame * frame, metaTimerQueue * queue) {
 	metaTimerQueueNode * newnode = (metaTimerQueueNode*) malloc(
 			sizeof(metaTimerQueueNode));
 	//initialize the new node
-//	printf("ENQUEUE %x\n", newnode);
+	//printf("ENQUEUE %x\n", newnode);
 	newnode->name = frame->name;
 	newnode->event = frame->event;
 	newnode->mode = frame->mode;
@@ -281,7 +281,7 @@ void flushWorker(metaTimerQueue * queue, int level) {
 			{
 				clGetEventProfilingInfo(frame->event.opencl, CL_PROFILING_COMMAND_START, sizeof(unsigned long), &start, NULL);
 				clGetEventProfilingInfo(frame->event.opencl, CL_PROFILING_COMMAND_END, sizeof(unsigned long), &end, NULL);
-				temp_t = (end-start)*0.001;
+				temp_t = (end-start)*0.000001;
 			}
 #endif
 		}

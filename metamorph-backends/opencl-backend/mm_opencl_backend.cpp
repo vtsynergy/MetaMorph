@@ -102,39 +102,37 @@ cl_int metaOpenCLBuildSingleKernelProgram(metaOpenCLStackFrame * frame, cl_progr
 		if (strcmp(getenv("METAMORPH_MODE"), "OpenCL") == 0) {
 			size_t needed =
 					snprintf(NULL, 0,
-							"-I . -D TRANSPOSE_TILE_DIM=(%d) -D TRANSPOSE_TILE_BLOCK_ROWS=(%d) %s",
+							"-I . -D TRANSPOSE_TILE_DIM=(%d) -D TRANSPOSE_TILE_BLOCK_ROWS=(%d) %s ",
 							TRANSPOSE_TILE_DIM, TRANSPOSE_TILE_BLOCK_ROWS, prog_args);
 			args = (char *) malloc(needed);
 			snprintf(args, needed,
-					"-I . -D TRANSPOSE_TILE_DIM=(%d) -D TRANSPOSE_TILE_BLOCK_ROWS=(%d) %s",
+					"-I . -D TRANSPOSE_TILE_DIM=(%d) -D TRANSPOSE_TILE_BLOCK_ROWS=(%d) %s ",
 					TRANSPOSE_TILE_DIM, TRANSPOSE_TILE_BLOCK_ROWS, prog_args);
 			ret |= clBuildProgram(prog, 1,
 					&(frame->device), args, NULL, NULL);
 		} else if (strcmp(getenv("METAMORPH_MODE"), "OpenCL_DEBUG") == 0) {
 			size_t needed =
 					snprintf(NULL, 0,
-							"-I . -D TRANSPOSE_TILE_DIM=(%d) -D TRANSPOSE_TILE_BLOCK_ROWS=(%d) -g -cl-opt-disable %s",
+							"-I . -D TRANSPOSE_TILE_DIM=(%d) -D TRANSPOSE_TILE_BLOCK_ROWS=(%d) -g -cl-opt-disable %s ",
 							TRANSPOSE_TILE_DIM, TRANSPOSE_TILE_BLOCK_ROWS, prog_args);
 			args = (char *) malloc(needed);
 			snprintf(args, needed,
-					"-I . -D TRANSPOSE_TILE_DIM=(%d) -D TRANSPOSE_TILE_BLOCK_ROWS=(%d) -g -cl-opt-disable %s",
+					"-I . -D TRANSPOSE_TILE_DIM=(%d) -D TRANSPOSE_TILE_BLOCK_ROWS=(%d) -g -cl-opt-disable %s ",
 					TRANSPOSE_TILE_DIM, TRANSPOSE_TILE_BLOCK_ROWS, prog_args);
 		}
 	} else {
 		//Do the same as if METAMORPH_MODE was set as OpenCL
 		size_t needed =
 				snprintf(NULL, 0,
-						"-I . -D TRANSPOSE_TILE_DIM=(%d) -D TRANSPOSE_TILE_BLOCK_ROWS=(%d) %s",
+						"-I . -D TRANSPOSE_TILE_DIM=(%d) -D TRANSPOSE_TILE_BLOCK_ROWS=(%d) %s ",
 						TRANSPOSE_TILE_DIM, TRANSPOSE_TILE_BLOCK_ROWS, prog_args);
 		args = (char *) malloc(needed);
 		snprintf(args, needed,
-				"-I . -D TRANSPOSE_TILE_DIM=(%d) -D TRANSPOSE_TILE_BLOCK_ROWS=(%d) %s",
+				"-I . -D TRANSPOSE_TILE_DIM=(%d) -D TRANSPOSE_TILE_BLOCK_ROWS=(%d) %s ",
 				TRANSPOSE_TILE_DIM, TRANSPOSE_TILE_BLOCK_ROWS, prog_args);
 		//	ret |= clBuildProgram(frame->program_opencl_core, 1, &(frame->device), args, NULL, NULL);
 
 	}
-//TODO support OPENCL_SINGLE_KERNEL_PROGS
-//TODO Modularize buildAndCheck (probably macro)
 	ret |= clBuildProgram(prog, 1, &(frame->device), args,
 			NULL, NULL);
 	//Let us know if there's any errors in the build process
@@ -149,7 +147,7 @@ cl_int metaOpenCLBuildSingleKernelProgram(metaOpenCLStackFrame * frame, cl_progr
 	char * log = (char *) malloc(sizeof(char) * (logsize + 1));
 	clGetProgramBuildInfo(prog, frame->device,
 			CL_PROGRAM_BUILD_LOG, logsize, log, NULL);
-	fprintf(stderr, "CL_PROGRAM_BUILD_LOG:\n%s", log);
+	if (logsize > 2) fprintf(stderr, "CL_PROGRAM_BUILD_LOG:\n%s", log);
 	free(log);
 	return ret;
 }
@@ -199,10 +197,10 @@ cl_int metaOpenCLBuildProgram(metaOpenCLStackFrame * frame) {
 	ENSURE_SRC(csr_ul);
 	ENSURE_SRC(csr_in);
 	ENSURE_SRC(csr_ui);
-	ENSURE_SRC(crc_db);
-	ENSURE_SRC(crc_fl);
-	ENSURE_SRC(crc_ul);
-	ENSURE_SRC(crc_in);
+//	ENSURE_SRC(crc_db);
+//	ENSURE_SRC(crc_fl);
+//	ENSURE_SRC(crc_ul);
+//	ENSURE_SRC(crc_in);
 	ENSURE_SRC(crc_ui);
 #undef ENSURE_SRC
 #elif defined(WITH_INTELFPGA) && !defined(OPENCL_SINGLE_KERNEL_PROGS)
@@ -250,10 +248,10 @@ cl_int metaOpenCLBuildProgram(metaOpenCLStackFrame * frame) {
 	frame->program_csr_ul = clCreateProgramWithSource(frame->context, 1,&(frame->metaCLProgSrc), &(frame->metaCLProgLen), NULL);
 	frame->program_csr_in = clCreateProgramWithSource(frame->context, 1,&(frame->metaCLProgSrc), &(frame->metaCLProgLen), NULL);
 	frame->program_csr_ui = clCreateProgramWithSource(frame->context, 1,&(frame->metaCLProgSrc), &(frame->metaCLProgLen), NULL);
-	frame->program_crc_db = clCreateProgramWithSource(frame->context, 1,&(frame->metaCLProgSrc), &(frame->metaCLProgLen), NULL);
-	frame->program_crc_fl = clCreateProgramWithSource(frame->context, 1,&(frame->metaCLProgSrc), &(frame->metaCLProgLen), NULL);
-	frame->program_crc_ul = clCreateProgramWithSource(frame->context, 1,&(frame->metaCLProgSrc), &(frame->metaCLProgLen), NULL);
-	frame->program_crc_in = clCreateProgramWithSource(frame->context, 1,&(frame->metaCLProgSrc), &(frame->metaCLProgLen), NULL);
+//	frame->program_crc_db = clCreateProgramWithSource(frame->context, 1,&(frame->metaCLProgSrc), &(frame->metaCLProgLen), NULL);
+//	frame->program_crc_fl = clCreateProgramWithSource(frame->context, 1,&(frame->metaCLProgSrc), &(frame->metaCLProgLen), NULL);
+//	frame->program_crc_ul = clCreateProgramWithSource(frame->context, 1,&(frame->metaCLProgSrc), &(frame->metaCLProgLen), NULL);
+//	frame->program_crc_in = clCreateProgramWithSource(frame->context, 1,&(frame->metaCLProgSrc), &(frame->metaCLProgLen), NULL);
 	frame->program_crc_ui = clCreateProgramWithSource(frame->context, 1,&(frame->metaCLProgSrc), &(frame->metaCLProgLen), NULL);
 //TODO Implement (or can this be the same as OpenCL without IntelFPGA, since it's just reading the source and the defines come in during build
 #else
@@ -262,7 +260,7 @@ cl_int metaOpenCLBuildProgram(metaOpenCLStackFrame * frame) {
 				&(frame->metaCLProgSrc));
 	}
 	frame->program_opencl_core = clCreateProgramWithSource(frame->context, 1,
-			&(frame->metaCLProgSrc), &(frame->metaCLProgLen), NULL);
+			&(frame->metaCLProgSrc), &(frame->metaCLProgLen), &ret);
 #endif
 
 //TODO Support OPENCL_SINGLE_KERNEL_PROGS
@@ -289,35 +287,35 @@ cl_int metaOpenCLBuildProgram(metaOpenCLStackFrame * frame) {
 	frame->kernel_dotProd_ui = clCreateKernel(frame->program_opencl_core,
 			"kernel_dotProd_ui", &ret);
 	frame->kernel_transpose_2d_face_db = clCreateKernel(
-			frame->program_opencl_core, "kernel_transpose_2d_db", &ret);
+			frame->program_opencl_core, "kernel_transpose_2d_face_db", &ret);
 	frame->kernel_transpose_2d_face_fl = clCreateKernel(
-			frame->program_opencl_core, "kernel_transpose_2d_fl", &ret);
+			frame->program_opencl_core, "kernel_transpose_2d_face_fl", &ret);
 	frame->kernel_transpose_2d_face_ul = clCreateKernel(
-			frame->program_opencl_core, "kernel_transpose_2d_ul", &ret);
+			frame->program_opencl_core, "kernel_transpose_2d_face_ul", &ret);
 	frame->kernel_transpose_2d_face_in = clCreateKernel(
-			frame->program_opencl_core, "kernel_transpose_2d_in", &ret);
+			frame->program_opencl_core, "kernel_transpose_2d_face_in", &ret);
 	frame->kernel_transpose_2d_face_ui = clCreateKernel(
-			frame->program_opencl_core, "kernel_transpose_2d_ui", &ret);
+			frame->program_opencl_core, "kernel_transpose_2d_face_ui", &ret);
 	frame->kernel_pack_2d_face_db = clCreateKernel(frame->program_opencl_core,
-			"kernel_pack_db", &ret);
+			"kernel_pack_2d_face_db", &ret);
 	frame->kernel_pack_2d_face_fl = clCreateKernel(frame->program_opencl_core,
-			"kernel_pack_fl", &ret);
+			"kernel_pack_2d_face_fl", &ret);
 	frame->kernel_pack_2d_face_ul = clCreateKernel(frame->program_opencl_core,
-			"kernel_pack_ul", &ret);
+			"kernel_pack_2d_face_ul", &ret);
 	frame->kernel_pack_2d_face_in = clCreateKernel(frame->program_opencl_core,
-			"kernel_pack_in", &ret);
+			"kernel_pack_2d_face_in", &ret);
 	frame->kernel_pack_2d_face_ui = clCreateKernel(frame->program_opencl_core,
-			"kernel_pack_ui", &ret);
+			"kernel_pack_2d_face_ui", &ret);
 	frame->kernel_unpack_2d_face_db = clCreateKernel(frame->program_opencl_core,
-			"kernel_unpack_db", &ret);
+			"kernel_unpack_2d_face_db", &ret);
 	frame->kernel_unpack_2d_face_fl = clCreateKernel(frame->program_opencl_core,
-			"kernel_unpack_fl", &ret);
+			"kernel_unpack_2d_face_fl", &ret);
 	frame->kernel_unpack_2d_face_ul = clCreateKernel(frame->program_opencl_core,
-			"kernel_unpack_ul", &ret);
+			"kernel_unpack_2d_face_ul", &ret);
 	frame->kernel_unpack_2d_face_in = clCreateKernel(frame->program_opencl_core,
-			"kernel_unpack_in", &ret);
+			"kernel_unpack_2d_face_in", &ret);
 	frame->kernel_unpack_2d_face_ui = clCreateKernel(frame->program_opencl_core,
-			"kernel_unpack_ui", &ret);
+			"kernel_unpack_2d_face_ui", &ret);
 	frame->kernel_stencil_3d7p_db = clCreateKernel(frame->program_opencl_core,
 			"kernel_stencil_3d7p_db", &ret);
 	frame->kernel_stencil_3d7p_fl = clCreateKernel(frame->program_opencl_core,
@@ -338,19 +336,20 @@ cl_int metaOpenCLBuildProgram(metaOpenCLStackFrame * frame) {
 			"kernel_csr_in", &ret);
 	frame->kernel_csr_fl = clCreateKernel(frame->program_opencl_core,
 			"kernel_csr_ui", &ret);
-	frame->kernel_crc_ui = clCreateKernel(frame->program_opencl_core,
-			"kernel_crc_db", &ret);
-	frame->kernel_crc_ui = clCreateKernel(frame->program_opencl_core,
-			"kernel_crc_fl", &ret);
-	frame->kernel_crc_ui = clCreateKernel(frame->program_opencl_core,
-			"kernel_crc_ul", &ret);
-	frame->kernel_crc_ui = clCreateKernel(frame->program_opencl_core,
-			"kernel_crc_in", &ret);
+//	frame->kernel_crc_db = clCreateKernel(frame->program_opencl_core,
+//			"kernel_crc_db", &ret);
+//	frame->kernel_crc_fl = clCreateKernel(frame->program_opencl_core,
+//			"kernel_crc_fl", &ret);
+//	frame->kernel_crc_ul = clCreateKernel(frame->program_opencl_core,
+//			"kernel_crc_ul", &ret);
+//	frame->kernel_crc_in = clCreateKernel(frame->program_opencl_core,
+//			"kernel_crc_in", &ret);
 	frame->kernel_crc_ui = clCreateKernel(frame->program_opencl_core,
 			"kernel_crc_ui", &ret);
 #else
 #define BUILD_PROG_AND_KERNEL(name, opts) ret |= metaOpenCLBuildSingleKernelProgram(frame, frame->program_##name, opts); \
-	frame->kernel_##name = clCreateKernel(frame->program_##name, "kernel_##name", &ret);
+	frame->kernel_##name = clCreateKernel(frame->program_##name, "kernel_"#name, &ret); \
+        if (ret != CL_SUCCESS) fprintf(stderr, "Error in clCreateKernel for kernel_"#name" %d\n", ret);
 //	ret |= metaOpenCLBuildSingleKernelProgram(frame, frame->program_reduce_db, "-D DOUBLE -D KERNEL_REDUCE");
 //	frame->kernel_reduce_db = clCreateKernel(frame->program_opencl_reduce_db, "kernel_reduce_db", &ret);
 	BUILD_PROG_AND_KERNEL(reduce_db, "-D SINGLE_KERNEL_PROGS -D DOUBLE -D KERNEL_REDUCE")
@@ -388,10 +387,10 @@ cl_int metaOpenCLBuildProgram(metaOpenCLStackFrame * frame) {
 	BUILD_PROG_AND_KERNEL(csr_ul, "-D SINGLE_KERNEL_PROGS -D UNSIGNED_LONG -D KERNEL_CSR")
 	BUILD_PROG_AND_KERNEL(csr_in, "-D SINGLE_KERNEL_PROGS -D INTEGER -D KERNEL_CSR")
 	BUILD_PROG_AND_KERNEL(csr_ui, "-D SINGLE_KERNEL_PROGS -D UNSIGNED_INTEGER -D KERNEL_CSR")
-	BUILD_PROG_AND_KERNEL(crc_db, "-D SINGLE_KERNEL_PROGS -D DOUBLE -D KERNEL_CRC")
-	BUILD_PROG_AND_KERNEL(crc_fl, "-D SINGLE_KERNEL_PROGS -D FLOAT -D KERNEL_CRC")
-	BUILD_PROG_AND_KERNEL(crc_ul, "-D SINGLE_KERNEL_PROGS -D UNSIGNED_LONG -D KERNEL_CRC")
-	BUILD_PROG_AND_KERNEL(crc_in, "-D SINGLE_KERNEL_PROGS -D INTEGER -D KERNEL_CRC")
+//	BUILD_PROG_AND_KERNEL(crc_db, "-D SINGLE_KERNEL_PROGS -D DOUBLE -D KERNEL_CRC")
+//	BUILD_PROG_AND_KERNEL(crc_fl, "-D SINGLE_KERNEL_PROGS -D FLOAT -D KERNEL_CRC")
+//	BUILD_PROG_AND_KERNEL(crc_ul, "-D SINGLE_KERNEL_PROGS -D UNSIGNED_LONG -D KERNEL_CRC")
+//	BUILD_PROG_AND_KERNEL(crc_in, "-D SINGLE_KERNEL_PROGS -D INTEGER -D KERNEL_CRC")
 	BUILD_PROG_AND_KERNEL(crc_ui, "-D SINGLE_KERNEL_PROGS -D UNSIGNED_INTEGER -D KERNEL_CRC")
 #endif
         //Reinitialize OpenCL add-on modules
@@ -640,7 +639,7 @@ void copyStackFrameToNode(metaOpenCLStackFrame * f,
 //WARNING assumes all parameters of metaOpenCLStackNode are set, except "next"
 void metaOpenCLPushStackFrame(metaOpenCLStackFrame * frame) {
 	//copy the frame, this is still the thread-private "allocated" state
-	metaOpenCLStackNode * newNode = (metaOpenCLStackNode *) malloc(
+	metaOpenCLStackNode * newNode = (metaOpenCLStackNode *) calloc(1,
 			sizeof(metaOpenCLStackNode));
 	copyStackFrameToNode(frame, &newNode);
 
@@ -653,7 +652,7 @@ void metaOpenCLPushStackFrame(metaOpenCLStackFrame * frame) {
 }
 
 metaOpenCLStackFrame * metaOpenCLTopStackFrame() {
-	metaOpenCLStackFrame * frame = (metaOpenCLStackFrame *) malloc(
+	metaOpenCLStackFrame * frame = (metaOpenCLStackFrame *) calloc(1,
 			sizeof(metaOpenCLStackFrame));
 	metaOpenCLStackNode * t = CLStack; //Hazards start
 	//so set a hazard pointer
@@ -665,7 +664,7 @@ metaOpenCLStackFrame * metaOpenCLTopStackFrame() {
 }
 
 metaOpenCLStackFrame * metaOpenCLPopStackFrame() {
-	metaOpenCLStackFrame * frame = (metaOpenCLStackFrame *) malloc(
+	metaOpenCLStackFrame * frame = (metaOpenCLStackFrame *) calloc(1,
 			sizeof(metaOpenCLStackFrame));
 	metaOpenCLStackNode * t = CLStack; //Hazards start
 	//so set a hazard pointer
@@ -702,7 +701,7 @@ a_int meta_set_state_OpenCL(cl_platform_id platform, cl_device_id device,
 		return -1;
 	}
 	//Make a frame
-	metaOpenCLStackFrame * frame = (metaOpenCLStackFrame *) malloc(
+	metaOpenCLStackFrame * frame = (metaOpenCLStackFrame *) calloc(1, 
 			sizeof(metaOpenCLStackFrame));
 
 	//copy the info into the frame
@@ -751,7 +750,7 @@ cl_int metaOpenCLInitStackFrame(metaOpenCLStackFrame ** frame, cl_int device) {
 	if (device == -1)
 		return metaOpenCLInitStackFrameDefault(frame);
 
-	*frame = (metaOpenCLStackFrame *) malloc(sizeof(metaOpenCLStackFrame));
+	*frame = (metaOpenCLStackFrame *) calloc(1, sizeof(metaOpenCLStackFrame));
 	//TODO use the device array to do reverse lookup to figure out which platform to attach to the frame.
 	//TODO ensure the device array has been initialized by somebody (even if I have to do it) before executing this block
 	//TODO implement an intelligent catch for if the device number is out of range
@@ -829,10 +828,10 @@ cl_int metaOpenCLDestroyStackFrame(metaOpenCLStackFrame * frame) {
 	clReleaseKernel(frame->kernel_csr_ul);
 	clReleaseKernel(frame->kernel_csr_in);
 	clReleaseKernel(frame->kernel_csr_ui);
-	clReleaseKernel(frame->kernel_crc_db);
-	clReleaseKernel(frame->kernel_crc_fl);
-	clReleaseKernel(frame->kernel_crc_ul);
-	clReleaseKernel(frame->kernel_crc_in);
+//	clReleaseKernel(frame->kernel_crc_db);
+//	clReleaseKernel(frame->kernel_crc_fl);
+//	clReleaseKernel(frame->kernel_crc_ul);
+//	clReleaseKernel(frame->kernel_crc_in);
 	clReleaseKernel(frame->kernel_crc_ui);
 
 	//Release Internal Buffers
@@ -880,10 +879,10 @@ cl_int metaOpenCLDestroyStackFrame(metaOpenCLStackFrame * frame) {
 	clReleaseProgram(frame->program_csr_ul);
 	clReleaseProgram(frame->program_csr_in);
 	clReleaseProgram(frame->program_csr_ui);
-	clReleaseProgram(frame->program_crc_db);
-	clReleaseProgram(frame->program_crc_fl);
-	clReleaseProgram(frame->program_crc_ul);
-	clReleaseProgram(frame->program_crc_in);
+//	clReleaseProgram(frame->program_crc_db);
+//	clReleaseProgram(frame->program_crc_fl);
+//	clReleaseProgram(frame->program_crc_ul);
+//	clReleaseProgram(frame->program_crc_in);
 	clReleaseProgram(frame->program_crc_ui);
 	
 #endif
@@ -962,14 +961,14 @@ cl_int metaOpenCLDestroyStackFrame(metaOpenCLStackFrame * frame) {
 	frame->metaCLbinLen_csr_in = 0;
 	free((void *) frame->metaCLbin_csr_ui);
 	frame->metaCLbinLen_csr_ui = 0;
-	free((void *) frame->metaCLbin_crc_db);
-	frame->metaCLbinLen_crc_db = 0;
-	free((void *) frame->metaCLbin_crc_fl);
-	frame->metaCLbinLen_crc_fl = 0;
-	free((void *) frame->metaCLbin_crc_ul);
-	frame->metaCLbinLen_crc_ul = 0;
-	free((void *) frame->metaCLbin_crc_in);
-	frame->metaCLbinLen_crc_in = 0;
+//	free((void *) frame->metaCLbin_crc_db);
+//	frame->metaCLbinLen_crc_db = 0;
+//	free((void *) frame->metaCLbin_crc_fl);
+//	frame->metaCLbinLen_crc_fl = 0;
+//	free((void *) frame->metaCLbin_crc_ul);
+//	frame->metaCLbinLen_crc_ul = 0;
+//	free((void *) frame->metaCLbin_crc_in);
+//	frame->metaCLbinLen_crc_in = 0;
 	free((void *) frame->metaCLbin_crc_ui);
 	frame->metaCLbinLen_crc_ui = 0;
 #else
@@ -1751,19 +1750,19 @@ cl_int opencl_csr(size_t global_size, size_t local_size,
 	metaOpenCLStackFrame * frame = metaOpenCLTopStackFrame();
 	switch (type) {
 	case a_db:
-		kern = frame->kernel_csr_fl;
+		kern = frame->kernel_csr_db;
 		break;
 	case a_fl:
 		kern = frame->kernel_csr_fl;
 		break;
 	case a_ul:
-		kern = frame->kernel_csr_fl;
+		kern = frame->kernel_csr_ul;
 		break;
 	case a_in:
-		kern = frame->kernel_csr_fl;
+		kern = frame->kernel_csr_in;
 		break;
 	case a_ui:
-		kern = frame->kernel_csr_fl;
+		kern = frame->kernel_csr_ui;
 		break;
 	default:
 		fprintf(stderr,
@@ -1801,7 +1800,7 @@ cl_int opencl_crc(size_t global_size, size_t local_size,
 
 //TODO it doesn't do anything with size since it uses a task, either enforce it or remove it	
 //TODO I doubt there is any reason for non-FPGA platforms to use a task
-	
+//TODO Since it operates on binary data, having it typed is sort of nonsense	
 	metaOpenCLStackFrame * frame = metaOpenCLTopStackFrame();
 	switch (type) {
 	case a_db:
@@ -1827,9 +1826,9 @@ cl_int opencl_crc(size_t global_size, size_t local_size,
 	}
 
 	ret = clSetKernelArg(kern, 0, sizeof(cl_mem *), &dev_input);
-	ret |= clSetKernelArg(kern, 1, sizeof(int), &page_size);
-	ret |= clSetKernelArg(kern, 2, sizeof(int), &num_words);
-	ret |= clSetKernelArg(kern, 3, sizeof(int), &numpages);
+	ret |= clSetKernelArg(kern, 1, sizeof(cl_uint), &page_size);
+	ret |= clSetKernelArg(kern, 2, sizeof(cl_uint), &num_words);
+	ret |= clSetKernelArg(kern, 3, sizeof(cl_uint), &numpages);
 	ret |= clSetKernelArg(kern, 4, sizeof(cl_mem *), &dev_output);
 	
 	//ret = clEnqueueTask(frame->queue, kern, 1, wait, event);

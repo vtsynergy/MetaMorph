@@ -125,14 +125,14 @@ typedef struct metaOpenCLStackFrame {
 	size_t metaCLbinLen_csr_in;
 	const char *metaCLbin_csr_ui;
 	size_t metaCLbinLen_csr_ui;
-	const char *metaCLbin_crc_db;
-	size_t metaCLbinLen_crc_db;
-	const char *metaCLbin_crc_fl;
-	size_t metaCLbinLen_crc_fl;
-	const char *metaCLbin_crc_ul;
-	size_t metaCLbinLen_crc_ul;
-	const char *metaCLbin_crc_in;
-	size_t metaCLbinLen_crc_in;
+//	const char *metaCLbin_crc_db;
+//	size_t metaCLbinLen_crc_db;
+//	const char *metaCLbin_crc_fl;
+//	size_t metaCLbinLen_crc_fl;
+//	const char *metaCLbin_crc_ul;
+//	size_t metaCLbinLen_crc_ul;
+//	const char *metaCLbin_crc_in;
+//	size_t metaCLbinLen_crc_in;
 	const char *metaCLbin_crc_ui;
 	size_t metaCLbinLen_crc_ui;
 #else
@@ -181,10 +181,10 @@ typedef struct metaOpenCLStackFrame {
 	cl_program program_csr_ul;
 	cl_program program_csr_in;
 	cl_program program_csr_ui;
-	cl_program program_crc_db;
-	cl_program program_crc_fl;
-	cl_program program_crc_ul;
-	cl_program program_crc_in;
+//	cl_program program_crc_db;
+//	cl_program program_crc_fl;
+//	cl_program program_crc_ul;
+//	cl_program program_crc_in;
 	cl_program program_crc_ui;
 #endif
 
@@ -223,10 +223,10 @@ typedef struct metaOpenCLStackFrame {
 	cl_kernel kernel_csr_ul;
 	cl_kernel kernel_csr_in;
 	cl_kernel kernel_csr_ui;
-	cl_kernel kernel_crc_db;
-	cl_kernel kernel_crc_fl;
-	cl_kernel kernel_crc_ul;
-	cl_kernel kernel_crc_in;
+//	cl_kernel kernel_crc_db;
+//	cl_kernel kernel_crc_fl;
+//	cl_kernel kernel_crc_ul;
+//	cl_kernel kernel_crc_in;
 	cl_kernel kernel_crc_ui;
 
 	cl_mem constant_face_size;

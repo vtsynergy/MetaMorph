@@ -119,21 +119,27 @@ $(error OPENCL_INCL_DIR set without setting OPENCL_LIB_DIR)
 endif
 else
 #NVIDIA installations
+ifeq ($(OPENCL_LIB_DIR),)
 ifneq ($(CUDA_LIB_DIR),)
 OPENCL_LIB_DIR=$(CUDA_LIB_DIR)
 OPENCL_INCL_DIR=$(patsubst %/lib,%,$(patsubst %/lib64,%,$(CUDA_LIB_DIR)))/include
 endif
+endif
 #TODO AMD APP SDK installations (though deprecated)
 
 #AMD ROCM installations
+ifeq ($(OPENCL_LIB_DIR),)
 ifeq ($(shell test -e /opt/rocm/opencl/include/CL/opencl.h && echo -n yes),yes)
 OPENCL_LIB_DIR=/opt/rocm/opencl/lib/x86_64
 OPENCL_INCL_DIR=/opt/rocm/opencl/include
 endif
+endif
+ifeq ($(OPENCL_LIB_DIR),)
 ifeq ($(shell test -e /opt/intel/opencl/lib64/libOpenCL.so && echo -n yes),yes)
 ifeq ($(shell test -e /opt/intel/opencl/include/CL/opencl.h && echo -n yes),yes)
 OPENCL_LIB_DIR=/opt/intel/opencl/lib64
 OPENCL_INCL_DIR=/opt/intel/opencl/include
+endif
 endif
 endif
 
@@ -209,7 +215,7 @@ endif
 
 
 
-export G_TYPE = UNSIGNED_INTEGER
+export G_TYPE = DOUBLE
 #export OPT_LVL = -g -DDEBUG
 export OPT_LVL = -O3
 export L_FLAGS= -fPIC -shared
@@ -349,7 +355,7 @@ all: libmetamorph.so
 #	$(CC) $(MM_CORE)/metamorph.c $(MM_CORE)/metamorph_timers.c $(CC_FLAGS) $(INCLUDES) -L $(MM_LIB) -D WITH_OPENMP -D WITH_OPENCL -D WITH_CUDA -D WITH_TIMERS -L /usr/local/cuda/lib64 -lmm_openmp_backend  -lmm_cuda_backend -lmm_opencl_backend -lOpenCL -lcudart -o $(MM_LIB)/libmetamorph.so
 #endif
 libmetamorph.so: $(MM_DEPS)
-	$(CC) $(MM_CORE)/metamorph.c $(CC_FLAGS) $(INCLUDES) -L$(MM_LIB) $(MM_COMPONENTS) -o $(MM_LIB)/libmetamorph.so -shared -Wl,-soname,libmetamorph.so
+	$(CC) $(MM_CORE)/metamorph.c $(CC_FLAGS) $(INCLUDES) -L$(MM_LIB) $(MM_COMPONENTS) -o $(MM_LIB)/libmetamorph.so -shared -Wl,-soname,libmetamorph.so -g
 
 #these old single-backend targets are deprecated now that the above is modular
 libmetamorph_mp.so: libmm_openmp_backend.so
@@ -411,7 +417,7 @@ csr_ex:
 crc_ex:
 	cd $(MM_EX) && $(MFLAGS) $(MAKE) crc_alt
 clean:
-	rm $(MM_LIB)/libmetamorph*.so $(MM_LIB)/libmm*.so
+	rm $(MM_LIB)/libmetamorph*.so $(MM_LIB)/libmm*.so $(MM_CU)/mm_cuda_backend.o
 
 refresh:
 	rm $(MM_EX)/crc_alt $(MM_EX)/mm_opencl_intelfpga_backend.aocx

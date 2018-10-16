@@ -404,7 +404,7 @@ __kernel void kernel_reduce_db(__global double *phi,
 }
 #endif
 
-#ifdef (defined(FLOAT) && defined(KERNEL_REDUCE))
+#if (defined(FLOAT) && defined(KERNEL_REDUCE))
 __kernel void kernel_reduce_fl(__global float *phi,
 		int i, int j, int k,
 		int sx, int sy, int sz,
@@ -541,7 +541,7 @@ __kernel void kernel_reduce_ui(__global unsigned int *phi,
 #endif
 
 #if (defined(DOUBLE) && defined(KERNEL_TRANSPOSE))
-__kernel void kernel_transpose_2d_db(__global double *odata, __global double *idata, int arr_width, int arr_height, int tran_width, int tran_height, __local double * tile)
+__kernel void kernel_transpose_2d_face_db(__global double *odata, __global double *idata, int arr_width, int arr_height, int tran_width, int tran_height, __local double * tile)
 {
 //    __local double tile[TRANSPOSE_TILE_DIM][TRANSPOSE_TILE_DIM+1];
 
@@ -604,7 +604,7 @@ __kernel void kernel_transpose_2d_db(__global double *odata, __global double *id
 #endif
 
 #if (defined(FLOAT) && defined(KERNEL_TRANSPOSE))
-__kernel void kernel_transpose_2d_fl(__global float *odata, __global float *idata, int arr_width, int arr_height, int tran_width, int tran_height, __local float * tile)
+__kernel void kernel_transpose_2d_face_fl(__global float *odata, __global float *idata, int arr_width, int arr_height, int tran_width, int tran_height, __local float * tile)
 {
 //    __local float tile[TRANSPOSE_TILE_DIM][TRANSPOSE_TILE_DIM+1];
 
@@ -667,7 +667,7 @@ __kernel void kernel_transpose_2d_fl(__global float *odata, __global float *idat
 #endif
 
 #if (defined(UNSIGNED_LONG) && defined(KERNEL_TRANSPOSE))
-__kernel void kernel_transpose_2d_ul(__global unsigned long *odata, __global unsigned long *idata, int arr_width, int arr_height, int tran_width, int tran_height, __local unsigned long * tile)
+__kernel void kernel_transpose_2d_face_ul(__global unsigned long *odata, __global unsigned long *idata, int arr_width, int arr_height, int tran_width, int tran_height, __local unsigned long * tile)
 {
 //    __local unsigned long tile[TRANSPOSE_TILE_DIM][TRANSPOSE_TILE_DIM+1];
 
@@ -730,7 +730,7 @@ __kernel void kernel_transpose_2d_ul(__global unsigned long *odata, __global uns
 #endif
 
 #if (defined(INTEGER) && defined(KERNEL_TRANSPOSE))
-__kernel void kernel_transpose_2d_in(__global int *odata, __global int *idata, int arr_width, int arr_height, int tran_width, int tran_height, __local int * tile)
+__kernel void kernel_transpose_2d_face_in(__global int *odata, __global int *idata, int arr_width, int arr_height, int tran_width, int tran_height, __local int * tile)
 {
 //    __local int tile[TRANSPOSE_TILE_DIM][TRANSPOSE_TILE_DIM+1];
 
@@ -793,7 +793,7 @@ __kernel void kernel_transpose_2d_in(__global int *odata, __global int *idata, i
 #endif
 
 #if (defined(UNSIGNED_INTEGER) && defined(KERNEL_TRANSPOSE))
-__kernel void kernel_transpose_2d_ui(__global unsigned int *odata, __global unsigned int *idata, int arr_width, int arr_height, int tran_width, int tran_height, __local unsigned int * tile)
+__kernel void kernel_transpose_2d_face_ui(__global unsigned int *odata, __global unsigned int *idata, int arr_width, int arr_height, int tran_width, int tran_height, __local unsigned int * tile)
 {
 //    __local unsigned int tile[TRANSPOSE_TILE_DIM][TRANSPOSE_TILE_DIM+1];
 
@@ -889,7 +889,7 @@ int get_pack_index (int tid, __local int * a, int start, int count, __constant i
 #endif
 
 #if (defined(DOUBLE) && defined(KERNEL_PACK))
-__kernel void kernel_pack_db(__global double *packed_buf, __global double *buf, int size, int start, int count, __constant int * c_face_size, __constant int * c_face_stride, __constant int * c_face_child_size, __local int *a)
+__kernel void kernel_pack_2d_face_db(__global double *packed_buf, __global double *buf, int size, int start, int count, __constant int * c_face_size, __constant int * c_face_stride, __constant int * c_face_child_size, __local int *a)
 {
 	int idx = get_global_id(0);
 	const int nthreads = get_global_size(0);
@@ -900,7 +900,7 @@ __kernel void kernel_pack_db(__global double *packed_buf, __global double *buf, 
 #endif
 
 #if (defined(FLOAT) && defined (KERNEL_PACK))
-__kernel void kernel_pack_fl(__global float *packed_buf, __global float *buf, int size, int start, int count, __constant int * c_face_size, __constant int * c_face_stride, __constant int * c_face_child_size, __local int *a)
+__kernel void kernel_pack_2d_face_fl(__global float *packed_buf, __global float *buf, int size, int start, int count, __constant int * c_face_size, __constant int * c_face_stride, __constant int * c_face_child_size, __local int *a)
 {
 	int idx = get_global_id(0);
 	const int nthreads = get_global_size(0);
@@ -911,7 +911,7 @@ __kernel void kernel_pack_fl(__global float *packed_buf, __global float *buf, in
 #endif
 
 #if (defined(UNSIGNED_LONG) && defined(KERNEL_PACK))
-__kernel void kernel_pack_ul(__global unsigned long *packed_buf, __global unsigned long *buf, int size, int start, int count, __constant int * c_face_size, __constant int * c_face_stride, __constant int * c_face_child_size, __local int *a)
+__kernel void kernel_pack_2d_face_ul(__global unsigned long *packed_buf, __global unsigned long *buf, int size, int start, int count, __constant int * c_face_size, __constant int * c_face_stride, __constant int * c_face_child_size, __local int *a)
 {
 	int idx = get_global_id(0);
 	const int nthreads = get_global_size(0);
@@ -922,7 +922,7 @@ __kernel void kernel_pack_ul(__global unsigned long *packed_buf, __global unsign
 #endif
 
 #if (defined(INTEGER) && defined(KERNEL_PACK))
-__kernel void kernel_pack_in(__global int *packed_buf, __global int *buf, int size, int start, int count, __constant int * c_face_size, __constant int * c_face_stride, __constant int * c_face_child_size, __local int *a)
+__kernel void kernel_pack_2d_face_in(__global int *packed_buf, __global int *buf, int size, int start, int count, __constant int * c_face_size, __constant int * c_face_stride, __constant int * c_face_child_size, __local int *a)
 {
 	int idx = get_global_id(0);
 	const int nthreads = get_global_size(0);
@@ -933,7 +933,7 @@ __kernel void kernel_pack_in(__global int *packed_buf, __global int *buf, int si
 #endif
 
 #if (defined(UNSIGNED_INTEGER) && defined(KERNEL_PACK))
-__kernel void kernel_pack_ui(__global unsigned int *packed_buf, __global unsigned int *buf, int size, int start, int count, __constant int * c_face_size, __constant int * c_face_stride, __constant int * c_face_child_size, __local int *a)
+__kernel void kernel_pack_2d_face_ui(__global unsigned int *packed_buf, __global unsigned int *buf, int size, int start, int count, __constant int * c_face_size, __constant int * c_face_stride, __constant int * c_face_child_size, __local int *a)
 {
 	int idx = get_global_id(0);
 	const int nthreads = get_global_size(0);
@@ -944,7 +944,7 @@ __kernel void kernel_pack_ui(__global unsigned int *packed_buf, __global unsigne
 #endif
 
 #if (defined(DOUBLE) && defined(KERNEL_UNPACK))
-__kernel void kernel_unpack_db(__global double *packed_buf, __global double *buf, int size, int start, int count, __constant int * c_face_size, __constant int * c_face_stride, __constant int * c_face_child_size, __local int *a)
+__kernel void kernel_unpack_2d_face_db(__global double *packed_buf, __global double *buf, int size, int start, int count, __constant int * c_face_size, __constant int * c_face_stride, __constant int * c_face_child_size, __local int *a)
 {
 	int idx = get_global_id(0);
 	const int nthreads = get_global_size(0);
@@ -955,7 +955,7 @@ __kernel void kernel_unpack_db(__global double *packed_buf, __global double *buf
 #endif
 
 #if (defined(FLOAT) && defined(KERNEL_UNPACK))
-__kernel void kernel_unpack_fl(__global float *packed_buf, __global float *buf, int size, int start, int count, __constant int * c_face_size, __constant int * c_face_stride, __constant int * c_face_child_size, __local int *a)
+__kernel void kernel_unpack_2d_face_fl(__global float *packed_buf, __global float *buf, int size, int start, int count, __constant int * c_face_size, __constant int * c_face_stride, __constant int * c_face_child_size, __local int *a)
 {
 	int idx = get_global_id(0);
 	const int nthreads = get_global_size(0);
@@ -966,7 +966,7 @@ __kernel void kernel_unpack_fl(__global float *packed_buf, __global float *buf, 
 #endif
 
 #if (defined(UNSIGNED_LONG) && defined(KERNEL_UNPACK))
-__kernel void kernel_unpack_ul(__global unsigned long *packed_buf, __global unsigned long *buf, int size, int start, int count, __constant int * c_face_size, __constant int * c_face_stride, __constant int * c_face_child_size, __local int *a)
+__kernel void kernel_unpack_2d_face_ul(__global unsigned long *packed_buf, __global unsigned long *buf, int size, int start, int count, __constant int * c_face_size, __constant int * c_face_stride, __constant int * c_face_child_size, __local int *a)
 {
 	int idx = get_global_id(0);
 	const int nthreads = get_global_size(0);
@@ -977,7 +977,7 @@ __kernel void kernel_unpack_ul(__global unsigned long *packed_buf, __global unsi
 #endif
 
 #if (defined(INTEGER) && defined(KERNEL_UNPACK))
-__kernel void kernel_unpack_in(__global int *packed_buf, __global int *buf, int size, int start, int count, __constant int * c_face_size, __constant int * c_face_stride, __constant int * c_face_child_size, __local int *a)
+__kernel void kernel_unpack_2d_face_in(__global int *packed_buf, __global int *buf, int size, int start, int count, __constant int * c_face_size, __constant int * c_face_stride, __constant int * c_face_child_size, __local int *a)
 {
 	int idx = get_global_id(0);
 	const int nthreads = get_global_size(0);
@@ -988,7 +988,7 @@ __kernel void kernel_unpack_in(__global int *packed_buf, __global int *buf, int 
 #endif
 
 #if (defined(UNSIGNED_INTEGER) && defined(KERNEL_UNPACK))
-__kernel void kernel_unpack_ui(__global unsigned int *packed_buf, __global unsigned int *buf, int size, int start, int count, __constant int * c_face_size, __constant int * c_face_stride, __constant int * c_face_child_size, __local int *a)
+__kernel void kernel_unpack_2d_face_ui(__global unsigned int *packed_buf, __global unsigned int *buf, int size, int start, int count, __constant int * c_face_size, __constant int * c_face_stride, __constant int * c_face_child_size, __local int *a)
 {
 	int idx = get_global_id(0);
 	const int nthreads = get_global_size(0);
@@ -1169,7 +1169,7 @@ __kernel void kernel_stencil_3d7p_fl(const __global float * __restrict__ ind, __
 
 //Read-only cache + Rigster blocking (Z)
 // work only with 2D thread blocks
-#if (defined(UNSIGNED_LONG) && defined(KERNEL_STENCIL)
+#if (defined(UNSIGNED_LONG) && defined(KERNEL_STENCIL))
 __kernel void kernel_stencil_3d7p_ul(const __global unsigned long * __restrict__ ind, __global unsigned long * __restrict__ outd,
 		int i, int j, int k,
 		int sx, int sy, int sz,
@@ -1285,6 +1285,35 @@ __kernel void kernel_stencil_3d7p_ui(const __global unsigned int * __restrict__ 
 
 //CSR kernel 
 // work only with 1D 
+#if (defined(DOUBLE) && defined (KERNEL_CSR))
+__kernel void kernel_csr_db(const unsigned int num_rows,
+                __global unsigned int * Ap,
+                __global unsigned int * Aj,
+                __global double * Ax,
+                __global double * x,
+                __global double * y) {
+	
+	unsigned int row = get_global_id(0);
+
+	if(row < num_rows)
+	{
+		double sum = y[row];
+
+		const unsigned int row_start = Ap[row];
+		const unsigned int row_end = Ap[row+1];
+
+		unsigned int jj = 0;
+		for (jj = row_start; jj < row_end; jj++)
+				sum += Ax[jj] * x[Aj[jj]];
+
+		y[row] = sum;
+	}
+}
+#endif
+
+
+//CSR kernel 
+// work only with 1D 
 #if (defined(FLOAT) && defined (KERNEL_CSR))
 __kernel void kernel_csr_fl(const unsigned int num_rows,
                 __global unsigned int * Ap,
@@ -1312,8 +1341,100 @@ __kernel void kernel_csr_fl(const unsigned int num_rows,
 #endif
 
 
+//CSR kernel 
+// work only with 1D 
+#if (defined(UNSIGNED_LONG) && defined (KERNEL_CSR))
+__kernel void kernel_csr_ul(const unsigned int num_rows,
+                __global unsigned int * Ap,
+                __global unsigned int * Aj,
+                __global unsigned long * Ax,
+                __global unsigned long * x,
+                __global unsigned long * y) {
+	
+	unsigned int row = get_global_id(0);
+
+	if(row < num_rows)
+	{
+		unsigned long sum = y[row];
+
+		const unsigned int row_start = Ap[row];
+		const unsigned int row_end = Ap[row+1];
+
+		unsigned int jj = 0;
+		for (jj = row_start; jj < row_end; jj++)
+				sum += Ax[jj] * x[Aj[jj]];
+
+		y[row] = sum;
+	}
+}
+#endif
+
+
+//CSR kernel 
+// work only with 1D 
+#if (defined(INTEGER) && defined (KERNEL_CSR))
+__kernel void kernel_csr_in(const unsigned int num_rows,
+                __global unsigned int * Ap,
+                __global unsigned int * Aj,
+                __global int * Ax,
+                __global int * x,
+                __global int * y) {
+	
+	unsigned int row = get_global_id(0);
+
+	if(row < num_rows)
+	{
+		int sum = y[row];
+
+		const unsigned int row_start = Ap[row];
+		const unsigned int row_end = Ap[row+1];
+
+		unsigned int jj = 0;
+		for (jj = row_start; jj < row_end; jj++)
+				sum += Ax[jj] * x[Aj[jj]];
+
+		y[row] = sum;
+	}
+}
+#endif
+
+
+//CSR kernel 
+// work only with 1D 
+#if (defined(UNSIGNED_INTEGER) && defined (KERNEL_CSR))
+__kernel void kernel_csr_ui(const unsigned int num_rows,
+                __global unsigned int * Ap,
+                __global unsigned int * Aj,
+                __global unsigned int * Ax,
+                __global unsigned int * x,
+                __global unsigned int * y) {
+	
+	unsigned int row = get_global_id(0);
+
+	if(row < num_rows)
+	{
+		unsigned int sum = y[row];
+
+		const unsigned int row_start = Ap[row];
+		const unsigned int row_end = Ap[row+1];
+
+		unsigned int jj = 0;
+		for (jj = row_start; jj < row_end; jj++)
+				sum += Ax[jj] * x[Aj[jj]];
+
+		y[row] = sum;
+	}
+}
+#endif
+
+#ifdef KERNEL_CRC
+//TODO either include this in the repo or make it required and found before build
+#define OPENCL
+#include "metamorph-backends/opencl-backend/eth_crc32_lut.h"
+#endif
+
 //CRC kernel 
-#if (defined(UNSIGNED_INTEGER) && defined(KERNEL_CRC))
+#if ((defined(DOUBLE) || defined(FLOAT) || defined(UNSIGNED_LONG) || defined(INTEGER) || defined(UNSIGNED_INTEGER)) && defined(KERNEL_CRC))
 __kernel void kernel_crc_ui(__global const uint* restrict data, 
 		uint length_bytes, 
 		const uint length_ints,
