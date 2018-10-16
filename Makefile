@@ -399,6 +399,9 @@ libmm_cuda_backend.so:
 libmm_opencl_backend.so:
 	cd $(MM_CL) && $(MFLAGS) $(MAKE) libmm_opencl_backend.so
 
+libmm_opencl_intelfpga_backend.so:
+	cd $(MM_CL) && $(MFLAGS) $(MAKE) libmm_opencl_intelfpga_backend.so
+
 generators: MetaGen-CL
 
 MetaGen-CL:
