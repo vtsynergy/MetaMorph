@@ -365,7 +365,7 @@ void PrototypeHandler::run(const MatchFinder::MatchResult &Result) {
     //Add pseudo auto-scaling safety code
     setArgs += "  size_t grid[3];\n";
     if (work_group_size[3] == 0 && !singleWorkItem) {
-      setArgs += "  size_t block[3] = METAMORPH_OCL_DEFAULT_BLOCK;\n";
+      setArgs += "  size_t block[3] = METAMORPH_OCL_DEFAULT_BLOCK_3D;\n";
     } else if (singleWorkItem) {
       setArgs += "  size_t block[3] = {1, 1, 1};\n";
     } else {
@@ -470,7 +470,7 @@ void PrototypeHandler::run(const MatchFinder::MatchResult &Result) {
         wrapper += ERROR_CHECK("retCode", "OpenCL kernel enqueue error");
     }
     wrapper += "  if (!async) {\n";
-    wrapper += "    retCode |= clFinish();\n";
+    wrapper += "    retCode |= clFinish(meta_queue);\n";
     wrapper += ERROR_CHECK("retCode", "OpenCL kernel execution error");
     wrapper += "  }\n";
     wrapper += "  return retCode;\n";
@@ -554,19 +554,19 @@ class MetaGenCLFrontendAction : public ASTFrontendAction {
       //TODO enforce Intel name filtering to remove "kernel"
       //TODO allow them to configure the source path in an environment variable?
       cache->runOnceInit += "  progLen = metaOpenCLLoadProgramSource(\"" + file + ".aocx\", &progSrc);\n";
-      cache->runOnceInit += "  __meta_gen_opencl_" + file + "_prog = clCreateProgramWithBinary(meta_opencl_context, 1, meta_opencl_device, &progLen, (const unsigned char **)&progSrc, NULL, &buildError);\n";
+      cache->runOnceInit += "  __meta_gen_opencl_" + file + "_current_frame->_prog = clCreateProgramWithBinary(meta_context, 1, meta_device, &progLen, (const unsigned char **)&progSrc, NULL, &buildError);\n";
       cache->runOnceInit += "#else\n";
       //TODO allow them to configure the source path in an environment variable?
       cache->runOnceInit += "  progLen = metaOpenCLLoadProgramSource(\"" + file + ".cl\", &progSrc);\n";
-      cache->runOnceInit += "  __meta_gen_opencl_" + file + "_prog = clCreateProgramWithSource(meta_opencl_context, 1, &progSrc, &progLen, &buildError);\n";
+      cache->runOnceInit += "  __meta_gen_opencl_" + file + "_current_frame->_prog = clCreateProgramWithSource(meta_context, 1, &progSrc, &progLen, &buildError);\n";
       cache->runOnceInit += "#endif\n";
       cache->runOnceInit += ERROR_CHECK("buildError", "OpenCL program creation error");
       cache->runOnceInit += "  //TODO Generate custom build arguments\n";
-      cache->runOnceInit += "  buildError = clBuildProgram(__meta_gen_opencl_" + file + "_current_frame->_prog, 1, meta_opencl_device, \"\", NULL, NULL);\n";
-      cache->runOnceInit += "  if (buildError !- CL_SUCCESS) {\n";
+      cache->runOnceInit += "  buildError = clBuildProgram(__meta_gen_opencl_" + file + "_current_frame->_prog, 1, meta_device, \"\", NULL, NULL);\n";
+      cache->runOnceInit += "  if (buildError != CL_SUCCESS) {\n";
       cache->runOnceInit += "    size_t logsize = 0;\n";
       cache->runOnceInit += "    clGetProgramBuildInfo(__meta_gen_opencl_" + file + "_current_frame->_prog, meta_device, CL_PROGRAM_BUILD_LOG, 0, NULL, &logsize);\n";
-      cache->runOnceInit += "    char * log = (char *) malloc(sizeof(char) * (logsize + 1));\n";
+      cache->runOnceInit += "    char * buildLog = (char *) malloc(sizeof(char) * (logsize + 1));\n";
       cache->runOnceInit += "    clGetProgramBuildInfo(__meta_gen_opencl_" + file + "_current_frame->_prog, meta_device, CL_PROGRAM_BUILD_LOG, logsize, log, NULL);\n";
       cache->runOnceInit += ERROR_CHECK("buildError", "OpenCL program build error");
       cache->runOnceInit += "    fprintf(stderr, \"Build Log:\\n\%s\\n\", buildLog);\n";
@@ -614,7 +614,9 @@ int populateOutputFiles() {
       }
       //headers FIXME Once per output
       *out_c << "//Force MetaMorph to include the OpenCL code\n";
+      *out_c << "#ifndef WITH_OPENCL\n";
       *out_c << "#define WITH_OPENCL\n";
+      *out_c << "#endif\n";
       *out_c << "#include \"metamorph.h\"\n";
       *out_c << "#include \"" + fileCachePair.first + ".h\"\n";
       //Linker references for MetaMorph OpenCL variables (FIXME ONce per output)
@@ -657,7 +659,7 @@ int populateOutputFiles() {
       *out_c << "void meta_gen_opencl_" << fileCachePair.first << "_init() {\n";
       *out_c << "  cl_int buildError, createError;\n";
       //Ensure the module is registered
-      *out_c << "  if (__meta_gen_opencl_" << fileCachePair.first << "_registration == NULL) {\n";
+      *out_c << "  if (meta_gen_opencl_" << fileCachePair.first << "_registration == NULL) {\n";
       *out_c << "    meta_register_module(&meta_gen_opencl_" << fileCachePair.first << "_registry);\n";
       *out_c << "    return;\n";
       *out_c << "  }\n";
@@ -678,8 +680,8 @@ int populateOutputFiles() {
       *out_c << "  meta_gen_opencl_" << fileCachePair.first << "_registration->initialized = 1;\n";
       *out_c << "}\n\n";
       //Generate the deconstruction wrapper
-      *out_h << "meta_gen_opencl_" << fileCachePair.first << "_deinit();\n";
-      *out_c << "meta_gen_opencl_" << fileCachePair.first << "_deinit() {\n";
+      *out_h << "void meta_gen_opencl_" << fileCachePair.first << "_deinit();\n";
+      *out_c << "void meta_gen_opencl_" << fileCachePair.first << "_deinit() {\n";
       *out_c << "  cl_int releaseError;\n";
       //Ensure we are deregistered with MetaMorph-core
       *out_c << "  if (meta_gen_opencl_" << fileCachePair.first << "_registration != NULL) {\n";
