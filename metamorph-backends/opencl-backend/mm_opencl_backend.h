@@ -12,9 +12,7 @@
 #define METAMORPH_OPENCL_BACKEND_H
 
 #ifndef METAMORPH_H
-extern "C" {
 #include "metamorph.h"
-}
 #endif
 
 //If the user doesn't override default threadblock size..
@@ -29,7 +27,7 @@ extern "C" {
 #endif
 
 //Not sure if these C compatibility stubs will actually be needed
-#ifdef __OPENCLCC__
+#if defined(__OPENCLCC__) || defined(__cplusplus)
 extern "C" {
 #endif
 
@@ -290,7 +288,7 @@ cl_int opencl_crc(size_t global_size, size_t local_size,
 		cl_event * event);
 
 
-#ifdef __OPENCLCC__
+#if defined(__OPENCLCC__) || defined(__cplusplus)
 }
 #endif
 

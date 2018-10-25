@@ -113,8 +113,8 @@ a_module_record * my_metamorph_module_registry(a_module_record * record) {
     #endif
     record->implements |= module_implements_general; //If it contains general operations to which the backend is irrelevant
   }
-  //If the current record is different from what's provided, it's an attempted re-registration; handle it.
-  if (old_registration != record) { //In most cases re-registering shouldn't be allowed, return the new record unused
+  //If the current record is non-NULL and different from what's provided, it's an attempted re-registration; handle it.
+  if (old_registration != NULL && old_registration != record) { //In most cases re-registering shouldn't be allowed, return the new record unused
     return record;
   }
   //If the current record is the same as what's provided, it's an attempted de-registration

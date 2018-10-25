@@ -459,7 +459,7 @@ void PrototypeHandler::run(const MatchFinder::MatchResult &Result) {
     //TODO handle worksizes
     std::string globalSize = "grid", localSize = "block";
     //TODO handle events
-    std::string eventWaitListSize = "0", eventWaitList = "NULL", retEvent = "&event";
+    std::string eventWaitListSize = "0", eventWaitList = "NULL", retEvent = "event";
     //Add the launch
     //TODO Detect if single-work-item from kernel funcs (not just attribute)
     if (singleWorkItem || (work_group_size[3] != 0 && work_group_size[0] == 1 && work_group_size[1] == 1 && work_group_size[2] == 1)) {
@@ -554,23 +554,22 @@ class MetaGenCLFrontendAction : public ASTFrontendAction {
       //TODO enforce Intel name filtering to remove "kernel"
       //TODO allow them to configure the source path in an environment variable?
       cache->runOnceInit += "  progLen = metaOpenCLLoadProgramSource(\"" + file + ".aocx\", &progSrc);\n";
-      cache->runOnceInit += "  __meta_gen_opencl_" + file + "_current_frame->_prog = clCreateProgramWithBinary(meta_context, 1, meta_device, &progLen, (const unsigned char **)&progSrc, NULL, &buildError);\n";
+      cache->runOnceInit += "  __meta_gen_opencl_" + file + "_current_frame->_prog = clCreateProgramWithBinary(meta_context, 1, &meta_device, &progLen, (const unsigned char **)&progSrc, NULL, &buildError);\n";
       cache->runOnceInit += "#else\n";
       //TODO allow them to configure the source path in an environment variable?
       cache->runOnceInit += "  progLen = metaOpenCLLoadProgramSource(\"" + file + ".cl\", &progSrc);\n";
       cache->runOnceInit += "  __meta_gen_opencl_" + file + "_current_frame->_prog = clCreateProgramWithSource(meta_context, 1, &progSrc, &progLen, &buildError);\n";
       cache->runOnceInit += "#endif\n";
       cache->runOnceInit += ERROR_CHECK("buildError", "OpenCL program creation error");
-      cache->runOnceInit += "  //TODO Generate custom build arguments\n";
-      cache->runOnceInit += "  buildError = clBuildProgram(__meta_gen_opencl_" + file + "_current_frame->_prog, 1, meta_device, \"\", NULL, NULL);\n";
+      cache->runOnceInit += "  buildError = clBuildProgram(__meta_gen_opencl_" + file + "_current_frame->_prog, 1, &meta_device, __meta_gen_opencl_" + file + "_custom_args ? __meta_gen_opencl_" + file + "_custom_args : \"\", NULL, NULL);\n";
       cache->runOnceInit += "  if (buildError != CL_SUCCESS) {\n";
       cache->runOnceInit += "    size_t logsize = 0;\n";
       cache->runOnceInit += "    clGetProgramBuildInfo(__meta_gen_opencl_" + file + "_current_frame->_prog, meta_device, CL_PROGRAM_BUILD_LOG, 0, NULL, &logsize);\n";
       cache->runOnceInit += "    char * buildLog = (char *) malloc(sizeof(char) * (logsize + 1));\n";
-      cache->runOnceInit += "    clGetProgramBuildInfo(__meta_gen_opencl_" + file + "_current_frame->_prog, meta_device, CL_PROGRAM_BUILD_LOG, logsize, log, NULL);\n";
+      cache->runOnceInit += "    clGetProgramBuildInfo(__meta_gen_opencl_" + file + "_current_frame->_prog, meta_device, CL_PROGRAM_BUILD_LOG, logsize, buildLog, NULL);\n";
       cache->runOnceInit += ERROR_CHECK("buildError", "OpenCL program build error");
       cache->runOnceInit += "    fprintf(stderr, \"Build Log:\\n\%s\\n\", buildLog);\n";
-      cache->runOnceInit += "    free(log);\n";
+      cache->runOnceInit += "    free(buildLog);\n";
       cache->runOnceInit += "  }\n";
       cache->runOnceDeinit += "    releaseError = clReleaseProgram(__meta_gen_opencl_" + file + "_current_frame->_prog);\n";
       cache->runOnceDeinit += ERROR_CHECK("releaseError", "OpenCL program release error");
@@ -624,6 +623,11 @@ int populateOutputFiles() {
       *out_c << "extern cl_command_queue meta_queue;\n";
       *out_c << "extern cl_device_id meta_device;\n";
 
+      //Generate a space to place arguments
+      *out_c << "//TODO: Expose this with a function (with safety checks) rather than a variable\n";
+      *out_c << "const char * __meta_gen_opencl_" << fileCachePair.first << "_custom_args = NULL;\n";
+      *out_h << "extern const char * __meta_gen_opencl_" << fileCachePair.first << "_custom_args;\n";
+
       //Generate the module's OpenCL frame
       *out_c << "struct __meta_gen_opencl_" << fileCachePair.first << "_frame {\n";
       //Generate the program variable
@@ -638,6 +642,9 @@ int populateOutputFiles() {
       *out_c << "struct __meta_gen_opencl_" << fileCachePair.first << "_frame * __meta_gen_opencl_" << fileCachePair.first << "_current_frame = NULL;\n";
       *out_c << "\n";
       //Generate the MetaMorph registration function
+      *out_h << "#ifdef __cplusplus\n";
+      *out_h << "extern \"C\" {\n";
+      *out_h << "#endif\n";
       *out_h << "a_module_record * meta_gen_opencl_" << fileCachePair.first << "_registry(a_module_record * record);\n";
       *out_c << "a_module_record * meta_gen_opencl_" << fileCachePair.first << "_registration = NULL;\n";
       *out_c << "a_module_record * meta_gen_opencl_" << fileCachePair.first << "_registry(a_module_record * record) {\n";
@@ -649,7 +656,7 @@ int populateOutputFiles() {
       *out_c << "    record->module_deinit = &meta_gen_opencl_" << fileCachePair.first << "_deinit;\n";
       *out_c << "    meta_gen_opencl_" << fileCachePair.first << "_registration = record;\n";
       *out_c << "  }\n";
-      *out_c << "  if (old_registration != record) return record;\n";
+      *out_c << "  if (old_registration != NULL && old_registration != record) return record;\n";
       *out_c << "  if (old_registration == record) meta_gen_opencl_" << fileCachePair.first << "_registration = NULL;\n";
       *out_c << "  return old_registration;\n";
       *out_c << "}\n";
@@ -697,7 +704,7 @@ int populateOutputFiles() {
       //Release the program and frame
       *out_c << fileCachePair.second->runOnceDeinit;
       *out_c << "    free(__meta_gen_opencl_" << fileCachePair.first << "_current_frame);\n";
-      *out_c << "    __meta_gen_opencl_" << fileCachePair.first << "_current_frame = NULL\n";
+      *out_c << "    __meta_gen_opencl_" << fileCachePair.first << "_current_frame = NULL;\n";
       *out_c << "  }\n";
       //Finish the deinit wrapper
       *out_c << "}\n\n";
@@ -711,6 +718,9 @@ int populateOutputFiles() {
       }
 
       out_c->flush();
+      *out_h << "#ifdef __cplusplus\n";
+      *out_h << "}\n";
+      *out_h << "#endif\n";
       out_h->flush();
     }
   }

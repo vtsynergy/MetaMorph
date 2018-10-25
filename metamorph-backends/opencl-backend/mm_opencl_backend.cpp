@@ -2,6 +2,10 @@
 
 #include "../../metamorph-backends/opencl-backend/mm_opencl_backend.h"
 
+#if defined(__OPENCLCC__) || defined(__cplusplus)
+extern "C" {
+#endif
+
 extern cl_context meta_context;
 extern cl_command_queue meta_queue;
 extern cl_device_id meta_device;
@@ -1841,4 +1845,8 @@ cl_int opencl_crc(size_t global_size, size_t local_size,
 	return (ret);
 
 }
+
+#if defined(__OPENCLCC__) || defined(__cplusplus)
+}
+#endif
 

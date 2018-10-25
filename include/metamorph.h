@@ -20,7 +20,9 @@
 /** The top-level user APIs **/
 #ifndef METAMORPH_H
 #define METAMORPH_H
-
+#ifdef __cplusplus
+extern "C" {
+#endif
 #ifdef __DEBUG__
 //Anything needed for a debug build
 
@@ -372,6 +374,10 @@ a_err meta_crc(size_t global_size, size_t local_size, void * dev_input, int page
 #ifndef METAMORPH_FORTRAN_COMPAT_H
 #include "metamorph_fortran_compat.h"
 #endif
+#endif
+
+#ifdef __cplusplus
+}
 #endif
 
 #endif //METAMORPH_H
