@@ -328,11 +328,11 @@ void PrototypeHandler::run(const MatchFinder::MatchResult &Result) {
     
     //Creating the AST consumer forces all the once-per-input boilerplate to be generated so we don't have to do it here
         hostCodeCache * cache = AllHostCaches[filename];
-        std::string framed_kernel = "__meta_gen_opencl_" + filename + "_current_frame->" + func->getNameAsString() + "_kernel";
+        std::string framed_kernel = "__meta_gen_opencl_" + ((UnifiedOutputFile.getValue() == "") ? filename : UnifiedOutputFile.getValue()) + "_current_frame->" + func->getNameAsString() + "_kernel";
 	cache->cl_kernels.push_back("  cl_kernel " + func->getNameAsString() + "_kernel;\n");
     //Generate a clCreatKernelExpression
 	//TODO Implement Error checking
-	cache->kernelInit.push_back("    " + framed_kernel + " = clCreateKernel(__meta_gen_opencl_" + filename + "_current_frame->_prog, \"" + func->getNameAsString() + "\", &createError);\n");
+	cache->kernelInit.push_back("    " + framed_kernel + " = clCreateKernel(__meta_gen_opencl_" + ((UnifiedOutputFile.getValue() == "") ? filename : UnifiedOutputFile.getValue()) + "_current_frame->" + filename + "_prog, \"" + func->getNameAsString() + "\", &createError);\n");
         cache->kernelInit.push_back(ERROR_CHECK("createError", "OpenCL kernel creation error"));
     //Generate a clReleaseKernelExpression
 	//TODO Implement Error checking
@@ -357,7 +357,7 @@ void PrototypeHandler::run(const MatchFinder::MatchResult &Result) {
     }
 
     //Add module-registration check/lazy registration
-    setArgs += "  if (meta_gen_opencl_" + filename + "_registration == NULL) meta_register_module(&meta_gen_opencl_" + filename + "_registry);\n";
+    setArgs += "  if (meta_gen_opencl_" + ((UnifiedOutputFile.getValue() == "") ? filename : UnifiedOutputFile.getValue()) + "_registration == NULL) meta_register_module(&meta_gen_opencl_" + ((UnifiedOutputFile.getValue() == "") ? filename : UnifiedOutputFile.getValue()) + "_registry);\n";
 
         //TODO Add other wrapper fuction parameters
     hostProto += "size_t (*grid_size)[3], size_t (*block_size)[3], ";
@@ -547,31 +547,29 @@ class MetaGenCLFrontendAction : public ASTFrontendAction {
       //Add the core boilerplate to the hostCode cache
       //TODO add a function to metamorph for human-readable OpenCL error codes
       //TODO once we are registered with MetaMorph properly, have all this triggered by metaOpenCLBuildProgram
-      cache->runOnceInit += "  const char * progSrc;\n";
-      cache->runOnceInit += "  size_t progLen;\n";
       cache->runOnceInit += "  //TODO check for read errors if the loadprogram function doesn't already\n";
-      cache->runOnceInit += "#ifdef WITH_INTEL_FPGA\n";
+      cache->runOnceInit += "#ifdef WITH_INTELFPGA\n";
       //TODO enforce Intel name filtering to remove "kernel"
       //TODO allow them to configure the source path in an environment variable?
       cache->runOnceInit += "  progLen = metaOpenCLLoadProgramSource(\"" + file + ".aocx\", &progSrc);\n";
-      cache->runOnceInit += "  __meta_gen_opencl_" + file + "_current_frame->_prog = clCreateProgramWithBinary(meta_context, 1, &meta_device, &progLen, (const unsigned char **)&progSrc, NULL, &buildError);\n";
+      cache->runOnceInit += "  __meta_gen_opencl_" + ((UnifiedOutputFile.getValue() == "") ? file : UnifiedOutputFile.getValue()) + "_current_frame->" + file + "_prog = clCreateProgramWithBinary(meta_context, 1, &meta_device, &progLen, (const unsigned char **)&progSrc, NULL, &buildError);\n";
       cache->runOnceInit += "#else\n";
       //TODO allow them to configure the source path in an environment variable?
       cache->runOnceInit += "  progLen = metaOpenCLLoadProgramSource(\"" + file + ".cl\", &progSrc);\n";
-      cache->runOnceInit += "  __meta_gen_opencl_" + file + "_current_frame->_prog = clCreateProgramWithSource(meta_context, 1, &progSrc, &progLen, &buildError);\n";
+      cache->runOnceInit += "  __meta_gen_opencl_" + ((UnifiedOutputFile.getValue() == "") ? file : UnifiedOutputFile.getValue()) + "_current_frame->" + file + "_prog = clCreateProgramWithSource(meta_context, 1, &progSrc, &progLen, &buildError);\n";
       cache->runOnceInit += "#endif\n";
       cache->runOnceInit += ERROR_CHECK("buildError", "OpenCL program creation error");
-      cache->runOnceInit += "  buildError = clBuildProgram(__meta_gen_opencl_" + file + "_current_frame->_prog, 1, &meta_device, __meta_gen_opencl_" + file + "_custom_args ? __meta_gen_opencl_" + file + "_custom_args : \"\", NULL, NULL);\n";
+      cache->runOnceInit += "  buildError = clBuildProgram(__meta_gen_opencl_" + ((UnifiedOutputFile.getValue() == "") ? file : UnifiedOutputFile.getValue()) + "_current_frame->" + file + "_prog, 1, &meta_device, __meta_gen_opencl_" + file + "_custom_args ? __meta_gen_opencl_" + file + "_custom_args : \"\", NULL, NULL);\n";
       cache->runOnceInit += "  if (buildError != CL_SUCCESS) {\n";
       cache->runOnceInit += "    size_t logsize = 0;\n";
-      cache->runOnceInit += "    clGetProgramBuildInfo(__meta_gen_opencl_" + file + "_current_frame->_prog, meta_device, CL_PROGRAM_BUILD_LOG, 0, NULL, &logsize);\n";
+      cache->runOnceInit += "    clGetProgramBuildInfo(__meta_gen_opencl_" + ((UnifiedOutputFile.getValue() == "") ? file : UnifiedOutputFile.getValue()) + "_current_frame->" + file + "_prog, meta_device, CL_PROGRAM_BUILD_LOG, 0, NULL, &logsize);\n";
       cache->runOnceInit += "    char * buildLog = (char *) malloc(sizeof(char) * (logsize + 1));\n";
-      cache->runOnceInit += "    clGetProgramBuildInfo(__meta_gen_opencl_" + file + "_current_frame->_prog, meta_device, CL_PROGRAM_BUILD_LOG, logsize, buildLog, NULL);\n";
+      cache->runOnceInit += "    clGetProgramBuildInfo(__meta_gen_opencl_" + ((UnifiedOutputFile.getValue() == "") ? file : UnifiedOutputFile.getValue()) + "_current_frame->" + file + "_prog, meta_device, CL_PROGRAM_BUILD_LOG, logsize, buildLog, NULL);\n";
       cache->runOnceInit += ERROR_CHECK("buildError", "OpenCL program build error");
       cache->runOnceInit += "    fprintf(stderr, \"Build Log:\\n\%s\\n\", buildLog);\n";
       cache->runOnceInit += "    free(buildLog);\n";
       cache->runOnceInit += "  }\n";
-      cache->runOnceDeinit += "    releaseError = clReleaseProgram(__meta_gen_opencl_" + file + "_current_frame->_prog);\n";
+      cache->runOnceDeinit += "    releaseError = clReleaseProgram(__meta_gen_opencl_" + ((UnifiedOutputFile.getValue() == "") ? file : UnifiedOutputFile.getValue()) + "_current_frame->" + file + "_prog);\n";
       cache->runOnceDeinit += ERROR_CHECK("releaseError", "OpenCL program release error");
       //FIXME if the output file does not exist, create it
       if (unified_output_c != NULL) {
@@ -600,17 +598,27 @@ int populateOutputFiles() {
   int errcode = 0;
 
   //FIXME Honestly unified and solo file gen are pretty similar, I think we can reuse most of it for both
+  raw_ostream * out_c, * out_h;
   if (UnifiedOutputFile.getValue() != "") { //Unified output mode
-
-  } else {
-    for (std::pair<std::string, hostCodeCache *> fileCachePair : AllHostCaches) {
+    out_c = unified_output_c;
+    out_h = unified_output_h;
+      //headers FIXME Once per output
+      *out_c << "//Force MetaMorph to include the OpenCL code\n";
+      *out_c << "#ifndef WITH_OPENCL\n";
+      *out_c << "#define WITH_OPENCL\n";
+      *out_c << "#endif\n";
+      *out_c << "#include \"metamorph.h\"\n";
+      *out_c << "#include \"" + UnifiedOutputFile.getValue() + ".h\"\n";
+      //Linker references for MetaMorph OpenCL variables (FIXME ONce per output)
+      *out_c << "extern cl_context meta_context;\n";
+      *out_c << "extern cl_command_queue meta_queue;\n";
+      *out_c << "extern cl_device_id meta_device;\n";
+  }
+  for (std::pair<std::string, hostCodeCache *> fileCachePair : AllHostCaches) {
+    if (UnifiedOutputFile.getValue() == "") {
       //Get the output files
-      raw_ostream * out_c = fileCachePair.second->outfile_c;
-      raw_ostream * out_h = fileCachePair.second->outfile_h;
-      //Emit user-defined types in the header file
-      for (std::pair<QualType, std::string> t : ImportedTypes[out_h]) {
-        *out_h << t.second;
-      }
+      out_c = fileCachePair.second->outfile_c;
+      out_h = fileCachePair.second->outfile_h;
       //headers FIXME Once per output
       *out_c << "//Force MetaMorph to include the OpenCL code\n";
       *out_c << "#ifndef WITH_OPENCL\n";
@@ -622,21 +630,39 @@ int populateOutputFiles() {
       *out_c << "extern cl_context meta_context;\n";
       *out_c << "extern cl_command_queue meta_queue;\n";
       *out_c << "extern cl_device_id meta_device;\n";
+    }
+    //Emit user-defined types in the header file
+    //FIXME ensure we only get one copy of each in unified mode
+    //We use the fileCachePair output .h file as the key since we may be in unified mode but still want to get types from all input files
+    for (std::pair<QualType, std::string> t : ImportedTypes[fileCachePair.second->outfile_h]) {
+      *out_h << t.second;
+    }
 
-      //Generate a space to place arguments
-      *out_c << "//TODO: Expose this with a function (with safety checks) rather than a variable\n";
-      *out_c << "const char * __meta_gen_opencl_" << fileCachePair.first << "_custom_args = NULL;\n";
-      *out_h << "extern const char * __meta_gen_opencl_" << fileCachePair.first << "_custom_args;\n";
-
+    //Generate a space to place arguments (for each input file)
+    *out_c << "//TODO: Expose this with a function (with safety checks) rather than a variable\n";
+    *out_c << "const char * __meta_gen_opencl_" << fileCachePair.first << "_custom_args = NULL;\n";
+    *out_h << "extern const char * __meta_gen_opencl_" << fileCachePair.first << "_custom_args;\n";
+  }
+  if (UnifiedOutputFile.getValue() != "") {
+    //Generate the unified module's OpenCL frame
+    *out_c << "struct __meta_gen_opencl_" << UnifiedOutputFile.getValue() << "_frame {\n";
+  }
+  for (std::pair<std::string, hostCodeCache *> fileCachePair : AllHostCaches) {
+    if (UnifiedOutputFile.getValue() == "") {
+      //Get the output files
+      out_c = fileCachePair.second->outfile_c;
+      out_h = fileCachePair.second->outfile_h;
       //Generate the module's OpenCL frame
       *out_c << "struct __meta_gen_opencl_" << fileCachePair.first << "_frame {\n";
-      //Generate the program variable
-      //TODO support one-kernel-per-program convention
-      *out_c << "  cl_program _prog;\n";
-      //Add the kernel variables
-      for (std::string var : fileCachePair.second->cl_kernels) {
-        *out_c  << var;
-      }
+    }
+    //Generate the program variable (one per input file)
+    //TODO support one-kernel-per-program convention
+    *out_c << "  cl_program " << fileCachePair.first << "_prog;\n";
+    //Add the kernel variables
+    for (std::string var : fileCachePair.second->cl_kernels) {
+      *out_c  << var;
+    }
+    if (UnifiedOutputFile.getValue() == "") {
       //Finish the struct and create a pointer to this module's active copy
       *out_c << "};\n";
       *out_c << "struct __meta_gen_opencl_" << fileCachePair.first << "_frame * __meta_gen_opencl_" << fileCachePair.first << "_current_frame = NULL;\n";
@@ -674,16 +700,70 @@ int populateOutputFiles() {
       *out_c << "  if (meta_context == NULL) metaOpenCLFallBack();\n";
       //Ensure a program/kernel storage frame is initialized
       *out_c << "  if (__meta_gen_opencl_" << fileCachePair.first << "_current_frame == NULL) {\n";
-      *out_c << "    __meta_gen_opencl_" << fileCachePair.first << "_current_frame = (struct __meta_gen_opencl_" << fileCachePair.first << "_frame *)malloc(sizeof(struct __meta_gen_opencl_" << fileCachePair.first << "_frame));\n";
+      *out_c << "    __meta_gen_opencl_" << fileCachePair.first << "_current_frame = (struct __meta_gen_opencl_" << fileCachePair.first << "_frame *) malloc(sizeof(struct __meta_gen_opencl_" << fileCachePair.first << "_frame));\n";
       *out_c << "  }\n";
-      //Add the clCreateProgram bits
-      *out_c << fileCachePair.second->runOnceInit;
-      //Add the clCreateKernel bits
-      for ( std::string kern : fileCachePair.second->kernelInit) {
-        *out_c << kern;
-      }
-      //FIXME how should the registration with the metamorph framework work? It probably should not be embedded in the initialization, rather lets just require that it is registered before meta_init() (which then implies it will be available to an subsequent metaOpenCL backend initializations)
+      *out_c << "  const char * progSrc;\n";
+      *out_c << "  size_t progLen;\n";
+    }
+  }
+  if (UnifiedOutputFile.getValue() != "") {
+    //Finish the struct and create a pointer to this module's active copy
+    *out_c << "};\n";
+    *out_c << "struct __meta_gen_opencl_" << UnifiedOutputFile.getValue() << "_frame * __meta_gen_opencl_" << UnifiedOutputFile.getValue() << "_current_frame = NULL;\n";
+    *out_c << "\n";
+    //Generate the MetaMorph registration function
+    *out_h << "#ifdef __cplusplus\n";
+    *out_h << "extern \"C\" {\n";
+    *out_h << "#endif\n";
+    *out_h << "a_module_record * meta_gen_opencl_" << UnifiedOutputFile.getValue() << "_registry(a_module_record * record);\n";
+    *out_c << "a_module_record * meta_gen_opencl_" << UnifiedOutputFile.getValue() << "_registration = NULL;\n";
+    *out_c << "a_module_record * meta_gen_opencl_" << UnifiedOutputFile.getValue() << "_registry(a_module_record * record) {\n";
+    *out_c << "  if (record == NULL) return meta_gen_opencl_" << UnifiedOutputFile.getValue() << "_registration;\n";
+    *out_c << "  a_module_record * old_registration = meta_gen_opencl_" << UnifiedOutputFile.getValue() << "_registration;\n";
+    *out_c << "  if (old_registration == NULL) {\n";
+    *out_c << "    record->implements = module_implements_opencl;\n";
+    *out_c << "    record->module_init = &meta_gen_opencl_" << UnifiedOutputFile.getValue() << "_init;\n";
+    *out_c << "    record->module_deinit = &meta_gen_opencl_" << UnifiedOutputFile.getValue() << "_deinit;\n";
+    *out_c << "    meta_gen_opencl_" << UnifiedOutputFile.getValue() << "_registration = record;\n";
+    *out_c << "  }\n";
+    *out_c << "  if (old_registration != NULL && old_registration != record) return record;\n";
+    *out_c << "  if (old_registration == record) meta_gen_opencl_" << UnifiedOutputFile.getValue() << "_registration = NULL;\n";
+    *out_c << "  return old_registration;\n";
+    *out_c << "}\n";
+    //TODO Exchange OpenCL context information
+    //Generate the initialization wrapper
+    *out_h << "void meta_gen_opencl_" << UnifiedOutputFile.getValue() << "_init();\n";
+    *out_c << "void meta_gen_opencl_" << UnifiedOutputFile.getValue() << "_init() {\n";
+    *out_c << "  cl_int buildError, createError;\n";
+    //Ensure the module is registered
+    *out_c << "  if (meta_gen_opencl_" << UnifiedOutputFile.getValue() << "_registration == NULL) {\n";
+    *out_c << "    meta_register_module(&meta_gen_opencl_" << UnifiedOutputFile.getValue() << "_registry);\n";
+    *out_c << "    return;\n";
+    *out_c << "  }\n";
+    //Ensure a MetaMorph OpenCL state exists
+    *out_c << "  if (meta_context == NULL) metaOpenCLFallBack();\n";
+    //Ensure a program/kernel storage frame is initialized
+    *out_c << "  if (__meta_gen_opencl_" << UnifiedOutputFile.getValue() << "_current_frame == NULL) {\n";
+    *out_c << "    __meta_gen_opencl_" << UnifiedOutputFile.getValue() << "_current_frame = (struct __meta_gen_opencl_" << UnifiedOutputFile.getValue() << "_frame *) malloc(sizeof(struct __meta_gen_opencl_" << UnifiedOutputFile.getValue() << "_frame));\n";
+    *out_c << "  }\n";
+    *out_c << "  const char * progSrc;\n";
+    *out_c << "  size_t progLen;\n";
+  }
+  for (std::pair<std::string, hostCodeCache *> fileCachePair : AllHostCaches) {
+    if (UnifiedOutputFile.getValue() == "") {
+      //Get the output files
+      out_c = fileCachePair.second->outfile_c;
+      out_h = fileCachePair.second->outfile_h;
+    }
+    //Add the clCreateProgram bits
+    *out_c << fileCachePair.second->runOnceInit;
+    //Add the clCreateKernel bits
+    for ( std::string kern : fileCachePair.second->kernelInit) {
+      *out_c << kern;
+    }
+    //FIXME how should the registration with the metamorph framework work? It probably should not be embedded in the initialization, rather lets just require that it is registered before meta_init() (which then implies it will be available to an subsequent metaOpenCL backend initializations)
       //if (UnifiedOutputFile.getValue() == "") *out_c << "  meta_register_opencl_backend_module(meta_gen_opencl_" << fileCachePair.first << "_init(), meta_gen_opencl_" << fileCachePair.first << "_deinit());\n";
+    if (UnifiedOutputFile.getValue() == "") {
       *out_c << "  meta_gen_opencl_" << fileCachePair.first << "_registration->initialized = 1;\n";
       *out_c << "}\n\n";
       //Generate the deconstruction wrapper
@@ -697,26 +777,66 @@ int populateOutputFiles() {
       *out_c << "  }\n";
       //Esnure a program/kernel storage frame exists
       *out_c << "  if (__meta_gen_opencl_" << fileCachePair.first << "_current_frame != NULL) {\n";
-      //Release all the kernels
-      for (std::string kern : fileCachePair.second->kernelDeinit) {
-        *out_c << kern;
-      }
+    }
+  }
+  if (UnifiedOutputFile.getValue() != "") {
+    *out_c << "  meta_gen_opencl_" << UnifiedOutputFile.getValue() << "_registration->initialized = 1;\n";
+    *out_c << "}\n\n";
+    //Generate the deconstruction wrapper
+    *out_h << "void meta_gen_opencl_" << UnifiedOutputFile.getValue() << "_deinit();\n";
+    *out_c << "void meta_gen_opencl_" << UnifiedOutputFile.getValue() << "_deinit() {\n";
+    *out_c << "  cl_int releaseError;\n";
+    //Ensure we are deregistered with MetaMorph-core
+    *out_c << "  if (meta_gen_opencl_" << UnifiedOutputFile.getValue() << "_registration != NULL) {\n";
+    *out_c << "    meta_deregister_module(&meta_gen_opencl_" << UnifiedOutputFile.getValue() << "_registry);\n";
+    *out_c << "    return;\n";
+    *out_c << "  }\n";
+    //Esnure a program/kernel storage frame exists
+    *out_c << "  if (__meta_gen_opencl_" << UnifiedOutputFile.getValue() << "_current_frame != NULL) {\n";
+  }
+  for (std::pair<std::string, hostCodeCache *> fileCachePair : AllHostCaches) {
+    if (UnifiedOutputFile.getValue() == "") {
+      //Get the output files
+      out_c = fileCachePair.second->outfile_c;
+      out_h = fileCachePair.second->outfile_h;
+    }
+    //Release all the kernels
+    for (std::string kern : fileCachePair.second->kernelDeinit) {
+      *out_c << kern;
+    }
+    *out_c << fileCachePair.second->runOnceDeinit;
+    if (UnifiedOutputFile.getValue() == "") {
       //Release the program and frame
-      *out_c << fileCachePair.second->runOnceDeinit;
       *out_c << "    free(__meta_gen_opencl_" << fileCachePair.first << "_current_frame);\n";
       *out_c << "    __meta_gen_opencl_" << fileCachePair.first << "_current_frame = NULL;\n";
       *out_c << "  }\n";
       //Finish the deinit wrapper
       *out_c << "}\n\n";
+    }
+  }
+  if (UnifiedOutputFile.getValue() != "") {
+    //Release the program and frame
+    *out_c << "    free(__meta_gen_opencl_" << UnifiedOutputFile.getValue() << "_current_frame);\n";
+    *out_c << "    __meta_gen_opencl_" << UnifiedOutputFile.getValue() << "_current_frame = NULL;\n";
+    *out_c << "  }\n";
+    //Finish the deinit wrapper
+    *out_c << "}\n\n";
+  }
+  for (std::pair<std::string, hostCodeCache *> fileCachePair : AllHostCaches) {
+    if (UnifiedOutputFile.getValue() == "") {
+      //Get the output files
+      out_c = fileCachePair.second->outfile_c;
+      out_h = fileCachePair.second->outfile_h;
+    }
 
-      //Add the kernel wrappers themselves
-      for (std::string proto : fileCachePair.second->hostProtos) {
-        *out_h << proto;
-      }
-      for (std::string impl : fileCachePair.second->hostFuncImpls) {
-        *out_c << impl;
-      }
-
+    //Add the kernel wrappers themselves
+    for (std::string proto : fileCachePair.second->hostProtos) {
+      *out_h << proto;
+    }
+    for (std::string impl : fileCachePair.second->hostFuncImpls) {
+      *out_c << impl;
+    }
+    if (UnifiedOutputFile.getValue() == "") {
       out_c->flush();
       *out_h << "#ifdef __cplusplus\n";
       *out_h << "}\n";
@@ -724,6 +844,14 @@ int populateOutputFiles() {
       out_h->flush();
     }
   }
+  if (UnifiedOutputFile.getValue() != "") {
+    out_c->flush();
+    *out_h << "#ifdef __cplusplus\n";
+    *out_h << "}\n";
+    *out_h << "#endif\n";
+    out_h->flush();
+  }
+  
   return errcode;
 }
 
