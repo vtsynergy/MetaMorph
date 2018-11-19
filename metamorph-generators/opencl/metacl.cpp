@@ -412,19 +412,19 @@ void PrototypeHandler::run(const MatchFinder::MatchResult &Result) {
       if (info->isGlobalOrConst) {
         hostProto += "cl_mem * " + info->name + ", ";
         setArgs += "  retCode = clSetKernelArg(" + framed_kernel + ", " + std::to_string(pos) + ", sizeof(cl_mem), " + info->name + ");\n";
-        setArgs += ERROR_CHECK("retCode", "OpenCL kernel argument assignment error (arg: \"" + info->name + "\", host wrapper: \"" + host_func + "\")");
+        setArgs += ERROR_CHECK("retCode", "OpenCL kernel argument assignment error (arg: \\\"" + info->name + "\\\", host wrapper: \\\"" + host_func + "\\\")");
         doxygen += "\\param " + info->name + " a cl_mem buffer, must internally store " + info->hostType + " types\n";
       } else if (info->isLocal) { //If it is local, instead create a size variable and set the size of the memory region
         hostProto += "size_t " + info->name + "_num_local_elems, ";
         setArgs += "  retCode = clSetKernelArg(" + framed_kernel + ", " + std::to_string(pos) + ", sizeof(" + info->hostType + ") * " + info->name + "_num_local_elems, NULL);\n";
-        setArgs += ERROR_CHECK("retCode", "OpenCL kernel argument assignment error (arg: \"" + info->name + "\", host wrapper: \"" + host_func + "\")");
+        setArgs += ERROR_CHECK("retCode", "OpenCL kernel argument assignment error (arg: \\\"" + info->name + "\\\", host wrapper: \\\"" + host_func + "\\\")");
         doxygen += "\\param " + info->name + "_num_local_elems allocate __local memory space for this many " + info->hostType + " elements\n";
       } else {
         hostProto += info->hostType + " " + info->name + ", ";
         //generate a clSetKernelArg expression
         //TODO is the hostType acceptable (technically the wrapper should use a metamorph type, and the clSetKernelArg should use an OpenCL type)
         setArgs += "  retCode = clSetKernelArg(" + framed_kernel + ", " + std::to_string(pos) + ", sizeof(" + info->hostType + "), &" + info->name + ");\n";
-        setArgs += ERROR_CHECK("retCode", "OpenCL kernel argument assignment error (arg: \"" + info->name + "\", host wrapper: \"" + host_func + "\")");
+        setArgs += ERROR_CHECK("retCode", "OpenCL kernel argument assignment error (arg: \\\"" + info->name + "\\\", host wrapper: \\\"" + host_func + "\\\")");
         doxygen += "\\param " + info->name + " scalar parameter of type \"" + info->hostType + "\"\n";
       }
       pos++;
@@ -463,15 +463,15 @@ void PrototypeHandler::run(const MatchFinder::MatchResult &Result) {
     //Add the launch
     //TODO Detect if single-work-item from kernel funcs (not just attribute)
     if (singleWorkItem || (work_group_size[3] != 0 && work_group_size[0] == 1 && work_group_size[1] == 1 && work_group_size[2] == 1)) {
-      wrapper += "  retCode |= clEnqueueTask(meta_queue, " + framed_kernel + ", " + eventWaitListSize + ", " + eventWaitList + ", " + retEvent + ");\n";
-        wrapper += ERROR_CHECK("retCode", "OpenCL kernel enqueue error");
+      wrapper += "  retCode = clEnqueueTask(meta_queue, " + framed_kernel + ", " + eventWaitListSize + ", " + eventWaitList + ", " + retEvent + ");\n";
+        wrapper += ERROR_CHECK("retCode", "OpenCL kernel enqueue error (host wrapper: \"" + host_func + "\")");
     } else {
-      wrapper += "  retCode |= clEnqueueNDRangeKernel(meta_queue, " + framed_kernel + ", " + std::to_string(workDim) + ", " + offset + ", " + globalSize + ", " + localSize + ", " + eventWaitListSize + ", " + eventWaitList + ", " + retEvent + ");\n";
-        wrapper += ERROR_CHECK("retCode", "OpenCL kernel enqueue error");
+      wrapper += "  retCode = clEnqueueNDRangeKernel(meta_queue, " + framed_kernel + ", " + std::to_string(workDim) + ", " + offset + ", " + globalSize + ", " + localSize + ", " + eventWaitListSize + ", " + eventWaitList + ", " + retEvent + ");\n";
+        wrapper += ERROR_CHECK("retCode", "OpenCL kernel enqueue error (host wrapper: \"" + host_func + "\")");
     }
     wrapper += "  if (!async) {\n";
-    wrapper += "    retCode |= clFinish(meta_queue);\n";
-    wrapper += ERROR_CHECK("retCode", "OpenCL kernel execution error");
+    wrapper += "    retCode = clFinish(meta_queue);\n";
+    wrapper += ERROR_CHECK("retCode", "OpenCL kernel execution error (host wrapper: \"" + host_func + "\")");
     wrapper += "  }\n";
     wrapper += "  return retCode;\n";
     
