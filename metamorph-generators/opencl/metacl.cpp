@@ -410,21 +410,21 @@ void PrototypeHandler::run(const MatchFinder::MatchResult &Result) {
       //Add it to the wrapper param list
       //If it's not local, directly use the host type and get/set the data itself
       if (info->isGlobalOrConst) {
-        hostProto += "void * " + info->name + ", ";
-        setArgs += "  retCode |= clSetKernelArg(" + framed_kernel + ", " + std::to_string(pos) + ", sizeof(cl_mem), " + info->name + ");\n";
-        setArgs += ERROR_CHECK("retCode", "OpenCL kernel argument assignment error");
+        hostProto += "cl_mem * " + info->name + ", ";
+        setArgs += "  retCode = clSetKernelArg(" + framed_kernel + ", " + std::to_string(pos) + ", sizeof(cl_mem), " + info->name + ");\n";
+        setArgs += ERROR_CHECK("retCode", "OpenCL kernel argument assignment error (arg: \"" + info->name + "\", host wrapper: \"" + host_func + "\")");
         doxygen += "\\param " + info->name + " a cl_mem buffer, must internally store " + info->hostType + " types\n";
       } else if (info->isLocal) { //If it is local, instead create a size variable and set the size of the memory region
         hostProto += "size_t " + info->name + "_num_local_elems, ";
-        setArgs += "  retCode |= clSetKernelArg(" + framed_kernel + ", " + std::to_string(pos) + ", sizeof(" + info->hostType + ") * " + info->name + "_num_local_elems, NULL);\n";
-        setArgs += ERROR_CHECK("retCode", "OpenCL kernel argument assignment error");
+        setArgs += "  retCode = clSetKernelArg(" + framed_kernel + ", " + std::to_string(pos) + ", sizeof(" + info->hostType + ") * " + info->name + "_num_local_elems, NULL);\n";
+        setArgs += ERROR_CHECK("retCode", "OpenCL kernel argument assignment error (arg: \"" + info->name + "\", host wrapper: \"" + host_func + "\")");
         doxygen += "\\param " + info->name + "_num_local_elems allocate __local memory space for this many " + info->hostType + " elements\n";
       } else {
         hostProto += info->hostType + " " + info->name + ", ";
         //generate a clSetKernelArg expression
         //TODO is the hostType acceptable (technically the wrapper should use a metamorph type, and the clSetKernelArg should use an OpenCL type)
-        setArgs += "  retCode |= clSetKernelArg(" + framed_kernel + ", " + std::to_string(pos) + ", sizeof(" + info->hostType + "), &" + info->name + ");\n";
-        setArgs += ERROR_CHECK("retCode", "OpenCL kernel argument assignment error");
+        setArgs += "  retCode = clSetKernelArg(" + framed_kernel + ", " + std::to_string(pos) + ", sizeof(" + info->hostType + "), &" + info->name + ");\n";
+        setArgs += ERROR_CHECK("retCode", "OpenCL kernel argument assignment error (arg: \"" + info->name + "\", host wrapper: \"" + host_func + "\")");
         doxygen += "\\param " + info->name + " scalar parameter of type \"" + info->hostType + "\"\n";
       }
       pos++;

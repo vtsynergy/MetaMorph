@@ -397,6 +397,7 @@ cl_int metaOpenCLBuildProgram(metaOpenCLStackFrame * frame) {
 //	BUILD_PROG_AND_KERNEL(crc_in, "-D SINGLE_KERNEL_PROGS -D INTEGER -D KERNEL_CRC")
 	BUILD_PROG_AND_KERNEL(crc_ui, "-D SINGLE_KERNEL_PROGS -D UNSIGNED_INTEGER -D KERNEL_CRC")
 #endif
+	frame->kernels_init=1;
         //Reinitialize OpenCL add-on modules
         meta_reinitialize_modules(module_implements_opencl);
 }
@@ -713,9 +714,11 @@ a_int meta_set_state_OpenCL(cl_platform_id platform, cl_device_id device,
 	frame->device = device;
 	frame->context = context;
 	frame->queue = queue;
+	frame->state_init = 1;
 
 	//add the metamorph programs and kernels to it
-	metaOpenCLBuildProgram(frame);
+	//Don't do this unless the user explicitly asks for it (or lazily when calling a kernel
+	//metaOpenCLBuildProgram(frame);
 
 	//add the extra buffers needed for pack/unpack
 	int zero = 0;
@@ -769,7 +772,7 @@ cl_int metaOpenCLInitStackFrame(metaOpenCLStackFrame ** frame, cl_int device) {
 			NULL, NULL);
 	(*frame)->queue = clCreateCommandQueue((*frame)->context, (*frame)->device,
 			CL_QUEUE_PROFILING_ENABLE, NULL);
-	metaOpenCLBuildProgram((*frame));
+	//Now must be explicitly done, kernels check this metaOpenCLBuildProgram((*frame));
 	// Add this debug string if needed: -g -s\"./mm_opencl_backend.cl\"
 	//Allocate any internal buffers necessary for kernel functions
 	(*frame)->constant_face_size = clCreateBuffer((*frame)->context,
@@ -784,6 +787,7 @@ cl_int metaOpenCLInitStackFrame(metaOpenCLStackFrame ** frame, cl_int device) {
 	(*frame)->red_loc = clCreateBuffer((*frame)->context,
 			CL_MEM_READ_WRITE | CL_MEM_COPY_HOST_PTR, sizeof(cl_int), &zero,
 			NULL);
+	(*frame)->state_init=1;
 
 }
 
@@ -890,9 +894,10 @@ cl_int metaOpenCLDestroyStackFrame(metaOpenCLStackFrame * frame) {
 	clReleaseProgram(frame->program_crc_ui);
 	
 #endif
+	frame->kernels_init = 0;
 	clReleaseCommandQueue(frame->queue);
 	clReleaseContext(frame->context);
-
+	frame->state_init = 0;
 	//release the frame's program source
 #if defined(OPENCL_SINGLE_KERNEL_PROGS) && defined(WITH_INTELFPGA)
 	free((void *) frame->metaCLbin_reduce_db);
@@ -1032,9 +1037,16 @@ cl_int metaOpenCLInitStackFrameDefault(metaOpenCLStackFrame ** frame) {
 	fprintf(stderr, "Selected Device %d: %s\n", gpuID, buff);
 
 	//Now that we've picked a reasonable default, fill in the details for the frame object
-	metaOpenCLInitStackFrame(frame, gpuID);
+	ret = metaOpenCLInitStackFrame(frame, gpuID);
 
 	return (ret);
+}
+
+cl_int metaOpenCLInitCoreKernels() {
+	metaOpenCLStackFrame * frame = metaOpenCLTopStackFrame();
+	cl_int ret_code =metaOpenCLBuildProgram(frame);
+	frame->kernels_init = 1;
+	
 }
 
 //  !this kernel works for 3D data only.
@@ -1076,7 +1088,10 @@ cl_int opencl_dotProd(size_t (*grid_size)[3], size_t (*block_size)[3],
 	}
 	smem_len = block[0] * block[1] * block[2];
 	//before enqueuing, get a copy of the top stack frame
+	//Make sure some context exists..
+	if (meta_context == NULL) metaOpenCLFallBack();
 	metaOpenCLStackFrame * frame = metaOpenCLTopStackFrame();
+	if (frame->kernels_init != 1) metaOpenCLBuildProgram(frame);
 
 	switch (type) {
 	case a_db:
@@ -1196,7 +1211,10 @@ cl_int opencl_reduce(size_t (*grid_size)[3], size_t (*block_size)[3],
 	}
 	smem_len = block[0] * block[1] * block[2];
 	//before enqueuing, get a copy of the top stack frame
+	//Make sure some context exists..
+	if (meta_context == NULL) metaOpenCLFallBack();
 	metaOpenCLStackFrame * frame = metaOpenCLTopStackFrame();
+	if (frame->kernels_init != 1) metaOpenCLBuildProgram(frame);
 
 	switch (type) {
 	case a_db:
@@ -1317,7 +1335,10 @@ cl_int opencl_transpose_face(size_t (*grid_size)[3], size_t (*block_size)[3],
 	//TODO as the frame grows larger with more kernels, this overhead will start to add up
 	// Need a better (safe) way of accessing the stack for kernel launches
 	//before enqueuing, get a copy of the top stack frame
+	//Make sure some context exists..
+	if (meta_context == NULL) metaOpenCLFallBack();
 	metaOpenCLStackFrame * frame = metaOpenCLTopStackFrame();
+	if (frame->kernels_init != 1) metaOpenCLBuildProgram(frame);
 
 	switch (type) {
 	case a_db:
@@ -1402,7 +1423,10 @@ cl_int opencl_pack_face(size_t (*grid_size)[3], size_t (*block_size)[3],
 	size_t grid[3];
 	size_t block[3] = { 256, 1, 1 };
 	//before enqueuing, get a copy of the top stack frame
+	//Make sure some context exists..
+	if (meta_context == NULL) metaOpenCLFallBack();
 	metaOpenCLStackFrame * frame = metaOpenCLTopStackFrame();
+	if (frame->kernels_init != 1) metaOpenCLBuildProgram(frame);
 
 	//copy required pieces of the face struct into constant memory
 	ret = clEnqueueWriteBuffer(frame->queue, frame->constant_face_size,
@@ -1513,7 +1537,10 @@ cl_int opencl_unpack_face(size_t (*grid_size)[3], size_t (*block_size)[3],
 	size_t grid[3];
 	size_t block[3] = { 256, 1, 1 };
 	//before enqueuing, get a copy of the top stack frame
+	//Make sure some context exists..
+	if (meta_context == NULL) metaOpenCLFallBack();
 	metaOpenCLStackFrame * frame = metaOpenCLTopStackFrame();
+	if (frame->kernels_init != 1) metaOpenCLBuildProgram(frame);
 
 	//copy required pieces of the face struct into constant memory
 	ret = clEnqueueWriteBuffer(frame->queue, frame->constant_face_size,
@@ -1650,7 +1677,10 @@ cl_int opencl_stencil_3d7p(size_t (*grid_size)[3], size_t (*block_size)[3],
 //TODO check why the FPGA backend uses non-zero smem_len
 	smem_len = (block[0] + 2) * (block[1] + 2) * block[2];
 #endif
+	//Make sure some context exists..
+	if (meta_context == NULL) metaOpenCLFallBack();
 	metaOpenCLStackFrame * frame = metaOpenCLTopStackFrame();
+	if (frame->kernels_init != 1) metaOpenCLBuildProgram(frame);
 
 	switch (type) {
 	case a_db:
@@ -1751,7 +1781,10 @@ cl_int opencl_csr(size_t global_size, size_t local_size,
 		block = local_size;
 	}
 	
+	//Make sure some context exists..
+	if (meta_context == NULL) metaOpenCLFallBack();
 	metaOpenCLStackFrame * frame = metaOpenCLTopStackFrame();
+	if (frame->kernels_init != 1) metaOpenCLBuildProgram(frame);
 	switch (type) {
 	case a_db:
 		kern = frame->kernel_csr_db;
@@ -1805,7 +1838,10 @@ cl_int opencl_crc(size_t global_size, size_t local_size,
 //TODO it doesn't do anything with size since it uses a task, either enforce it or remove it	
 //TODO I doubt there is any reason for non-FPGA platforms to use a task
 //TODO Since it operates on binary data, having it typed is sort of nonsense	
+	//Make sure some context exists..
+	if (meta_context == NULL) metaOpenCLFallBack();
 	metaOpenCLStackFrame * frame = metaOpenCLTopStackFrame();
+	if (frame->kernels_init != 1) metaOpenCLBuildProgram(frame);
 	switch (type) {
 	case a_db:
 		kern = frame->kernel_crc_ui;

@@ -1,4 +1,4 @@
-CL_DEFS = -D __OPENCLCC__
+CL_DEFS = -D __OPENCLCC__ -D WITH_OPENCL
 ifeq ($(USE_FPGA),INTEL)
 ifeq ($(OPENCL_SINGLE_KERNEL_PROGS),TRUE)
 #TODO add aocx build commands and dependencies for extra kernels

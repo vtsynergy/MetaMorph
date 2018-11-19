@@ -222,7 +222,7 @@ export L_FLAGS= -fPIC -shared
 
 CC=gcc
 #CC=icc
-CC_FLAGS = $(OPT_LVL) $(L_FLAGS)
+CC_FLAGS = $(OPT_LVL) $(L_FLAGS) -pg
 INCLUDES  = -I $(MM_DIR)/include
 
 ifndef FPGA_USE_EMULATOR
@@ -402,10 +402,10 @@ libmm_opencl_backend.so:
 libmm_opencl_intelfpga_backend.so:
 	cd $(MM_CL) && $(MFLAGS) $(MAKE) libmm_opencl_intelfpga_backend.so
 
-generators: MetaGen-CL
+generators: metaCL
 
-MetaGen-CL:
-	cd $(MM_GEN_CL) && $(MAKE) metagen-cl
+metaCL:
+	cd $(MM_GEN_CL) && $(MAKE) metaCL
 	
 examples: torus_ex csr_ex crc_ex
 

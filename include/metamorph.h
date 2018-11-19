@@ -158,6 +158,8 @@ typedef struct HPRecType {
 //	extern cl_context meta_context;
 //	extern cl_command_queue meta_queue;
 //	extern cl_device_id meta_device;
+void metaOpenCLFallBack();
+
 #endif
 
 typedef enum {

@@ -242,9 +242,11 @@ a_err meta_alloc(void ** ptr, size_t size) {
 
 #ifdef WITH_OPENCL
 		case metaModePreferOpenCL:
+		{
 		//Make sure some context exists..
 		if (meta_context == NULL) metaOpenCLFallBack();
 		*ptr = (void *) clCreateBuffer(meta_context, CL_MEM_READ_WRITE, size, NULL, (cl_int *)&ret);
+		}
 		break;
 #endif
 
@@ -283,9 +285,11 @@ a_err meta_free(void * ptr) {
 
 #ifdef WTIH_OPENCL
 		case metaModePreferOpenCL:
+		{
 		//Make sure some context exists..
 		if (meta_context == NULL) metaOpenCLFallBack();
 		ret = clReleaseMemObject((cl_mem)ptr);
+		}
 		break;
 #endif
 
@@ -392,6 +396,7 @@ a_err meta_copy_h2d_cb(void * dst, void * src, size_t size, a_bool async,
 
 #ifdef WITH_OPENCL
 		case metaModePreferOpenCL:
+		{
 		//Make sure some context exists..
 		if (meta_context == NULL) metaOpenCLFallBack();
 #ifdef WITH_TIMERS
@@ -413,6 +418,7 @@ a_err meta_copy_h2d_cb(void * dst, void * src, size_t size, a_bool async,
 		ret = clEnqueueWriteBuffer(meta_queue, (cl_mem) dst, ((async) ? CL_FALSE : CL_TRUE), 0, size, src, 0, NULL, &cb_event);
 		if ((void*)call != NULL && call_pl != NULL) clSetEventCallback(cb_event, CL_COMPLETE, call->openclCallback, call_pl);
 #endif
+		}
 		break;
 #endif
 
@@ -495,6 +501,7 @@ a_err meta_copy_d2h_cb(void * dst, void * src, size_t size, a_bool async,
 
 #ifdef WITH_OPENCL
 		case metaModePreferOpenCL:
+		{
 		//Make sure some context exists..
 		if (meta_context == NULL) metaOpenCLFallBack();
 #ifdef WITH_TIMERS
@@ -516,6 +523,7 @@ a_err meta_copy_d2h_cb(void * dst, void * src, size_t size, a_bool async,
 		ret = clEnqueueReadBuffer(meta_queue, (cl_mem) src, ((async) ? CL_FALSE : CL_TRUE), 0, size, dst, 0, NULL, &cb_event);
 		if ((void*)call != NULL && call_pl != NULL) clSetEventCallback(cb_event, CL_COMPLETE, call->openclCallback, call_pl);
 #endif
+		}
 		break;
 #endif
 
@@ -591,6 +599,7 @@ a_err meta_copy_d2d_cb(void * dst, void * src, size_t size, a_bool async,
 
 #ifdef WITH_OPENCL
 		case metaModePreferOpenCL:
+		{
 		//Make sure some context exists..
 		if (meta_context == NULL) metaOpenCLFallBack();
 #ifdef WITH_TIMERS
@@ -612,6 +621,7 @@ a_err meta_copy_d2d_cb(void * dst, void * src, size_t size, a_bool async,
 #endif
 		//clEnqueueCopyBuffer is by default async, so clFinish
 		if (!async) clFinish(meta_queue);
+		}
 		break;
 #endif
 
@@ -755,12 +765,14 @@ a_err meta_get_acc(int * accel, meta_preferred_mode * mode) {
 
 #ifdef WITH_OPENCL
 		case metaModePreferOpenCL:
+		{
 		//Make sure some context exists..
 		if (meta_context == NULL) metaOpenCLFallBack();
 		//TODO implement appropriate response for OpenCL device number
 		//TODO implement this based on metaOpenCLTopStackFrame
 		//fprintf(stderr, "OpenCL Device Query not yet implemented!\n");
 		*mode = metaModePreferOpenCL;
+		}
 		break;
 #endif
 
@@ -798,6 +810,7 @@ a_err meta_validate_worksize(a_dim3 * grid_size, a_dim3 * block_size) {
 
 #ifdef WITH_OPENCL
 		case metaModePreferOpenCL:
+		{
 		//Make sure some context exists..
 		if (meta_context == NULL) metaOpenCLFallBack();
 		size_t max_wg_size, max_wg_dim_sizes[3];
@@ -810,6 +823,7 @@ a_err meta_validate_worksize(a_dim3 * grid_size, a_dim3 * block_size) {
 		if ((*block_size)[1] > max_wg_dim_sizes[1]) {fprintf(stderr, "Error: Maximum block size for dimension 1 is: %lu\nRequested 1st dimension size of: %lu not supported\n!", max_wg_dim_sizes[1], (*block_size)[1]); ret |= -1;}
 		if ((*block_size)[2] > max_wg_dim_sizes[2]) {fprintf(stderr, "Error: Maximum block size for dimension 2 is: %lu\nRequested 2nd dimension size of: %lu not supported\n!", max_wg_dim_sizes[2], (*block_size)[2]); ret |= -1;}
 		return(ret);
+		}
 		break;
 #endif
 
@@ -843,9 +857,11 @@ a_err meta_flush() {
 
 #ifdef WITH_OPENCL
 		case metaModePreferOpenCL:
+		{
 		//Make sure some context exists..
 		if (meta_context == NULL) metaOpenCLFallBack();
 		clFinish(meta_queue);
+		}
 		break;
 #endif
 
@@ -986,8 +1002,7 @@ a_err meta_dotProd_cb(a_dim3 * grid_size, a_dim3 * block_size, void * data1,
 
 #ifdef WITH_OPENCL
 		case metaModePreferOpenCL:
-		//Make sure some context exists..
-		if (meta_context == NULL) metaOpenCLFallBack();
+		{
 #ifdef WITH_TIMERS
 		ret = (a_err) opencl_dotProd(grid_size, block_size, data1, data2, array_size, array_start, array_end, reduction_var, type, async, &(frame->event.opencl));
 		//If timers exist, use their event to add the callback
@@ -998,6 +1013,7 @@ a_err meta_dotProd_cb(a_dim3 * grid_size, a_dim3 * block_size, void * data1,
 		ret = (a_err) opencl_dotProd(grid_size, block_size, data1, data2, array_size, array_start, array_end, reduction_var, type, async, &cb_event);
 		if ((void*)call != NULL && call_pl != NULL) clSetEventCallback(cb_event, CL_COMPLETE, call->openclCallback, call_pl);
 #endif
+		}
 		break;
 #endif
 
@@ -1144,8 +1160,7 @@ a_err meta_reduce_cb(a_dim3 * grid_size, a_dim3 * block_size, void * data,
 
 #ifdef WITH_OPENCL
 		case metaModePreferOpenCL:
-		//Make sure some context exists..
-		if (meta_context == NULL) metaOpenCLFallBack();
+		{
 #ifdef WITH_TIMERS
 		ret = (a_err) opencl_reduce(grid_size, block_size, data, array_size, array_start, array_end, reduction_var, type, async, &(frame->event.opencl));
 		//If timers exist, use their event to add the callback
@@ -1156,6 +1171,7 @@ a_err meta_reduce_cb(a_dim3 * grid_size, a_dim3 * block_size, void * data,
 		ret = (a_err) opencl_reduce(grid_size, block_size, data, array_size, array_start, array_end, reduction_var, type, async, &cb_event);
 		if ((void*)call != NULL && call_pl != NULL) clSetEventCallback(cb_event, CL_COMPLETE, call->openclCallback, call_pl);
 #endif
+		}
 		break;
 #endif
 
@@ -1301,8 +1317,7 @@ a_err meta_transpose_face_cb(a_dim3 * grid_size, a_dim3 * block_size,
 
 #ifdef WITH_OPENCL
 		case metaModePreferOpenCL:
-		//Make sure some context exists..
-		if (meta_context == NULL) metaOpenCLFallBack();
+		{
 #ifdef WITH_TIMERS
 		ret = (a_err) opencl_transpose_face(grid_size, block_size, indata, outdata, arr_dim_xy, tran_dim_xy, type, async, &(frame->event.opencl));
 		//If timers exist, use their event to add the callback
@@ -1313,6 +1328,7 @@ a_err meta_transpose_face_cb(a_dim3 * grid_size, a_dim3 * block_size,
 		ret = (a_err) opencl_transpose_face(grid_size, block_size, indata, outdata, arr_dim_xy, tran_dim_xy, type, async, &cb_event);
 		if ((void*)call != NULL && call_pl != NULL) clSetEventCallback(cb_event, CL_COMPLETE, call->openclCallback, call_pl);
 #endif
+		}
 		break;
 #endif
 
@@ -1424,8 +1440,7 @@ a_err meta_pack_face_cb(a_dim3 * grid_size, a_dim3 * block_size,
 
 #ifdef WITH_OPENCL
 		case metaModePreferOpenCL:
-		//Make sure some context exists..
-		if (meta_context == NULL) metaOpenCLFallBack();
+		{
 #ifdef WITH_TIMERS
 		ret = (a_err) opencl_pack_face(grid_size, block_size, packed_buf, buf, face, remain_dim, type, async, &(frame_k1->event.opencl), &(frame_c1->event.opencl), &(frame_c2->event.opencl), &(frame_c3->event.opencl));
 		//If timers exist, use their event to add the callback
@@ -1436,6 +1451,7 @@ a_err meta_pack_face_cb(a_dim3 * grid_size, a_dim3 * block_size,
 		ret = (a_err) opencl_pack_face(grid_size, block_size, packed_buf, buf, face, remain_dim, type, async, &cb_event, NULL, NULL, NULL);
 		if ((void*)call != NULL && call_pl != NULL) clSetEventCallback(cb_event, CL_COMPLETE, call->openclCallback, call_pl);
 #endif
+		}
 		break;
 #endif
 
@@ -1548,8 +1564,7 @@ a_err meta_unpack_face_cb(a_dim3 * grid_size, a_dim3 * block_size,
 
 #ifdef WITH_OPENCL
 		case metaModePreferOpenCL:
-		//Make sure some context exists..
-		if (meta_context == NULL) metaOpenCLFallBack();
+		{
 #ifdef WITH_TIMERS
 		ret = (a_err) opencl_unpack_face(grid_size, block_size, packed_buf, buf, face, remain_dim, type, async, &(frame_k1->event.opencl), &(frame_c1->event.opencl), &(frame_c2->event.opencl), &(frame_c3->event.opencl));
 		//If timers exist, use their event to add the callback
@@ -1560,6 +1575,7 @@ a_err meta_unpack_face_cb(a_dim3 * grid_size, a_dim3 * block_size,
 		ret = (a_err) opencl_unpack_face(grid_size, block_size, packed_buf, buf, face, remain_dim, type, async, &cb_event, NULL, NULL, NULL);
 		if ((void*)call != NULL && call_pl != NULL) clSetEventCallback(cb_event, CL_COMPLETE, call->openclCallback, call_pl);
 #endif
+		}
 		break;
 #endif
 
@@ -1713,8 +1729,7 @@ a_err meta_stencil_3d7p_cb(a_dim3 * grid_size, a_dim3 * block_size,
 
 #ifdef WITH_OPENCL
 		case metaModePreferOpenCL:
-		//Make sure some context exists..
-		if (meta_context == NULL) metaOpenCLFallBack();
+		{
 #ifdef WITH_TIMERS
 		ret = (a_err) opencl_stencil_3d7p(grid_size, block_size, indata, outdata, array_size, array_start, array_end, type, async, &(frame->event.opencl));
 		//If timers exist, use their event to add the callback
@@ -1726,6 +1741,7 @@ a_err meta_stencil_3d7p_cb(a_dim3 * grid_size, a_dim3 * block_size,
 
 		if ((void*)call != NULL && call_pl != NULL) clSetEventCallback(cb_event, CL_COMPLETE, call->openclCallback, call_pl);
 #endif
+		}
 		break;
 #endif
 
@@ -1780,14 +1796,14 @@ a_err meta_csr_cb(size_t global_size, size_t local_size, void * csr_ap, void * c
 		break;
 
 #ifdef WITH_CUDA
-		case metaModePreferCUDA: 
+		case metaModePreferCUDA:
+		fprintf(stderr, "CUDA CSR Not yet supported\n"); 
 		break;
 #endif
 
 #ifdef WITH_OPENCL
 		case metaModePreferOpenCL:
-		//Make sure some context exists..
-		if (meta_context == NULL) metaOpenCLFallBack();
+		{
 #ifdef WITH_TIMERS
 		ret = (a_err) opencl_csr(global_size, local_size, csr_ap, csr_aj, csr_ax, x_loc, y_loc, type, async,
 		// wait,
@@ -1804,11 +1820,13 @@ a_err meta_csr_cb(size_t global_size, size_t local_size, void * csr_ap, void * c
 
 		if ((void*)call != NULL && call_pl != NULL) clSetEventCallback(cb_event, CL_COMPLETE, call->openclCallback, call_pl);
 #endif
+		}
 		break;
 #endif
 
 #ifdef WITH_OPENMP
 		case metaModePreferOpenMP:
+		fprintf(stderr, "OpenMP CSR Not yet supported");
 		break;
 #endif
 	}
@@ -1847,13 +1865,13 @@ a_err meta_crc_cb(size_t global_size, size_t local_size, void * dev_input, int p
 
 #ifdef WITH_CUDA
 		case metaModePreferCUDA: 
+		fprintf(stderr, "CUDA CRC Not yet supported\n");
 		break;
 #endif
 
 #ifdef WITH_OPENCL
 		case metaModePreferOpenCL:
-		//Make sure some context exists..
-		if (meta_context == NULL) metaOpenCLFallBack();
+		{
 #ifdef WITH_TIMERS
 		ret = (a_err) opencl_crc(global_size, local_size, dev_input, page_size, num_words, numpages, dev_output, type, async,
 		// wait,
@@ -1868,11 +1886,13 @@ a_err meta_crc_cb(size_t global_size, size_t local_size, void * dev_input, int p
 
 		if ((void*)call != NULL && call_pl != NULL) clSetEventCallback(cb_event, CL_COMPLETE, call->openclCallback, call_pl);
 #endif
+		}
 		break;
 #endif
 
 #ifdef WITH_OPENMP
 		case metaModePreferOpenMP:
+		fprintf(stderr, "OpenMP CRC Not yet supported");
 		break;
 #endif
 	}

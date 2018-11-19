@@ -12,7 +12,7 @@
 #define METAMORPH_OPENCL_BACKEND_H
 
 #ifndef METAMORPH_H
-#include "metamorph.h"
+#include "../../include/metamorph.h"
 #endif
 
 //If the user doesn't override default threadblock size..
@@ -49,6 +49,7 @@ typedef struct metaOpenCLStackFrame {
 	cl_device_id device;
 	cl_context context;
 	cl_command_queue queue;
+	unsigned char state_init, kernels_init;
 
 //Trades host StackFrame size for smaller programs (sometimes necessary for FPGA)
 #if  (defined(WITH_INTELFPGA) && defined(OPENCL_SINGLE_KERNELPROGS))
@@ -251,6 +252,9 @@ cl_int metaOpenCLDestroyStackFrame(metaOpenCLStackFrame * frame);
 cl_int metaOpenCLInitStackFrameDefault(metaOpenCLStackFrame ** frame);
 
 size_t metaOpenCLLoadProgramSource(const char *filename, const char **progSrc);
+
+//explicitly initialize kernels, instead of automatically
+cl_int metaOpenCLInitCoreKernels();
 
 cl_int opencl_dotProd(size_t (*grid_size)[3], size_t (*block_size)[3],
 		void * data1, void * data2, size_t (*array_size)[3],

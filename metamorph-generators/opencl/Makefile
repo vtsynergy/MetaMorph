@@ -45,10 +45,10 @@ CLANG_LIBS := -L $(LLVM_BUILD_PATH)/lib \
 	-Wl,--end-group \
 	-lpthread
 
-all: metagen-cl
+all: metaCL
 
-metagen-cl: metagen-cl.cpp | $(LLVM_BUILD_PATH)
-	$(CXX) $(CXXFLAGS) $(CLANG_INCLUDES) metagen-cl.cpp -o metagen-cl $(CLANG_LDFLAGS) $(CLANG_LIBS)
+metaCL: metacl.cpp | $(LLVM_BUILD_PATH)
+	$(CXX) $(CXXFLAGS) $(CLANG_INCLUDES) metacl.cpp -o metaCL $(CLANG_LDFLAGS) $(CLANG_LIBS)
 
 $(LLVM_BUILD_PATH): | $(LLVM_BASE_PATH)/$(LLVM_TARBALL).tar.xz
 	tar -xf $(LLVM_BASE_PATH)/$(LLVM_TARBALL).tar.xz -C $(LLVM_BASE_PATH)
