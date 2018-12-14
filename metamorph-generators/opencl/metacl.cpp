@@ -440,14 +440,14 @@ void PrototypeHandler::run(const MatchFinder::MatchResult &Result) {
     //TODO Detect if single-work-item from kernel funcs (not just attribute)
     if (singleWorkItem || (work_group_size[3] != 0 && work_group_size[0] == 1 && work_group_size[1] == 1 && work_group_size[2] == 1)) {
       wrapper += "  retCode = clEnqueueTask(meta_queue, " + framed_kernel + ", " + eventWaitListSize + ", " + eventWaitList + ", " + retEvent + ");\n";
-        wrapper += ERROR_CHECK("retCode", "OpenCL kernel enqueue error (host wrapper: \"" + host_func + "\")");
+        wrapper += ERROR_CHECK("retCode", "OpenCL kernel enqueue error (host wrapper: \\\"" + host_func + "\\\")");
     } else {
       wrapper += "  retCode = clEnqueueNDRangeKernel(meta_queue, " + framed_kernel + ", " + std::to_string(workDim) + ", " + offset + ", " + globalSize + ", " + localSize + ", " + eventWaitListSize + ", " + eventWaitList + ", " + retEvent + ");\n";
-        wrapper += ERROR_CHECK("retCode", "OpenCL kernel enqueue error (host wrapper: \"" + host_func + "\")");
+        wrapper += ERROR_CHECK("retCode", "OpenCL kernel enqueue error (host wrapper: \\\"" + host_func + "\\\")");
     }
     wrapper += "  if (!async) {\n";
     wrapper += "    retCode = clFinish(meta_queue);\n";
-    wrapper += ERROR_CHECK("retCode", "OpenCL kernel execution error (host wrapper: \"" + host_func + "\")");
+    wrapper += ERROR_CHECK("retCode", "OpenCL kernel execution error (host wrapper: \\\"" + host_func + "\\\")");
     wrapper += "  }\n";
     wrapper += "  return retCode;\n";
     
