@@ -514,7 +514,7 @@ class MetaGenCLFrontendAction : public ASTFrontendAction {
        //At the beginning of processing each new file, create the associated once-per-input-file boilerplate
        //By looking up the host code cache in the map, we force it to exist so we can populate it
       std::string file = trimFileSlashesAndType(infile.str());
-      std::string outFile = ((UnifiedoutputFile.getValue() == "") ? file : UnifiedOutputFile.getValue());
+      std::string outFile = ((UnifiedOutputFile.getValue() == "") ? file : UnifiedOutputFile.getValue());
 
 	llvm::errs() << file << "\n";
 
