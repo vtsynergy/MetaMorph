@@ -26,6 +26,10 @@
 #define METAMORPH_OCL_DEFAULT_BLOCK_1D 16
 #endif
 
+#ifndef METAMORPH_OCL_KERNEL_PATH
+#define METAMORPH_OCL_KERNEL_PATH ""
+#endif
+
 //Not sure if these C compatibility stubs will actually be needed
 #if defined(__OPENCLCC__) || defined(__cplusplus)
 extern "C" {

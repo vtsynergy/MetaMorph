@@ -314,7 +314,7 @@ void PrototypeHandler::run(const MatchFinder::MatchResult &Result) {
         std::string framed_kernel = "__meta_gen_opencl_" + outFile + "_current_frame->" + func->getNameAsString() + "_kernel";
 	cache->cl_kernels.push_back("  cl_kernel " + func->getNameAsString() + "_kernel;\n");
     //Generate a clCreatKernelExpression
-	cache->kernelInit.push_back("    " + framed_kernel + " = clCreateKernel(__meta_gen_opencl_" + outFile + "_current_frame->" + filename + "_prog, \"" + func->getNameAsString() + "\", &createError);\n");
+	cache->kernelInit.push_back("    if (__meta_gen_opencl_" + outFile + "_current_frame->" + filename + "_progLen != -1) " + framed_kernel + " = clCreateKernel(__meta_gen_opencl_" + outFile + "_current_frame->" + filename + "_prog, \"" + func->getNameAsString() + "\", &createError);\n");
         cache->kernelInit.push_back(ERROR_CHECK("createError", "OpenCL kernel creation error"));
     //Generate a clReleaseKernelExpression
 	cache->kernelDeinit.push_back("    releaseError = clReleaseKernel(" + framed_kernel + ");\n");
@@ -339,6 +339,8 @@ void PrototypeHandler::run(const MatchFinder::MatchResult &Result) {
 
     //Add module-registration check/lazy registration
     setArgs += "  if (meta_gen_opencl_" + outFile + "_registration == NULL) meta_register_module(&meta_gen_opencl_" + outFile + "_registry);\n";
+    //Add a per-program check for initialization
+    setArgs += "  if (__meta_gen_opencl_" + outFile + "_current_frame->" + filename + "_init != 1) return CL_INVALID_PROGRAM;\n";
 
         //TODO Add other wrapper fuction parameters
     hostProto += "size_t (*grid_size)[3], size_t (*block_size)[3], ";
@@ -526,26 +528,34 @@ class MetaGenCLFrontendAction : public ASTFrontendAction {
       cache->runOnceInit += "#ifdef WITH_INTELFPGA\n";
       //TODO enforce Intel name filtering to remove "kernel"
       //TODO allow them to configure the source path in an environment variable?
-      cache->runOnceInit += "  progLen = metaOpenCLLoadProgramSource(\"" + file + ".aocx\", &progSrc);\n";
-      cache->runOnceInit += "  __meta_gen_opencl_" + outFile + "_current_frame->" + file + "_prog = clCreateProgramWithBinary(meta_context, 1, &meta_device, &progLen, (const unsigned char **)&progSrc, NULL, &buildError);\n";
+      cache->runOnceInit += "  __meta_gen_opencl_" + outFile + "_current_frame->" + file + "_progLen = metaOpenCLLoadProgramSource(\"" + file + ".aocx\", &__meta_gen_opencl_" + outFile + "_current_frame->" + file + "_progSrc);\n";
+      cache->runOnceInit += "  if (__meta_gen_opencl_" + outFile + "_current_frame->" + file + "_progLen != -1) {\n";
+      cache->runOnceInit += "     __meta_gen_opencl_" + outFile + "_current_frame->" + file + "_prog = clCreateProgramWithBinary(meta_context, 1, &meta_device, &__meta_gen_opencl_" + outFile + "_current_frame->" + file + "_progLen, (const unsigned char **)&__meta_gen_opencl_" + outFile + "_current_frame->" + file + "_progSrc, NULL, &buildError);\n";
       cache->runOnceInit += "#else\n";
       //TODO allow them to configure the source path in an environment variable?
-      cache->runOnceInit += "  progLen = metaOpenCLLoadProgramSource(\"" + file + ".cl\", &progSrc);\n";
-      cache->runOnceInit += "  __meta_gen_opencl_" + outFile + "_current_frame->" + file + "_prog = clCreateProgramWithSource(meta_context, 1, &progSrc, &progLen, &buildError);\n";
+      cache->runOnceInit += "  __meta_gen_opencl_" + outFile + "_current_frame->" + file + "_progLen = metaOpenCLLoadProgramSource(\"" + file + ".cl\", &__meta_gen_opencl_" + outFile + "_current_frame->" + file + "_progSrc);\n";
+      cache->runOnceInit += "  if (__meta_gen_opencl_" + outFile + "_current_frame->" + file + "_progLen != -1) {\n";
+      cache->runOnceInit += "    __meta_gen_opencl_" + outFile + "_current_frame->" + file + "_prog = clCreateProgramWithSource(meta_context, 1, &__meta_gen_opencl_" + outFile + "_current_frame->" + file + "_progSrc, &__meta_gen_opencl_" + outFile + "_current_frame->" + file + "_progLen, &buildError);\n";
       cache->runOnceInit += "#endif\n";
       cache->runOnceInit += ERROR_CHECK("buildError", "OpenCL program creation error");
-      cache->runOnceInit += "  buildError = clBuildProgram(__meta_gen_opencl_" + outFile + "_current_frame->" + file + "_prog, 1, &meta_device, __meta_gen_opencl_" + file + "_custom_args ? __meta_gen_opencl_" + file + "_custom_args : \"\", NULL, NULL);\n";
-      cache->runOnceInit += "  if (buildError != CL_SUCCESS) {\n";
-      cache->runOnceInit += "    size_t logsize = 0;\n";
-      cache->runOnceInit += "    clGetProgramBuildInfo(__meta_gen_opencl_" + outFile + "_current_frame->" + file + "_prog, meta_device, CL_PROGRAM_BUILD_LOG, 0, NULL, &logsize);\n";
-      cache->runOnceInit += "    char * buildLog = (char *) malloc(sizeof(char) * (logsize + 1));\n";
-      cache->runOnceInit += "    clGetProgramBuildInfo(__meta_gen_opencl_" + outFile + "_current_frame->" + file + "_prog, meta_device, CL_PROGRAM_BUILD_LOG, logsize, buildLog, NULL);\n";
+      cache->runOnceInit += "    buildError = clBuildProgram(__meta_gen_opencl_" + outFile + "_current_frame->" + file + "_prog, 1, &meta_device, __meta_gen_opencl_" + file + "_custom_args ? __meta_gen_opencl_" + file + "_custom_args : \"\", NULL, NULL);\n";
+      cache->runOnceInit += "    if (buildError != CL_SUCCESS) {\n";
+      cache->runOnceInit += "      size_t logsize = 0;\n";
+      cache->runOnceInit += "      clGetProgramBuildInfo(__meta_gen_opencl_" + outFile + "_current_frame->" + file + "_prog, meta_device, CL_PROGRAM_BUILD_LOG, 0, NULL, &logsize);\n";
+      cache->runOnceInit += "      char * buildLog = (char *) malloc(sizeof(char) * (logsize + 1));\n";
+      cache->runOnceInit += "      clGetProgramBuildInfo(__meta_gen_opencl_" + outFile + "_current_frame->" + file + "_prog, meta_device, CL_PROGRAM_BUILD_LOG, logsize, buildLog, NULL);\n";
       cache->runOnceInit += ERROR_CHECK("buildError", "OpenCL program build error");
-      cache->runOnceInit += "    fprintf(stderr, \"Build Log:\\n\%s\\n\", buildLog);\n";
-      cache->runOnceInit += "    free(buildLog);\n";
+      cache->runOnceInit += "      fprintf(stderr, \"Build Log:\\n\%s\\n\", buildLog);\n";
+      cache->runOnceInit += "      free(buildLog);\n";
+      cache->runOnceInit += "    } else {\n";
+      cache->runOnceInit += "      __meta_gen_opencl_" + outFile + "_current_frame->" + file + "_init = 1;\n";
+      cache->runOnceInit += "    }\n";
       cache->runOnceInit += "  }\n";
-      cache->runOnceDeinit += "    releaseError = clReleaseProgram(__meta_gen_opencl_" + outFile + "_current_frame->" + file + "_prog);\n";
-      cache->runOnceDeinit += ERROR_CHECK("releaseError", "OpenCL program release error");
+      cache->runOnceDeinit += "      releaseError = clReleaseProgram(__meta_gen_opencl_" + outFile + "_current_frame->" + file + "_prog);\n";
+      cache->runOnceDeinit += ERROR_CHECK("releaseError", "OpenCL program release error"); 
+      cache->runOnceDeinit += "      free(__meta_gen_opencl_" + outFile + "_current_frame->" + file + "_progSrc);\n";
+      cache->runOnceDeinit += "      __meta_gen_opencl_" + outFile + "_current_frame->" + file + "_progLen = 0;\n";
+      cache->runOnceDeinit += "      __meta_gen_opencl_" + outFile + "_current_frame->" + file + "_init = 0;\n";
       if (unified_output_c != NULL) {
 	cache->outfile_c = unified_output_c;
 	cache->outfile_h = unified_output_h;
@@ -632,7 +642,10 @@ int populateOutputFiles() {
     }
     //Generate the program variable (one per input file)
     //TODO support one-kernel-per-program convention
+    *out_c << "  const char * " << fileCachePair.first << "_progSrc;\n";
+    *out_c << "  size_t " << fileCachePair.first << "_progLen;\n";
     *out_c << "  cl_program " << fileCachePair.first << "_prog;\n";
+    *out_c << "  cl_int " << fileCachePair.first << "_init;\n";
     //Add the kernel variables
     for (std::string var : fileCachePair.second->cl_kernels) {
       *out_c  << var;
@@ -688,8 +701,8 @@ int populateOutputFiles() {
       *out_c << "  if (__meta_gen_opencl_" << outFileName << "_current_frame == NULL) {\n";
       *out_c << "    __meta_gen_opencl_" << outFileName << "_current_frame = (struct __meta_gen_opencl_" << outFileName << "_frame *) malloc(sizeof(struct __meta_gen_opencl_" << outFileName << "_frame));\n";
       *out_c << "  }\n";
-      *out_c << "  const char * progSrc;\n";
-      *out_c << "  size_t progLen;\n";
+//      *out_c << "  const char * progSrc;\n";
+//      *out_c << "  size_t progLen;\n";
     }
     //Add the clCreateProgram bits
     *out_c << fileCachePair.second->runOnceInit;
@@ -727,10 +740,12 @@ int populateOutputFiles() {
       *out_c << "  if (__meta_gen_opencl_" << outFileName << "_current_frame != NULL) {\n";
     }
     //Release all the kernels
+    *out_c << "    if (__meta_gen_opencl_" << outFileName << "_current_frame->" << fileCachePair.first << "_progLen != -1) {\n";
     for (std::string kern : fileCachePair.second->kernelDeinit) {
       *out_c << kern;
     }
     *out_c << fileCachePair.second->runOnceDeinit;
+    *out_c << "    }\n";
 
     //inhibit deinit generation on subsequent unified passes
     unifiedFirstPass = false;

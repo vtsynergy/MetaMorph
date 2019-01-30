@@ -86,8 +86,39 @@ void metaOpenCLQueryDevices() {
 	//free(platforms);
 }
 
+//Returns the size of the first program with corresponding name found in METAMORPH_OCL_KERNEL_PATH
+//If none is found, returns -1. Client responsible for handling non-existent kernels gracefully.
 size_t metaOpenCLLoadProgramSource(const char *filename, const char **progSrc) {
-	FILE *f = fopen(filename, "r");
+	//Construct the path string
+	//environment variable + METAMORPH_OCL_KERNEL_PATH
+	char * path = NULL;
+	if (getenv("METAMORPH_OCL_KERNEL_PATH") != NULL) {
+		size_t needed = snprintf(NULL, 0, "%s:"METAMORPH_OCL_KERNEL_PATH, getenv("METAMORPH_OCL_KERNEL_PATH"));
+		path = (char*)calloc(needed+1, sizeof(char));
+		snprintf(path, needed+1, "%s:"METAMORPH_OCL_KERNEL_PATH, getenv("METAMORPH_OCL_KERNEL_PATH"));
+	} else {
+		size_t needed = snprintf(NULL, 0, METAMORPH_OCL_KERNEL_PATH);
+		path = (char*)calloc(needed+1, sizeof(char));
+		snprintf(path, needed+1, METAMORPH_OCL_KERNEL_PATH);
+	}
+	char * token = strtok(path, ":");
+	FILE *f = NULL;
+	if (token == NULL) token = "."; //handle completely empty path
+	//loop over all paths until a copy is found, notify if none found
+	while (token != NULL && f == NULL) {
+		if ((strcmp(token, "") == 0)) token = "."; //handle empty token
+		size_t abs_path_sz = snprintf(NULL, 0, "%s/%s", token, filename);
+		char * abs_path = (char*)calloc(abs_path_sz+1, sizeof(char));
+		snprintf(abs_path, abs_path_sz+1, "%s/%s", token, filename);
+		f = fopen(abs_path, "r");
+		token = strtok(NULL, ":");
+	}
+	//TODO if none is found, how to handle? Don't need to crash the program, we can just not allow the kernel(s) in this file to run
+	if (f == NULL) {
+		fprintf(stderr, "MetaMorph could not find kernel file \"%s\",subsequent kernel launches will return CL_INVALID_PROGRAM (%d)\n", filename, CL_INVALID_PROGRAM);
+		return -1;
+	}
+
 	fseek(f, 0, SEEK_END);
 	size_t len = (size_t) ftell(f);
 	*progSrc = (const char *) malloc(sizeof(char) * len);
@@ -164,7 +195,7 @@ cl_int metaOpenCLBuildProgram(metaOpenCLStackFrame * frame) {
 #define ENSURE_SRC(name) if (frame->metaCLbinLen_##name == 0) \
 	frame->metaCLbinLen_##name = metaOpenCLLoadProgramSource("lib/mm_opencl_intelfpga_backend_"##name".aocx", &(frame->metaCLbin_##name)); \
 	} \
-	frame->program_##name = clCreateProgramWithBinary(frame->context, 1, &(frame->device), &(frame->metaCLbinLen_##name), (const unsigned char **) &(frame->metaCLbin_##name), NULL, NULL);
+	if (frame->metaCLbinLen_##name != -1) frame->program_##name = clCreateProgramWithBinary(frame->context, 1, &(frame->device), &(frame->metaCLbinLen_##name), (const unsigned char **) &(frame->metaCLbin_##name), NULL, NULL);
 
 	ENSURE_SRC(reduce_db);
 	ENSURE_SRC(reduce_fl);
@@ -211,134 +242,137 @@ cl_int metaOpenCLBuildProgram(metaOpenCLStackFrame * frame) {
 	if (frame->metaCLProgLen == 0) {
 		frame->metaCLProgLen = metaOpenCLLoadProgramSource("lib/mm_opencl_intelfpga_backend.aocx", &(frame->metaCLProgSrc));
 	}
-	frame->program_opencl_core=clCreateProgramWithBinary(frame->context,1,&(frame->device), &(frame->metaCLProgLen),(const unsigned char**) &(frame->metaCLProgSrc),NULL,NULL);
+	if (frame->metaCLProgLen != -1) frame->program_opencl_core=clCreateProgramWithBinary(frame->context,1,&(frame->device), &(frame->metaCLProgLen),(const unsigned char**) &(frame->metaCLProgSrc),NULL,NULL);
 #elif !defined(WITH_INTELFPGA) && defined(OPENCL_SINGLE_KERNEL_PROGS)
 	if (frame->metaCLProgLen == 0) {
 		frame->metaCLProgLen = metaOpenCLLoadProgramSource("mm_opencl_backend.cl",&(frame->metaCLProgSrc));
 	}
 	//They use the same source with different defines
-	frame->program_reduce_db = clCreateProgramWithSource(frame->context, 1,&(frame->metaCLProgSrc), &(frame->metaCLProgLen), NULL);
-	frame->program_reduce_fl = clCreateProgramWithSource(frame->context, 1,&(frame->metaCLProgSrc), &(frame->metaCLProgLen), NULL);
-	frame->program_reduce_ul = clCreateProgramWithSource(frame->context, 1,&(frame->metaCLProgSrc), &(frame->metaCLProgLen), NULL);
-	frame->program_reduce_in = clCreateProgramWithSource(frame->context, 1,&(frame->metaCLProgSrc), &(frame->metaCLProgLen), NULL);
-	frame->program_reduce_ui = clCreateProgramWithSource(frame->context, 1,&(frame->metaCLProgSrc), &(frame->metaCLProgLen), NULL);
-	frame->program_dotProd_db = clCreateProgramWithSource(frame->context, 1,&(frame->metaCLProgSrc), &(frame->metaCLProgLen), NULL);
-	frame->program_dotProd_fl = clCreateProgramWithSource(frame->context, 1,&(frame->metaCLProgSrc), &(frame->metaCLProgLen), NULL);
-	frame->program_dotProd_ul = clCreateProgramWithSource(frame->context, 1,&(frame->metaCLProgSrc), &(frame->metaCLProgLen), NULL);
-	frame->program_dotProd_in = clCreateProgramWithSource(frame->context, 1,&(frame->metaCLProgSrc), &(frame->metaCLProgLen), NULL);
-	frame->program_dotProd_ui = clCreateProgramWithSource(frame->context, 1,&(frame->metaCLProgSrc), &(frame->metaCLProgLen), NULL);
-	frame->program_transpose_2d_face_db = clCreateProgramWithSource(frame->context, 1,&(frame->metaCLProgSrc), &(frame->metaCLProgLen), NULL);
-	frame->program_transpose_2d_face_fl = clCreateProgramWithSource(frame->context, 1,&(frame->metaCLProgSrc), &(frame->metaCLProgLen), NULL);
-	frame->program_transpose_2d_face_ul = clCreateProgramWithSource(frame->context, 1,&(frame->metaCLProgSrc), &(frame->metaCLProgLen), NULL);
-	frame->program_transpose_2d_face_in = clCreateProgramWithSource(frame->context, 1,&(frame->metaCLProgSrc), &(frame->metaCLProgLen), NULL);
-	frame->program_transpose_2d_face_ui = clCreateProgramWithSource(frame->context, 1,&(frame->metaCLProgSrc), &(frame->metaCLProgLen), NULL);
-	frame->program_pack_2d_face_db = clCreateProgramWithSource(frame->context, 1,&(frame->metaCLProgSrc), &(frame->metaCLProgLen), NULL);
-	frame->program_pack_2d_face_fl = clCreateProgramWithSource(frame->context, 1,&(frame->metaCLProgSrc), &(frame->metaCLProgLen), NULL);
-	frame->program_pack_2d_face_ul = clCreateProgramWithSource(frame->context, 1,&(frame->metaCLProgSrc), &(frame->metaCLProgLen), NULL);
-	frame->program_pack_2d_face_in = clCreateProgramWithSource(frame->context, 1,&(frame->metaCLProgSrc), &(frame->metaCLProgLen), NULL);
-	frame->program_pack_2d_face_ui = clCreateProgramWithSource(frame->context, 1,&(frame->metaCLProgSrc), &(frame->metaCLProgLen), NULL);
-	frame->program_unpack_2d_face_db = clCreateProgramWithSource(frame->context, 1,&(frame->metaCLProgSrc), &(frame->metaCLProgLen), NULL);
-	frame->program_unpack_2d_face_fl = clCreateProgramWithSource(frame->context, 1,&(frame->metaCLProgSrc), &(frame->metaCLProgLen), NULL);
-	frame->program_unpack_2d_face_ul = clCreateProgramWithSource(frame->context, 1,&(frame->metaCLProgSrc), &(frame->metaCLProgLen), NULL);
-	frame->program_unpack_2d_face_in = clCreateProgramWithSource(frame->context, 1,&(frame->metaCLProgSrc), &(frame->metaCLProgLen), NULL);
-	frame->program_unpack_2d_face_ui = clCreateProgramWithSource(frame->context, 1,&(frame->metaCLProgSrc), &(frame->metaCLProgLen), NULL);
-	frame->program_stencil_3d7p_db = clCreateProgramWithSource(frame->context, 1,&(frame->metaCLProgSrc), &(frame->metaCLProgLen), NULL);
-	frame->program_stencil_3d7p_fl = clCreateProgramWithSource(frame->context, 1,&(frame->metaCLProgSrc), &(frame->metaCLProgLen), NULL);
-	frame->program_stencil_3d7p_ul = clCreateProgramWithSource(frame->context, 1,&(frame->metaCLProgSrc), &(frame->metaCLProgLen), NULL);
-	frame->program_stencil_3d7p_in = clCreateProgramWithSource(frame->context, 1,&(frame->metaCLProgSrc), &(frame->metaCLProgLen), NULL);
-	frame->program_stencil_3d7p_ui = clCreateProgramWithSource(frame->context, 1,&(frame->metaCLProgSrc), &(frame->metaCLProgLen), NULL);
-	frame->program_csr_db = clCreateProgramWithSource(frame->context, 1,&(frame->metaCLProgSrc), &(frame->metaCLProgLen), NULL);
-	frame->program_csr_fl = clCreateProgramWithSource(frame->context, 1,&(frame->metaCLProgSrc), &(frame->metaCLProgLen), NULL);
-	frame->program_csr_ul = clCreateProgramWithSource(frame->context, 1,&(frame->metaCLProgSrc), &(frame->metaCLProgLen), NULL);
-	frame->program_csr_in = clCreateProgramWithSource(frame->context, 1,&(frame->metaCLProgSrc), &(frame->metaCLProgLen), NULL);
-	frame->program_csr_ui = clCreateProgramWithSource(frame->context, 1,&(frame->metaCLProgSrc), &(frame->metaCLProgLen), NULL);
-//	frame->program_crc_db = clCreateProgramWithSource(frame->context, 1,&(frame->metaCLProgSrc), &(frame->metaCLProgLen), NULL);
-//	frame->program_crc_fl = clCreateProgramWithSource(frame->context, 1,&(frame->metaCLProgSrc), &(frame->metaCLProgLen), NULL);
-//	frame->program_crc_ul = clCreateProgramWithSource(frame->context, 1,&(frame->metaCLProgSrc), &(frame->metaCLProgLen), NULL);
-//	frame->program_crc_in = clCreateProgramWithSource(frame->context, 1,&(frame->metaCLProgSrc), &(frame->metaCLProgLen), NULL);
-	frame->program_crc_ui = clCreateProgramWithSource(frame->context, 1,&(frame->metaCLProgSrc), &(frame->metaCLProgLen), NULL);
+	if (frame->metaCLProgLen != -1) {
+		frame->program_reduce_db = clCreateProgramWithSource(frame->context, 1,&(frame->metaCLProgSrc), &(frame->metaCLProgLen), NULL);
+		frame->program_reduce_fl = clCreateProgramWithSource(frame->context, 1,&(frame->metaCLProgSrc), &(frame->metaCLProgLen), NULL);
+		frame->program_reduce_ul = clCreateProgramWithSource(frame->context, 1,&(frame->metaCLProgSrc), &(frame->metaCLProgLen), NULL);
+		frame->program_reduce_in = clCreateProgramWithSource(frame->context, 1,&(frame->metaCLProgSrc), &(frame->metaCLProgLen), NULL);
+		frame->program_reduce_ui = clCreateProgramWithSource(frame->context, 1,&(frame->metaCLProgSrc), &(frame->metaCLProgLen), NULL);
+		frame->program_dotProd_db = clCreateProgramWithSource(frame->context, 1,&(frame->metaCLProgSrc), &(frame->metaCLProgLen), NULL);
+		frame->program_dotProd_fl = clCreateProgramWithSource(frame->context, 1,&(frame->metaCLProgSrc), &(frame->metaCLProgLen), NULL);
+		frame->program_dotProd_ul = clCreateProgramWithSource(frame->context, 1,&(frame->metaCLProgSrc), &(frame->metaCLProgLen), NULL);
+		frame->program_dotProd_in = clCreateProgramWithSource(frame->context, 1,&(frame->metaCLProgSrc), &(frame->metaCLProgLen), NULL);
+		frame->program_dotProd_ui = clCreateProgramWithSource(frame->context, 1,&(frame->metaCLProgSrc), &(frame->metaCLProgLen), NULL);
+		frame->program_transpose_2d_face_db = clCreateProgramWithSource(frame->context, 1,&(frame->metaCLProgSrc), &(frame->metaCLProgLen), NULL);
+		frame->program_transpose_2d_face_fl = clCreateProgramWithSource(frame->context, 1,&(frame->metaCLProgSrc), &(frame->metaCLProgLen), NULL);
+		frame->program_transpose_2d_face_ul = clCreateProgramWithSource(frame->context, 1,&(frame->metaCLProgSrc), &(frame->metaCLProgLen), NULL);
+		frame->program_transpose_2d_face_in = clCreateProgramWithSource(frame->context, 1,&(frame->metaCLProgSrc), &(frame->metaCLProgLen), NULL);
+		frame->program_transpose_2d_face_ui = clCreateProgramWithSource(frame->context, 1,&(frame->metaCLProgSrc), &(frame->metaCLProgLen), NULL);
+		frame->program_pack_2d_face_db = clCreateProgramWithSource(frame->context, 1,&(frame->metaCLProgSrc), &(frame->metaCLProgLen), NULL);
+		frame->program_pack_2d_face_fl = clCreateProgramWithSource(frame->context, 1,&(frame->metaCLProgSrc), &(frame->metaCLProgLen), NULL);
+		frame->program_pack_2d_face_ul = clCreateProgramWithSource(frame->context, 1,&(frame->metaCLProgSrc), &(frame->metaCLProgLen), NULL);
+		frame->program_pack_2d_face_in = clCreateProgramWithSource(frame->context, 1,&(frame->metaCLProgSrc), &(frame->metaCLProgLen), NULL);
+		frame->program_pack_2d_face_ui = clCreateProgramWithSource(frame->context, 1,&(frame->metaCLProgSrc), &(frame->metaCLProgLen), NULL);
+		frame->program_unpack_2d_face_db = clCreateProgramWithSource(frame->context, 1,&(frame->metaCLProgSrc), &(frame->metaCLProgLen), NULL);
+		frame->program_unpack_2d_face_fl = clCreateProgramWithSource(frame->context, 1,&(frame->metaCLProgSrc), &(frame->metaCLProgLen), NULL);
+		frame->program_unpack_2d_face_ul = clCreateProgramWithSource(frame->context, 1,&(frame->metaCLProgSrc), &(frame->metaCLProgLen), NULL);
+		frame->program_unpack_2d_face_in = clCreateProgramWithSource(frame->context, 1,&(frame->metaCLProgSrc), &(frame->metaCLProgLen), NULL);
+		frame->program_unpack_2d_face_ui = clCreateProgramWithSource(frame->context, 1,&(frame->metaCLProgSrc), &(frame->metaCLProgLen), NULL);
+		frame->program_stencil_3d7p_db = clCreateProgramWithSource(frame->context, 1,&(frame->metaCLProgSrc), &(frame->metaCLProgLen), NULL);
+		frame->program_stencil_3d7p_fl = clCreateProgramWithSource(frame->context, 1,&(frame->metaCLProgSrc), &(frame->metaCLProgLen), NULL);
+		frame->program_stencil_3d7p_ul = clCreateProgramWithSource(frame->context, 1,&(frame->metaCLProgSrc), &(frame->metaCLProgLen), NULL);
+		frame->program_stencil_3d7p_in = clCreateProgramWithSource(frame->context, 1,&(frame->metaCLProgSrc), &(frame->metaCLProgLen), NULL);
+		frame->program_stencil_3d7p_ui = clCreateProgramWithSource(frame->context, 1,&(frame->metaCLProgSrc), &(frame->metaCLProgLen), NULL);
+		frame->program_csr_db = clCreateProgramWithSource(frame->context, 1,&(frame->metaCLProgSrc), &(frame->metaCLProgLen), NULL);
+		frame->program_csr_fl = clCreateProgramWithSource(frame->context, 1,&(frame->metaCLProgSrc), &(frame->metaCLProgLen), NULL);
+		frame->program_csr_ul = clCreateProgramWithSource(frame->context, 1,&(frame->metaCLProgSrc), &(frame->metaCLProgLen), NULL);
+		frame->program_csr_in = clCreateProgramWithSource(frame->context, 1,&(frame->metaCLProgSrc), &(frame->metaCLProgLen), NULL);
+		frame->program_csr_ui = clCreateProgramWithSource(frame->context, 1,&(frame->metaCLProgSrc), &(frame->metaCLProgLen), NULL);
+//		frame->program_crc_db = clCreateProgramWithSource(frame->context, 1,&(frame->metaCLProgSrc), &(frame->metaCLProgLen), NULL);
+//		frame->program_crc_fl = clCreateProgramWithSource(frame->context, 1,&(frame->metaCLProgSrc), &(frame->metaCLProgLen), NULL);
+//		frame->program_crc_ul = clCreateProgramWithSource(frame->context, 1,&(frame->metaCLProgSrc), &(frame->metaCLProgLen), NULL);
+//		frame->program_crc_in = clCreateProgramWithSource(frame->context, 1,&(frame->metaCLProgSrc), &(frame->metaCLProgLen), NULL);
+		frame->program_crc_ui = clCreateProgramWithSource(frame->context, 1,&(frame->metaCLProgSrc), &(frame->metaCLProgLen), NULL);
+	}
 //TODO Implement (or can this be the same as OpenCL without IntelFPGA, since it's just reading the source and the defines come in during build
 #else
 	if (frame->metaCLProgLen == 0) {
 		frame->metaCLProgLen = metaOpenCLLoadProgramSource("mm_opencl_backend.cl",
 				&(frame->metaCLProgSrc));
 	}
-	frame->program_opencl_core = clCreateProgramWithSource(frame->context, 1,
+	if (frame->metaCLProgLen != -1) frame->program_opencl_core = clCreateProgramWithSource(frame->context, 1,
 			&(frame->metaCLProgSrc), &(frame->metaCLProgLen), &ret);
 #endif
 
 //TODO Support OPENCL_SINGLE_KERNEL_PROGS
 #ifndef OPENCL_SINGLE_KERNEL_PROGS
 	ret |= metaOpenCLBuildSingleKernelProgram(frame, frame->program_opencl_core, NULL);
-	frame->kernel_reduce_db = clCreateKernel(frame->program_opencl_core,
+	if (frame->metaCLProgLen != -1) {
+		frame->kernel_reduce_db = clCreateKernel(frame->program_opencl_core,
 			"kernel_reduce_db", &ret);
-	frame->kernel_reduce_fl = clCreateKernel(frame->program_opencl_core,
+		frame->kernel_reduce_fl = clCreateKernel(frame->program_opencl_core,
 			"kernel_reduce_fl", &ret);
-	frame->kernel_reduce_ul = clCreateKernel(frame->program_opencl_core,
+		frame->kernel_reduce_ul = clCreateKernel(frame->program_opencl_core,
 			"kernel_reduce_ul", &ret);
-	frame->kernel_reduce_in = clCreateKernel(frame->program_opencl_core,
+		frame->kernel_reduce_in = clCreateKernel(frame->program_opencl_core,
 			"kernel_reduce_in", &ret);
-	frame->kernel_reduce_ui = clCreateKernel(frame->program_opencl_core,
+		frame->kernel_reduce_ui = clCreateKernel(frame->program_opencl_core,
 			"kernel_reduce_ui", &ret);
-	frame->kernel_dotProd_db = clCreateKernel(frame->program_opencl_core,
+		frame->kernel_dotProd_db = clCreateKernel(frame->program_opencl_core,
 			"kernel_dotProd_db", &ret);
-	frame->kernel_dotProd_fl = clCreateKernel(frame->program_opencl_core,
+		frame->kernel_dotProd_fl = clCreateKernel(frame->program_opencl_core,
 			"kernel_dotProd_fl", &ret);
-	frame->kernel_dotProd_ul = clCreateKernel(frame->program_opencl_core,
+		frame->kernel_dotProd_ul = clCreateKernel(frame->program_opencl_core,
 			"kernel_dotProd_ul", &ret);
-	frame->kernel_dotProd_in = clCreateKernel(frame->program_opencl_core,
+		frame->kernel_dotProd_in = clCreateKernel(frame->program_opencl_core,
 			"kernel_dotProd_in", &ret);
-	frame->kernel_dotProd_ui = clCreateKernel(frame->program_opencl_core,
+		frame->kernel_dotProd_ui = clCreateKernel(frame->program_opencl_core,
 			"kernel_dotProd_ui", &ret);
-	frame->kernel_transpose_2d_face_db = clCreateKernel(
+		frame->kernel_transpose_2d_face_db = clCreateKernel(
 			frame->program_opencl_core, "kernel_transpose_2d_face_db", &ret);
-	frame->kernel_transpose_2d_face_fl = clCreateKernel(
+		frame->kernel_transpose_2d_face_fl = clCreateKernel(
 			frame->program_opencl_core, "kernel_transpose_2d_face_fl", &ret);
-	frame->kernel_transpose_2d_face_ul = clCreateKernel(
+		frame->kernel_transpose_2d_face_ul = clCreateKernel(
 			frame->program_opencl_core, "kernel_transpose_2d_face_ul", &ret);
-	frame->kernel_transpose_2d_face_in = clCreateKernel(
+		frame->kernel_transpose_2d_face_in = clCreateKernel(
 			frame->program_opencl_core, "kernel_transpose_2d_face_in", &ret);
-	frame->kernel_transpose_2d_face_ui = clCreateKernel(
+		frame->kernel_transpose_2d_face_ui = clCreateKernel(
 			frame->program_opencl_core, "kernel_transpose_2d_face_ui", &ret);
-	frame->kernel_pack_2d_face_db = clCreateKernel(frame->program_opencl_core,
+		frame->kernel_pack_2d_face_db = clCreateKernel(frame->program_opencl_core,
 			"kernel_pack_2d_face_db", &ret);
-	frame->kernel_pack_2d_face_fl = clCreateKernel(frame->program_opencl_core,
+		frame->kernel_pack_2d_face_fl = clCreateKernel(frame->program_opencl_core,
 			"kernel_pack_2d_face_fl", &ret);
-	frame->kernel_pack_2d_face_ul = clCreateKernel(frame->program_opencl_core,
+		frame->kernel_pack_2d_face_ul = clCreateKernel(frame->program_opencl_core,
 			"kernel_pack_2d_face_ul", &ret);
-	frame->kernel_pack_2d_face_in = clCreateKernel(frame->program_opencl_core,
+		frame->kernel_pack_2d_face_in = clCreateKernel(frame->program_opencl_core,
 			"kernel_pack_2d_face_in", &ret);
-	frame->kernel_pack_2d_face_ui = clCreateKernel(frame->program_opencl_core,
+		frame->kernel_pack_2d_face_ui = clCreateKernel(frame->program_opencl_core,
 			"kernel_pack_2d_face_ui", &ret);
-	frame->kernel_unpack_2d_face_db = clCreateKernel(frame->program_opencl_core,
+		frame->kernel_unpack_2d_face_db = clCreateKernel(frame->program_opencl_core,
 			"kernel_unpack_2d_face_db", &ret);
-	frame->kernel_unpack_2d_face_fl = clCreateKernel(frame->program_opencl_core,
+		frame->kernel_unpack_2d_face_fl = clCreateKernel(frame->program_opencl_core,
 			"kernel_unpack_2d_face_fl", &ret);
-	frame->kernel_unpack_2d_face_ul = clCreateKernel(frame->program_opencl_core,
+		frame->kernel_unpack_2d_face_ul = clCreateKernel(frame->program_opencl_core,
 			"kernel_unpack_2d_face_ul", &ret);
-	frame->kernel_unpack_2d_face_in = clCreateKernel(frame->program_opencl_core,
+		frame->kernel_unpack_2d_face_in = clCreateKernel(frame->program_opencl_core,
 			"kernel_unpack_2d_face_in", &ret);
-	frame->kernel_unpack_2d_face_ui = clCreateKernel(frame->program_opencl_core,
+		frame->kernel_unpack_2d_face_ui = clCreateKernel(frame->program_opencl_core,
 			"kernel_unpack_2d_face_ui", &ret);
-	frame->kernel_stencil_3d7p_db = clCreateKernel(frame->program_opencl_core,
+		frame->kernel_stencil_3d7p_db = clCreateKernel(frame->program_opencl_core,
 			"kernel_stencil_3d7p_db", &ret);
-	frame->kernel_stencil_3d7p_fl = clCreateKernel(frame->program_opencl_core,
+		frame->kernel_stencil_3d7p_fl = clCreateKernel(frame->program_opencl_core,
 			"kernel_stencil_3d7p_fl", &ret);
-	frame->kernel_stencil_3d7p_ul = clCreateKernel(frame->program_opencl_core,
+		frame->kernel_stencil_3d7p_ul = clCreateKernel(frame->program_opencl_core,
 			"kernel_stencil_3d7p_ul", &ret);
-	frame->kernel_stencil_3d7p_in = clCreateKernel(frame->program_opencl_core,
+		frame->kernel_stencil_3d7p_in = clCreateKernel(frame->program_opencl_core,
 			"kernel_stencil_3d7p_in", &ret);
-	frame->kernel_stencil_3d7p_ui = clCreateKernel(frame->program_opencl_core,
+		frame->kernel_stencil_3d7p_ui = clCreateKernel(frame->program_opencl_core,
 			"kernel_stencil_3d7p_ui", &ret);
-	frame->kernel_csr_fl = clCreateKernel(frame->program_opencl_core,
+		frame->kernel_csr_fl = clCreateKernel(frame->program_opencl_core,
 			"kernel_csr_db", &ret);
-	frame->kernel_csr_fl = clCreateKernel(frame->program_opencl_core,
+		frame->kernel_csr_fl = clCreateKernel(frame->program_opencl_core,
 			"kernel_csr_fl", &ret);
-	frame->kernel_csr_fl = clCreateKernel(frame->program_opencl_core,
+		frame->kernel_csr_fl = clCreateKernel(frame->program_opencl_core,
 			"kernel_csr_ul", &ret);
-	frame->kernel_csr_fl = clCreateKernel(frame->program_opencl_core,
+		frame->kernel_csr_fl = clCreateKernel(frame->program_opencl_core,
 			"kernel_csr_in", &ret);
-	frame->kernel_csr_fl = clCreateKernel(frame->program_opencl_core,
+		frame->kernel_csr_fl = clCreateKernel(frame->program_opencl_core,
 			"kernel_csr_ui", &ret);
 //	frame->kernel_crc_db = clCreateKernel(frame->program_opencl_core,
 //			"kernel_crc_db", &ret);
@@ -348,12 +382,19 @@ cl_int metaOpenCLBuildProgram(metaOpenCLStackFrame * frame) {
 //			"kernel_crc_ul", &ret);
 //	frame->kernel_crc_in = clCreateKernel(frame->program_opencl_core,
 //			"kernel_crc_in", &ret);
-	frame->kernel_crc_ui = clCreateKernel(frame->program_opencl_core,
+		frame->kernel_crc_ui = clCreateKernel(frame->program_opencl_core,
 			"kernel_crc_ui", &ret);
+	}
+#else
+#ifdef WITH_INTELFPGA
+#define BUILD_PROG_AND_KERNEL(name, opts) ret |= metaOpenCLBuildSingleKernelProgram(frame, frame->program_##name, opts); \
+	if (frame->metaCLbinLen_##name != -1) frame->kernel_##name = clCreateKernel(frame->program_##name, "kernel_"#name, &ret); \
+        if (ret != CL_SUCCESS) fprintf(stderr, "Error in clCreateKernel for kernel_"#name" %d\n", ret);
 #else
 #define BUILD_PROG_AND_KERNEL(name, opts) ret |= metaOpenCLBuildSingleKernelProgram(frame, frame->program_##name, opts); \
-	frame->kernel_##name = clCreateKernel(frame->program_##name, "kernel_"#name, &ret); \
+	if (frame->metaCLProgLen != -1) frame->kernel_##name = clCreateKernel(frame->program_##name, "kernel_"#name, &ret); \
         if (ret != CL_SUCCESS) fprintf(stderr, "Error in clCreateKernel for kernel_"#name" %d\n", ret);
+#endif
 //	ret |= metaOpenCLBuildSingleKernelProgram(frame, frame->program_reduce_db, "-D DOUBLE -D KERNEL_REDUCE");
 //	frame->kernel_reduce_db = clCreateKernel(frame->program_opencl_reduce_db, "kernel_reduce_db", &ret);
 	BUILD_PROG_AND_KERNEL(reduce_db, "-D SINGLE_KERNEL_PROGS -D DOUBLE -D KERNEL_REDUCE")
@@ -800,47 +841,48 @@ cl_int metaOpenCLInitStackFrame(metaOpenCLStackFrame ** frame, cl_int device) {
 //	 (more specifically, copying a frame to a node doesn't need to be hazard-aware, as the node cannot be shared unless copied inside the hazard-aware metaOpenCLPushStackFrame. Pop, Top, and copyStackNodeToFrame are all hazard aware and provide a thread-private copy back to the caller.)
 cl_int metaOpenCLDestroyStackFrame(metaOpenCLStackFrame * frame) {
 
+	//Since we always calloc the frames, if a kernel or program is uninitialized it will have a value of zero so we can simply safety check the release calls
 	//Release Kernels
-	clReleaseKernel(frame->kernel_reduce_db);
-	clReleaseKernel(frame->kernel_reduce_fl);
-	clReleaseKernel(frame->kernel_reduce_ul);
-	clReleaseKernel(frame->kernel_reduce_in);
-	clReleaseKernel(frame->kernel_reduce_ui);
-	clReleaseKernel(frame->kernel_dotProd_db);
-	clReleaseKernel(frame->kernel_dotProd_fl);
-	clReleaseKernel(frame->kernel_dotProd_ul);
-	clReleaseKernel(frame->kernel_dotProd_in);
-	clReleaseKernel(frame->kernel_dotProd_ui);
-	clReleaseKernel(frame->kernel_transpose_2d_face_db);
-	clReleaseKernel(frame->kernel_transpose_2d_face_fl);
-	clReleaseKernel(frame->kernel_transpose_2d_face_ul);
-	clReleaseKernel(frame->kernel_transpose_2d_face_in);
-	clReleaseKernel(frame->kernel_transpose_2d_face_ui);
-	clReleaseKernel(frame->kernel_pack_2d_face_db);
-	clReleaseKernel(frame->kernel_pack_2d_face_fl);
-	clReleaseKernel(frame->kernel_pack_2d_face_ul);
-	clReleaseKernel(frame->kernel_pack_2d_face_in);
-	clReleaseKernel(frame->kernel_pack_2d_face_ui);
-	clReleaseKernel(frame->kernel_unpack_2d_face_db);
-	clReleaseKernel(frame->kernel_unpack_2d_face_fl);
-	clReleaseKernel(frame->kernel_unpack_2d_face_ul);
-	clReleaseKernel(frame->kernel_unpack_2d_face_in);
-	clReleaseKernel(frame->kernel_unpack_2d_face_ui);
-	clReleaseKernel(frame->kernel_stencil_3d7p_db);
-	clReleaseKernel(frame->kernel_stencil_3d7p_fl);
-	clReleaseKernel(frame->kernel_stencil_3d7p_ul);
-	clReleaseKernel(frame->kernel_stencil_3d7p_in);
-	clReleaseKernel(frame->kernel_stencil_3d7p_ui);
-	clReleaseKernel(frame->kernel_csr_db);
-	clReleaseKernel(frame->kernel_csr_fl);
-	clReleaseKernel(frame->kernel_csr_ul);
-	clReleaseKernel(frame->kernel_csr_in);
-	clReleaseKernel(frame->kernel_csr_ui);
+	if (frame->kernel_reduce_db) clReleaseKernel(frame->kernel_reduce_db);
+	if (frame->kernel_reduce_fl) clReleaseKernel(frame->kernel_reduce_fl);
+	if (frame->kernel_reduce_ul) clReleaseKernel(frame->kernel_reduce_ul);
+	if (frame->kernel_reduce_in) clReleaseKernel(frame->kernel_reduce_in);
+	if (frame->kernel_reduce_ui) clReleaseKernel(frame->kernel_reduce_ui);
+	if (frame->kernel_dotProd_db) clReleaseKernel(frame->kernel_dotProd_db);
+	if (frame->kernel_dotProd_fl) clReleaseKernel(frame->kernel_dotProd_fl);
+	if (frame->kernel_dotProd_ul) clReleaseKernel(frame->kernel_dotProd_ul);
+	if (frame->kernel_dotProd_in) clReleaseKernel(frame->kernel_dotProd_in);
+	if (frame->kernel_dotProd_ui) clReleaseKernel(frame->kernel_dotProd_ui);
+	if (frame->kernel_transpose_2d_face_db) clReleaseKernel(frame->kernel_transpose_2d_face_db);
+	if (frame->kernel_transpose_2d_face_fl) clReleaseKernel(frame->kernel_transpose_2d_face_fl);
+	if (frame->kernel_transpose_2d_face_ul) clReleaseKernel(frame->kernel_transpose_2d_face_ul);
+	if (frame->kernel_transpose_2d_face_in) clReleaseKernel(frame->kernel_transpose_2d_face_in);
+	if (frame->kernel_transpose_2d_face_ui) clReleaseKernel(frame->kernel_transpose_2d_face_ui);
+	if (frame->kernel_pack_2d_face_db) clReleaseKernel(frame->kernel_pack_2d_face_db);
+	if (frame->kernel_pack_2d_face_fl) clReleaseKernel(frame->kernel_pack_2d_face_fl);
+	if (frame->kernel_pack_2d_face_ul) clReleaseKernel(frame->kernel_pack_2d_face_ul);
+	if (frame->kernel_pack_2d_face_in) clReleaseKernel(frame->kernel_pack_2d_face_in);
+	if (frame->kernel_pack_2d_face_ui) clReleaseKernel(frame->kernel_pack_2d_face_ui);
+	if (frame->kernel_unpack_2d_face_db) clReleaseKernel(frame->kernel_unpack_2d_face_db);
+	if (frame->kernel_unpack_2d_face_fl) clReleaseKernel(frame->kernel_unpack_2d_face_fl);
+	if (frame->kernel_unpack_2d_face_ul) clReleaseKernel(frame->kernel_unpack_2d_face_ul);
+	if (frame->kernel_unpack_2d_face_in) clReleaseKernel(frame->kernel_unpack_2d_face_in);
+	if (frame->kernel_unpack_2d_face_ui) clReleaseKernel(frame->kernel_unpack_2d_face_ui);
+	if (frame->kernel_stencil_3d7p_db) clReleaseKernel(frame->kernel_stencil_3d7p_db);
+	if (frame->kernel_stencil_3d7p_fl) clReleaseKernel(frame->kernel_stencil_3d7p_fl);
+	if (frame->kernel_stencil_3d7p_ul) clReleaseKernel(frame->kernel_stencil_3d7p_ul);
+	if (frame->kernel_stencil_3d7p_in) clReleaseKernel(frame->kernel_stencil_3d7p_in);
+	if (frame->kernel_stencil_3d7p_ui) clReleaseKernel(frame->kernel_stencil_3d7p_ui);
+	if (frame->kernel_csr_db) clReleaseKernel(frame->kernel_csr_db);
+	if (frame->kernel_csr_fl) clReleaseKernel(frame->kernel_csr_fl);
+	if (frame->kernel_csr_ul) clReleaseKernel(frame->kernel_csr_ul);
+	if (frame->kernel_csr_in) clReleaseKernel(frame->kernel_csr_in);
+	if (frame->kernel_csr_ui) clReleaseKernel(frame->kernel_csr_ui);
 //	clReleaseKernel(frame->kernel_crc_db);
 //	clReleaseKernel(frame->kernel_crc_fl);
 //	clReleaseKernel(frame->kernel_crc_ul);
 //	clReleaseKernel(frame->kernel_crc_in);
-	clReleaseKernel(frame->kernel_crc_ui);
+	if (frame->kernel_crc_ui) clReleaseKernel(frame->kernel_crc_ui);
 
 	//Release Internal Buffers
 	clReleaseMemObject(frame->constant_face_size);
@@ -850,48 +892,48 @@ cl_int metaOpenCLDestroyStackFrame(metaOpenCLStackFrame * frame) {
 
 	//Release remaining context info
 #ifndef OPENCL_SINGLE_KERNEL_PROGS
-	clReleaseProgram(frame->program_opencl_core);
+	if (frame->program_opencl_core) clReleaseProgram(frame->program_opencl_core);
 #else
-	clReleaseProgram(frame->program_reduce_db);
-	clReleaseProgram(frame->program_reduce_fl);
-	clReleaseProgram(frame->program_reduce_ul);
-	clReleaseProgram(frame->program_reduce_in);
-	clReleaseProgram(frame->program_reduce_ui);
-	clReleaseProgram(frame->program_dotProd_db);
-	clReleaseProgram(frame->program_dotProd_fl);
-	clReleaseProgram(frame->program_dotProd_ul);
-	clReleaseProgram(frame->program_dotProd_in);
-	clReleaseProgram(frame->program_dotProd_ui);
-	clReleaseProgram(frame->program_transpose_2d_face_db);
-	clReleaseProgram(frame->program_transpose_2d_face_fl);
-	clReleaseProgram(frame->program_transpose_2d_face_ul);
-	clReleaseProgram(frame->program_transpose_2d_face_in);
-	clReleaseProgram(frame->program_transpose_2d_face_ui);
-	clReleaseProgram(frame->program_pack_2d_face_db);
-	clReleaseProgram(frame->program_pack_2d_face_fl);
-	clReleaseProgram(frame->program_pack_2d_face_ul);
-	clReleaseProgram(frame->program_pack_2d_face_in);
-	clReleaseProgram(frame->program_pack_2d_face_ui);
-	clReleaseProgram(frame->program_unpack_2d_face_db);
-	clReleaseProgram(frame->program_unpack_2d_face_fl);
-	clReleaseProgram(frame->program_unpack_2d_face_ul);
-	clReleaseProgram(frame->program_unpack_2d_face_in);
-	clReleaseProgram(frame->program_unpack_2d_face_ui);
-	clReleaseProgram(frame->program_stencil_3d7p_db);
-	clReleaseProgram(frame->program_stencil_3d7p_fl);
-	clReleaseProgram(frame->program_stencil_3d7p_ul);
-	clReleaseProgram(frame->program_stencil_3d7p_in);
-	clReleaseProgram(frame->program_stencil_3d7p_ui);
-	clReleaseProgram(frame->program_csr_db);
-	clReleaseProgram(frame->program_csr_fl);
-	clReleaseProgram(frame->program_csr_ul);
-	clReleaseProgram(frame->program_csr_in);
-	clReleaseProgram(frame->program_csr_ui);
+	if (frame->program_reduce_db) clReleaseProgram(frame->program_reduce_db);
+	if (frame->program_reduce_fl) clReleaseProgram(frame->program_reduce_fl);
+	if (frame->program_reduce_ul) clReleaseProgram(frame->program_reduce_ul);
+	if (frame->program_reduce_in) clReleaseProgram(frame->program_reduce_in);
+	if (frame->program_reduce_ui) clReleaseProgram(frame->program_reduce_ui);
+	if (frame->program_dotProd_db) clReleaseProgram(frame->program_dotProd_db);
+	if (frame->program_dotProd_fl) clReleaseProgram(frame->program_dotProd_fl);
+	if (frame->program_dotProd_ul) clReleaseProgram(frame->program_dotProd_ul);
+	if (frame->program_dotProd_in) clReleaseProgram(frame->program_dotProd_in);
+	if (frame->program_dotProd_ui) clReleaseProgram(frame->program_dotProd_ui);
+	if (frame->program_transpose_2d_face_db) clReleaseProgram(frame->program_transpose_2d_face_db);
+	if (frame->program_transpose_2d_face_fl) clReleaseProgram(frame->program_transpose_2d_face_fl);
+	if (frame->program_transpose_2d_face_ul) clReleaseProgram(frame->program_transpose_2d_face_ul);
+	if (frame->program_transpose_2d_face_in) clReleaseProgram(frame->program_transpose_2d_face_in);
+	if (frame->program_transpose_2d_face_ui) clReleaseProgram(frame->program_transpose_2d_face_ui);
+	if (frame->program_pack_2d_face_db) clReleaseProgram(frame->program_pack_2d_face_db);
+	if (frame->program_pack_2d_face_fl) clReleaseProgram(frame->program_pack_2d_face_fl);
+	if (frame->program_pack_2d_face_ul) clReleaseProgram(frame->program_pack_2d_face_ul);
+	if (frame->program_pack_2d_face_in) clReleaseProgram(frame->program_pack_2d_face_in);
+	if (frame->program_pack_2d_face_ui) clReleaseProgram(frame->program_pack_2d_face_ui);
+	if (frame->program_unpack_2d_face_db) clReleaseProgram(frame->program_unpack_2d_face_db);
+	if (frame->program_unpack_2d_face_fl) clReleaseProgram(frame->program_unpack_2d_face_fl);
+	if (frame->program_unpack_2d_face_ul) clReleaseProgram(frame->program_unpack_2d_face_ul);
+	if (frame->program_unpack_2d_face_in) clReleaseProgram(frame->program_unpack_2d_face_in);
+	if (frame->program_unpack_2d_face_ui) clReleaseProgram(frame->program_unpack_2d_face_ui);
+	if (frame->program_3d7p_db) clReleaseProgram(frame->program_stencil_3d7p_db);
+	if (frame->program_3d7p_fl) clReleaseProgram(frame->program_stencil_3d7p_fl);
+	if (frame->program_3d7p_ul) clReleaseProgram(frame->program_stencil_3d7p_ul);
+	if (frame->program_3d7p_in) clReleaseProgram(frame->program_stencil_3d7p_in);
+	if (frame->program_3d7p_ui) clReleaseProgram(frame->program_stencil_3d7p_ui);
+	if (frame->program_csr_db) clReleaseProgram(frame->program_csr_db);
+	if (frame->program_csr_fl) clReleaseProgram(frame->program_csr_fl);
+	if (frame->program_csr_ul) clReleaseProgram(frame->program_csr_ul);
+	if (frame->program_csr_in) clReleaseProgram(frame->program_csr_in);
+	if (frame->program_csr_ui) clReleaseProgram(frame->program_csr_ui);
 //	clReleaseProgram(frame->program_crc_db);
 //	clReleaseProgram(frame->program_crc_fl);
 //	clReleaseProgram(frame->program_crc_ul);
 //	clReleaseProgram(frame->program_crc_in);
-	clReleaseProgram(frame->program_crc_ui);
+	if (frame->program_crc_ui) clReleaseProgram(frame->program_crc_ui);
 	
 #endif
 	frame->kernels_init = 0;
@@ -1121,6 +1163,8 @@ cl_int opencl_dotProd(size_t (*grid_size)[3], size_t (*block_size)[3],
 		break;
 
 	}
+	//If the desired kernel is not initialized it will be equal to NULL
+	if (((void*)kern) == NULL) return CL_INVALID_PROGRAM;
 	//printf("Grid: %d %d %d\n", grid[0], grid[1], grid[2]);
 	//printf("Block: %d %d %d\n", block[0], block[1], block[2]);
 	//printf("Size: %d %d %d\n", (*array_size)[0], (*array_size)[1], (*array_size)[2]);
@@ -1251,6 +1295,8 @@ cl_int opencl_reduce(size_t (*grid_size)[3], size_t (*block_size)[3],
 	//printf("End: %d %d %d\n", (*arr_end)[1], (*arr_end)[0], (*arr_end)[2]);
 	//printf("SMEM: %d\n", smem_len);
 
+	//If the desired kernel is not initialized it will be equal to NULL
+	if (((void*)kern) == NULL) return CL_INVALID_PROGRAM;
 	ret = clSetKernelArg(kern, 0, sizeof(cl_mem *), &data);
 	ret |= clSetKernelArg(kern, 1, sizeof(cl_int), &(*array_size)[0]);
 	ret |= clSetKernelArg(kern, 2, sizeof(cl_int), &(*array_size)[1]);
@@ -1368,6 +1414,8 @@ cl_int opencl_transpose_face(size_t (*grid_size)[3], size_t (*block_size)[3],
 		break;
 
 	}
+	//If the desired kernel is not initialized it will be equal to NULL
+	if (((void*)kern) == NULL) return CL_INVALID_PROGRAM;
 	ret = clSetKernelArg(kern, 0, sizeof(cl_mem *), &outdata);
 	ret |= clSetKernelArg(kern, 1, sizeof(cl_mem *), &indata);
 	ret |= clSetKernelArg(kern, 2, sizeof(cl_int), &(*arr_dim_xy)[0]);
@@ -1500,6 +1548,8 @@ cl_int opencl_pack_face(size_t (*grid_size)[3], size_t (*block_size)[3],
 	//printf("End: %d %d %d\n", (*arr_end)[1], (*arr_end)[0], (*arr_end)[2]);
 	//printf("SMEM: %d\n", smem_len);
 
+	//If the desired kernel is not initialized it will be equal to NULL
+	if (((void*)kern) == NULL) return CL_INVALID_PROGRAM;
 	ret = clSetKernelArg(kern, 0, sizeof(cl_mem *), &packed_buf);
 	ret |= clSetKernelArg(kern, 1, sizeof(cl_mem *), &buf);
 	ret |= clSetKernelArg(kern, 2, sizeof(cl_int), &size);
@@ -1614,6 +1664,8 @@ cl_int opencl_unpack_face(size_t (*grid_size)[3], size_t (*block_size)[3],
 	//printf("End: %d %d %d\n", (*arr_end)[1], (*arr_end)[0], (*arr_end)[2]);
 	//printf("SMEM: %d\n", smem_len);
 
+	//If the desired kernel is not initialized it will be equal to NULL
+	if (((void*)kern) == NULL) return CL_INVALID_PROGRAM;
 	ret = clSetKernelArg(kern, 0, sizeof(cl_mem *), &packed_buf);
 	ret |= clSetKernelArg(kern, 1, sizeof(cl_mem *), &buf);
 	ret |= clSetKernelArg(kern, 2, sizeof(cl_int), &size);
@@ -1710,6 +1762,8 @@ cl_int opencl_stencil_3d7p(size_t (*grid_size)[3], size_t (*block_size)[3],
 		break;
 	}
 
+	//If the desired kernel is not initialized it will be equal to NULL
+	if (((void*)kern) == NULL) return CL_INVALID_PROGRAM;
 	ret = clSetKernelArg(kern, 0, sizeof(cl_mem *), &indata);
 	ret |= clSetKernelArg(kern, 1, sizeof(cl_mem *), &outdata);
 	ret |= clSetKernelArg(kern, 2, sizeof(cl_int), &(*array_size)[0]);
@@ -1808,6 +1862,8 @@ cl_int opencl_csr(size_t global_size, size_t local_size,
 		break;
 	}
 
+	//If the desired kernel is not initialized it will be equal to NULL
+	if (((void*)kern) == NULL) return CL_INVALID_PROGRAM;
 	ret = clSetKernelArg(kern, 0, sizeof(int), &global_size);
 	ret |= clSetKernelArg(kern, 1, sizeof(cl_mem *), &csr_ap);
 	ret |= clSetKernelArg(kern, 2, sizeof(cl_mem *), &csr_aj);
@@ -1865,6 +1921,8 @@ cl_int opencl_crc(size_t global_size, size_t local_size,
 		break;
 	}
 
+	//If the desired kernel is not initialized it will be equal to NULL
+	if (((void*)kern) == NULL) return CL_INVALID_PROGRAM;
 	ret = clSetKernelArg(kern, 0, sizeof(cl_mem *), &dev_input);
 	ret |= clSetKernelArg(kern, 1, sizeof(cl_uint), &page_size);
 	ret |= clSetKernelArg(kern, 2, sizeof(cl_uint), &num_words);
