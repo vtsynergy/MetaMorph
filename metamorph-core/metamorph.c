@@ -122,7 +122,7 @@ a_err meta_register_module(a_module_record * (*module_registry_func)(a_module_re
   //TODO make this threadsafe
   //If we trust that the registration function will only accept one registry, then we just have to check that the one returned is the same as the one we created. otherwise release the new one
   if (returned == NULL) {
-    __record_module(returned); //shouldn't be able to return false, because we should block recording records that aren't our own;
+    __record_module(new_record); //shouldn't be able to return false, because we should block recording records that aren't our own;
     //Only initialize if it's a new registration, do nothing if it's a re-register
     //It's been explicitly registered, immediately initialize it
     if (new_record->module_init != NULL) (*new_record->module_init)();
@@ -718,11 +718,6 @@ a_err meta_set_acc(int accel, meta_preferred_mode mode) {
 		case metaModePreferOpenCL:
 		{	metaOpenCLStackFrame * frame;
 			metaOpenCLInitStackFrame(&frame, (cl_int) accel); //no hazards, frames are thread-private
-			//make sure this library knows what the opencl library is using internally..
-			meta_context = frame->context;
-			meta_queue = frame->queue;
-			meta_device = frame->device;
-
 			metaOpenCLPushStackFrame(frame);//no hazards, HPs are internally managed when copying the frame to a new stack node before pushing.
 
 			//Now it's safe to free the frame

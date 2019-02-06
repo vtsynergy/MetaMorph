@@ -694,6 +694,11 @@ void metaOpenCLPushStackFrame(metaOpenCLStackFrame * frame) {
 	//I think this is where hazards start..
 	newNode->next = old;
 	CLStack = newNode;
+	//Only once we have successfully pushed, change the global state and trigger reinitializations
+	meta_context = frame->context;
+	meta_queue = frame->queue;
+	meta_device = frame->device;
+	meta_reinitialize_modules(module_implements_opencl);
 
 }
 
@@ -776,9 +781,6 @@ a_int meta_set_state_OpenCL(cl_platform_id platform, cl_device_id device,
 			NULL);
 
 	//push it onto the stack
-	meta_context = frame->context;
-	meta_queue = frame->queue;
-	meta_device = frame->device;
 	metaOpenCLPushStackFrame(frame);
 	free(frame);
 
