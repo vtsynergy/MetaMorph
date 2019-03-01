@@ -145,7 +145,15 @@ a_err meta_deregister_module(a_module_record * (*module_registry_func)(a_module_
   //If the module doesn't think it's registered, we can't do anything with it
   if (existing == NULL) return 0;
 
-  //If it does exist, remove our record of it
+  //If it does exist, deinitialize it, thenremove our record of it
+  //Deinit has to occure before the module forgets its record so that the
+  // module can inform MetaMorph when it is finish via the init flag
+  if (existing->module_deinit != NULL) {
+    while (existing->initialized) { //The module is responsible for updating its registration when it has completed deinitialization
+      //Loop in case there are multiple stacked initializations that need to be handled
+      (*existing->module_deinit)(); //It has been deinitialized
+    }
+  }
   //TODO make threadsafe
   //Tell the module to forget itself
   a_module_record * returned = (*module_registry_func)(existing);
@@ -154,7 +162,6 @@ a_err meta_deregister_module(a_module_record * (*module_registry_func)(a_module_
   if (returned == existing && double_check == NULL) { //The module has forgotten its registration
     //Then deinitialize the module
     __remove_module(existing); //We have no record of it outside this function call
-    if (existing->module_deinit != NULL) (*existing->module_deinit)(); //It has been deinitialized
     free(existing); //Record memory released and this function's reference invalidated, we are done
   }
   return 0;

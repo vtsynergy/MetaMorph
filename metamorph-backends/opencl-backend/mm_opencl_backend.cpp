@@ -720,7 +720,12 @@ metaOpenCLStackFrame * metaOpenCLPopStackFrame() {
 	metaOpenCLStackNode * t = CLStack; //Hazards start
 	//so set a hazard pointer
 	//then copy the node
-	copyStackNodeToFrame(t, &frame);
+	if (CLStack != NULL) {
+		copyStackNodeToFrame(t, &frame);
+	} else {
+		free(frame);
+		return NULL;
+	}
 	//and pull the node off the stack
 	CLStack = t->next;
 	//Do something with the memory
@@ -728,6 +733,16 @@ metaOpenCLStackFrame * metaOpenCLPopStackFrame() {
 	//release the hazard pointer
 	//so hazards are over, return the copy and exit
 	return (frame);
+}
+
+//Not meant to be called by users
+__attribute__((destructor)) a_int meta_destroy_OpenCL() {
+	//
+	metaOpenCLStackFrame * frame = metaOpenCLPopStackFrame();
+	while (frame != NULL) {
+		metaOpenCLDestroyStackFrame(frame);
+		frame = metaOpenCLPopStackFrame();
+	}
 }
 
 a_int meta_get_state_OpenCL(cl_platform_id * platform, cl_device_id * device,
@@ -759,7 +774,9 @@ a_int meta_set_state_OpenCL(cl_platform_id platform, cl_device_id device,
 	frame->platform = platform;
 	frame->device = device;
 	frame->context = context;
+	clRetainContext(context);
 	frame->queue = queue;
+	clRetainCommandQueue(queue);
 	frame->state_init = 1;
 
 	//add the metamorph programs and kernels to it

@@ -629,7 +629,10 @@ int populateOutputFiles() {
   // accumulates across source files
   if (isUnified) {
     //Generate the unified module's OpenCL frame
+    *out_c << "struct __meta_gen_opencl_" << outFileName << "_frame;\n";
     *out_c << "struct __meta_gen_opencl_" << outFileName << "_frame {\n";
+    *out_c << "  struct __meta_gen_opencl_" << outFileName << "frame * next_frame;\n";
+    *out_c << "  cl_device_id device;\n  cl_context context;\n  cl_command_queue queue;\n";
   }
   for (std::pair<std::string, hostCodeCache *> fileCachePair : AllHostCaches) {
     if (!isUnified) {
@@ -638,7 +641,10 @@ int populateOutputFiles() {
       out_h = fileCachePair.second->outfile_h;
       outFileName = fileCachePair.first;
       //Generate the module's OpenCL frame
+      *out_c << "struct __meta_gen_opencl_" << outFileName << "_frame;\n";
       *out_c << "struct __meta_gen_opencl_" << outFileName << "_frame {\n";
+      *out_c << "  struct __meta_gen_opencl_" << outFileName << "frame * next_frame;\n";
+      *out_c << "  cl_device_id device;\n  cl_context context;\n  cl_command_queue queue;\n";
     }
     //Generate the program variable (one per input file)
     //TODO support one-kernel-per-program convention
@@ -698,11 +704,12 @@ int populateOutputFiles() {
       //Ensure a MetaMorph OpenCL state exists
       *out_c << "  if (meta_context == NULL) metaOpenCLFallBack();\n";
       //Ensure a program/kernel storage frame is initialized
-      *out_c << "  if (__meta_gen_opencl_" << outFileName << "_current_frame == NULL) {\n";
-      *out_c << "    __meta_gen_opencl_" << outFileName << "_current_frame = (struct __meta_gen_opencl_" << outFileName << "_frame *) malloc(sizeof(struct __meta_gen_opencl_" << outFileName << "_frame));\n";
-      *out_c << "  }\n";
-//      *out_c << "  const char * progSrc;\n";
-//      *out_c << "  size_t progLen;\n";
+      *out_c << "  struct __meta_gen_opencl_" << outFileName << "_frame * new_frame = (struct __meta_gen_opencl_" << outFileName << "_frame *) calloc(1, sizeof(struct __meta_gen_opencl_" << outFileName << "_frame));\n";
+      *out_c << "  new_frame->next_frame = __meta_gen_opencl_" << outFileName << "_current_frame;\n";
+      *out_c << "  new_frame->device = meta_device;\n";
+      *out_c << "  new_frame->queue = meta_queue;\n";
+      *out_c << "  new_frame->context = meta_context;\n";
+      *out_c << "  __meta_gen_opencl_" << outFileName << "_current_frame = new_frame;\n";
     }
     //Add the clCreateProgram bits
     *out_c << fileCachePair.second->runOnceInit;
@@ -732,10 +739,10 @@ int populateOutputFiles() {
       *out_c << "void meta_gen_opencl_" << outFileName << "_deinit() {\n";
       *out_c << "  cl_int releaseError;\n";
       //Ensure we are deregistered with MetaMorph-core
-      *out_c << "  if (meta_gen_opencl_" << outFileName << "_registration != NULL) {\n";
-      *out_c << "    meta_deregister_module(&meta_gen_opencl_" << outFileName << "_registry);\n";
-      *out_c << "    return;\n";
-      *out_c << "  }\n";
+//      *out_c << "  if (meta_gen_opencl_" << outFileName << "_registration != NULL) {\n";
+//      *out_c << "    meta_deregister_module(&meta_gen_opencl_" << outFileName << "_registry);\n";
+//      *out_c << "    return;\n";
+//      *out_c << "  }\n";
       //Esnure a program/kernel storage frame exists
       *out_c << "  if (__meta_gen_opencl_" << outFileName << "_current_frame != NULL) {\n";
     }
@@ -763,8 +770,9 @@ int populateOutputFiles() {
     }
     if (!isUnified || unifiedFirstPass) {
       //Release the program and frame
+      *out_c << "    struct __meta_gen_opencl_" << outFileName << "_frame * next_frame = __meta_gen_opencl_" << outFileName << "_current_frame->next_frame;\n";
       *out_c << "    free(__meta_gen_opencl_" << outFileName << "_current_frame);\n";
-      *out_c << "    __meta_gen_opencl_" << outFileName << "_current_frame = NULL;\n";
+      *out_c << "    __meta_gen_opencl_" << outFileName << "_current_frame = next_frame;\n";
       *out_c << "  }\n";
       //Finish the deinit wrapper
       *out_c << "}\n\n";
