@@ -95,6 +95,27 @@ a_bool __remove_module(a_module_record * record) {
   }
   return false;
 }
+
+//Lookup all modules with a matching implementation signature
+//\param retRecords a pointer to a storage buffer for matched record pointers
+//\param szRetRecords the size of the retRecords buffer
+//\param signature the signature to match on
+//\param matchAny if true, will match if the record and signature have any matching flags (binary OR), otherwise will only match exactly (binary AND)
+// Will return the number of matched modules, regardless of how many were actually storable in retRecords
+int lookup_implementing_modules(a_module_record ** retRecords, size_t szRetRecords, a_module_implements_backend signature, a_bool matchAny) {
+  int matches = 0, retIdx= 0;
+  a_module_list * elem = global_modules.next;
+  for (; elem != NULL; elem = elem->next) {
+    if (elem->rec != NULL && (elem->rec->implements == signature || (matchAny && (elem->rec->implements & signature)))) {
+      if (retRecords != NULL && retIdx < szRetRecords) {
+        retRecords[retIdx] = elem->rec;
+        retIdx++;
+      }
+      matches++;
+    }
+  }
+  return matches;
+}
 //Allow add-on modules to pass a pointer to their registration function to
 // metamorph-core, so that the core can then initialize and exchange the appropriate internal data structs
 a_err meta_register_module(a_module_record * (*module_registry_func)(a_module_record * record)) {
@@ -113,11 +134,7 @@ a_err meta_register_module(a_module_record * (*module_registry_func)(a_module_re
 
   
   //TODO add this registry object to a list of currently-registered modules;
-  a_module_record * new_record = (a_module_record *)malloc(sizeof(a_module_record));
-  new_record->module_init = NULL;
-  new_record->module_deinit = NULL;
-  new_record->implements = module_implements_none;
-  new_record->initialized = 0;
+  a_module_record * new_record = (a_module_record *)calloc(sizeof(a_module_record), 1);
   a_module_record * returned = (*module_registry_func)(new_record);
   //TODO make this threadsafe
   //If we trust that the registration function will only accept one registry, then we just have to check that the one returned is the same as the one we created. otherwise release the new one

@@ -704,6 +704,7 @@ int populateOutputFiles() {
       *out_c << "    record->implements = module_implements_opencl;\n";
       *out_c << "    record->module_init = &meta_gen_opencl_" << outFileName << "_init;\n";
       *out_c << "    record->module_deinit = &meta_gen_opencl_" << outFileName << "_deinit;\n";
+      *out_c << "    record->module_registry_func = &meta_gen_opencl_" << outFileName << "_registry;\n";
       *out_c << "    meta_gen_opencl_" << outFileName << "_registration = record;\n";
       *out_c << "  }\n";
       *out_c << "  if (old_registration != NULL && old_registration != record) return record;\n";

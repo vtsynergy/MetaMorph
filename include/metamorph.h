@@ -192,17 +192,22 @@ typedef enum {
   module_implements_general = 64 //general operations not related to a backend
 } a_module_implements_backend;
 
-typedef struct {
+struct a_module_record;
+typedef struct a_module_record {
   //void function pointer to the initializer
   void (*module_init)(void);// = NULL;
   //void function pointer to the deinitializer
   void (*module_deinit)(void);// = NULL;
+  //A copy of a pointer to the module's registration function, useful if we need to automatically modify the registration within MM instead of the module itself
+  struct a_module_record * (*module_registry_func)(struct a_module_record * record);
   //enum "bitfield" defining which backend(s) (or general) the module provides implementations for
   a_module_implements_backend implements;// = module_implements_none;
   char initialized;// = 0;
 } a_module_record;
 
-
+//Not meant for users, lets MM components lookup sets of related modules
+int lookup_implementing_modules(a_module_record ** retRecords, size_t szRetRecords, a_module_implements_backend signature, a_bool matchAny);
+//Triggers for user modules to interop with metamorph
 a_err meta_register_module(a_module_record * (*module_registry_func)(a_module_record * record));
 a_err meta_deregister_module(a_module_record * (*module_registry_func)(a_module_record * record));
 a_err meta_reinitialize_modules(a_module_implements_backend module_type);

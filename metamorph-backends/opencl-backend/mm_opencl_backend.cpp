@@ -737,6 +737,17 @@ metaOpenCLStackFrame * metaOpenCLPopStackFrame() {
 
 //Not meant to be called by users
 __attribute__((destructor)) a_int meta_destroy_OpenCL() {
+	//Deregister all modules that ONLY implement OpenCL
+	int numOCLModules, retModCount;
+	//TODO If we ever make this threadsafe, the deregister function will protect us from re-deregistration
+	// but we may need to loop to make sure non get re-added between lookup and deregistration
+	numOCLModules = lookup_implementing_modules(NULL, 0, module_implements_opencl, false);
+	a_module_record ** oclModules = (a_module_record **)calloc(sizeof(a_module_record *), numOCLModules);
+	retModCount = lookup_implementing_modules(oclModules, numOCLModules, module_implements_opencl, false);
+	a_err deregErr;
+	for (; retModCount > 0; retModCount--) {
+		deregErr = meta_deregister_module(oclModules[retModCount-1]->module_registry_func);
+	}
 	//
 	metaOpenCLStackFrame * frame = metaOpenCLPopStackFrame();
 	while (frame != NULL) {
