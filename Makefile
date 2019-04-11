@@ -101,23 +101,24 @@ endif
 #Ensure at least one OpenCL environment
 #if they explicitly set an environment they need to point us to both libs and headers
 ifdef OPENCL_LIB_DIR
-ifdef OPENCL_INCL_DIR
-#both are set, validate things exist
-ifeq ($(shell test -e $(OPENCL_INCL_DIR)/CL/opencl.h && echo -n yes),yes)
-ifeq ($(shell test -e $(OPENCL_LIB_DIR)/libOpenCL.so && echo -n yes),yes)
+ ifdef OPENCL_INCL_DIR
+  #both are set, validate things exist
+  ifeq ($(shell test -e $(OPENCL_INCL_DIR)/CL/opencl.h && echo -n yes),yes)
+   ifeq ($(shell test -e $(OPENCL_LIB_DIR)/libOpenCL.so && echo -n yes),yes)
+   else
+    $(error libOpenCL.so not found in OPENCL_LIB_DIR=$(OPENCL_LIB_DIR))
+   endif
+  else
+   $(error CL/opencl.h not found in OPENCL_INCL_DIR=$(OPENCL_INCL_DIR))
+  endif
+ else
+  $(error OPENCL_LIB_DIR set without setting OPENCL_INCL_DIR)
+ endif
 else
-$(error libOpenCL.so not found in OPENCL_LIB_DIR=$(OPENCL_LIB_DIR))
+ ifdef OPENCL_INCL_DIR
+  $(error OPENCL_INCL_DIR set without setting OPENCL_LIB_DIR)
+ endif
 endif
-else
-$(error CL/opencl.h not found in OPENCL_INCL_DIR=$(OPENCL_INCL_DIR))
-endif
-else
-$(error OPENCL_LIB_DIR set without setting OPENCL_INCL_DIR)
-endif
-ifdef OPENCL_INCL_DIR
-$(error OPENCL_INCL_DIR set without setting OPENCL_LIB_DIR)
-endif
-else
 #NVIDIA installations
 ifeq ($(OPENCL_LIB_DIR),)
 ifneq ($(CUDA_LIB_DIR),)
@@ -150,7 +151,7 @@ endif
 ifeq ($(OPENCL_INCL_DIR),)
 OPENCL_INCL_DIR=$(patsubst %/CL/opencl.h,%,$(shell find / -path /home -prune -o -name opencl.h -print -quit 2>/dev/null))
 endif
-endif #end autodetect/validate
+#endif #end autodetect/validate
 
 ifndef USE_OPENCL #if not explicitly set
 ifeq ($(OPENCL_LIB_DIR),) #see if we found an environment

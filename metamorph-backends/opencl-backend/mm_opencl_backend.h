@@ -35,6 +35,24 @@
 extern "C" {
 #endif
 
+//This is a simple enum to store important details about the type of device
+// and which vendor is providing the implementation
+//Currently ontly used to check for Altera/IntelFPGA at runtime to load .aocx files rather than .cl
+typedef enum meta_cl_device_vendor {
+  meta_cl_device_vendor_unknown = 0,
+  meta_cl_device_vendor_nvidia = 1,
+  meta_cl_device_vendor_amd_appsdk = 2,
+  meta_cl_device_vendor_amd_rocm = 3,
+  meta_cl_device_vendor_intel = 4,
+  meta_cl_device_vendor_intelfpga = 5,
+  meta_cl_device_vendor_xilinx = 6,
+  meta_cl_device_vendor_pocl = 7,
+  meta_cl_device_vendor_mask = (1 << 8) - 1,
+  meta_cl_device_is_cpu = (1 << 8),
+  meta_cl_device_is_gpu = (1 << 9),
+  meta_cl_device_is_accel = (1 << 10),
+  meta_cl_device_is_default = (1 << 11)
+} meta_cl_device_vendor;
 //This is the exposed object for managing multiple OpenCL devices with the
 // library's built-in stack.
 //These frame objects are allocated and freed by the Init and Destroy calls, respectively.
@@ -259,6 +277,9 @@ size_t metaOpenCLLoadProgramSource(const char *filename, const char **progSrc);
 
 //explicitly initialize kernels, instead of automatically
 cl_int metaOpenCLInitCoreKernels();
+
+//Given a device, detect the type and supporting implementation
+meta_cl_device_vendor metaOpenCLDetectDevice(cl_device_id dev);
 
 cl_int opencl_dotProd(size_t (*grid_size)[3], size_t (*block_size)[3],
 		void * data1, void * data2, size_t (*array_size)[3],

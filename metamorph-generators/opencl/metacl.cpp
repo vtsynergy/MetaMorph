@@ -25,8 +25,8 @@ using namespace clang::ast_matchers;
 using namespace clang::tooling;
 
 //Ternary checks the status of the inline-error-check variable to easily eliminate all checks added through the macro
-#define ERROR_CHECK(errorcode, text) (InlineErrorCheck.getValue() ? "  if (" errorcode " != CL_SUCCESS) fprintf(stderr, \"" text " \%d at \%s:\%d\\n\", " errorcode ", __FILE__, __LINE__);\n" : "")
-#define APPEND_ERROR_CHECK(string, errorcode, text) string += ERROR_CHECK(errorcode, text)
+#define ERROR_CHECK(indent, errorcode, text) (InlineErrorCheck.getValue() ? indent "if (" errorcode " != CL_SUCCESS) fprintf(stderr, \"" text " \%d at \%s:\%d\\n\", " errorcode ", __FILE__, __LINE__);\n" : "")
+#define APPEND_ERROR_CHECK(string, indent, errorcode, text) string += ERROR_CHECK(indent, errorcode, text)
 
 static llvm::cl::OptionCategory MetaGenCLCategory("MetaGen-CL Options");
 
@@ -315,11 +315,12 @@ void PrototypeHandler::run(const MatchFinder::MatchResult &Result) {
         std::string current_kernel = "__meta_gen_opencl_" + outFile + "_current_" + framed_kernel;
 	cache->cl_kernels.push_back("  cl_kernel " + func->getNameAsString() + "_kernel;\n");
     //Generate a clCreatKernelExpression
-	cache->kernelInit.push_back("    if (__meta_gen_opencl_" + outFile + "_current_frame->" + filename + "_progLen != -1) " + current_kernel + " = clCreateKernel(__meta_gen_opencl_" + outFile + "_current_frame->" + filename + "_prog, \"" + func->getNameAsString() + "\", &createError);\n");
-        cache->kernelInit.push_back(ERROR_CHECK("createError", "OpenCL kernel creation error"));
+	//cache->kernelInit.push_back("    if (__meta_gen_opencl_" + outFile + "_current_frame->" + filename + "_progLen != -1) " + current_kernel + " = clCreateKernel(__meta_gen_opencl_" + outFile + "_current_frame->" + filename + "_prog, \"" + func->getNameAsString() + "\", &createError);\n");
+	cache->kernelInit.push_back("    " + current_kernel + " = clCreateKernel(__meta_gen_opencl_" + outFile + "_current_frame->" + filename + "_prog, \"" + func->getNameAsString() + "\", &createError);\n");
+        cache->kernelInit.push_back(ERROR_CHECK("    ", "createError", "OpenCL kernel creation error"));
     //Generate a clReleaseKernelExpression
-	cache->kernelDeinit.push_back("    releaseError = clReleaseKernel(" + current_kernel + ");\n");
-        cache->kernelDeinit.push_back(ERROR_CHECK("releaseError", "OpenCL kernel release error"));
+	cache->kernelDeinit.push_back("      releaseError = clReleaseKernel(" + current_kernel + ");\n");
+        cache->kernelDeinit.push_back(ERROR_CHECK("      ", "releaseError", "OpenCL kernel release error"));
 
 	//Begin constructing the host wrapper
 	std::string hostProto = "cl_int " + host_func + "(";
@@ -399,18 +400,18 @@ void PrototypeHandler::run(const MatchFinder::MatchResult &Result) {
       if (info->isGlobalOrConst) {
         hostProto += "cl_mem * " + info->name + ", ";
         setArgs += "  retCode = clSetKernelArg(" + framed_kernel + ", " + std::to_string(pos) + ", sizeof(cl_mem), " + info->name + ");\n";
-        setArgs += ERROR_CHECK("retCode", "OpenCL kernel argument assignment error (arg: \\\"" + info->name + "\\\", host wrapper: \\\"" + host_func + "\\\")");
+        setArgs += ERROR_CHECK("  ", "retCode", "OpenCL kernel argument assignment error (arg: \\\"" + info->name + "\\\", host wrapper: \\\"" + host_func + "\\\")");
         doxygen += "\\param " + info->name + " a cl_mem buffer, must internally store " + info->hostType + " types\n";
       } else if (info->isLocal) { //If it is local, instead create a size variable and set the size of the memory region
         hostProto += "size_t " + info->name + "_num_local_elems, ";
         setArgs += "  retCode = clSetKernelArg(" + framed_kernel + ", " + std::to_string(pos) + ", sizeof(" + info->hostType + ") * " + info->name + "_num_local_elems, NULL);\n";
-        setArgs += ERROR_CHECK("retCode", "OpenCL kernel argument assignment error (arg: \\\"" + info->name + "\\\", host wrapper: \\\"" + host_func + "\\\")");
+        setArgs += ERROR_CHECK("  ", "retCode", "OpenCL kernel argument assignment error (arg: \\\"" + info->name + "\\\", host wrapper: \\\"" + host_func + "\\\")");
         doxygen += "\\param " + info->name + "_num_local_elems allocate __local memory space for this many " + info->hostType + " elements\n";
       } else {
         hostProto += info->hostType + " " + info->name + ", ";
         //generate a clSetKernelArg expression
         setArgs += "  retCode = clSetKernelArg(" + framed_kernel + ", " + std::to_string(pos) + ", sizeof(" + info->hostType + "), &" + info->name + ");\n";
-        setArgs += ERROR_CHECK("retCode", "OpenCL kernel argument assignment error (arg: \\\"" + info->name + "\\\", host wrapper: \\\"" + host_func + "\\\")");
+        setArgs += ERROR_CHECK("  ", "retCode", "OpenCL kernel argument assignment error (arg: \\\"" + info->name + "\\\", host wrapper: \\\"" + host_func + "\\\")");
         doxygen += "\\param " + info->name + " scalar parameter of type \"" + info->hostType + "\"\n";
       }
       pos++;
@@ -450,14 +451,14 @@ void PrototypeHandler::run(const MatchFinder::MatchResult &Result) {
     //TODO Detect if single-work-item from kernel funcs (not just attribute)
     if (singleWorkItem || (work_group_size[3] != 0 && work_group_size[0] == 1 && work_group_size[1] == 1 && work_group_size[2] == 1)) {
       wrapper += "  retCode = clEnqueueTask(frame->queue, " + framed_kernel + ", " + eventWaitListSize + ", " + eventWaitList + ", " + retEvent + ");\n";
-        wrapper += ERROR_CHECK("retCode", "OpenCL kernel enqueue error (host wrapper: \\\"" + host_func + "\\\")");
+        wrapper += ERROR_CHECK("  ", "retCode", "OpenCL kernel enqueue error (host wrapper: \\\"" + host_func + "\\\")");
     } else {
       wrapper += "  retCode = clEnqueueNDRangeKernel(frame->queue, " + framed_kernel + ", " + std::to_string(workDim) + ", " + offset + ", " + globalSize + ", " + localSize + ", " + eventWaitListSize + ", " + eventWaitList + ", " + retEvent + ");\n";
-        wrapper += ERROR_CHECK("retCode", "OpenCL kernel enqueue error (host wrapper: \\\"" + host_func + "\\\")");
+        wrapper += ERROR_CHECK("  ", "retCode", "OpenCL kernel enqueue error (host wrapper: \\\"" + host_func + "\\\")");
     }
     wrapper += "  if (!async) {\n";
     wrapper += "    retCode = clFinish(frame->queue);\n";
-    wrapper += ERROR_CHECK("retCode", "OpenCL kernel execution error (host wrapper: \\\"" + host_func + "\\\")");
+    wrapper += ERROR_CHECK("    ", "retCode", "OpenCL kernel execution error (host wrapper: \\\"" + host_func + "\\\")");
     wrapper += "  }\n";
     wrapper += "  return retCode;\n";
     
@@ -532,34 +533,35 @@ class MetaGenCLFrontendAction : public ASTFrontendAction {
       hostCodeCache * cache = AllHostCaches[file] = new hostCodeCache();
       //Add the core boilerplate to the hostCode cache
       //TODO add a function to metamorph for human-readable OpenCL error codes
-      cache->runOnceInit += "#ifdef WITH_INTELFPGA\n";
+      cache->runOnceInit += "  if ((vendor & meta_cl_device_is_accel) && ((vendor & meta_cl_device_vendor_mask) == meta_cl_device_vendor_intelfpga)) {\n";
       //TODO enforce Intel name filtering to remove "kernel"
       //TODO allow them to configure the source path in an environment variable?
-      cache->runOnceInit += "  __meta_gen_opencl_" + outFile + "_current_frame->" + file + "_progLen = metaOpenCLLoadProgramSource(\"" + file + ".aocx\", &__meta_gen_opencl_" + outFile + "_current_frame->" + file + "_progSrc);\n";
-      cache->runOnceInit += "  if (__meta_gen_opencl_" + outFile + "_current_frame->" + file + "_progLen != -1) {\n";
-      cache->runOnceInit += "     __meta_gen_opencl_" + outFile + "_current_frame->" + file + "_prog = clCreateProgramWithBinary(meta_context, 1, &meta_device, &__meta_gen_opencl_" + outFile + "_current_frame->" + file + "_progLen, (const unsigned char **)&__meta_gen_opencl_" + outFile + "_current_frame->" + file + "_progSrc, NULL, &buildError);\n";
-      cache->runOnceInit += "#else\n";
+      cache->runOnceInit += "    __meta_gen_opencl_" + outFile + "_current_frame->" + file + "_progLen = metaOpenCLLoadProgramSource(\"" + file + ".aocx\", &__meta_gen_opencl_" + outFile + "_current_frame->" + file + "_progSrc);\n";
+      cache->runOnceInit += "    if (__meta_gen_opencl_" + outFile + "_current_frame->" + file + "_progLen != -1)\n";
+      cache->runOnceInit += "      __meta_gen_opencl_" + outFile + "_current_frame->" + file + "_prog = clCreateProgramWithBinary(meta_context, 1, &meta_device, &__meta_gen_opencl_" + outFile + "_current_frame->" + file + "_progLen, (const unsigned char **)&__meta_gen_opencl_" + outFile + "_current_frame->" + file + "_progSrc, NULL, &buildError);\n";
+      cache->runOnceInit += "  } else {\n";
       //TODO allow them to configure the source path in an environment variable?
-      cache->runOnceInit += "  __meta_gen_opencl_" + outFile + "_current_frame->" + file + "_progLen = metaOpenCLLoadProgramSource(\"" + file + ".cl\", &__meta_gen_opencl_" + outFile + "_current_frame->" + file + "_progSrc);\n";
+      cache->runOnceInit += "    __meta_gen_opencl_" + outFile + "_current_frame->" + file + "_progLen = metaOpenCLLoadProgramSource(\"" + file + ".cl\", &__meta_gen_opencl_" + outFile + "_current_frame->" + file + "_progSrc);\n";
+      cache->runOnceInit += "    if (__meta_gen_opencl_" + outFile + "_current_frame->" + file + "_progLen != -1)\n";
+      cache->runOnceInit += "      __meta_gen_opencl_" + outFile + "_current_frame->" + file + "_prog = clCreateProgramWithSource(meta_context, 1, &__meta_gen_opencl_" + outFile + "_current_frame->" + file + "_progSrc, &__meta_gen_opencl_" + outFile + "_current_frame->" + file + "_progLen, &buildError);\n";
+      cache->runOnceInit += "  }\n";
       cache->runOnceInit += "  if (__meta_gen_opencl_" + outFile + "_current_frame->" + file + "_progLen != -1) {\n";
-      cache->runOnceInit += "    __meta_gen_opencl_" + outFile + "_current_frame->" + file + "_prog = clCreateProgramWithSource(meta_context, 1, &__meta_gen_opencl_" + outFile + "_current_frame->" + file + "_progSrc, &__meta_gen_opencl_" + outFile + "_current_frame->" + file + "_progLen, &buildError);\n";
-      cache->runOnceInit += "#endif\n";
-      cache->runOnceInit += ERROR_CHECK("buildError", "OpenCL program creation error");
+      cache->runOnceInit += ERROR_CHECK("    ", "buildError", "OpenCL program creation error");
       cache->runOnceInit += "    buildError = clBuildProgram(__meta_gen_opencl_" + outFile + "_current_frame->" + file + "_prog, 1, &meta_device, __meta_gen_opencl_" + file + "_custom_args ? __meta_gen_opencl_" + file + "_custom_args : \"\", NULL, NULL);\n";
       cache->runOnceInit += "    if (buildError != CL_SUCCESS) {\n";
       cache->runOnceInit += "      size_t logsize = 0;\n";
       cache->runOnceInit += "      clGetProgramBuildInfo(__meta_gen_opencl_" + outFile + "_current_frame->" + file + "_prog, meta_device, CL_PROGRAM_BUILD_LOG, 0, NULL, &logsize);\n";
       cache->runOnceInit += "      char * buildLog = (char *) malloc(sizeof(char) * (logsize + 1));\n";
       cache->runOnceInit += "      clGetProgramBuildInfo(__meta_gen_opencl_" + outFile + "_current_frame->" + file + "_prog, meta_device, CL_PROGRAM_BUILD_LOG, logsize, buildLog, NULL);\n";
-      cache->runOnceInit += ERROR_CHECK("buildError", "OpenCL program build error");
+      cache->runOnceInit += ERROR_CHECK("      ", "buildError", "OpenCL program build error");
       cache->runOnceInit += "      fprintf(stderr, \"Build Log:\\n\%s\\n\", buildLog);\n";
       cache->runOnceInit += "      free(buildLog);\n";
       cache->runOnceInit += "    } else {\n";
       cache->runOnceInit += "      __meta_gen_opencl_" + outFile + "_current_frame->" + file + "_init = 1;\n";
       cache->runOnceInit += "    }\n";
-      cache->runOnceInit += "  }\n";
+//Moved      cache->runOnceInit += "  }\n";
       cache->runOnceDeinit += "      releaseError = clReleaseProgram(__meta_gen_opencl_" + outFile + "_current_frame->" + file + "_prog);\n";
-      cache->runOnceDeinit += ERROR_CHECK("releaseError", "OpenCL program release error"); 
+      cache->runOnceDeinit += ERROR_CHECK("      ", "releaseError", "OpenCL program release error"); 
       cache->runOnceDeinit += "      free(__meta_gen_opencl_" + outFile + "_current_frame->" + file + "_progSrc);\n";
       cache->runOnceDeinit += "      __meta_gen_opencl_" + outFile + "_current_frame->" + file + "_progLen = 0;\n";
       cache->runOnceDeinit += "      __meta_gen_opencl_" + outFile + "_current_frame->" + file + "_init = 0;\n";
@@ -729,6 +731,7 @@ int populateOutputFiles() {
       *out_c << "  new_frame->queue = meta_queue;\n";
       *out_c << "  new_frame->context = meta_context;\n";
       *out_c << "  __meta_gen_opencl_" << outFileName << "_current_frame = new_frame;\n";
+      *out_c << "  meta_cl_device_vendor vendor = metaOpenCLDetectDevice(new_frame->device);\n";
     }
     //Add the clCreateProgram bits
     *out_c << fileCachePair.second->runOnceInit;
@@ -736,6 +739,8 @@ int populateOutputFiles() {
     for ( std::string kern : fileCachePair.second->kernelInit) {
       *out_c << kern;
     }
+    //Finish the program's creation block
+    *out_c << "  }\n";
     //inhibit registration on subsequent passes in unified mode
     unifiedFirstPass = false;
   }

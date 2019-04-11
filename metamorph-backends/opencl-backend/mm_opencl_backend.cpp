@@ -1121,6 +1121,41 @@ cl_int metaOpenCLInitCoreKernels() {
 	
 }
 
+meta_cl_device_vendor metaOpenCLDetectDevice(cl_device_id dev) {
+  meta_cl_device_vendor ret = meta_cl_device_vendor_unknown;
+  //First, query the type of device
+  cl_device_type type;
+  clGetDeviceInfo(dev, CL_DEVICE_TYPE, sizeof(cl_device_type), &type, NULL);
+  if (type & CL_DEVICE_TYPE_CPU) ret = (meta_cl_device_vendor)(ret | meta_cl_device_is_cpu);
+  if (type & CL_DEVICE_TYPE_GPU) ret = (meta_cl_device_vendor)(ret | meta_cl_device_is_gpu);
+  if (type & CL_DEVICE_TYPE_ACCELERATOR) ret = (meta_cl_device_vendor)(ret | meta_cl_device_is_accel);
+  if (type & CL_DEVICE_TYPE_DEFAULT) ret = (meta_cl_device_vendor)(ret | meta_cl_device_is_default);
+  
+  //Then query the platform, and it's name
+  size_t name_size;
+  char * name;
+  cl_platform_id plat;
+  clGetDeviceInfo(dev, CL_DEVICE_PLATFORM, sizeof(cl_platform_id), &plat, NULL);
+  clGetPlatformInfo(plat, CL_PLATFORM_NAME, 0, NULL, &name_size);
+  name = (char *)calloc(sizeof(char), name_size+1);
+  clGetPlatformInfo(plat, CL_PLATFORM_NAME, name_size+1, name, NULL);
+
+  //and match it to known names
+  if (strcmp(name, "NVIDIA CUDA") == 0) ret = (meta_cl_device_vendor)(ret | meta_cl_device_vendor_nvidia);
+  if (strcmp(name, "AMD Accelerated Parallel Processing") == 0) ret = (meta_cl_device_vendor)(ret | meta_cl_device_vendor_amd_appsdk);
+  //TODO AMD ROCM
+  //TODO Intel CPU/GPU
+  if (strcmp(name, "Intel(R) FPGA SDK for OpenCL(TM)") == 0) ret = (meta_cl_device_vendor)(ret | meta_cl_device_vendor_intelfpga);
+  if (strcmp(name, "Altera SDK for OpenCL") == 0) ret = (meta_cl_device_vendor)(ret | meta_cl_device_vendor_intelfpga);
+  //TODO Xilinx
+  if (strcmp(name, "Portable Computing Language") == 0) ret = (meta_cl_device_vendor)(ret | meta_cl_device_vendor_pocl);
+  
+  if ((ret & meta_cl_device_vendor_mask) == meta_cl_device_vendor_unknown) fprintf(stderr, "Warning: OpenCL platform vendor \"%s\" is unrecognized, assuming .cl inputs and JIT support\n", name);
+  free(name);
+  return ret;
+}
+
+
 //  !this kernel works for 3D data only.
 //  ! PHI1 and PHI2 are input arrays.
 //  ! s* parameters are start values in each dimension.
