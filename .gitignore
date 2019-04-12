@@ -1,0 +1,3 @@
+docs/*
+doxygen.warnings
+metamorph-generators/opencl/clang_tarball/*

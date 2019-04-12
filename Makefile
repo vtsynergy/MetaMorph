@@ -425,3 +425,6 @@ clean:
 
 refresh:
 	rm $(MM_EX)/crc_alt $(MM_EX)/mm_opencl_intelfpga_backend.aocx
+
+doc:
+	doxygen Doxyfile

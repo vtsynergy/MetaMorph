@@ -35,45 +35,70 @@ llvm::cl::opt<bool, false> InlineErrorCheck("inline-error-check", llvm::cl::desc
 llvm::cl::opt<bool, false> OverwriteFiles("overwrite-files", llvm::cl::desc("Instead of trying to replace only MetaCL-generated code in existing output files, simply overwrite them in entirety."), llvm::cl::value_desc("<true/false>"), llvm::cl::init(false));
 raw_ostream * unified_output_c = NULL, * unified_output_h = NULL;
 
+/**
+ * \brief Per-input-file storage struct for generated code
+ * 
+ * Separately stores all the one-time init/deinit code for a given input
+ *  in addition to vectors of all the cl_kernels and their respective init
+ *  and deinit code.
+ * Additionally, stores all generated wrapper functions and their respective
+ *  prototypes, and pointers to the appropriate .h and.c output files, to be
+ *  used when not running in unified output mode.
+ */
 //Meant to store all the boilerplate from a single input kernel file
 typedef struct {
-  //clCreateProgram, clBuildProgram, cl_programs, diagnostics
+  /** metaOpenCLLoadProgramSource, clCreateProgram, clBuildProgram, cl_programs, and associated internal stack management code */
   std::string runOnceInit;
-  //clReleaseProgram
+  /** clReleaseProgram */
   std::string runOnceDeinit;
-  //All the global cl_kernel declarations for an input file
+  /** All the global cl_kernel declarations for an input file */
   std::vector<std::string> cl_kernels;
-  //clCreateKernel
+  /** clCreateKernel and associated safety checks */
   std::vector<std::string> kernelInit;
-  //clReleaseKernel
+  /** clReleaseKernel and associated checks*/
   std::vector<std::string> kernelDeinit;
-  //prototypes of host-side kernel wrappers, indexed by name, with arg string as the value
+  /** prototypes of host-side kernel wrappers, indexed by name, with arg string as the value */
   std::vector<std::string> hostProtos;
-  //Implementations of host-side kernel wrappers (w/o prototypes), indexed by host-side name, with function contents as value
+  /** Implementations of host-side kernel wrappers (w/o prototypes), indexed by host-side name, with function body as value */
   std::vector<std::string> hostFuncImpls;
+  /** Output header file if not running in unified output mode */
   raw_ostream * outfile_h;
+  /** Output implementation file if not running in unified output mode */
   raw_ostream * outfile_c;
 } hostCodeCache;
 
-//Map of all hostCodeCaches (indexed by input filename)
+/** Simple map of all hostCodeCaches (indexed by input filename) */
 std::map<std::string, hostCodeCache *> AllHostCaches;
 
+/**
+ * Implementation of the MatchCallback class to handle all the code generation
+ *  and storage necessary for a given kernel definition
+ */
 class PrototypeHandler : public MatchFinder::MatchCallback {
   public:
+    /** Simple initialization constructor */
     PrototypeHandler(raw_ostream * c_outfile, raw_ostream * h_outfile, std::string infile) : output_file_c(c_outfile), output_file_h(h_outfile), filename(infile) {
       //Any initialization?
     }
     virtual void run(const MatchFinder::MatchResult &Result);
 
+  /**
+   * \brief Simple struct to organize important details about a kernel parameter
+   *
+   */
   typedef struct  {
+    /** The type of a param as represented in the device AST */
     QualType devType;
+    /** The host-compatible type mapped from devType */
     std::string hostType;
+    /** The index of this kernel param */
     unsigned int devPos;
-    //TODO add other flags (restrict, addrspace, etc)
-    //if it is local memory we need the size, not a pointer
+    /** \todo TODO add other flags (restrict, addrspace, etc) */
+    /** if it is local memory we need the size, not a pointer */
     bool isLocal = false;
-    //if it is global or const, we need a pointer (cl_mem)
+    /** if it is global or const, we need a pointer (cl_mem) */
     bool isGlobalOrConst = false;
+    /** The param name, for mapping to the host wrapper prototype */
     std::string name;
   } argInfo;
 
@@ -83,10 +108,13 @@ class PrototypeHandler : public MatchFinder::MatchCallback {
     raw_ostream * output_file_h = NULL;
 };
 
-
-//FIXME this sort was arbitrarily chosen, replace it with something else if it allows types to be used before defined
 namespace std {
+/**
+ * Enforce a simple ordering on QualTypes so they can be used as std::map keys
+ * \todo FIXME this sort was arbitrarily chosen, replace it with something else if it allows types to be used before defined
+ */
 template<> struct less<QualType> {
+ /** Return true if the OpaquePtr for first is less than second's */
  bool operator()(const QualType first, const QualType second) {
   return (first.getAsOpaquePtr() < second.getAsOpaquePtr());
 }
@@ -267,6 +295,17 @@ std::string trimFileSlashesAndType(std::string in) {
       return in.substr(slashPos, dotPos-slashPos);
 }
 
+
+/**
+ * \brief Generate host wrapper, init, and deinit for each found kernel definition
+ *
+ * For each Matched kernel definition:
+ *  Create a cl_kernel based on input filename and kernel name
+ *  Create appropriate clCreateKernel initialization and safety checks
+ *  Create appropriate clReleaseKernel deinit and safety checks
+ *  Create a host side kernel wrapper with all clSetKernelArg and clEnqueue calls
+ *   and associated safety checks
+ */
 void PrototypeHandler::run(const MatchFinder::MatchResult &Result) {
   bool singleWorkItem = false;
   const FunctionDecl * func;
@@ -470,14 +509,19 @@ void PrototypeHandler::run(const MatchFinder::MatchResult &Result) {
   }
 }
 
+/** Simple override to consume kernel ASTs and look for kernels */
 class KernelASTConsumer : public ASTConsumer {
   public:
+    /** A simple ASTMatcher consumer to catch NDRange and Single Work Item Kernels */
     KernelASTConsumer(CompilerInstance* comp, raw_ostream * out_c, raw_ostream * out_h, std::string file) : CI(comp) {
       Matcher.addMatcher(
+        /** Looking for functions that are either */
         functionDecl(anyOf(
+          /** A single work item */
           functionDecl(allOf(
             hasAttr(attr::Kind::OpenCLKernel),
             isDefinition(),
+            /** If it calls these functions it won't be treated as SWI by Intel/Altera */
             unless(hasDescendant(callExpr(callee(
               functionDecl(anyOf(
                 hasName("get_global_id"),
@@ -488,15 +532,18 @@ class KernelASTConsumer : public ASTConsumer {
               )).bind("nd_func")
             ))))
           )).bind("swi_kernel_def"),
+          /** An NDRange */
           functionDecl(allOf(
             hasAttr(attr::Kind::OpenCLKernel),
             isDefinition()
           )).bind("kernel_def")
         )),
+      /** When a kernel is found, pass it off to a handler */
       new PrototypeHandler(out_c, out_h, file));
     }
+    /** Simple override to trigger the ASTMatchers */
     void HandleTranslationUnit(ASTContext &Context) override {
-      //TODO Anything that needs to go here?
+      /** \todo TODO Any pre-match actions that need to take place? */
       Matcher.matchAST(Context);
     }
 
@@ -505,22 +552,38 @@ class KernelASTConsumer : public ASTConsumer {
     CompilerInstance * CI;
 };
 
+
+
+/**
+ * \brief Handler for a single .cl input file
+ *
+ * A custom class that allows us to do once-per-input things before
+ *  handling individual kernels
+ * Responsible for:
+ *   creating output files in non-unified mode
+ *   generating and storing init and deinit boilerplate in the global host
+ *    code storage cache
+ */
 class MetaGenCLFrontendAction : public ASTFrontendAction {
   public:
     MetaGenCLFrontendAction() {}
 
+    /** Currently unused mechanism for adding things before parsing */
     bool BeginInvocation(CompilerInstance &CompInst) {
       //TODO, do we need to do anything before parsing like adding headers, etc?
       return ASTFrontendAction::BeginInvocation(CompInst);
     }
 
+    /** Currently unused mechanism for doing extra things after parsing */
     void EndSourceFileAction() {
       //TODO what do we need to do at the end of a file
     }
 
+    /**
+     * Create output files (if not unified) and all once-per-input boilerplate
+     *  (i.e. context management structs, cl_programs, program init/deinit)
+     */
     std::unique_ptr<ASTConsumer> CreateASTConsumer(CompilerInstance &CI, StringRef infile) override {
-      //TODO Do we need to do anything between parsing and AST Traversal?
-      //TODO all this stuff needs to be moved
       //generate the cl_program
        //At the beginning of processing each new file, create the associated once-per-input-file boilerplate
        //By looking up the host code cache in the map, we force it to exist so we can populate it
