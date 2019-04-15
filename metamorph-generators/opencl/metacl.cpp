@@ -1,17 +1,19 @@
-/**
-* (c) 2018 Virginia Tech
-*
-* Please see license information in the main MetaMorph repository
-*
-* MetaGen-CL
-* A tool to consume OpenCL kernel files and produce MetaMorph-compatible
-* host-side wrappers for the contained kernels.
-*
-* ALPHA/Prototype software, no warranty expressed or implied.
-*
-* Authors: Paul Sathre
-*
-*/
+/** \file
+ *
+ * \brief An OpenCL host-code boilerplate and interface generator
+ * \copyright 2018-2019 Virginia Tech
+ *
+ * <a href="./LICENSE">Please see license information in the main MetaMorph repository</a>
+ *
+ * MetaGen-CL
+ * A tool to consume OpenCL kernel files and produce MetaMorph-compatible
+ * host-side wrappers for the contained kernels.
+ *
+ * ALPHA/Prototype software, no warranty expressed or implied.
+ *
+ * \author Paul Sathre
+ *
+ */
 
 #include "clang/ASTMatchers/ASTMatchFinder.h"
 #include "clang/ASTMatchers/ASTMatchers.h"
@@ -24,16 +26,47 @@ using namespace clang;
 using namespace clang::ast_matchers;
 using namespace clang::tooling;
 
-//Ternary checks the status of the inline-error-check variable to easily eliminate all checks added through the macro
+/** Generate a simple OpenCL error check and linedump string for inclusion in output code IFF InlineErrorCheck=true, else an empty string */
 #define ERROR_CHECK(indent, errorcode, text) (InlineErrorCheck.getValue() ? indent "if (" errorcode " != CL_SUCCESS) fprintf(stderr, \"" text " \%d at \%s:\%d\\n\", " errorcode ", __FILE__, __LINE__);\n" : "")
+/** \deprecated a shorthand way to append a ternary-checked generated error-check string to an existing std::string buffer */
 #define APPEND_ERROR_CHECK(string, indent, errorcode, text) string += ERROR_CHECK(indent, errorcode, text)
 
 static llvm::cl::OptionCategory MetaGenCLCategory("MetaGen-CL Options");
 
-llvm::cl::opt<std::string, false> UnifiedOutputFile("unified-output-file", llvm::cl::desc("If a filename is provided, all kernel files will generate a single set of host wrappers, instead of one per file."), llvm::cl::value_desc("<\"filename\">"), llvm::cl::init(""));
-llvm::cl::opt<bool, false> InlineErrorCheck("inline-error-check", llvm::cl::desc("Generate an immediate error check after every OpenCL runtime call."), llvm::cl::value_desc("<true/false>"), llvm::cl::init(true));
-llvm::cl::opt<bool, false> OverwriteFiles("overwrite-files", llvm::cl::desc("Instead of trying to replace only MetaCL-generated code in existing output files, simply overwrite them in entirety."), llvm::cl::value_desc("<true/false>"), llvm::cl::init(false));
-raw_ostream * unified_output_c = NULL, * unified_output_h = NULL;
+/** A command line option to specify that all input .cl files should be wrapped by a single pair of host .h/.c files, and the name to use. Defaults to non-unified
+ * \return An Option type that can be queried for the name of the unified output files or "" if none is specified
+ */
+llvm::cl::opt<std::string, false> UnifiedOutputFile(
+  "unified-output-file", /// < The option's name
+  llvm::cl::desc("If a filename is provided, all kernel files will generate a single set of host wrappers, instead of one per file."), /// < The option's help text
+  llvm::cl::value_desc("<\"filename\">"), /// < The option's value description
+  llvm::cl::init("") /// < The option defaults to an empty string (which is treated as non-unified mode)
+);
+/**
+ * A command line option to control generation of error checks on all OpenCL Runtime calls. Disabling may slightly reduce runtime overhead for already-validated codes. Not recommended for development codes. Defaults to true 
+ * \return An Option type that can be queried for whether inline error checking should be performed
+ */
+llvm::cl::opt<bool, false> InlineErrorCheck(
+  "inline-error-check", /// < The name of the option
+   llvm::cl::desc("Generate an immediate error check after every OpenCL runtime call."), /// The option's help text
+  llvm::cl::value_desc("<true/false>"), /// < Description of the option as a boolean
+  llvm::cl::init(true) /// < The option defaults to true
+);
+/** A command line option to instruct MetaCL it is safe to overwrite existing files with the same name as those that would be generated. If False, will attempt to only replace generated code in same-named outputs.
+ * \return An Option that can be queried for whether MetaCL should just overwrite existing files with the same name as its output(s), or should instead try to just replace generated code within identically-named files
+ * \todo TODO Implement: For now effectively hardcoded to TRUE.
+ */
+llvm::cl::opt<bool, false> OverwriteFiles(
+  "overwrite-files", /// < The option's name
+  llvm::cl::desc("Instead of trying to replace only MetaCL-generated code in existing output files, simply overwrite them in entirety."), /// < The option's help text
+  llvm::cl::value_desc("<true/false>"), /// < The option's value description
+  llvm::cl::init(false) /// < Once implemeted the option will default to false (try to replace a generated region of a file, rather than the whole file)
+);
+
+/** The unified-output .c file's buffer */
+raw_ostream * unified_output_c = NULL;
+/** The unified-output .h file's buffer */
+raw_ostream * unified_output_h = NULL;
 
 /**
  * \brief Per-input-file storage struct for generated code
@@ -76,7 +109,13 @@ std::map<std::string, hostCodeCache *> AllHostCaches;
  */
 class PrototypeHandler : public MatchFinder::MatchCallback {
   public:
-    /** Simple initialization constructor */
+    /**
+     * Simple initialization constructor
+     * \param c_outfile The output implementation buffer
+     * \param h_outfile The output header buffer
+     * \param infile The name of the file this kernel prototype was found in (with path and extension removed)
+     * \return a new prototype handler with output_file_c, output)file_h, and filename appropriately initialized
+     */
     PrototypeHandler(raw_ostream * c_outfile, raw_ostream * h_outfile, std::string infile) : output_file_c(c_outfile), output_file_h(h_outfile), filename(infile) {
       //Any initialization?
     }
@@ -114,29 +153,46 @@ namespace std {
  * \todo FIXME this sort was arbitrarily chosen, replace it with something else if it allows types to be used before defined
  */
 template<> struct less<QualType> {
- /** Return true if the OpaquePtr for first is less than second's */
+ /** Return true if the OpaquePtr for first is less than second's
+  * \param first The first QualType to compare
+  * \param second The second QualType to compare
+  * \return Whether first's opaque pointer is less than second's
+  */
  bool operator()(const QualType first, const QualType second) {
   return (first.getAsOpaquePtr() < second.getAsOpaquePtr());
 }
 };
 }
 
-//For a given Qualtype will do a postorder traversal of all required records and typedefs to ensure they are generated in the given output header file
-//Returns the host-side name of the imported type
+/** Internal storage of generated host-side record and typedef declarations and definitions
+ * The outer map is indexed by output header file, and the inner map is indexed by the device-side QualType
+ */
 std::map<raw_ostream *, std::map<QualType, std::string> > ImportedTypes;
-std::string getHostType(QualType type, ASTContext &Context, raw_ostream * out_header);
+/** Get the host-side name for the device-side QualType
+ * \param type The Device QualType to convert to a host-compatible type string
+ * \return the host-side name of the imported type
+ */
+std::string getHostType(QualType type);
 
+/** For a given Qualtype will do a postorder traversal of all required records and typedefs to ensure they are generated in the given output header file
+ * \param type The Device Qualtype to inspect and import (if necessary)
+ * \param Context The Device ASTContext from which type was pulled
+ * \param out_header The output header's buffer (used to index into ImportedTypes to ensure each user-defined type is only imported once per output header)
+ * \param alreadyImported When recursively importing types with dependencies, inform the callee if the caller is already responsible for importing a type with the same name as the callee (for example in certain typedefd structs the typedef and struct have the same name and should only be imported once as a combined code element)
+ * \return The host-side equivalent type as a string
+ * \post ImportedTypes contains (if it does not already) map of imported types for the provided output header, which itself contains the host-side representation of the provided device QualType and all its dependencies)
+ */
 std::string importTypeDependencies(QualType type, ASTContext &Context, raw_ostream * out_header, bool alreadyImported = false) {
   //If it's a primitive type, don't store anything but convert it to the OpenCL type
   if (isa<BuiltinType>(type)) {
-    return getHostType(type, Context, out_header);
+    return getHostType(type);
   }
 
   //If it's an OpenCL "primitive" type with embedded typedef (like uchar --> unsigned char) don't import it
   //We can recognize these by their presence in Clang's opencl-c.h file
   if (const TypedefType * t = dyn_cast<TypedefType>(type)) {
     if (Context.getSourceManager().getBufferName(t->getDecl()->getLocation()).str().find("opencl-c.h") != std::string::npos) {
-      return getHostType(type, Context, out_header);
+      return getHostType(type);
     }
   }
 
@@ -174,7 +230,7 @@ std::string importTypeDependencies(QualType type, ASTContext &Context, raw_ostre
     if (const TypedefType * t = dyn_cast<TypedefType>(type)) {
       if (!alreadyImported) {
         //This elaborate if simply sorts out records that would be anonymous if not for a surrounding typdef, which must be handled differently
-        //TODO: support unions and enums, any types of records other than struct (Found in TagDecl)
+        /// \todo TODO: support unions and enums, any types of records other than struct (Found in TagDecl)
         if (isa<ElaboratedType>(t->getDecl()->getUnderlyingType()) && isa<RecordType>(type.getSingleStepDesugaredType(Context).getSingleStepDesugaredType(Context)) && dyn_cast<RecordType>(type.getSingleStepDesugaredType(Context).getSingleStepDesugaredType(Context))->getDecl()->getTypedefNameForAnonDecl() != NULL) {
           std::string structName = dyn_cast<RecordType>(type.getSingleStepDesugaredType(Context).getSingleStepDesugaredType(Context))->getDecl()->getTypedefNameForAnonDecl()->getName();
           //This first branch deals with a singular typedef that defines multiple types pointing to the same anonymous struct, all but the first will be generated as separate decls
@@ -246,9 +302,9 @@ std::string importTypeDependencies(QualType type, ASTContext &Context, raw_ostre
   //Anything that isn't caught by the builtin, OpenCL, and array filters is going to preserve it's own name
   return type.getAsString();
 }
-std::string getHostType(QualType devType, ASTContext &Context, raw_ostream * stream) {
+std::string getHostType(QualType devType) {
   std::string retType = "";
-  //TODO handle types that don't directly map to a cl_type (images, vectors)
+  /// \todo TODO handle types that don't directly map to a cl_type (images, vectors)
   retType += "cl_";
   std::string canon = devType.getAsString();
   std::string::size_type pos;
@@ -261,37 +317,50 @@ std::string getHostType(QualType devType, ASTContext &Context, raw_ostream * str
     canon.erase(pos, 32);
   }
 
-  //FIXME Technically Clang should catch bool struct elements (and it does if it's directly a parameter, but not if the param is a pointer to a struct with a bool in it)
+  /// \todo FIXME Technically Clang should catch bool struct elements (and it does if it's directly a parameter, but not if the param is a pointer to a struct with a bool in it)
   if (canon == "_Bool") return "\n#error passing a boolean through a pointer or struct pointer in OpenCL is undefined\ncl_" + canon;
   
   return "cl_" + canon;
 }
 
+/**
+ * Fully analyze a device kernel parameter and cache any necessary generated host-side user-defined types
+ * \param devParam A device kernel parameter to analyze
+ * \param Context the ASTContext from which we pulled the devParam
+ * \param stream the output header file's buffer for caching any necessary dependent types
+ * \post any user-defined type dependencies needed for the devParam are imported to the output host header file (if not already)
+ * \return a data structure describing the host-requirements of the parameter's device type
+ */
 PrototypeHandler::argInfo * analyzeDevParam(ParmVarDecl * devParam, ASTContext &Context, raw_ostream * stream) {
   PrototypeHandler::argInfo * retArg = new PrototypeHandler::argInfo();
   //Detect the type of the device parameter
   retArg->devType = devParam->getType();
   //If it is a pointer type, add address space flags
-  //FIXME Deal with NULL TypePtr
+  /// \todo FIXME Deal with NULL TypePtr
   if (retArg->devType->isAnyPointerType()) {
     clang::LangAS addrSpace = retArg->devType->getPointeeType().getAddressSpace();
     if (addrSpace == LangAS::opencl_local) retArg->isLocal = true;
     if (addrSpace == LangAS::opencl_global || addrSpace == LangAS::opencl_constant) retArg->isGlobalOrConst = true;
     retArg->hostType = importTypeDependencies(retArg->devType->getPointeeType().getUnqualifiedType(), Context, stream);
-  //retArg->hostType = getHostType(retArg->devType, Context, stream);
+  //retArg->hostType = getHostType(retArg->devType);
   } else {
     retArg->hostType = importTypeDependencies(retArg->devType.getUnqualifiedType(), Context, stream);
   }
   //borrow the name
   retArg->name = devParam->getNameAsString();
-  //TODO grab any additional flags we need to keep in mind (restrict, constant, address space etc)
+  /// \todo TODO grab any additional param qualifiers we need to keep in mind (restrict, constant, address space etc)
   return retArg;
 }
 
+/**
+ * Remove the leading path and tailing type extension from a filename
+ * \param in A full filename with type extension and path
+ * \return Just the filename with type and path information removed
+ * \todo TODO handle filenames without a forward slash or period
+ */
 std::string trimFileSlashesAndType(std::string in) {
       size_t dotPos = in.rfind('.');
       size_t slashPos = in.rfind('/') + 1;
-	//TODO handle missing dot or slash
       return in.substr(slashPos, dotPos-slashPos);
 }
 
@@ -305,6 +374,8 @@ std::string trimFileSlashesAndType(std::string in) {
  *  Create appropriate clReleaseKernel deinit and safety checks
  *  Create a host side kernel wrapper with all clSetKernelArg and clEnqueue calls
  *   and associated safety checks
+ * \param Result An ASTMatch for a kernel function prototype to process
+ * \post The hostCodeCache object in AllHostCaches[this::filename] has a cl_kernel and associated wrapper, initialization, and deinitialization boilerplate added to it
  */
 void PrototypeHandler::run(const MatchFinder::MatchResult &Result) {
   bool singleWorkItem = false;
@@ -317,19 +388,17 @@ void PrototypeHandler::run(const MatchFinder::MatchResult &Result) {
   } else func = Result.Nodes.getNodeAs<FunctionDecl>("kernel_def");
   if (func) {
     //Figure out the host-side name
-    //TODO If the name of the kernel ends in "_<cl_type>", strip it and register it as an explicitly typed kernel (for sharing a host wrapper)
-    //TODO for all other cases, create a new meta_typeless type
+    /// \todo TODO Proposed Feature: If the name of the kernel ends in "_<cl_type>", strip it and register it as an explicitly typed kernel (for sharing a host wrapper) for all other cases, create a new meta_typeless type
       std::string host_func = "meta_gen_opencl_" + filename + "_" + func->getNameAsString();
-    //TODO use the work_group_size information
-    //TODO hoist attribute handliong out to it's own function that returns a single data structure with all the kernel attributes we might need to handle
+    /// \todo TODO hoist attribute handling out to it's own function that returns a single data structure with all the kernel attributes we might need to handle
     unsigned int work_group_size[4] = {1, 1, 1, 0}; //4th member is the type of the size (0 = unspecified, 1 = hint, 2 = required, 3 = intel required)
     for (auto attr : func->getAttrs()) {
-      //TODO Xilinx adds the xcl_max_work_group_size and xcl_zero_global_work_offset attributes to kernels
-      //TODO clang doesn't appear to have the OpenCL pointer nosvm attribute yet
-      //TODO recognize the endian attribute so that if it is explicitly specified, we can warn in the host API
-      //TODO implement handlers for any necessary kernel type attributes
+      /// \todo TODO Xilinx adds the xcl_max_work_group_size and xcl_zero_global_work_offset attributes to kernels
+      /// \todo TODO clang doesn't appear to have the OpenCL pointer nosvm attribute yet
+      /// \todo TODO recognize the endian attribute so that if it is explicitly specified, we can warn in the host API
+      /// \todo TODO implement handlers for any necessary kernel type attributes
       if (VecTypeHintAttr * vecAttr = dyn_cast<VecTypeHintAttr>(attr)) {
-        //TODO do something with it
+        /// \todo TODO do something with VecTypeHintAttrs
         vecAttr->getTypeHint().getAsString();
       } else if (WorkGroupSizeHintAttr * sizeAttr = dyn_cast<WorkGroupSizeHintAttr>(attr)) {
         if (work_group_size[3] < 2) { //Only if we don't already have a required size
@@ -342,11 +411,11 @@ void PrototypeHandler::run(const MatchFinder::MatchResult &Result) {
         }
         llvm::errs() << "Required work group size is (" << work_group_size[0] << ", " << work_group_size[1] << ", " << work_group_size[2] << ")\n";
       } else if (OpenCLIntelReqdSubGroupSizeAttr * subSize = dyn_cast<OpenCLIntelReqdSubGroupSizeAttr>(attr)) {
-        //TODO Do we need to handle it?
-      } //TODO other important kernel attributes
+        /// \todo TODO Handle OpenCLIntelReqdWubGroupSizeAttr
+      } /// \todo TODO Handle other important kernel attributes
     }
-    //TODO implement asynchronous calls (allow it to wait on kernels as well as return event type)
-    //TODO check the prototype for any OpenCL-specific attributes that require the host to behave in a particular way
+    /// \todo TODO implement asynchronous call API (allow wrappers to wait on kernels as well as return event type)
+    /// \todo TODO check the prototype for any remaining OpenCL-specific attributes that require the host to behave in a particular way
     
     //Creating the AST consumer forces all the once-per-input boilerplate to be generated so we don't have to do it here
         hostCodeCache * cache = AllHostCaches[filename];
@@ -390,7 +459,6 @@ void PrototypeHandler::run(const MatchFinder::MatchResult &Result) {
     //Add a per-program check for initialization
     setArgs += "  if (frame->" + filename + "_init != 1) return CL_INVALID_PROGRAM;\n";
 
-        //TODO Add other wrapper fuction parameters
     hostProto += "cl_command_queue queue, size_t (*grid_size)[3], size_t (*block_size)[3], ";
     setArgs += "  cl_int retCode = CL_SUCCESS;\n";
     //Add pseudo auto-scaling safety code
@@ -458,8 +526,7 @@ void PrototypeHandler::run(const MatchFinder::MatchResult &Result) {
     //Remove the extra ", "
     hostProto.erase(hostProto.size()-2, 2);
 
-        //TODO Add other wrapper function parameters
-    //FIXME For now the MM type is ignored TODO add a a_typeless type to metamorph's type enum
+    /// \todo FIXME Once we have a good way of dealing with explicitly-typed kernels re-add the meta_type_id parameter TODO add a a_typeless type to metamorph's type enum
 //    hostProto += ", meta_type_id type, int async, cl_event * event";
     hostProto += ", int async, cl_event * event";
 //    doxygen += "\\param type the MetaMorph type of the function\n";
@@ -468,26 +535,21 @@ void PrototypeHandler::run(const MatchFinder::MatchResult &Result) {
     //Add the forward declaration now that it's finished
     cache->hostProtos.push_back(hostProto + ");\n");
 
-    //TODO can we detect work size based on calls to get_global_id, get_local_id, etc?
-    //TODO add enforced host restrictions to doxygen
+    /// \todo TODO One we enforce any special host restrictions, add to doxygen
     doxygen += "*/\n";
 
     //Assemble the wrapper definition
     std::string wrapper = "";
     wrapper += doxygen + hostProto + ") {\n";
-    //TODO add other initialization
     //Add the clSetKernelArg calls;
     wrapper += setArgs;
-    //TODO autodetect work dimensions
     int workDim = 1;
-    //TODO handle work offset
+    /// \todo TODO expose and handle work offset
     std::string offset = "NULL";
-    //TODO handle worksizes
     std::string globalSize = "grid", localSize = "block";
-    //TODO handle events
+    /// \todo TODO expose and handle eventWaitLists and retEvents
     std::string eventWaitListSize = "0", eventWaitList = "NULL", retEvent = "event";
     //Add the launch
-    //TODO Detect if single-work-item from kernel funcs (not just attribute)
     if (singleWorkItem || (work_group_size[3] != 0 && work_group_size[0] == 1 && work_group_size[1] == 1 && work_group_size[2] == 1)) {
       wrapper += "  retCode = clEnqueueTask(frame->queue, " + framed_kernel + ", " + eventWaitListSize + ", " + eventWaitList + ", " + retEvent + ");\n";
         wrapper += ERROR_CHECK("  ", "retCode", "OpenCL kernel enqueue error (host wrapper: \\\"" + host_func + "\\\")");
@@ -501,7 +563,6 @@ void PrototypeHandler::run(const MatchFinder::MatchResult &Result) {
     wrapper += "  }\n";
     wrapper += "  return retCode;\n";
     
-    //TODO check errors and return codes/events (if sync/async)
     wrapper += "}\n";
 
     //Finalize the wrapper
@@ -512,7 +573,15 @@ void PrototypeHandler::run(const MatchFinder::MatchResult &Result) {
 /** Simple override to consume kernel ASTs and look for kernels */
 class KernelASTConsumer : public ASTConsumer {
   public:
-    /** A simple ASTMatcher consumer to catch NDRange and Single Work Item Kernels */
+    /**
+     * A simple ASTMatcher consumer to catch NDRange and Single Work Item Kernels
+     * \param comp The compiler instance used to generate this AST
+     * \param out_c This input file's output implementation buffer (could be unified or per-input)
+     * \param out_h This input file's output header buffer (could be unified or per-input)
+     * \param file The input filename, trimmed of leading path and trailing filetype extension
+     * \post Matcher has all our ASTMatchers added to it
+     * \post CI contains a pointer to comp
+     */
     KernelASTConsumer(CompilerInstance* comp, raw_ostream * out_c, raw_ostream * out_h, std::string file) : CI(comp) {
       Matcher.addMatcher(
         /** Looking for functions that are either */
@@ -541,7 +610,11 @@ class KernelASTConsumer : public ASTConsumer {
       /** When a kernel is found, pass it off to a handler */
       new PrototypeHandler(out_c, out_h, file));
     }
-    /** Simple override to trigger the ASTMatchers */
+    /**
+     * Simple override to trigger the ASTMatchers
+     * \param Context the ASTContext we are handling
+     * \post All kernel functions in the AST have been matched, callbacks triggered, and appropriate host code generated and cached
+     */
     void HandleTranslationUnit(ASTContext &Context) override {
       /** \todo TODO Any pre-match actions that need to take place? */
       Matcher.matchAST(Context);
@@ -568,20 +641,26 @@ class MetaGenCLFrontendAction : public ASTFrontendAction {
   public:
     MetaGenCLFrontendAction() {}
 
-    /** Currently unused mechanism for adding things before parsing */
-    bool BeginInvocation(CompilerInstance &CompInst) {
-      //TODO, do we need to do anything before parsing like adding headers, etc?
-      return ASTFrontendAction::BeginInvocation(CompInst);
-    }
-
-    /** Currently unused mechanism for doing extra things after parsing */
-    void EndSourceFileAction() {
-      //TODO what do we need to do at the end of a file
-    }
-
+//
+//    /** Currently unused mechanism for adding things before parsing */
+//    bool BeginInvocation(CompilerInstance &CompInst) {
+//      // \todo TODO, do we need to do anything before parsing like adding headers, etc?
+//      return ASTFrontendAction::BeginInvocation(CompInst);
+//    }
+//
+//    /** Currently unused mechanism for doing extra things after parsing */
+//    void EndSourceFileAction() {
+//      // \todo TODO what do we need to do at the end of a file
+//    }
+//
     /**
      * Create output files (if not unified) and all once-per-input boilerplate
      *  (i.e. context management structs, cl_programs, program init/deinit)
+     * \param CI The CompilerInstance used to generate the AST we're going to consumer
+     * \param infile The input file that was parsed to generate the AST, with path and filetype extension
+     * \return a new KernelASTConsumer to Match all the kernel functions
+     * \post AllHostCodeCaches[trimFileSlashesAndType(infile.str()) contains a hostCodeCache with all the once-per-input-file boilerplate already generated
+     * \post If running in non-unified-output mode, buffers for both .c and .h outputs with the same name as infile are created and added to the hostCodeCache object
      */
     std::unique_ptr<ASTConsumer> CreateASTConsumer(CompilerInstance &CI, StringRef infile) override {
       //generate the cl_program
@@ -595,15 +674,13 @@ class MetaGenCLFrontendAction : public ASTFrontendAction {
       
       hostCodeCache * cache = AllHostCaches[file] = new hostCodeCache();
       //Add the core boilerplate to the hostCode cache
-      //TODO add a function to metamorph for human-readable OpenCL error codes
+      /// \todo TODO add a function to metamorph for human-readable OpenCL error codes
       cache->runOnceInit += "  if ((vendor & meta_cl_device_is_accel) && ((vendor & meta_cl_device_vendor_mask) == meta_cl_device_vendor_intelfpga)) {\n";
-      //TODO enforce Intel name filtering to remove "kernel"
-      //TODO allow them to configure the source path in an environment variable?
+      /// \todo TODO enforce Intel name filtering to remove "kernel"
       cache->runOnceInit += "    __meta_gen_opencl_" + outFile + "_current_frame->" + file + "_progLen = metaOpenCLLoadProgramSource(\"" + file + ".aocx\", &__meta_gen_opencl_" + outFile + "_current_frame->" + file + "_progSrc);\n";
       cache->runOnceInit += "    if (__meta_gen_opencl_" + outFile + "_current_frame->" + file + "_progLen != -1)\n";
       cache->runOnceInit += "      __meta_gen_opencl_" + outFile + "_current_frame->" + file + "_prog = clCreateProgramWithBinary(meta_context, 1, &meta_device, &__meta_gen_opencl_" + outFile + "_current_frame->" + file + "_progLen, (const unsigned char **)&__meta_gen_opencl_" + outFile + "_current_frame->" + file + "_progSrc, NULL, &buildError);\n";
       cache->runOnceInit += "  } else {\n";
-      //TODO allow them to configure the source path in an environment variable?
       cache->runOnceInit += "    __meta_gen_opencl_" + outFile + "_current_frame->" + file + "_progLen = metaOpenCLLoadProgramSource(\"" + file + ".cl\", &__meta_gen_opencl_" + outFile + "_current_frame->" + file + "_progSrc);\n";
       cache->runOnceInit += "    if (__meta_gen_opencl_" + outFile + "_current_frame->" + file + "_progLen != -1)\n";
       cache->runOnceInit += "      __meta_gen_opencl_" + outFile + "_current_frame->" + file + "_prog = clCreateProgramWithSource(meta_context, 1, &__meta_gen_opencl_" + outFile + "_current_frame->" + file + "_progSrc, &__meta_gen_opencl_" + outFile + "_current_frame->" + file + "_progLen, &buildError);\n";
@@ -633,12 +710,13 @@ class MetaGenCLFrontendAction : public ASTFrontendAction {
 	cache->outfile_h = unified_output_h;
       } else {
         std::error_code error_c, error_h;
-        //FIXME: Check error returns;
-	//FIXME Filter off the .cl extension before outfile creation
+        /// \todo FIXME: Check error returns;
+	/// \todo FIXME Filter off the .cl extension before outfile creation
         cache->outfile_c = new llvm::raw_fd_ostream(file + ".c", error_c, llvm::sys::fs::F_None);
 	cache->outfile_h = new llvm::raw_fd_ostream(file + ".h", error_h, llvm::sys::fs::F_None);
         llvm::errs() << error_c.message() << error_h.message();
       }
+q
       return llvm::make_unique<KernelASTConsumer>(&CI, cache->outfile_c, cache->outfile_h, file);
     }
 
@@ -646,8 +724,12 @@ class MetaGenCLFrontendAction : public ASTFrontendAction {
     CompilerInstance *CI;
 };
 
-//For each input file in AllHostCaches, fill output files
-//TODO Implement errorcode
+/**
+ * Finish generating all output files by organizing cached code from AllHostCaches
+ * \post All output .c/.h files are generated and flushed
+ * \return An error code informing if anything went wrong
+ * \todo TODO implement sane error codes to detect if anything went wrong
+ */
 int populateOutputFiles() {
   int errcode = 0;
 
@@ -683,7 +765,7 @@ int populateOutputFiles() {
     }
 
     //Emit user-defined types in the header file
-    //FIXME ensure we only get one copy of each in unified mode
+    /// \todo TEST ensure we only get one copy of each in unified mode
     //We use the fileCachePair output .h file as the key since we may be in unified mode but still want to get types from all input files
     for (std::pair<QualType, std::string> t : ImportedTypes[fileCachePair.second->outfile_h]) {
       *out_h << t.second;
@@ -719,7 +801,7 @@ int populateOutputFiles() {
       *out_h << "  cl_device_id device;\n  cl_context context;\n  cl_command_queue queue;\n";
     }
     //Generate the program variable (one per input file)
-    //TODO support one-kernel-per-program convention
+    /// \todo TODO support one-kernel-per-program convention?
     *out_h << "  const char * " << fileCachePair.first << "_progSrc;\n";
     *out_h << "  size_t " << fileCachePair.first << "_progLen;\n";
     *out_h << "  cl_program " << fileCachePair.first << "_prog;\n";
@@ -897,13 +979,21 @@ int populateOutputFiles() {
   return errcode;
 }
 
+/**
+ * Simple driver to bootstrap the Clang machinery that reads the input .cl files, and then populates output files with generated code
+ * \param argc The number of command line tokens
+ * \param argv a vector of C strings of all command-line tokens
+ * \return an error code to return to the OS informing whether anything went wrong
+ * \todo TODO Implement sane error codes
+ * \post all input .cl files have been read andd appropriate host implementations and header files generated
+ */
 int main(int argc, const char ** argv) {
   int errcode = 0;
   CommonOptionsParser op(argc, argv, MetaGenCLCategory);
   //If they want unified output, generate the files
   if (UnifiedOutputFile.getValue() != "") {
     std::error_code error;
-    //FIXME Check error returns
+    /// \todo FIXME Check error returns
     unified_output_c = new llvm::raw_fd_ostream(UnifiedOutputFile.getValue() + ".c", error, llvm::sys::fs::F_None);
     unified_output_h = new llvm::raw_fd_ostream(UnifiedOutputFile.getValue() + ".h", error, llvm::sys::fs::F_None);
   }

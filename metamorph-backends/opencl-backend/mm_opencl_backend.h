@@ -1,3 +1,7 @@
+/** \file
+ * Exposed OpenCL backend functions, defines, and data structures
+ */
+
 #ifdef __APPLE__
 #include <OpenCL/opencl.h>
 #else
@@ -30,7 +34,6 @@
 #define METAMORPH_OCL_KERNEL_PATH ""
 #endif
 
-//Not sure if these C compatibility stubs will actually be needed
 #if defined(__OPENCLCC__) || defined(__cplusplus)
 extern "C" {
 #endif
@@ -53,25 +56,33 @@ typedef enum meta_cl_device_vendor {
   meta_cl_device_is_accel = (1 << 10),
   meta_cl_device_is_default = (1 << 11)
 } meta_cl_device_vendor;
-//This is the exposed object for managing multiple OpenCL devices with the
-// library's built-in stack.
-//These frame objects are allocated and freed by the Init and Destroy calls, respectively.
-//All Stack operations (push, top and pop) make a copy of the frame's contents, therefore,
-// the frame itself is thread-private, and even if tampered with, cannot affect the thread
-// safety of the shared stack object.
-//For basic CPU/GPU/MIC devices, the provided initialization calls should be sufficient and
-// frame objects should not need to be directly modified; however, for FPGA devices which must
-// use clBuildProgramFromBinary, the user will need to implement analogues to
-// metaOpenCLInitStackFrame and metaOpenCLDestroyStackFrame, which appropriately create and
-// release all necessary frame members. If implemented correctly, the built-in hazard-aware
-// stack operations shouldn't need any changes.
+
+/**
+ * \brief The struct for managing an entire device/queue's OpenCL state
+ *
+ *
+ * This is the exposed object for managing multiple OpenCL devices with the
+ *  library's built-in stack.
+ * These frame objects are allocated and freed by the Init and Destroy calls, respectively.
+ * As a precursor to making the library threadsafe, all Stack operations (push, top and pop)
+ * make a copy of the frame's contents, to keep the frame itself thread-private.
+ * \todo TODO remove compile-time INTELFPGA ifdefs and appropriately adjust the struct to handle swapping to/from FPGA devices at runtime.
+ * \todo TODO support single-kernel-programs mode with runtime FPGA swap
+ */
 typedef struct metaOpenCLStackFrame {
 
+        /** The OpenCL platform for this state */
 	cl_platform_id platform;
+        /** The OpenCL device for this state */
 	cl_device_id device;
+        /** The OpenCL context for this state */
 	cl_context context;
+        /** The OpenCL queue for this state */
 	cl_command_queue queue;
-	unsigned char state_init, kernels_init;
+	/** The initialization status of the platform/device/context/queue */
+	unsigned char state_init
+	/** The initialization status of the kernels for this state */
+	unsigned char kernels_init;
 
 //Trades host StackFrame size for smaller programs (sometimes necessary for FPGA)
 #if  (defined(WITH_INTELFPGA) && defined(OPENCL_SINGLE_KERNELPROGS))
@@ -158,13 +169,16 @@ typedef struct metaOpenCLStackFrame {
 	size_t metaCLbinLen_crc_ui;
 #else
 	//If we still have access to the raw source, no need for separate copies
+	/** The unified kernel source (if single-kernel-programs is off or they are handled by conditional JIT) */
 	const char *metaCLProgSrc;
+	/** Length in bytes of the unified kernel source */
 	size_t metaCLProgLen;
 #endif
 
 
 #ifndef OPENCL_SINGLE_KERNEL_PROGS
 
+	/** Unified OpenCL program object */
 	cl_program program_opencl_core;
 #else
 	cl_program program_reduce_db;
@@ -209,50 +223,86 @@ typedef struct metaOpenCLStackFrame {
 	cl_program program_crc_ui;
 #endif
 
+	/** Double-precision reduction (sum) kernel */
 	cl_kernel kernel_reduce_db;
+	/** Single-precision reduction (sum) kernel */
 	cl_kernel kernel_reduce_fl;
+	/** Unsigned long reduction (sum) kernel */
 	cl_kernel kernel_reduce_ul;
+	/** Integer reduction (sum) kernel */
 	cl_kernel kernel_reduce_in;
+	/** Unsigned integer reduction (sum) kernel */
 	cl_kernel kernel_reduce_ui;
+	/** Double-precision dot product kernel */
 	cl_kernel kernel_dotProd_db;
+	/** Single-precision dot product kernel */
 	cl_kernel kernel_dotProd_fl;
+	/** Unsigned long dot product kernel */
 	cl_kernel kernel_dotProd_ul;
+	/** Integer dot product kernel */
 	cl_kernel kernel_dotProd_in;
+	/** Unsigned integer dot product kernel */
 	cl_kernel kernel_dotProd_ui;
+	/** Double-precision 2D face transpose kernel */
 	cl_kernel kernel_transpose_2d_face_db;
+	/** Single-precision 2D face transpose kernel */
 	cl_kernel kernel_transpose_2d_face_fl;
+	/** Unsigned long 2D face transpose kernel */
 	cl_kernel kernel_transpose_2d_face_ul;
+	/** Integer 2D face transpose kernel */
 	cl_kernel kernel_transpose_2d_face_in;
+	/** Unsigned Integer 2D face transpose kernel */
 	cl_kernel kernel_transpose_2d_face_ui;
+	/** Double-precision "slab" packing kernel */
 	cl_kernel kernel_pack_2d_face_db;
+	/** Single-precision "slab" packing kernel */
 	cl_kernel kernel_pack_2d_face_fl;
+	/** Unsigned Long "slab" packing kernel */
 	cl_kernel kernel_pack_2d_face_ul;
+	/** Integer "slab" packing kernel */
 	cl_kernel kernel_pack_2d_face_in;
+	/** Unsigned integer "slab" packing kernel */
 	cl_kernel kernel_pack_2d_face_ui;
+	/** Double-precision "slab" unpacking kernel */
 	cl_kernel kernel_unpack_2d_face_db;
+	/** Single-precision "slab" unpacking kernel */
 	cl_kernel kernel_unpack_2d_face_fl;
+	/** Unsigned long "slab" unpacking kernel */
 	cl_kernel kernel_unpack_2d_face_ul;
+	/** Integer "slab" unpacking kernel */
 	cl_kernel kernel_unpack_2d_face_in;
+	/** Unsigned integer "slab" unpacking kernel */
 	cl_kernel kernel_unpack_2d_face_ui;
+	/** Double-precision 3D 7-point "average" stencil kernel */
 	cl_kernel kernel_stencil_3d7p_db;
+	/** Single-precision 3D 7-point "average" stencil kernel */
 	cl_kernel kernel_stencil_3d7p_fl;
+	/** Unsigned long 3D 7-point "average" stencil kernel */
 	cl_kernel kernel_stencil_3d7p_ul;
+	/** Integer 3D 7-point "average" stencil kernel */
 	cl_kernel kernel_stencil_3d7p_in;
+	/** Unsigned integer 3D 7-point "average" stencil kernel */
 	cl_kernel kernel_stencil_3d7p_ui;
+	/** Double-precision SPMV kernel for CSR storage format */
 	cl_kernel kernel_csr_db;
+	/** Single-precision SPMV kernel for CSR storage format */
 	cl_kernel kernel_csr_fl;
-	cl_kernel kernel_csr_ul;
+        /** Unsigned long SPMV kernel for CSR storage format */
+        cl_kernel kernel_csr_ul;
+        /** Integer SPMV kernel for CSR storage format */
 	cl_kernel kernel_csr_in;
+        /** Unsigned Integer SPMV kernel for CSR storage format */
 	cl_kernel kernel_csr_ui;
-//	cl_kernel kernel_crc_db;
-//	cl_kernel kernel_crc_fl;
-//	cl_kernel kernel_crc_ul;
-//	cl_kernel kernel_crc_in;
+        /** Cyclic redundacy check kernel (all data treated as unsigned int) */
 	cl_kernel kernel_crc_ui;
 
+        /** Constant address space storage for the size of the face-specification arrays */
 	cl_mem constant_face_size;
+        /** Constant address space storage for the stride array for face specification */
 	cl_mem constant_face_stride;
+	/** Constant address space storage for the "child" extent array for face specification */
 	cl_mem constant_face_child_size;
+	/** A singleton global variable of sufficient size to store the final result of on-device reductions */
 	cl_mem red_loc;
 
 } metaOpenCLStackFrame;

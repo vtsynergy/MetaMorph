@@ -428,3 +428,6 @@ refresh:
 
 doc:
 	doxygen Doxyfile
+
+latex: doc
+	cd docs/latex && make

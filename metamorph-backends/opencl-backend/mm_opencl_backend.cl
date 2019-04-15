@@ -1,4 +1,6 @@
-/** OpenCL Back-End **/
+/** \file
+ * OpenCL Back-End Kernel implementations
+*/
 
 #pragma OPENCL EXTENSION cl_khr_fp64: enable
 #pragma OPENCL EXTENSION cl_khr_int64_base_atomics: enable
