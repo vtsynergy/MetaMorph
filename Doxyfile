@@ -38,7 +38,7 @@ PROJECT_NAME           = "MetaMorph"
 # could be handy for archiving the generated documentation or if some version
 # control system is used.
 
-PROJECT_NUMBER         = $(git log -1 --format "%h (%cd)")
+PROJECT_NUMBER         = $DOXY_PROJECT_NUMBER
 
 # Using the PROJECT_BRIEF tag one can provide an optional one line description
 # for a project that appears at the top of each page and should give viewer a
@@ -778,7 +778,7 @@ RECURSIVE              = YES
 # Note that relative paths are relative to the directory from which doxygen is
 # run.
 
-EXCLUDE                = ./lib ./metamorph-generators/opencl/clang_tarball ./metamorph-generators/opencl/docs
+EXCLUDE                = ./lib ./metamorph-generators/opencl/clang_tarball ./metamorph-generators/opencl/docs ./metamoorph-backends/opencl-backend/*_mic.* ./metamorph-backends/opencl-backend/*_intelfpga_* ./metamorph-backends/opencl-backend/eth_crc32_lut.h
 
 # The EXCLUDE_SYMLINKS tag can be used to select whether or not files or
 # directories that are symbolic links (a Unix file system feature) are excluded

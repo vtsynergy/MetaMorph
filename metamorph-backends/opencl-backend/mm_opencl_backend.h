@@ -19,18 +19,23 @@
 #include "../../include/metamorph.h"
 #endif
 
-//If the user doesn't override default threadblock size..
 #ifndef METAMORPH_OCL_DEFAULT_BLOCK_3D
+/** Default 3D workgroup dimension */
 #define METAMORPH_OCL_DEFAULT_BLOCK_3D {16, 8, 1}
 #endif
 #ifndef METAMORPH_OCL_DEFAULT_BLOCK_2D
+/** Default 2D workgroup dimension */
 #define METAMORPH_OCL_DEFAULT_BLOCK_2D {16, 8}
 #endif
 #ifndef METAMORPH_OCL_DEFAULT_BLOCK_1D
+/** Default 1D workgroup dimension */
 #define METAMORPH_OCL_DEFAULT_BLOCK_1D 16
 #endif
 
 #ifndef METAMORPH_OCL_KERNEL_PATH
+/** Default kernel search path
+ * \warning this guaranteed define only exists to ensure the value is defined, this is intended to be set via the Makefile to grab absolute paths to the relevant source and build directories
+ */
 #define METAMORPH_OCL_KERNEL_PATH ""
 #endif
 
@@ -38,9 +43,9 @@
 extern "C" {
 #endif
 
-//This is a simple enum to store important details about the type of device
-// and which vendor is providing the implementation
-//Currently ontly used to check for Altera/IntelFPGA at runtime to load .aocx files rather than .cl
+/** This is a simple enum to store important details about the type of device and which vendor is providing the implementation
+ * Currently ontly used to check for Altera/IntelFPGA at runtime to load .aocx files rather than .cl
+ */
 typedef enum meta_cl_device_vendor {
   meta_cl_device_vendor_unknown = 0,
   meta_cl_device_vendor_nvidia = 1,
@@ -306,62 +311,263 @@ typedef struct metaOpenCLStackFrame {
 	cl_mem red_loc;
 
 } metaOpenCLStackFrame;
-//TODO these shouldn't need to be exposed to the user, unless there's a CUDA call we need to emulate
+
+/// \todo TODO OpenCL stack operations probably shouldn't need to be exposed to the user, unless there's a CUDA call we need to emulate, or some reason a module would need direct access, rather than querying the global state
+/**
+ * Record a new OpenCL state frame on the stack, then swap the global OpenCL state variables to it and reinitializes any registered module that has the module_implements_opencl flag set
+ * \param frame A new *complete* frame object to *copy* to the stack
+ * \warning Once copied the original should be freed (not Destroyed)
+ */
 void metaOpenCLPushStackFrame(metaOpenCLStackFrame * frame);
 
+/**
+ * Look at a copy of whatever the current frame is without removing or replacing it.
+ * Kernel wrappers will typically call this to get the the appropriate cl_kernel to enqueue
+ * \return a pointer to a copy of the top frame
+ * \warning the returned copy should be freed, not Destroyed
+ */
 metaOpenCLStackFrame * metaOpenCLTopStackFrame();
 
+/**
+ * Retrieve the current top frame, and remove it
+ * Intended to be used just to deconstruct a state (or if you want to remove it from MetaMorph's knowledge
+ * \return a pointer to the top frame
+ * \warning after this call MetaMorph will have forgotten about the contents of this frame, it must be Destroyed or manually Released
+ */
 metaOpenCLStackFrame * metaOpenCLPopStackFrame();
 
-//start everything for a frame
+/**
+ * Allocate a new frame and initialize the OpenCL state objects for it (platform, device, context, queue, and internal buffers)
+ * \param frame the address of a frame * in which to return the allocated/initialized frame
+ * \param device which of the [0:N-1] devices aggregated across all platforms in the system to use, or -1 for "don't care, pick something",which triggers metaOpenCLInitStackFrameDefault
+ * \return an OpenCL error code if anything went wrong, otherwise CL_SUCCESS
+ * \bug Does not currently return anything
+ * \todo TODO Not all OpenCL API calls are being checked
+ * \warning does not read or build cl_programs or cl_kernels, see metaOpenCLInitCoreKernels
+ */
 cl_int metaOpenCLInitStackFrame(metaOpenCLStackFrame ** frame, cl_int device);
 
-//stop everything for a frame
+/**
+ * \brief Release all the OpenCL state and programs/kernels this frame refers to
+ *
+ * In order it 1) Checks if each cl_kernel is initialized, if so, clReleases it
+ * 2) clReleases internal buffers
+ * 3) checks if each cl_program is initialized, if so, clReleases it
+ * 4) clReleases the queue and context
+ * 5) frees all the program source/binary buffers
+ * \param frame The frame to deconstruct
+ * \return an OpenCL error code if anything went wrong, or CL_SUCCESS otherwise
+ * \todo TODO not all OpenCL API calls are being error checked
+ * \bug doesn't currently return anything
+ * \warning, does not pop any stack nodes or free the passed frame, those are the caller's responsibility
+ */ 
 cl_int metaOpenCLDestroyStackFrame(metaOpenCLStackFrame * frame);
 
 //support initialization of a default frame as well as environment variable
 // -based control, via $TARGET_DEVICE="Some Device Name"
+/**
+ * \brief Catchall "Make sure *some* device is initialized before trying to run any OpenCL commands
+ * Warns that automatic OpenCL devices selection is used, and lists the name and MetaMorph device ID (index) of all devices on all platforms in the system
+ * Chooses an OpenCL device and reports it as a stderr warning, as the user did not explicitly pick a device.
+ * Will either choose the zeroth device among all [0:N-1] devices in the system, or if the TARGET_DEVICE=\<string\>
+ *  environment variable is set, will try to find the first device with an exactly-matching name string
+ * Once a device is chosen it calls metaOpenCLInitStackFrame to initialize a frame for it
+ * \param frame The address of a frame pointer in which to return the newly-initialized default frame
+ * \return an OpenCL error code if anything went wrong, otherwise CL_SUCCESS
+ * \todo TODO not all OpenCL API calls are being checked
+ * \bug if metaOpenCLInitStackFrame is not explicitly returning a sane error code, in most cases neither will this
+ */
 cl_int metaOpenCLInitStackFrameDefault(metaOpenCLStackFrame ** frame);
 
+/**
+ * \brief Load a specified OpenCL kernel implementation
+ *
+ * Attempts to load the OpenCL kernel implementation specified by filename with a configurable search path.
+ * If the environment variable METAMORPH_OCL_KERNEL_PATH is set (syntax like a regular path variable \<dir1\>:\<dir2\>:...\<dirN\>), scan through those directories in order for the specified filename. If not set or not found, then scan through the compile-time configure directories. If still not found, emit a warning to stderr and return a -1 program length
+ * \param filename a pointer to a NULL-terminated string with the desired filename
+ * \warning the filename should be specified *without* any path information or else it will be concatenated onto the search paths
+ * \param progSrc The address of a character pointer in which to return the address of the complete NULL-terminated string that is read in
+ * \return The number of bytes read into progSrc, or -1 if the file is not found
+ */ 
 size_t metaOpenCLLoadProgramSource(const char *filename, const char **progSrc);
 
-//explicitly initialize kernels, instead of automatically
+/**
+ * Initialize all the builtin kernels for the current frame.
+ * Separate from frame initialization to omit the cost for modules which do not make use of builtin kernels
+ * \return an OpenCL error code if anything went wrong, otherwise CL_SUCCESS
+ */
 cl_int metaOpenCLInitCoreKernels();
 
-//Given a device, detect the type and supporting implementation
+/**
+ * Given a device, query the OpenCL API to detect the vendor and type of device and store it in our representation
+ * \param dev The device to query
+ * \return The encoded device information
+ */
 meta_cl_device_vendor metaOpenCLDetectDevice(cl_device_id dev);
 
+/**
+ * OpenCL wrapper to all dot product kernels
+ * \param grid_size The number of workgroups in each dimension (NOT the global work size)
+ * \param block_size The size of a workgroup in each dimension
+ * \param data1 The first input array
+ * \param data2 The second input array
+ * \param array_size The X, Y, and Z sizes of data1 and data2
+ * \param arr_start The X, Y, and Z start indicies for the dot product (to allow halo avoidance)
+ * \param arr_end The X, Y, and Z end indicies for the dot product (to allow halo avoidance)
+ * \param reduced_val The final global dot product value
+ * \param type The data type to invoke the appropriate kernel for
+ * \param async Whether the kernel should run asynchronously or block
+ * \param event if a cl_event is provided pass it to the kernel enqueue call
+ * \return An OpenCL error code if anything went wrong, CL_SUCCESS otherwise
+ * \bug OpenCL return codes should not be binary OR'd, rather separately checked and the last error returned
+ */
 cl_int opencl_dotProd(size_t (*grid_size)[3], size_t (*block_size)[3],
 		void * data1, void * data2, size_t (*array_size)[3],
 		size_t (*arr_start)[3], size_t (*arr_end)[3], void * reduced_val,
 		meta_type_id type, int async, cl_event * event);
+
+/**
+ * OpenCL wrapper to all reduction sum kernels
+ * \param grid_size The number of workgroups in each dimension (NOT the global work size)
+ * \param block_size The size of a workgroup in each dimension
+ * \param data The array to sum across
+ * \param array_size The X, Y, and Z sizes of data
+ * \param arr_start The X, Y, and Z start indicies for the reduction sum (to allow halo avoidance)
+ * \param arr_end The X, Y, and Z end indicies for the reduction sum (to allow halo avoidance)
+ * \param reduced_val The final globally-reduced sum
+ * \param type The data type to invoke the appropriate kernel for
+ * \param async Whether the kernel should run asynchronously or block
+ * \param event if a cl_event is provided pass it to the kernel enqueue call
+ * \return An OpenCL error code if anything went wrong, CL_SUCCESS otherwise
+ * \bug OpenCL return codes should not be binary OR'd, rather separately checked and the last error returned
+ */
 cl_int opencl_reduce(size_t (*grid_size)[3], size_t (*block_size)[3],
 		void * data, size_t (*array_size)[3], size_t (*arr_start)[3],
 		size_t (*arr_end)[3], void * reduced_val, meta_type_id type, int async,
 		cl_event * event);
+/**
+ * OpenCL wrapper to transpose a 2D array
+ * \param grid_size The number of workgroups in each dimension (NOT the global work size)
+ * \param block_size The size of a workgroup in each dimension
+ * \param indata The input untransposed 2D array
+ * \param outdata The output transposed 2D array
+ * \param arr_dim_xy the X and Y dimensions of indata, Z is ignored 
+ * \param tran_dim_xy the X and Y dimensions of outdata, Z is ignored
+ * \param type The data type to invoke the appropriate kernel for
+ * \param async Whether the kernel should run asynchronously or block
+ * \param event if a cl_event is provided pass it to the kernel enqueue call
+ * \return An OpenCL error code if anything went wrong, CL_SUCCESS otherwise
+ * \bug OpenCL return codes should not be binary OR'd, rather separately checked and the last error returned
+ */
 cl_int opencl_transpose_face(size_t (*grid_size)[3], size_t (*block_size)[3],
 		void *indata, void *outdata, size_t (*arr_dim_xy)[3],
 		size_t (*tran_dim_xy)[3], meta_type_id type, int async,
 		cl_event * event);
+/**
+ * OpenCL wrapper for the face packing kernel
+ * \param grid_size The number of workgroups to run in the X dimension, Y and Z are ignored (NOT the global worksize)
+ * \param block_size The size of a workgroup in the X dimension, Y and Z are ignored
+ * \param packed_buf The output packed array
+ * \param buf The input full array
+ * \param face The face/slab to extract, returned from make_slab_from_3d
+ * \param remain_dim At each subsequent layer of the face struct, the *cummulative* size of all remaining descendant dimensions. Used for computing the per-thread read offset, typically automatically pre-computed in the backend-agnostic MetaMorph wrapper, meta_pack_face
+ * \param type The type of data to run the kernel on
+ * \param async whether to run the kernel asynchronously (1) or synchronously (0)
+ * \param event_k1 the kernel event used for asynchronous calls and timing
+ * \param event_c1 the clEnqueueWriteBuffer of face->size event used for asynchronous calls and timing
+ * \param event_c2 the clEnqueueWriteBuffer of face->stride event used for asynchronous calls and timing
+ * \param event_c3 the clEnqueueWriteBuffer of remain_dim to c_face_child_size event used for asynchronous calls and timing
+ * \return either the result of enqueing the kernel if async or the result of clFinish if sync
+ * \warning Implemented as a 1D kernel, Y and Z grid/block parameters will be ignored
+ * \bug OpenCL return codes should not be binary OR'd, rather separately checked and the last error returned
+ */
 cl_int opencl_pack_face(size_t (*grid_size)[3], size_t (*block_size)[3],
 		void *packed_buf, void *buf, meta_face *face,
 		int *remain_dim, meta_type_id type, int async, cl_event * event_k1,
 		cl_event * event_c1, cl_event *event_c2, cl_event *event_c3);
+/**
+ * OpenCL wrapper for the face unpacking kernel
+ * \param grid_size The number of workgroups to run in the X dimension, Y and Z are ignored (NOT the global worksize)
+ * \param block_size The size of a workgroup in the X dimension, Y and Z are ignored
+ * \param packed_buf The input packed array
+ * \param buf The output full array
+ * \param face The face/slab to extract, returned from make_slab_from_3d
+ * \param remain_dim At each subsequent layer of the face struct, the *cummulative* size of all remaining descendant dimensions. Used for computing the per-thread write offset, typically automatically pre-computed in the backend-agnostic MetaMorph wrapper, meta_pack_face
+ * \param type The type of data to run the kernel on
+ * \param async whether to run the kernel asynchronously (1) or synchronously (0)
+ * \param event_k1 the kernel event used for asynchronous calls and timing
+ * \param event_c1 the clEnqueueWriteBuffer of face->size event used for asynchronous calls and timing
+ * \param event_c2 the clEnqueueWriteBuffer of face->stride event used for asynchronous calls and timing
+ * \param event_c3 the clEnqueueWriteBuffer of remain_dim to c_face_child_size event used for asynchronous calls and timing
+ * \return either the result of enqueuing the kernel if async or the result of clFinish if sync
+ * \warning Implemented as a 1D kernel, Y and Z grid/block parameters will be ignored
+ * \bug OpenCL return codes should not be binary OR'd, rather separately checked and the last error returned
+ */
 cl_int opencl_unpack_face(size_t (*grid_size)[3], size_t (*block_size)[3],
 		void *packed_buf, void *buf, meta_face *face,
 		int *remain_dim, meta_type_id type, int async, cl_event * event_k1,
 		cl_event * event_c1, cl_event *event_c2, cl_event *event_c3);
+/**
+ * OpenCL wrapper for the 3D 7-point stencil averaging kernel
+ * \param grid_size The number of workgroups to run in each dimension (NOT the global worksize)
+ * \param block_size The size of a workgroup in each dimension
+ * \param indata The array of input read values
+ * \param outdata The array of output write values
+ * \param array_size The size of the input and output arrays
+ * \param arr_start The start index for writing in each dimension (for avoiding writes to halo cells)
+ * \warning Assumes at least a one-thick halo region i.e. (arr_start[dim]-1 >= 0)
+ * \param arr_end The end index for writing in each dimension (for avoiding writes to halo cells)
+ * \warning Assumes at least a one-thick halo region i.e. (arr_end[dim]+1 <= array_size[dim]-1)
+ * \param type The type of data to run the kernel on
+ * \param async whether to run the kernel asynchronously (1) or synchronously (0)
+ * \param event the kernel event used for asynchronous calls and timing
+ * \return either the result of enqueuing the kernel if async or the result of clFinish if sync
+ * \bug OpenCL return codes should not be binary OR'd, rather separately checked and the last error returned
+ */
 cl_int opencl_stencil_3d7p(size_t (*grid_size)[3], size_t (*block_size)[3],
 		void * indata, void * outdata, size_t (*array_size)[3],
 		size_t (*arr_start)[3], size_t (*arr_end)[3], meta_type_id type,
 		int async, cl_event * event);
-cl_int opencl_csr(size_t global_size, size_t local_size,
+/**
+ * OpenCL wrapper for the SPMV kernel for CSR sparse matrix format
+ * \param grid_size The number of workgroups to run in the X dimension, Y and Z are ignored (NOT the global worksize)
+ * \param block_size The size of a workgroup in each dimension
+ * \param global_size The number of rows in the A matrix, one computed per work-item
+ * \param csr_ap The row start and end index array
+ * \param csr_aj The column index array
+ * \param csr_ax The cell value array
+ * \param x_loc The input vector to multiply A by
+ * \param y_loc The output vector to sum into
+ * \param type The type of data to run the kernel on
+ * \param async whether to run the kernel asynchronously (1) or synchronously (0)
+ * \param event the kernel event used for asynchronous calls and timing
+ * \return either the result of enqueuing the kernel if async or the result of clFinish if sync
+ * \warning, treated as a 1D kernel, Y and Z parameters ignored
+ * \bug OpenCL return codes should not be binary OR'd, rather separately checked and the last error returned
+ */
+cl_int opencl_csr(size_t (*grid_size)[3], size_t (*block_size)[3], size_t global_size,
 		void * csr_ap, void * csr_aj, void * csr_ax, void * x_loc, void * y_loc, 
 		meta_type_id type, int async,
 		// cl_event * wait, 
 		cl_event * event);
-cl_int opencl_crc(size_t global_size, size_t local_size,
-		void * dev_input, int page_size, int num_words, int numpages, void * dev_output, 
+/**
+ * OpenCL wrapper for the cyclic redundancy check task kernel
+ * \param dev_input The input buffer to perform the redundancy check on
+ * \param page_size The length in bytes of each page
+ * \param num_words TODO
+ * \param numpages TODO
+ * \param dev_output The result
+ * \param type The type of data to run the kernel on
+ * \param async whether to run the kernel asynchronously (1) or synchronously (0)
+ * \param event the kernel event used for asynchronous calls and timing
+ * \return either the result of enqueuing the kernel if async or the result of clFinish if sync
+ * \warning all supported types are interpreted as binary data via the unsigned int kernel
+ * \todo TODO Implement meta_typeless "type" for such kernels
+ * \bug OpenCL return codes should not be binary OR'd, rather separately checked and the last error returned
+ * \todo TODO Implement an NDRange kernel variant for better performance on non-FPGA platforms
+ * \bug non-CL types need to be passed to the kernel through enforced-width cl_\<type\>s
+ */
+cl_int opencl_crc(void * dev_input, int page_size, int num_words, int numpages, void * dev_output, 
 		meta_type_id type, int async,
 		// cl_event * wait, 
 		cl_event * event);

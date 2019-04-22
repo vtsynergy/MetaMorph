@@ -3,7 +3,7 @@
  * \brief An OpenCL host-code boilerplate and interface generator
  * \copyright 2018-2019 Virginia Tech
  *
- * <a href="./LICENSE">Please see license information in the main MetaMorph repository</a>
+ * <a href="../../LICENSE">Please see license information in the main MetaMorph repository</a>
  *
  * MetaGen-CL
  * A tool to consume OpenCL kernel files and produce MetaMorph-compatible
@@ -477,12 +477,12 @@ void PrototypeHandler::run(const MatchFinder::MatchResult &Result) {
     setArgs += "    iters = 1;\n";
     setArgs += "  } else {\n";
     if (work_group_size[3] == 1) {
-      setArgs += "    if (!(block[0] == block_size[0] && block[1] == block_size[1] && block[2] == block_size[2])) {\n";
+      setArgs += "    if (!(block[0] == (*block_size)[0] && block[1] == (*block_size)[1] && block[2] == (*block_size)[2])) {\n";
       setArgs += "      fprintf(stderr, \"Warning: kernel " + func->getNameAsString() + " suggests a workgroup size of {" + std::to_string(work_group_size[0]) + ", " + std::to_string(work_group_size[1]) + ", " + std::to_string(work_group_size[2]) + "} at \%s:\%d\\n\", __FILE__, __LINE__);\n";
       setArgs += "    }\n";
 
     } else if (work_group_size[3] == 2 || singleWorkItem) {
-      setArgs += "    if (!(block[0] == block_size[0] && block[1] == block_size[1] && block[2] == block_size[2])";
+      setArgs += "    if (!(block[0] == (*block_size)[0] && block[1] == (*block_size)[1] && block[2] == (*block_size)[2])";
       if (singleWorkItem) setArgs += " && !(grid[0] == 1 && grid[1] == 1 && grid[2] == 1)";
       setArgs += ") {\n";
       setArgs += "      fprintf(stderr, \"Error: kernel " + func->getNameAsString() + " requires a workgroup size of {" + std::to_string(work_group_size[0]) + ", " + std::to_string(work_group_size[1]) + ", " + std::to_string(work_group_size[2]) + "}, aborting launch at \%s:\%d\\n\", __FILE__, __LINE__);\n";
@@ -543,6 +543,7 @@ void PrototypeHandler::run(const MatchFinder::MatchResult &Result) {
     wrapper += doxygen + hostProto + ") {\n";
     //Add the clSetKernelArg calls;
     wrapper += setArgs;
+    /// \bug TODO workDim should not assume 1D kernels, we need to capture it as a variable and check the provided grid/block
     int workDim = 1;
     /// \todo TODO expose and handle work offset
     std::string offset = "NULL";

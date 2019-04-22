@@ -1,9 +1,12 @@
+/** \file
+ * CUDA Back-End kernel and wrapper implementations
+ */
+
 #include <stdio.h>
 
-/** CUDA Back-End **/
 #include "mm_cuda_backend.cuh"
 
-// non-specialized class template
+/** non-specialized shared memory class template */
 template<typename T>
 class SharedMem {
 public:
@@ -15,7 +18,7 @@ public:
 	;
 };
 
-// specialization for double
+/** specialization for double */
 template<>
 class SharedMem<double> {
 public:
@@ -25,7 +28,7 @@ public:
 	}
 };
 
-// specialization for float
+/** specialization for float */
 template<>
 class SharedMem<float> {
 public:
@@ -35,7 +38,7 @@ public:
 	}
 };
 
-// specialization for unsigned long long
+/** specialization for unsigned long long */
 template<>
 class SharedMem<unsigned long long> {
 public:
@@ -45,7 +48,7 @@ public:
 	}
 };
 
-// specialization for int
+/** specialization for int */
 template<>
 class SharedMem<int> {
 public:
@@ -55,7 +58,7 @@ public:
 	}
 };
 
-// specialization for unsigned int
+/** specialization for unsigned int */
 template<>
 class SharedMem<unsigned int> {
 public:
@@ -65,6 +68,12 @@ public:
 	}
 };
 
+/** A generic in-block tree reduction-sum.
+ * Does not relax synchronization once inside a warp.
+ * \param psum a pointer to a shared memory array for storing partial sums
+ * \param tid my thread id
+ * \param len_ number of threads in the block
+ */
 template <typename T>
 __device__ void block_reduction(T *psum, int tid, int len_) {
 	int stride = len_ >> 1;
@@ -91,8 +100,12 @@ __device__ void block_reduction(T *psum, int tid, int len_) {
 	 }*/
 }
 
-//TODO figure out how to use templates with the __X_as_Y intrinsics
-//Paul - Implementation of double atomicAdd from CUDA Programming Guide: Appendix B.12
+/** Implementation of double atomicAdd from CUDA Programming Guide: Appendix B.12.
+ * \oaram address the read-write address
+ * \param val the value to add
+ * \return the old value at address after successfully writing
+ * \todo TODO figure out how to use templates with the __X_as_Y intrinsics (???)
+ */
 __device__ double atomicAdd(double* address, double val) {
 	unsigned long long int* address_as_ull = (unsigned long long int*) address;
 	unsigned long long int old = *address_as_ull, assumed;
@@ -104,25 +117,45 @@ __device__ double atomicAdd(double* address, double val) {
 	return __longlong_as_double(old);
 }
 
-//wrapper for all the types natively supported by CUDA
+/**
+ * wrapper for all the types natively supported by CUDA
+ * \param addr the read/write address
+ * \param val the value to add
+ * \return the previous value of addr
+*/
 template <typename T> __device__ T atomicAdd_wrapper(T* addr, T val) {
 	return atomicAdd(addr, val);
 }
 
-//wrapper for had-implemented double type
+/**
+ * wrapper for hand-implemented double type
+ * \param addr the read/write address
+ * \param val the value to add
+ * \return the previous value of addr
+*/
 template <> __device__ double atomicAdd_wrapper<double>(double* addr, double val) {
 	return atomicAdd(addr, val);
 }
 
-// this kernel works for 3D data only.
-//  PHI1 and PHI2 are input arrays.
-//  s* parameters are start values in each dimension.
-//  e* parameters are end values in each dimension.
-//  s* and e* are only necessary when the halo layers 
-//    has different thickness along various directions.
-//  i,j,k are the array dimensions
-//  len_ is number of threads in a threadblock.
-//       This can be computed in the kernel itself.
+/**
+ * 3D dot-product kernel with bound control.
+ * s* and e* are only necessary when the halo layers 
+ *  have different thicknesses along various directions.
+ * \param phi1 first input array
+ * \param phi2 second input array
+ * \param sx start index in X dimension
+ * \param sy start index in Y dimension
+ * \param sz start index in Z dimension
+ * \param ex end index in X dimension
+ * \param ey end index in Y dimension
+ * \param ez end index in Z dimension
+ * \param i phi1 and phi2's X dimension
+ * \param j phi1 and phi2's Y dimension
+ * \param k phi1 and phi2's Z dimension
+ * \param gz how many times to loop over the Z dimension to account for 2D grid
+ * \param len_  number of threads in a threadblock.
+ * \param reduction storage for the globally-reduced final value
+ */
 template <typename T>
 __global__ void kernel_dotProd(T *phi1, T *phi2,
 		int i, int j, int k,
@@ -160,6 +193,24 @@ __global__ void kernel_dotProd(T *phi1, T *phi2,
 	if(tid == 0) atomicAdd_wrapper<T>(reduction,psum[0]);
 }
 
+/**
+ * 3D reduction-sum kernel with bound control.
+ * s* and e* are only necessary when the halo layers 
+ *  have different thicknesses along various directions.
+ * \param phi input array to reduce
+ * \param sx start index in X dimension
+ * \param sy start index in Y dimension
+ * \param sz start index in Z dimension
+ * \param ex end index in X dimension
+ * \param ey end index in Y dimension
+ * \param ez end index in Z dimension
+ * \param i phi's X dimension
+ * \param j phi's Y dimension
+ * \param k phi's Z dimension
+ * \param gz how many times to loop over the Z dimension to account for 2D grid
+ * \param len_  number of threads in a threadblock.
+ * \param reduction storage for the globally-reduced final value
+ */
 template <typename T>
 __global__ void kernel_reduction3(T *phi,
 		int i, int j, int k,
@@ -202,8 +253,14 @@ __constant__ int c_face_stride[METAMORPH_FACE_MAX_DEPTH];
 //Size of all children (>= level+1) so at level 0, child_size = total_num_face_elements
 __constant__ int c_face_child_size[METAMORPH_FACE_MAX_DEPTH];
 
-//Helper function to compute the integer read offset for buffer packing
-//TODO: Add support for multi-dimensional grid/block
+/** Helper function to compute the integer read offset for buffer packing
+ * \param tid my thread ID
+ * \param a shared memory region used to compute partial offsets
+ * \param start initial global offset
+ * \param count the number of layers in the face structure (usually the number of dimensions of the buffer)
+ * \return the offset index for this thread to read/write to/from
+ * \todo TODO: Add support for multi-dimensional grid/block
+*/
 __device__ int get_pack_index(int tid, int * a, int start, int count) {
 	int pos;
 	int i, j, k, l;
@@ -231,6 +288,14 @@ __device__ int get_pack_index(int tid, int * a, int start, int count) {
 	return pos;
 }
 
+/**
+ * A kernel to pack a subregion of a 3D buffer into contiguous memory
+ * \param packed_buf the output buffer, of sufficient size to store an entire face/slab
+ * \param buf the unpacked 3D buffer
+ * \param size the total number of elements in packed_buf
+ * \param start the initial offset in buf to start computing from
+ * \param count the number of layers in the face struct stored in constant memory
+ */
 template <typename T>
 __global__ void kernel_pack(T *packed_buf, T *buf, int size, int start, int count)
 {
@@ -242,6 +307,14 @@ __global__ void kernel_pack(T *packed_buf, T *buf, int size, int start, int coun
 	packed_buf[idx] = buf[get_pack_index(idx, a, start, count)];
 }
 
+/**
+ * A kernel to unpack a subregion of a 3D buffer into contiguous memory
+ * \param packed_buf the input buffer, of sufficient size to store an entire face/slab
+ * \param buf the unpacked 3D buffer
+ * \param size the total number of elements in packed_buf
+ * \param start the initial offset in buf to start computing from
+ * \param count the number of layers in the face struct stored in constant memory
+ */
 template <typename T>
 __global__ void kernel_unpack(T *packed_buf, T *buf, int size, int start, int count)
 {
@@ -253,29 +326,24 @@ __global__ void kernel_unpack(T *packed_buf, T *buf, int size, int start, int co
 	buf[get_pack_index(idx, a, start, count)] = packed_buf[idx];
 }
 
-//TODO: Expand to multiple transpose elements per thread
-//#define TRANSPOSE_TILE_DIM (16)
-//#define TRANSPOSE_BLOCK_ROWS (16)
+/** Kernel to transpose a 2D (sub-)region of a 2D array
+ * \param odata the output transposed 2D array (of size tran_width * tran_height)
+ * \param idata the input untransposed 2D array (of size arr_widt * arr_height)
+ * \param arr_width the width of the input array
+ * \param arr_height the height of the input array
+ * \param tran_width the width of the output array
+ * \param tran_height the height of the output array
+ */
 template <typename T>
 __global__ void kernel_transpose_2d(T *odata, T *idata, int arr_width, int arr_height, int tran_width, int tran_height)
 {
 	SharedMem<T> shared;
 	T * tile = shared.getPointer();
-	//__shared__ T tile[TRANSPOSE_TILE_DIM][TRANSPOSE_TILE_DIM+1];
-	//__shared__ T tile[TRANSPOSE_TILE_DIM][TRANSPOSE_TILE_DIM];
 
 	int blockIdx_x, blockIdx_y;
 	int gridDim_x, gridDim_y;
 
 // do diagonal reordering
-	//The if case degenerates to the else case, no need to have both
-	//if (width == height)
-	//{
-	//    blockIdx_y = blockIdx.x;
-	//    blockIdx_x = (blockIdx.x+blockIdx.y)%gridDim.x;
-	//}
-	//else
-	//{
 	//First figure out your number among the actual grid blocks
 	int bid = blockIdx.x + gridDim.x*blockIdx.y;
 	//Then figure out how many logical blocks are required in each dimension
@@ -289,53 +357,51 @@ __global__ void kernel_transpose_2d(T *odata, T *idata, int arr_width, int arr_h
 		//Compute the current logical block index in each dimension
 		blockIdx_y = bid%gridDim_y;
 		blockIdx_x = ((bid/gridDim_y)+blockIdx_y)%gridDim_x;
-		//}
 
-		//int xIndex_in = blockIdx_x * TRANSPOSE_TILE_DIM + threadIdx.x;
 		int xIndex_in = blockIdx_x * blockDim.x + threadIdx.x;
-		//int yIndex_in = blockIdx_y * TRANSPOSE_TILE_DIM + threadIdx.y;
 		int yIndex_in = blockIdx_y * blockDim.y + threadIdx.y;
-		//int index_in = xIndex_in + (yIndex_in)*width;
 		int index_in = xIndex_in + (yIndex_in)*arr_width;
 
-		//int xIndex_out = blockIdx_y * TRANSPOSE_TILE_DIM + threadIdx.x;
 		int xIndex_out = blockIdx_y * blockDim.y + threadIdx.x;
-		//int yIndex_out = blockIdx_x * TRANSPOSE_TILE_DIM + threadIdx.y;
 		int yIndex_out = blockIdx_x * blockDim.x + threadIdx.y;
-		//int index_out = xIndex_out + (yIndex_out)*height;
 		int index_out = xIndex_out + (yIndex_out)*arr_height;
 
 		//The blockDim.x+1 in R/W steps is to avoid bank conflicts if blockDim.x==16 or 32
 		if(xIndex_in < tran_width && yIndex_in < tran_height)
-		//tile[threadIdx.y+1][threadIdx.x] = idata[index_in];
 		tile[threadIdx.x+(blockDim.x+1)*threadIdx.y] = idata[index_in];
-		//tile[threadIdx.y][threadIdx.x] = idata[index_in];
 
 		__syncthreads();
 
 		if(xIndex_out < tran_height && yIndex_out < tran_width)
-		//if(xIndex_out < tran_width && yIndex_out < tran_height)
-		//odata[index_out] = tile[threadIdx.x][threadIdx.y];
 		odata[index_out] = tile[threadIdx.y+(blockDim.y+1)*threadIdx.x];
-		//odata[index_out] = tile[threadIdx.x][threadIdx.y];
 
 		//Added when the loop was added to ensure writes are finished before new vals go into shared memory
 		__syncthreads();
 	}
 }
 
-// this kernel works for 3D data only.
-//  i,j,k are the array dimensions
-//  s* parameters are start values in each dimension.
-//  e* parameters are end values in each dimension.
-//  s* and e* are only necessary when the halo layers
-//    has different thickness along various directions.
-//  len_ is number of threads in a threadblock.
-//       This can be computed in the kernel itself.
+/** A kernel to compute a 3D 7-point averaging stencil
+ * (i.e sum the cubic cell and its 6 directly-adjacent neighbors and divide by 7)
+ * Optimizations: Read-only cache + Register blocking (Z) + smem blocking (X-Y)
+ * \param ind a non-aliased 3D region of size (i*j*k)
+ * \param outd a non-aliased 3D region of size (i*j*k)
+ * \param i size of ind and outd in the x dimension
+ * \param j size of ind and outd in the y dimension
+ * \param k size of ind and outd in the z dimension
+ * \param sx index of starting halo cell in the x dimension
+ * \param sy index of starting halo cell in the y dimension
+ * \param sz index of starting halo cell in the z dimension
+ * \param ex index of ending halo cell in the x dimension
+ * \param ey index of ending halo cell in the y dimension
+ * \param ez index of ending halo cell in the z dimension
+ * \param gz number of global z iterations to compute to account for 2D grid
+ * \param len_ number of threads in a threadblock
+ * \warning assumes that s* and e* bounds include a 1-thick halo
+ *   (i.e. will only compute values for cells in T([sx+1:ex-1], [sy+1:ey-1], [sz+1:ez-1])
+ * \warning this kernel works for 3D data only.
+ * \warning works only with 2D thread blocks (use rectangular blocks, i.e. 64*4, 128*2)
+ */
 template <typename T>
-
-//Read-only cache + Rigster blocking (Z) + smem blocking (X-Y)
-// work only with 2D thread blocks (use rectangular blocks, i.e. 64*4, 128*2)
 __global__ void kernel_stencil_3d7p(const T * __restrict__ ind, T * __restrict__ outd,
 		int i, int j, int k,
 		int sx, int sy, int sz,
@@ -609,6 +675,21 @@ __global__ void kernel_stencil_3d7p_v4(const T * __restrict__ ind, T * __restric
 
 /// BEGIN HOST WRAPPERS
 
+/**
+ * Host wrapper for the dot-product kernel
+ * \param grid_size The number of thread blocks to run in the X and Y dimensions and the number of iterations to run in the Z dimension
+ * \param block_size The size of a threadblock in the X, Y, and Z dimensions
+ * \param data1 The first input array
+ * \param data2 The second input array
+ * \param array_size the X, Y, and Z dimensions of data1 and data2 
+ * \param arr_start the X, Y, and Z start indicies (inclusive) to bound the computed region
+ * \param arr_end the X, Y, and Z end indicies to (inclusive) bound the computed region
+ * \param reduced_val the output buffer for the computed global dot product
+ * \param type The type of data to run the kernel on
+ * \param async whether to run the kernel asynchronously (1) or synchronously (0)
+ * \param event the start and finish events used for asynchronous calls and timing
+ * \return either cudaSuccess if async or the result of cudaThreadSynchronize if sync
+ */
 cudaError_t cuda_dotProd(size_t (*grid_size)[3], size_t (*block_size)[3],
 		void * data1, void * data2, size_t (*array_size)[3],
 		size_t (*arr_start)[3], size_t (*arr_end)[3], void * reduced_val,
@@ -670,6 +751,20 @@ cudaError_t cuda_dotProd(size_t (*grid_size)[3], size_t (*block_size)[3],
 	return (ret);
 }
 
+/**
+ * Host wrapper for the reduction-sum kernel
+ * \param grid_size The number of thread blocks to run in the X and Y dimensions and the number of iterations to run in the Z dimension
+ * \param block_size The size of a threadblock in the X, Y, and Z dimensions
+ * \param data The input array to reduce
+ * \param array_size the X, Y, and Z dimensions of data 
+ * \param arr_start the X, Y, and Z start indicies (inclusive) to bound the computed region
+ * \param arr_end the X, Y, and Z end indicies to (inclusive) bound the computed region
+ * \param reduced_val the output buffer for the computed global reduction sum
+ * \param type The type of data to run the kernel on
+ * \param async whether to run the kernel asynchronously (1) or synchronously (0)
+ * \param event the start and finish events used for asynchronous calls and timing
+ * \return either cudaSuccess if async or the result of cudaThreadSynchronize if sync
+ */
 cudaError_t cuda_reduce(size_t (*grid_size)[3], size_t (*block_size)[3],
 		void * data, size_t (*array_size)[3], size_t (*arr_start)[3],
 		size_t (*arr_end)[3], void * reduced_val, meta_type_id type, int async,
@@ -734,6 +829,19 @@ cudaError_t cuda_reduce(size_t (*grid_size)[3], size_t (*block_size)[3],
 	return (ret);
 }
 
+/**
+ * Host wrapper for the 2D transpose kernel
+ * \param grid_size The number of thread blocks to run in the X and Y dimensions and the number of iterations to run in the Z dimension
+ * \param block_size The size of a threadblock in the X, Y, and Z dimensions
+ * \param indata The input untransposed 2D array
+ * \param outdata The output transposed 2D array
+ * \param arr_dim_xy the X and Y dimensions of indata, Z is ignored 
+ * \param tran_dim_xy the X and Y dimensions of outdata, Z is ignored
+ * \param type The type of data to run the kernel on
+ * \param async whether to run the kernel asynchronously (1) or synchronously (0)
+ * \param event the start and finish events used for asynchronous calls and timing
+ * \return either cudaSuccess if async or the result of cudaThreadSynchronize if sync
+ */
 cudaError_t cuda_transpose_face(size_t (*grid_size)[3],
 		size_t (*block_size)[3], void *indata, void *outdata,
 		size_t (*arr_dim_xy)[3], size_t (*tran_dim_xy)[3], meta_type_id type,
@@ -741,14 +849,9 @@ cudaError_t cuda_transpose_face(size_t (*grid_size)[3],
 	cudaError_t ret = cudaSuccess;
 	size_t smem_len;
 	dim3 grid, block;
-//	size_t smem_len = (*block_size)[0] * (*block_size)[1] * (*block_size)[2];
-//TODO: Update to actually use user-provided grid/block once multi-element-per-thread
-// scaling is added
-//	dim3 grid = dim3((*grid_size)[0], (*grid_size)[1], 1);
-//	dim3 block = dim3((*block_size)[0], (*block_size)[1], (*block_size)[2]);
-	//FIXME: make this smart enough to rescale the threadblock (and thus shared memory - e.g. bank conflicts) w.r. double vs. float
+	/// \todo FIXME: make this smart enough to rescale the threadblock (and thus shared memory - e.g. bank conflicts) w.r. double vs. float
 	if (grid_size == NULL || block_size == NULL) {
-		//FIXME: reconcile TILE_DIM/BLOCK_ROWS
+		/// \todo FIXME: reconcile TILE_DIM/BLOCK_ROWS (???)
 		block = dim3(TRANSPOSE_TILE_DIM, TRANSPOSE_TILE_BLOCK_ROWS, 1);
 		grid = dim3(((*tran_dim_xy)[0] + block.x - 1) / block.x,
 				((*tran_dim_xy)[1] + block.y - 1) / block.y, 1);
@@ -757,7 +860,7 @@ cudaError_t cuda_transpose_face(size_t (*grid_size)[3],
 		grid = dim3((*grid_size)[0], (*grid_size)[1], 1);
 		block = dim3((*block_size)[0], (*block_size)[1], (*block_size)[2]);
 	}
-	//The +1 here is to avoid bank conflicts with 32 floats or 16 doubles and is required by the kernel logic
+	/// \warning The +1 here is to avoid bank conflicts with 32 floats or 16 doubles and is required by the kernel logic
 	smem_len = (block.x + 1) * block.y * block.z;
 	if (event != NULL) {
 		cudaEventCreate(&(*event)[0]);
@@ -795,10 +898,26 @@ cudaError_t cuda_transpose_face(size_t (*grid_size)[3],
 	}
 	if (!async)
 		ret = cudaThreadSynchronize();
-	//TODO consider derailing for an explictly 2D/1D reduce..
 	return (ret);
 }
 
+/**
+ * Host wrapper for the face packing kernel
+ * \param grid_size The number of thread blocks to run in the X dimension, Y and Z are ignored
+ * \param block_size The size of a threadblock in the X dimension, Y and Z are ignored
+ * \param packed_buf The output packed array
+ * \param buf The input full array
+ * \param face The face/slab to extract, returned from make_slab_from_3d
+ * \param remain_dim At each subsequent layer of the face struct, the *cummulative* size of all remaining descendant dimensions. Used for computing the per-thread read offset, typically automatically pre-computed in the backend-agnostic MetaMorph wrapper, meta_pack_face
+ * \param type The type of data to run the kernel on
+ * \param async whether to run the kernel asynchronously (1) or synchronously (0)
+ * \param event_k1 the kernel start and finish events used for asynchronous calls and timing
+ * \param event_c1 the copyToSymbol of face->size start and finish events used for asynchronous calls and timing
+ * \param event_c2 the copyToSymbol of face->stride start and finish events used for asynchronous calls and timing
+ * \param event_c3 the copyToSymbol of face->child_size start and finish events used for asynchronous calls and timing
+ * \return either cudaSuccess if async or the result of cudaThreadSynchronize if sync
+ * \warning Implemented as a 1D kernel, Y and Z grid/block parameters will be ignored
+ */
 cudaError_t cuda_pack_face(size_t (*grid_size)[3], size_t (*block_size)[3],
 		void *packed_buf, void *buf, meta_face *face,
 		int *remain_dim, meta_type_id type, int async,
@@ -807,8 +926,6 @@ cudaError_t cuda_pack_face(size_t (*grid_size)[3], size_t (*block_size)[3],
 	cudaError_t ret = cudaSuccess;
 	size_t smem_size;
 	dim3 grid, block;
-//TODO: Update to actually use user-provided grid/block once multi-element-per-thread
-// scaling is added
 //	dim3 grid = dim3((*grid_size)[0], (*grid_size)[1], 1);
 //	dim3 block = dim3((*block_size)[0], (*block_size)[1], (*block_size)[2]);
 
@@ -843,19 +960,18 @@ cudaError_t cuda_pack_face(size_t (*grid_size)[3], size_t (*block_size)[3],
 		cudaEventCreate(&(*event_c3)[1]);
 		cudaEventRecord((*event_c3)[1], 0);
 	}
-//TODO: Create a grid/block similar to Kaixi's look at mpi_wrap.c to figure out how size is computed
 	if (event_k1 != NULL) {
 		cudaEventCreate(&(*event_k1)[0]);
 		cudaEventRecord((*event_k1)[0], 0);
 	}
-	//FIXME: specify a unique macro for each default blocksize
+	/// \todo FIXME: specify a unique macro for each default blocksize
 	if (grid_size == NULL || block_size == NULL) {
 		block = dim3(256, 1, 1);
 		grid = dim3(
 				(face->size[0] * face->size[1] * face->size[2] + block.x - 1)
 						/ block.x, 1, 1);
 	} else {
-		//This is a workaround for some non-determinism that was observed when allowing fully-arbitrary spec of grid/block
+		/// \warning This is a workaround for some non-determinism that was observed when allowing fully-arbitrary spec of grid/block
 		if ((*block_size)[1] != 1 || (*block_size)[2] != 1
 				|| (*grid_size)[1] != 1 || (*grid_size)[2])
 			fprintf(stderr,

@@ -427,7 +427,7 @@ refresh:
 	rm $(MM_EX)/crc_alt $(MM_EX)/mm_opencl_intelfpga_backend.aocx
 
 doc:
-	doxygen Doxyfile
+	DOXY_PROJECT_NUMBER=$(shell git log -1 --format \"%h \(%cd\)\") doxygen Doxyfile
 
 latex: doc
 	cd docs/latex && make

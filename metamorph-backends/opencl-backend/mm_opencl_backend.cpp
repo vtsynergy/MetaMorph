@@ -1,4 +1,7 @@
-/** OpenCL Back-End **/
+/** \file
+ * OpenCL backend function implementations
+ * \bug OpenCL kernel wrappers need to be modified to copy primitive type variables into their cl_\<type\> equivalents before clSetKernelArg to ensure width between device and host
+ */
 
 #include "../../metamorph-backends/opencl-backend/mm_opencl_backend.h"
 
@@ -6,8 +9,11 @@
 extern "C" {
 #endif
 
+/** The globally-exposed cl_context for the most recently initialized OpenCL frame */
 extern cl_context meta_context;
+/** The globally-exposed cl_command_queue for the most recently initialized OpenCL frame */
 extern cl_command_queue meta_queue;
+/** The globally-exposed cl_device_id for the most recently initialized OpenCL frame */
 extern cl_device_id meta_device;
 
 //Warning, none of these variables are threadsafe, so only one thread should ever
@@ -16,15 +22,23 @@ cl_uint num_platforms, num_devices;
 cl_platform_id * platforms = NULL;
 cl_device_id * devices = NULL;
 
+/**
+ * Simple data structure to separate the user-exposed concept of OpenCL frames from their storage implementation
+ */
 typedef struct metaOpenCLStackNode {
-	metaOpenCLStackFrame frame;
-	struct metaOpenCLStackNode * next;
+	metaOpenCLStackFrame frame; /** The frame to store */
+	struct metaOpenCLStackNode * next; /** pointer to the previously-initialized frame */
 } metaOpenCLStackNode;
 
 metaOpenCLStackNode * CLStack = NULL;
 
-//Returns the first id in the device array of the desired device,
-// or -1 if no such device is present.
+/**
+ * Function to lookup a specific device across all platforms by its name string
+ * \param desired a NULL-terminated string corresponsind to the exact name of the desired device as returned by OpenCL APIs
+ * \param devices a pointer to an array of devices of length numDevices to search for the named device
+ * \param numDevices the length of the devices array to search
+ * \return The index in devices of the first device found with a name matching desired, or -1 if not found
+ */
 int metaOpenCLGetDeviceID(char * desired, cl_device_id * devices,
 		int numDevices) {
 	char buff[128];
@@ -38,10 +52,10 @@ int metaOpenCLGetDeviceID(char * desired, cl_device_id * devices,
 	return -1;
 }
 
-//Basic one-time scan of all platforms for all devices.
-//This is not threadsafe, and I'm not sure we'll ever make it safe.
-//If we need to though, it would likely be sufficient to CAS the num_platforms int or platforms pointer
-// first to a hazard flag (like -1) to claim it, then to the actual pointer.
+/**
+ * Basic one-time scan of all platforms to assemble the internal devices array.
+ * \warning This is not threadsafe, and I'm not sure we'll ever make it safe.
+ */
 void metaOpenCLQueryDevices() {
 	int i;
 	num_platforms = 0, num_devices = 0;
@@ -128,7 +142,16 @@ size_t metaOpenCLLoadProgramSource(const char *filename, const char **progSrc) {
 	return len;
 }
 
-cl_int metaOpenCLBuildSingleKernelProgram(metaOpenCLStackFrame * frame, cl_program prog, char const * prog_args) {
+
+/**
+ * Build a single cl_program for the provided frame with the provided arguments
+ * \param frame the frame to build the program for
+ * \param prog A pointer to the cl_program to build (should be an offset into frame)
+ * \param prog_args The build arguments to use to build the program
+ * \warning kernel-, device-, or configuration-specific build args may be prepended to the provided prog_args
+ * \return an OpenCL error code if anything went wrong, or a CL_SUCCESS otherwise
+ */
+cl_int metaOpenCLBuildSingleKernelProgram(metaOpenCLStackFrame * frame, cl_program * prog, char const * prog_args) {
 	if (prog_args == NULL) prog_args = "";
 	cl_int ret = CL_SUCCESS;
 	char * args = NULL;
@@ -143,8 +166,6 @@ cl_int metaOpenCLBuildSingleKernelProgram(metaOpenCLStackFrame * frame, cl_progr
 			snprintf(args, needed,
 					"-I . -D TRANSPOSE_TILE_DIM=(%d) -D TRANSPOSE_TILE_BLOCK_ROWS=(%d) %s ",
 					TRANSPOSE_TILE_DIM, TRANSPOSE_TILE_BLOCK_ROWS, prog_args);
-			ret |= clBuildProgram(prog, 1,
-					&(frame->device), args, NULL, NULL);
 		} else if (strcmp(getenv("METAMORPH_MODE"), "OpenCL_DEBUG") == 0) {
 			size_t needed =
 					snprintf(NULL, 0,
@@ -165,7 +186,6 @@ cl_int metaOpenCLBuildSingleKernelProgram(metaOpenCLStackFrame * frame, cl_progr
 		snprintf(args, needed,
 				"-I . -D TRANSPOSE_TILE_DIM=(%d) -D TRANSPOSE_TILE_BLOCK_ROWS=(%d) %s ",
 				TRANSPOSE_TILE_DIM, TRANSPOSE_TILE_BLOCK_ROWS, prog_args);
-		//	ret |= clBuildProgram(frame->program_opencl_core, 1, &(frame->device), args, NULL, NULL);
 
 	}
 	ret |= clBuildProgram(prog, 1, &(frame->device), args,
@@ -177,16 +197,21 @@ cl_int metaOpenCLBuildSingleKernelProgram(metaOpenCLStackFrame * frame, cl_progr
 	}
 	//Stub to get build log
 	size_t logsize = 0;
-	clGetProgramBuildInfo(prog, frame->device,
+	clGetProgramBuildInfo(*prog, frame->device,
 			CL_PROGRAM_BUILD_LOG, 0, NULL, &logsize);
 	char * log = (char *) malloc(sizeof(char) * (logsize + 1));
-	clGetProgramBuildInfo(prog, frame->device,
+	clGetProgramBuildInfo(*prog, frame->device,
 			CL_PROGRAM_BUILD_LOG, logsize, log, NULL);
 	if (logsize > 2) fprintf(stderr, "CL_PROGRAM_BUILD_LOG:\n%s", log);
 	free(log);
 	return ret;
 }
 
+/**
+ * For the provided frame, read, create, and build all necessary programs and kernels
+ * \param frame The frame to initialize program(s) and kernels for
+ * \return an OpenCL error code if anything went wrong, otherwise CL_SUCCESS
+ */
 cl_int metaOpenCLBuildProgram(metaOpenCLStackFrame * frame) {
 	cl_int ret = CL_SUCCESS;
 #if defined(WITH_INTELFPGA) && defined(OPENCL_SINGLE_KERNEL_PROGS)
@@ -302,7 +327,7 @@ cl_int metaOpenCLBuildProgram(metaOpenCLStackFrame * frame) {
 
 //TODO Support OPENCL_SINGLE_KERNEL_PROGS
 #ifndef OPENCL_SINGLE_KERNEL_PROGS
-	ret |= metaOpenCLBuildSingleKernelProgram(frame, frame->program_opencl_core, NULL);
+	ret |= metaOpenCLBuildSingleKernelProgram(frame, &frame->program_opencl_core, NULL);
 	if (frame->metaCLProgLen != -1) {
 		frame->kernel_reduce_db = clCreateKernel(frame->program_opencl_core,
 			"kernel_reduce_db", &ret);
@@ -387,11 +412,11 @@ cl_int metaOpenCLBuildProgram(metaOpenCLStackFrame * frame) {
 	}
 #else
 #ifdef WITH_INTELFPGA
-#define BUILD_PROG_AND_KERNEL(name, opts) ret |= metaOpenCLBuildSingleKernelProgram(frame, frame->program_##name, opts); \
+#define BUILD_PROG_AND_KERNEL(name, opts) ret |= metaOpenCLBuildSingleKernelProgram(frame, &frame->program_##name, opts); \
 	if (frame->metaCLbinLen_##name != -1) frame->kernel_##name = clCreateKernel(frame->program_##name, "kernel_"#name, &ret); \
         if (ret != CL_SUCCESS) fprintf(stderr, "Error in clCreateKernel for kernel_"#name" %d\n", ret);
 #else
-#define BUILD_PROG_AND_KERNEL(name, opts) ret |= metaOpenCLBuildSingleKernelProgram(frame, frame->program_##name, opts); \
+#define BUILD_PROG_AND_KERNEL(name, opts) ret |= metaOpenCLBuildSingleKernelProgram(frame, &frame->program_##name, opts); \
 	if (frame->metaCLProgLen != -1) frame->kernel_##name = clCreateKernel(frame->program_##name, "kernel_"#name, &ret); \
         if (ret != CL_SUCCESS) fprintf(stderr, "Error in clCreateKernel for kernel_"#name" %d\n", ret);
 #endif
@@ -447,7 +472,13 @@ cl_int metaOpenCLBuildProgram(metaOpenCLStackFrame * frame) {
 //for thread-safety, returns a new metaOpenCLStackNode, which is a direct copy
 // of the top at some point in time.
 // this way, the user can still use top, without having to manage hazard pointers themselves
-//ASSUME HAZARD POINTERS ARE ALREADY SET FOR t BY THE CALLING METHOD
+/**
+ * Internally copy whatever's on top of the stack to a frame that is safe to hand to users.
+ * Never give direct access to the stack so that it can one day be made threadsafe via hazard pointers
+ * \param t The Internal stack node to copy
+ * \param frame The address of a frame * variable to return the newly allocated and copied frame in
+ * \warning ASSUME HAZARD POINTERS ARE ALREADY SET FOR t BY THE CALLING METHOD
+ */
 void copyStackNodeToFrame(metaOpenCLStackNode * t,
 		metaOpenCLStackFrame ** frame) {
 
@@ -678,11 +709,11 @@ void copyStackFrameToNode(metaOpenCLStackFrame * f,
 */
 }
 
-//For this push to be both exposed and safe from hazards, it must make a copy of the frame
-// such that the user never has access to the pointer to the frame that's actually on the shared stack
-// object
-//This CAS-based push should be threadsafe
-//WARNING assumes all parameters of metaOpenCLStackNode are set, except "next"
+/// \internal For this push to be both exposed and safe from hazards, it must make a copy of the frame
+/// \internal such that the user never has access to the pointer to the frame that's actually on the shared stack
+/// \internal object
+/// \internal This CAS-based push should be threadsafe
+/// \internal WARNING assumes all parameters of metaOpenCLStackNode are set, except "next"
 void metaOpenCLPushStackFrame(metaOpenCLStackFrame * frame) {
 	//copy the frame, this is still the thread-private "allocated" state
 	metaOpenCLStackNode * newNode = (metaOpenCLStackNode *) calloc(1,
@@ -729,7 +760,7 @@ metaOpenCLStackFrame * metaOpenCLPopStackFrame() {
 	//and pull the node off the stack
 	CLStack = t->next;
 	//Do something with the memory
-	//free(t);
+	/// \todo FIXME: This looks like it should be on, else we're leaking free(t);
 	//release the hazard pointer
 	//so hazards are over, return the copy and exit
 	return (frame);
@@ -866,7 +897,6 @@ cl_int metaOpenCLInitStackFrame(metaOpenCLStackFrame ** frame, cl_int device) {
 //DOES NOT:
 //	pop any stack nodes
 //	free any stack nodes
-//	free program source
 //	implement any thread safety, frames should always be thread private, only the stack should be shared, and all franes must be copied to or from stack nodes using the hazard-aware copy methods.
 //	 (more specifically, copying a frame to a node doesn't need to be hazard-aware, as the node cannot be shared unless copied inside the hazard-aware metaOpenCLPushStackFrame. Pop, Top, and copyStackNodeToFrame are all hazard aware and provide a thread-private copy back to the caller.)
 cl_int metaOpenCLDestroyStackFrame(metaOpenCLStackFrame * frame) {
@@ -1116,9 +1146,9 @@ cl_int metaOpenCLInitStackFrameDefault(metaOpenCLStackFrame ** frame) {
 
 cl_int metaOpenCLInitCoreKernels() {
 	metaOpenCLStackFrame * frame = metaOpenCLTopStackFrame();
-	cl_int ret_code =metaOpenCLBuildProgram(frame);
+	cl_int ret_code = metaOpenCLBuildProgram(frame);
 	frame->kernels_init = 1;
-	
+	return ret_code;
 }
 
 meta_cl_device_vendor metaOpenCLDetectDevice(cl_device_id dev) {
@@ -1879,7 +1909,7 @@ cl_int opencl_stencil_3d7p(size_t (*grid_size)[3], size_t (*block_size)[3],
 
 }
 
-cl_int opencl_csr(size_t global_size, size_t local_size,
+cl_int opencl_csr(size_t (*grid_size)[3], size_t (*block_size)[3], size_t global_size,
 		void * csr_ap, void * csr_aj, void * csr_ax, void * x_loc, void * y_loc, 
 		meta_type_id type, int async,
 		// cl_event * wait, 
@@ -1893,11 +1923,11 @@ cl_int opencl_csr(size_t global_size, size_t local_size,
 	
 	//TODO does this assume the OpenCL model or CUDA model for grid size?
 	//FIXME it appears to use OpenCL model whereas everyone else uses CUDA
-	if (global_size == NULL || local_size == NULL) {
+	if (grid_size == NULL || block_size == NULL) {
 		//TODO fallback scaling
 	} else {
-		grid = global_size;
-		block = local_size;
+		grid = (*grid_size)[0]*(*block_size)[0];
+		block = (*block_size)[0];
 	}
 	
 	//Make sure some context exists..
@@ -1947,8 +1977,7 @@ cl_int opencl_csr(size_t global_size, size_t local_size,
 }
 
 
-cl_int opencl_crc(size_t global_size, size_t local_size,
-		void * dev_input, int page_size, int num_words, int numpages, void * dev_output, 
+cl_int opencl_crc(void * dev_input, int page_size, int num_words, int numpages, void * dev_output, 
 		meta_type_id type, int async,
 		// cl_event * wait, 
 		cl_event * event) {
