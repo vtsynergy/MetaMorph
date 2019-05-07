@@ -1,10 +1,12 @@
+# WIP
+
 # Generating an OpenCL Host-to-Device Interface with MetaCL
 
-MetaCL is a command-line tool to consume kernel files written in OpenCL C (typically .cl extension) and produce the corresponding host-side code. This host-side code includes wrapper functions to invoke the kernels themselves, as well as all the necessary boilerplate to JIT-compile the kernels (for devices that support JIT, like CPU and GPU) or load offline-compiled kernel implementations (such as .aocx files for Intel/Altera FPGA SDK for OpenCL). The generated code can also leverage simplified device selection, context swapping, and automatic initialization/deconstruction provided by MetaMorph's OpenCL backend.
+MetaCL is a command-line tool to consume kernel files written in OpenCL C (typically `.cl` extension) and produce the corresponding host-side code. This host-side code includes wrapper functions to invoke the kernels themselves, as well as all the necessary boilerplate to JIT-compile the kernels (for devices that support JIT, like CPU and GPU) or load offline-compiled kernel implementations (such as `.aocx` files for Intel/Altera FPGA SDK for OpenCL). The generated code can also leverage simplified device selection, context swapping, and automatic initialization/deconstruction provided by MetaMorph's OpenCL backend.
 
 MetaCL is implemented as a _[Clang Tool](https://clang.llvm.org/docs/LibTooling.html)_ and thus relies on a modern installation of Clang, and behaves much like a compiler. (In effect it is performing a pseudo source-to-source compilation of the kernel files to produce the host-to-device interface.)
 
-This tutorial details the invocation of the MetaCL tool itself and presumes MetaCL/MetaMorph have been installed according to the [these instructions](../InstallingMetaCL.md) - if you have used different paths, directory names, or version of Clang, please remember to adapt the below code examples to your changes. After generating a host-to-device interface with MetaCL, please consult [the following tutorial](./ExistingApplication.md) for specific recommendations for how to use the generated code.
+This tutorial details the invocation of the MetaCL tool itself and presumes MetaCL/MetaMorph have been installed according to the [these instructions](./InstallingMetaCL.md) - if you have used different paths, directory names, or version of Clang, please remember to adapt the below code examples to your changes. After generating a host-to-device interface with MetaCL, please consult [the following tutorial](./ExistingApplication.md) for specific recommendations for how to use the generated code.
 
 Structure of a MetaCL Invocation
 --------------------------------
@@ -26,13 +28,17 @@ path/to/MetaMorph/metamorph-generators/opencl/metaCL <List of .cl files to proce
 
 `-I <path to Clang's implementation of opencl-c.h>` A path to the directory containing the required `opencl-c.h` header. (If the [installation tutorial](./InstallingMetaCL.md) was followed, it should be located in `/path/to/MetaMorph/metamorph-generators/opencl/clang_tarball/clang+llvm-6.0.1-x86_64-linux-gnu-ubuntu-16.04/lib/clang/6.0.1/include`.)
 
-`[Project-specific compilation arguments]` Application-specific conditional compilation options. These must be the same as the options provided to the OpenCL JIT Compiler at runtime --- or analagous offline compilation step ---, and currently only one set can be incorporated into the generated interface at a time.
+`[Project-specific compilation arguments]` Application-specific conditional compilation options. These must be the same as the options provided to the OpenCL JIT compiler at runtime --- or analagous offline compilation step ---, and currently only one set can be incorporated into the generated interface at a time.
 
 
 Supported MetaCL Options
 ------------------------
 
-`--unified-output-file="<filename>"` This MetaCL option specifies the name of the output “.c” and “.h” pair to produce, which will include the interface components from all _N_  input files. Without this option, it will produce a pair for each input file, with the input file’s name. For example `./metaCL A.cl B.cl C.cl -- ...` would produce `A.c` `A.h` `B.c` `B.h` `C.c` and `C.h` with separate boilerplate, whereas ./metaCL A.cl B.cl C.cl --unified-output="myKernelWrappers" -- ...` would produce `myKernelWrappers.c` and 'myKernelWrappers.h', containing unified init/destroy boilerplate functions and wrappers for each of the functions in `A.cl` `B.cl` and `C.cl`. Kernel implementations remain separate in their respective files and are still individually loaded by the generated boilerplate functions
+`--unified-output-file="<filename>"` (Default: NONE) This MetaCL option specifies the name of the output “.c” and “.h” pair to produce, which will include the interface components from all _N_  input files. Without this option, it will produce a pair for each input file, with the input file’s name.
+
+For example `./metaCL A.cl B.cl C.cl -- ...` would produce `A.c` `A.h` `B.c` `B.h` `C.c` and `C.h` with separate boilerplate, whereas `./metaCL A.cl B.cl C.cl --unified-output="myKernelWrappers" -- ...` would produce `myKernelWrappers.c` and `myKernelWrappers.h`, containing unified init/destroy boilerplate functions and wrappers for each of the functions in `A.cl` `B.cl` and `C.cl`. Kernel implementations remain separate in their respective `.cl` files and are still individually loaded by the generated boilerplate functions.
+
+`--inline-error-check=<true/false>` (Default: TRUE) This MetaCL option can be used to _disable_ the generation of simple OpenCL Runtime API error checks in generated code, which may trade safety for a slight performance gain. If left on, every generated API call is immediately checked for a returned error. (However `clEnqueue..()` operations are **not** forced to `clFinish()`, rather the return code from the enqueue call is checked.)
 
 
 Common Project-specific compilation arguments
