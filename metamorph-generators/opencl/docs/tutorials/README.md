@@ -1,6 +1,6 @@
 # Index of MetaCL tutorials
 
-MetaCL and these associated tutorials are governed by the same [License](../../../../blob/master/LICENSE) as MetaMorph. Please ensure you accept the permissions, limitations, and conditions specified therein before proceeding.
+MetaCL and these associated tutorials are governed by the same [License](../../../../LICENSE) as MetaMorph. Please ensure you accept the permissions, limitations, and conditions specified therein before proceeding.
 
 
 Installation
