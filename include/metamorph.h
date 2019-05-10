@@ -137,7 +137,7 @@ typedef unsigned short a_ushort;
 typedef unsigned int a_uint;
 typedef unsigned long a_ulong;
 typedef int a_err;
-#if defined (__CUDACC__) || defined(__cplusplus)
+#if defined (__CUDACC__) || defined(__cplusplus) || defined(bool)
 typedef bool a_bool;
 #else
 typedef enum boolean {false , true}a_bool;
