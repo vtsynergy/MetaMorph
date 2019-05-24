@@ -717,7 +717,7 @@ class MetaGenCLFrontendAction : public ASTFrontendAction {
 	cache->outfile_h = new llvm::raw_fd_ostream(file + ".h", error_h, llvm::sys::fs::F_None);
         llvm::errs() << error_c.message() << error_h.message();
       }
-q
+
       return llvm::make_unique<KernelASTConsumer>(&CI, cache->outfile_c, cache->outfile_h, file);
     }
 
