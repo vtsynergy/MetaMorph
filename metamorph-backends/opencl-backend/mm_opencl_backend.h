@@ -85,7 +85,7 @@ typedef struct metaOpenCLStackFrame {
         /** The OpenCL queue for this state */
 	cl_command_queue queue;
 	/** The initialization status of the platform/device/context/queue */
-	unsigned char state_init
+	unsigned char state_init;
 	/** The initialization status of the kernels for this state */
 	unsigned char kernels_init;
 
