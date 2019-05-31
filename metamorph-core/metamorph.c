@@ -1789,14 +1789,14 @@ a_err meta_stencil_3d7p_cb(a_dim3 * grid_size, a_dim3 * block_size,
 ///////////////////////
 //SPMV API (meta_csr)//
 ///////////////////////
-a_err meta_csr(size_t global_size, size_t local_size, void * csr_ap, void * csr_aj, void * csr_ax, void * x_loc, void * y_loc, 
+a_err meta_csr(a_dim3 * grid_size, a_dim3 * block_size, size_t global_size, void * csr_ap, void * csr_aj, void * csr_ax, void * x_loc, void * y_loc, 
 		size_t wg_size, meta_type_id type, a_bool async) {//, cl_event * wait) {
-	return meta_csr_cb(global_size, local_size, csr_ap, csr_aj, csr_ax, x_loc, y_loc,
+	return meta_csr_cb(grid_size, block_size, global_size, csr_ap, csr_aj, csr_ax, x_loc, y_loc,
 			wg_size, type, async,
 			// wait,
 			(meta_callback*) NULL, NULL);
 }
-a_err meta_csr_cb(size_t global_size, size_t local_size, void * csr_ap, void * csr_aj, void * csr_ax, void * x_loc, void * y_loc,
+a_err meta_csr_cb(a_dim3 * grid_size, a_dim3 * block_size, size_t global_size, void * csr_ap, void * csr_aj, void * csr_ax, void * x_loc, void * y_loc,
 		size_t wg_size, meta_type_id type, a_bool async,
 		// cl_event * wait,
 		meta_callback *call, void *call_pl) {
@@ -1824,7 +1824,7 @@ a_err meta_csr_cb(size_t global_size, size_t local_size, void * csr_ap, void * c
 		case metaModePreferOpenCL:
 		{
 #ifdef WITH_TIMERS
-		ret = (a_err) opencl_csr(global_size, local_size, csr_ap, csr_aj, csr_ax, x_loc, y_loc, type, async,
+		ret = (a_err) opencl_csr(grid_size, block_size, global_size, csr_ap, csr_aj, csr_ax, x_loc, y_loc, type, async,
 		// wait,
 		 &(frame->event.opencl));
 		//If timers exist, use their event to add the callback
@@ -1832,8 +1832,7 @@ a_err meta_csr_cb(size_t global_size, size_t local_size, void * csr_ap, void * c
 #else
 		//If timers don't exist, get the event via a locally-scoped event to add to the callback
 		cl_event cb_event;
-		printf("launching csr...\n");
-		ret = (a_err) opencl_csr(global_size, local_size, csr_ap, csr_aj, csr_ax, x_loc, y_loc, type, async,
+		ret = (a_err) opencl_csr(grid_size, block_size, global_size, csr_ap, csr_aj, csr_ax, x_loc, y_loc, type, async,
 		// wait,
 		 &cb_event);
 
@@ -1858,13 +1857,13 @@ a_err meta_csr_cb(size_t global_size, size_t local_size, void * csr_ap, void * c
 ///////////////////////
 //CRC API (meta_crc)//
 ///////////////////////
-a_err meta_crc(size_t global_size, size_t local_size, void * dev_input, int page_size, int num_words, int numpages, void * dev_output, 
+a_err meta_crc(a_dim3 * grid_size, a_dim3 * block_size, void * dev_input, int page_size, int num_words, int numpages, void * dev_output, 
 		meta_type_id type, a_bool async) {//, cl_event * wait) {
-	return meta_crc_cb(global_size, local_size, dev_input, page_size, num_words, numpages, dev_output,
+	return meta_crc_cb(grid_size, block_size, dev_input, page_size, num_words, numpages, dev_output,
 			type, async,// wait,
 			(meta_callback*) NULL, NULL);
 }
-a_err meta_crc_cb(size_t global_size, size_t local_size, void * dev_input, int page_size, int num_words, int numpages, void * dev_output,
+a_err meta_crc_cb(a_dim3 * grid_size, a_dim3 * block_size, void * dev_input, int page_size, int num_words, int numpages, void * dev_output,
 		meta_type_id type, a_bool async,
 		// cl_event * wait,
 		meta_callback *call, void *call_pl) {
@@ -1892,14 +1891,14 @@ a_err meta_crc_cb(size_t global_size, size_t local_size, void * dev_input, int p
 		case metaModePreferOpenCL:
 		{
 #ifdef WITH_TIMERS
-		ret = (a_err) opencl_crc(global_size, local_size, dev_input, page_size, num_words, numpages, dev_output, type, async,
+		ret = (a_err) opencl_crc(dev_input, page_size, num_words, numpages, dev_output, type, async,
 		// wait,
 		 &(frame->event.opencl));
 		
 		if ((void*)call != NULL && call_pl != NULL) clSetEventCallback(frame->event.opencl, CL_COMPLETE, call->openclCallback, call_pl);
 #else
 		cl_event cb_event;
-		ret = (a_err) opencl_crc(global_size, local_size, dev_input, page_size, num_words, numpages, dev_output, type, async,
+		ret = (a_err) opencl_crc(dev_input, page_size, num_words, numpages, dev_output, type, async,
 		// wait,
 		 &cb_event);
 

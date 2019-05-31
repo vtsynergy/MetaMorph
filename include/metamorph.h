@@ -310,11 +310,11 @@ a_err meta_stencil_3d7p_cb(a_dim3 * grid_size, a_dim3 * block_size,
 	void *indata, void *outdata, a_dim3 * array_size, a_dim3 * array_start,
 	a_dim3 * array_end, meta_type_id type, a_bool async, meta_callback *call,
 	void *call_pl);
-a_err meta_csr_cb(size_t global_size, size_t local_size, void * csr_ap, void * csr_aj, void * csr_ax, void * x_loc, void * y_loc,
+a_err meta_csr_cb(a_dim3 * grid_size, a_dim3 * block_size, size_t global_size, void * csr_ap, void * csr_aj, void * csr_ax, void * x_loc, void * y_loc,
 		size_t wg_size, meta_type_id type, a_bool async,
 		// cl_event * wait,
 		meta_callback *call, void *call_pl);
-a_err meta_crc_cb(size_t global_size, size_t local_size, void * dev_input, int page_size, int num_words, int numpages, void * dev_output,
+a_err meta_crc_cb(a_dim3 * grid_size, a_dim3 * block_size, void * dev_input, int page_size, int num_words, int numpages, void * dev_output,
 		meta_type_id type, a_bool async,
 		// cl_event * wait,
 		meta_callback *call, void *call_pl);
@@ -353,9 +353,9 @@ a_err meta_reduce(a_dim3 * grid_size, a_dim3 * block_size, void * data,
 a_err meta_stencil_3d7p(a_dim3 * grid_size, a_dim3 * block_size, void *indata,
 	void *outdata, a_dim3 * array_size, a_dim3 * array_start,
 	a_dim3 * array_end, meta_type_id type, a_bool async);
-a_err meta_csr(size_t global_size, size_t local_size, void * csr_ap, void * csr_aj, void * csr_ax, void * x_loc, void * y_loc, 
+a_err meta_csr(a_dim3 * grid_size, a_dim3 * block_size, size_t global_size, void * csr_ap, void * csr_aj, void * csr_ax, void * x_loc, void * y_loc, 
 	size_t wg_size, meta_type_id type, a_bool async);//, cl_event * wait);
-a_err meta_crc(size_t global_size, size_t local_size, void * dev_input, int page_size, int num_words, int numpages, void * dev_output, 
+a_err meta_crc(a_dim3 * grid_size, a_dim3 * block_size, void * dev_input, int page_size, int num_words, int numpages, void * dev_output, 
 	meta_type_id type, a_bool async);//, cl_event * wait);
 
 //MPI functions need access to all top-level calls and types
