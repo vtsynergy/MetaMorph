@@ -1,17 +1,19 @@
-/**
-* (c) 2018 Virginia Tech
-*
-* Please see license information in the main MetaMorph repository
-*
-* MetaGen-CL
-* A tool to consume OpenCL kernel files and produce MetaMorph-compatible
-* host-side wrappers for the contained kernels.
-*
-* ALPHA/Prototype software, no warranty expressed or implied.
-*
-* Authors: Paul Sathre
-*
-*/
+/** \file
+ *
+ * \brief An OpenCL host-code boilerplate and interface generator
+ * \copyright 2018-2019 Virginia Tech
+ *
+ * <a href="../../LICENSE">Please see license information in the main MetaMorph repository</a>
+ *
+ * MetaGen-CL
+ * A tool to consume OpenCL kernel files and produce MetaMorph-compatible
+ * host-side wrappers for the contained kernels.
+ *
+ * ALPHA/Prototype software, no warranty expressed or implied.
+ *
+ * \author Paul Sathre
+ *
+ */
 
 #include "clang/ASTMatchers/ASTMatchFinder.h"
 #include "clang/ASTMatchers/ASTMatchers.h"
@@ -24,56 +26,118 @@ using namespace clang;
 using namespace clang::ast_matchers;
 using namespace clang::tooling;
 
-//Ternary checks the status of the inline-error-check variable to easily eliminate all checks added through the macro
-#define ERROR_CHECK(errorcode, text) (InlineErrorCheck.getValue() ? "  if (" errorcode " != CL_SUCCESS) fprintf(stderr, \"" text " \%d at \%s:\%d\\n\", " errorcode ", __FILE__, __LINE__);\n" : "")
-#define APPEND_ERROR_CHECK(string, errorcode, text) string += ERROR_CHECK(errorcode, text)
+/** Generate a simple OpenCL error check and linedump string for inclusion in output code IFF InlineErrorCheck=true, else an empty string */
+#define ERROR_CHECK(indent, errorcode, text) (InlineErrorCheck.getValue() ? indent "if (" errorcode " != CL_SUCCESS) fprintf(stderr, \"" text " \%d at \%s:\%d\\n\", " errorcode ", __FILE__, __LINE__);\n" : "")
+/** \deprecated a shorthand way to append a ternary-checked generated error-check string to an existing std::string buffer */
+#define APPEND_ERROR_CHECK(string, indent, errorcode, text) string += ERROR_CHECK(indent, errorcode, text)
 
 static llvm::cl::OptionCategory MetaGenCLCategory("MetaGen-CL Options");
 
-llvm::cl::opt<std::string, false> UnifiedOutputFile("unified-output-file", llvm::cl::desc("If a filename is provided, all kernel files will generate a single set of host wrappers, instead of one per file."), llvm::cl::value_desc("<\"filename\">"), llvm::cl::init(""));
-llvm::cl::opt<bool, false> InlineErrorCheck("inline-error-check", llvm::cl::desc("Generate an immediate error check after every OpenCL runtime call."), llvm::cl::value_desc("<true/false>"), llvm::cl::init(true));
-llvm::cl::opt<bool, false> OverwriteFiles("overwrite-files", llvm::cl::desc("Instead of trying to replace only MetaCL-generated code in existing output files, simply overwrite them in entirety."), llvm::cl::value_desc("<true/false>"), llvm::cl::init(false));
-raw_ostream * unified_output_c = NULL, * unified_output_h = NULL;
+/** A command line option to specify that all input .cl files should be wrapped by a single pair of host .h/.c files, and the name to use. Defaults to non-unified
+ * \return An Option type that can be queried for the name of the unified output files or "" if none is specified
+ */
+llvm::cl::opt<std::string, false> UnifiedOutputFile(
+  "unified-output-file", /// < The option's name
+  llvm::cl::desc("If a filename is provided, all kernel files will generate a single set of host wrappers, instead of one per file."), /// < The option's help text
+  llvm::cl::value_desc("<\"filename\">"), /// < The option's value description
+  llvm::cl::init("") /// < The option defaults to an empty string (which is treated as non-unified mode)
+);
+/**
+ * A command line option to control generation of error checks on all OpenCL Runtime calls. Disabling may slightly reduce runtime overhead for already-validated codes. Not recommended for development codes. Defaults to true 
+ * \return An Option type that can be queried for whether inline error checking should be performed
+ */
+llvm::cl::opt<bool, false> InlineErrorCheck(
+  "inline-error-check", /// < The name of the option
+   llvm::cl::desc("Generate an immediate error check after every OpenCL runtime call."), /// The option's help text
+  llvm::cl::value_desc("<true/false>"), /// < Description of the option as a boolean
+  llvm::cl::init(true) /// < The option defaults to true
+);
+/** A command line option to instruct MetaCL it is safe to overwrite existing files with the same name as those that would be generated. If False, will attempt to only replace generated code in same-named outputs.
+ * \return An Option that can be queried for whether MetaCL should just overwrite existing files with the same name as its output(s), or should instead try to just replace generated code within identically-named files
+ * \todo TODO Implement: For now effectively hardcoded to TRUE.
+ */
+llvm::cl::opt<bool, false> OverwriteFiles(
+  "overwrite-files", /// < The option's name
+  llvm::cl::desc("Instead of trying to replace only MetaCL-generated code in existing output files, simply overwrite them in entirety."), /// < The option's help text
+  llvm::cl::value_desc("<true/false>"), /// < The option's value description
+  llvm::cl::init(false) /// < Once implemeted the option will default to false (try to replace a generated region of a file, rather than the whole file)
+);
 
+/** The unified-output .c file's buffer */
+raw_ostream * unified_output_c = NULL;
+/** The unified-output .h file's buffer */
+raw_ostream * unified_output_h = NULL;
+
+/**
+ * \brief Per-input-file storage struct for generated code
+ * 
+ * Separately stores all the one-time init/deinit code for a given input
+ *  in addition to vectors of all the cl_kernels and their respective init
+ *  and deinit code.
+ * Additionally, stores all generated wrapper functions and their respective
+ *  prototypes, and pointers to the appropriate .h and.c output files, to be
+ *  used when not running in unified output mode.
+ */
 //Meant to store all the boilerplate from a single input kernel file
 typedef struct {
-  //clCreateProgram, clBuildProgram, cl_programs, diagnostics
+  /** metaOpenCLLoadProgramSource, clCreateProgram, clBuildProgram, cl_programs, and associated internal stack management code */
   std::string runOnceInit;
-  //clReleaseProgram
+  /** clReleaseProgram */
   std::string runOnceDeinit;
-  //All the global cl_kernel declarations for an input file
+  /** All the global cl_kernel declarations for an input file */
   std::vector<std::string> cl_kernels;
-  //clCreateKernel
+  /** clCreateKernel and associated safety checks */
   std::vector<std::string> kernelInit;
-  //clReleaseKernel
+  /** clReleaseKernel and associated checks*/
   std::vector<std::string> kernelDeinit;
-  //prototypes of host-side kernel wrappers, indexed by name, with arg string as the value
+  /** prototypes of host-side kernel wrappers, indexed by name, with arg string as the value */
   std::vector<std::string> hostProtos;
-  //Implementations of host-side kernel wrappers (w/o prototypes), indexed by host-side name, with function contents as value
+  /** Implementations of host-side kernel wrappers (w/o prototypes), indexed by host-side name, with function body as value */
   std::vector<std::string> hostFuncImpls;
+  /** Output header file if not running in unified output mode */
   raw_ostream * outfile_h;
+  /** Output implementation file if not running in unified output mode */
   raw_ostream * outfile_c;
 } hostCodeCache;
 
-//Map of all hostCodeCaches (indexed by input filename)
+/** Simple map of all hostCodeCaches (indexed by input filename) */
 std::map<std::string, hostCodeCache *> AllHostCaches;
 
+/**
+ * Implementation of the MatchCallback class to handle all the code generation
+ *  and storage necessary for a given kernel definition
+ */
 class PrototypeHandler : public MatchFinder::MatchCallback {
   public:
+    /**
+     * Simple initialization constructor
+     * \param c_outfile The output implementation buffer
+     * \param h_outfile The output header buffer
+     * \param infile The name of the file this kernel prototype was found in (with path and extension removed)
+     * \return a new prototype handler with output_file_c, output)file_h, and filename appropriately initialized
+     */
     PrototypeHandler(raw_ostream * c_outfile, raw_ostream * h_outfile, std::string infile) : output_file_c(c_outfile), output_file_h(h_outfile), filename(infile) {
       //Any initialization?
     }
     virtual void run(const MatchFinder::MatchResult &Result);
 
+  /**
+   * \brief Simple struct to organize important details about a kernel parameter
+   *
+   */
   typedef struct  {
+    /** The type of a param as represented in the device AST */
     QualType devType;
+    /** The host-compatible type mapped from devType */
     std::string hostType;
+    /** The index of this kernel param */
     unsigned int devPos;
-    //TODO add other flags (restrict, addrspace, etc)
-    //if it is local memory we need the size, not a pointer
+    /** \todo TODO add other flags (restrict, addrspace, etc) */
+    /** if it is local memory we need the size, not a pointer */
     bool isLocal = false;
-    //if it is global or const, we need a pointer (cl_mem)
+    /** if it is global or const, we need a pointer (cl_mem) */
     bool isGlobalOrConst = false;
+    /** The param name, for mapping to the host wrapper prototype */
     std::string name;
   } argInfo;
 
@@ -83,32 +147,52 @@ class PrototypeHandler : public MatchFinder::MatchCallback {
     raw_ostream * output_file_h = NULL;
 };
 
-
-//FIXME this sort was arbitrarily chosen, replace it with something else if it allows types to be used before defined
 namespace std {
+/**
+ * Enforce a simple ordering on QualTypes so they can be used as std::map keys
+ * \todo FIXME this sort was arbitrarily chosen, replace it with something else if it allows types to be used before defined
+ */
 template<> struct less<QualType> {
+ /** Return true if the OpaquePtr for first is less than second's
+  * \param first The first QualType to compare
+  * \param second The second QualType to compare
+  * \return Whether first's opaque pointer is less than second's
+  */
  bool operator()(const QualType first, const QualType second) {
   return (first.getAsOpaquePtr() < second.getAsOpaquePtr());
 }
 };
 }
 
-//For a given Qualtype will do a postorder traversal of all required records and typedefs to ensure they are generated in the given output header file
-//Returns the host-side name of the imported type
+/** Internal storage of generated host-side record and typedef declarations and definitions
+ * The outer map is indexed by output header file, and the inner map is indexed by the device-side QualType
+ */
 std::map<raw_ostream *, std::map<QualType, std::string> > ImportedTypes;
-std::string getHostType(QualType type, ASTContext &Context, raw_ostream * out_header);
+/** Get the host-side name for the device-side QualType
+ * \param type The Device QualType to convert to a host-compatible type string
+ * \return the host-side name of the imported type
+ */
+std::string getHostType(QualType type);
 
+/** For a given Qualtype will do a postorder traversal of all required records and typedefs to ensure they are generated in the given output header file
+ * \param type The Device Qualtype to inspect and import (if necessary)
+ * \param Context The Device ASTContext from which type was pulled
+ * \param out_header The output header's buffer (used to index into ImportedTypes to ensure each user-defined type is only imported once per output header)
+ * \param alreadyImported When recursively importing types with dependencies, inform the callee if the caller is already responsible for importing a type with the same name as the callee (for example in certain typedefd structs the typedef and struct have the same name and should only be imported once as a combined code element)
+ * \return The host-side equivalent type as a string
+ * \post ImportedTypes contains (if it does not already) map of imported types for the provided output header, which itself contains the host-side representation of the provided device QualType and all its dependencies)
+ */
 std::string importTypeDependencies(QualType type, ASTContext &Context, raw_ostream * out_header, bool alreadyImported = false) {
   //If it's a primitive type, don't store anything but convert it to the OpenCL type
   if (isa<BuiltinType>(type)) {
-    return getHostType(type, Context, out_header);
+    return getHostType(type);
   }
 
   //If it's an OpenCL "primitive" type with embedded typedef (like uchar --> unsigned char) don't import it
   //We can recognize these by their presence in Clang's opencl-c.h file
   if (const TypedefType * t = dyn_cast<TypedefType>(type)) {
     if (Context.getSourceManager().getBufferName(t->getDecl()->getLocation()).str().find("opencl-c.h") != std::string::npos) {
-      return getHostType(type, Context, out_header);
+      return getHostType(type);
     }
   }
 
@@ -146,7 +230,7 @@ std::string importTypeDependencies(QualType type, ASTContext &Context, raw_ostre
     if (const TypedefType * t = dyn_cast<TypedefType>(type)) {
       if (!alreadyImported) {
         //This elaborate if simply sorts out records that would be anonymous if not for a surrounding typdef, which must be handled differently
-        //TODO: support unions and enums, any types of records other than struct (Found in TagDecl)
+        /// \todo TODO: support unions and enums, any types of records other than struct (Found in TagDecl)
         if (isa<ElaboratedType>(t->getDecl()->getUnderlyingType()) && isa<RecordType>(type.getSingleStepDesugaredType(Context).getSingleStepDesugaredType(Context)) && dyn_cast<RecordType>(type.getSingleStepDesugaredType(Context).getSingleStepDesugaredType(Context))->getDecl()->getTypedefNameForAnonDecl() != NULL) {
           std::string structName = dyn_cast<RecordType>(type.getSingleStepDesugaredType(Context).getSingleStepDesugaredType(Context))->getDecl()->getTypedefNameForAnonDecl()->getName();
           //This first branch deals with a singular typedef that defines multiple types pointing to the same anonymous struct, all but the first will be generated as separate decls
@@ -218,9 +302,9 @@ std::string importTypeDependencies(QualType type, ASTContext &Context, raw_ostre
   //Anything that isn't caught by the builtin, OpenCL, and array filters is going to preserve it's own name
   return type.getAsString();
 }
-std::string getHostType(QualType devType, ASTContext &Context, raw_ostream * stream) {
+std::string getHostType(QualType devType) {
   std::string retType = "";
-  //TODO handle types that don't directly map to a cl_type (images, vectors)
+  /// \todo TODO handle types that don't directly map to a cl_type (images, vectors)
   retType += "cl_";
   std::string canon = devType.getAsString();
   std::string::size_type pos;
@@ -233,45 +317,70 @@ std::string getHostType(QualType devType, ASTContext &Context, raw_ostream * str
     canon.erase(pos, 32);
   }
 
-  //FIXME Technically Clang should catch bool struct elements (and it does if it's directly a parameter, but not if the param is a pointer to a struct with a bool in it)
+  /// \todo FIXME Technically Clang should catch bool struct elements (and it does if it's directly a parameter, but not if the param is a pointer to a struct with a bool in it)
   if (canon == "_Bool") return "\n#error passing a boolean through a pointer or struct pointer in OpenCL is undefined\ncl_" + canon;
   
   return "cl_" + canon;
 }
 
+/**
+ * Fully analyze a device kernel parameter and cache any necessary generated host-side user-defined types
+ * \param devParam A device kernel parameter to analyze
+ * \param Context the ASTContext from which we pulled the devParam
+ * \param stream the output header file's buffer for caching any necessary dependent types
+ * \post any user-defined type dependencies needed for the devParam are imported to the output host header file (if not already)
+ * \return a data structure describing the host-requirements of the parameter's device type
+ */
 PrototypeHandler::argInfo * analyzeDevParam(ParmVarDecl * devParam, ASTContext &Context, raw_ostream * stream) {
   PrototypeHandler::argInfo * retArg = new PrototypeHandler::argInfo();
   //Detect the type of the device parameter
   retArg->devType = devParam->getType();
   //If it is a pointer type, add address space flags
-  //FIXME Deal with NULL TypePtr
+  /// \todo FIXME Deal with NULL TypePtr
   if (retArg->devType->isAnyPointerType()) {
     clang::LangAS addrSpace = retArg->devType->getPointeeType().getAddressSpace();
     if (addrSpace == LangAS::opencl_local) retArg->isLocal = true;
     if (addrSpace == LangAS::opencl_global || addrSpace == LangAS::opencl_constant) retArg->isGlobalOrConst = true;
     retArg->hostType = importTypeDependencies(retArg->devType->getPointeeType().getUnqualifiedType(), Context, stream);
-  //retArg->hostType = getHostType(retArg->devType, Context, stream);
+  //retArg->hostType = getHostType(retArg->devType);
   } else {
     retArg->hostType = importTypeDependencies(retArg->devType.getUnqualifiedType(), Context, stream);
   }
   //borrow the name
   retArg->name = devParam->getNameAsString();
-  //TODO grab any additional flags we need to keep in mind (restrict, constant, address space etc)
+  /// \todo TODO grab any additional param qualifiers we need to keep in mind (restrict, constant, address space etc)
   return retArg;
 }
 
+/**
+ * Remove the leading path and tailing type extension from a filename
+ * \param in A full filename with type extension and path
+ * \return Just the filename with type and path information removed
+ * \todo TODO handle filenames without a forward slash or period
+ */
 std::string trimFileSlashesAndType(std::string in) {
       size_t dotPos = in.rfind('.');
       size_t slashPos = in.rfind('/') + 1;
-	//TODO handle missing dot or slash
       return in.substr(slashPos, dotPos-slashPos);
 }
 
+
+/**
+ * \brief Generate host wrapper, init, and deinit for each found kernel definition
+ *
+ * For each Matched kernel definition:
+ *  Create a cl_kernel based on input filename and kernel name
+ *  Create appropriate clCreateKernel initialization and safety checks
+ *  Create appropriate clReleaseKernel deinit and safety checks
+ *  Create a host side kernel wrapper with all clSetKernelArg and clEnqueue calls
+ *   and associated safety checks
+ * \param Result An ASTMatch for a kernel function prototype to process
+ * \post The hostCodeCache object in AllHostCaches[this::filename] has a cl_kernel and associated wrapper, initialization, and deinitialization boilerplate added to it
+ */
 void PrototypeHandler::run(const MatchFinder::MatchResult &Result) {
   bool singleWorkItem = false;
   const FunctionDecl * func;
   const FunctionDecl * nd_func = NULL;
-  printf("this is metacl");
   std::string outFile = ((UnifiedOutputFile.getValue() == "") ? filename : UnifiedOutputFile.getValue());
   if (func = Result.Nodes.getNodeAs<FunctionDecl>("swi_kernel_def")) {
     singleWorkItem = true;
@@ -279,19 +388,17 @@ void PrototypeHandler::run(const MatchFinder::MatchResult &Result) {
   } else func = Result.Nodes.getNodeAs<FunctionDecl>("kernel_def");
   if (func) {
     //Figure out the host-side name
-    //TODO If the name of the kernel ends in "_<cl_type>", strip it and register it as an explicitly typed kernel (for sharing a host wrapper)
-    //TODO for all other cases, create a new meta_typeless type
+    /// \todo TODO Proposed Feature: If the name of the kernel ends in "_<cl_type>", strip it and register it as an explicitly typed kernel (for sharing a host wrapper) for all other cases, create a new meta_typeless type
       std::string host_func = "meta_gen_opencl_" + filename + "_" + func->getNameAsString();
-    //TODO use the work_group_size information
-    //TODO hoist attribute handliong out to it's own function that returns a single data structure with all the kernel attributes we might need to handle
+    /// \todo TODO hoist attribute handling out to it's own function that returns a single data structure with all the kernel attributes we might need to handle
     unsigned int work_group_size[4] = {1, 1, 1, 0}; //4th member is the type of the size (0 = unspecified, 1 = hint, 2 = required, 3 = intel required)
     for (auto attr : func->getAttrs()) {
-      //TODO Xilinx adds the xcl_max_work_group_size and xcl_zero_global_work_offset attributes to kernels
-      //TODO clang doesn't appear to have the OpenCL pointer nosvm attribute yet
-      //TODO recognize the endian attribute so that if it is explicitly specified, we can warn in the host API
-      //TODO implement handlers for any necessary kernel type attributes
+      /// \todo TODO Xilinx adds the xcl_max_work_group_size and xcl_zero_global_work_offset attributes to kernels
+      /// \todo TODO clang doesn't appear to have the OpenCL pointer nosvm attribute yet
+      /// \todo TODO recognize the endian attribute so that if it is explicitly specified, we can warn in the host API
+      /// \todo TODO implement handlers for any necessary kernel type attributes
       if (VecTypeHintAttr * vecAttr = dyn_cast<VecTypeHintAttr>(attr)) {
-        //TODO do something with it
+        /// \todo TODO do something with VecTypeHintAttrs
         vecAttr->getTypeHint().getAsString();
       } else if (WorkGroupSizeHintAttr * sizeAttr = dyn_cast<WorkGroupSizeHintAttr>(attr)) {
         if (work_group_size[3] < 2) { //Only if we don't already have a required size
@@ -304,11 +411,11 @@ void PrototypeHandler::run(const MatchFinder::MatchResult &Result) {
         }
         llvm::errs() << "Required work group size is (" << work_group_size[0] << ", " << work_group_size[1] << ", " << work_group_size[2] << ")\n";
       } else if (OpenCLIntelReqdSubGroupSizeAttr * subSize = dyn_cast<OpenCLIntelReqdSubGroupSizeAttr>(attr)) {
-        //TODO Do we need to handle it?
-      } //TODO other important kernel attributes
+        /// \todo TODO Handle OpenCLIntelReqdWubGroupSizeAttr
+      } /// \todo TODO Handle other important kernel attributes
     }
-    //TODO implement asynchronous calls (allow it to wait on kernels as well as return event type)
-    //TODO check the prototype for any OpenCL-specific attributes that require the host to behave in a particular way
+    /// \todo TODO implement asynchronous call API (allow wrappers to wait on kernels as well as return event type)
+    /// \todo TODO check the prototype for any remaining OpenCL-specific attributes that require the host to behave in a particular way
     
     //Creating the AST consumer forces all the once-per-input boilerplate to be generated so we don't have to do it here
         hostCodeCache * cache = AllHostCaches[filename];
@@ -316,21 +423,22 @@ void PrototypeHandler::run(const MatchFinder::MatchResult &Result) {
         std::string current_kernel = "__meta_gen_opencl_" + outFile + "_current_" + framed_kernel;
 	cache->cl_kernels.push_back("  cl_kernel " + func->getNameAsString() + "_kernel;\n");
     //Generate a clCreatKernelExpression
-	cache->kernelInit.push_back("    if (__meta_gen_opencl_" + outFile + "_current_frame->" + filename + "_progLen != -1) " + current_kernel + " = clCreateKernel(__meta_gen_opencl_" + outFile + "_current_frame->" + filename + "_prog, \"" + func->getNameAsString() + "\", &createError);\n");
-        cache->kernelInit.push_back(ERROR_CHECK("createError", "OpenCL kernel creation error"));
+	//cache->kernelInit.push_back("    if (__meta_gen_opencl_" + outFile + "_current_frame->" + filename + "_progLen != -1) " + current_kernel + " = clCreateKernel(__meta_gen_opencl_" + outFile + "_current_frame->" + filename + "_prog, \"" + func->getNameAsString() + "\", &createError);\n");
+	cache->kernelInit.push_back("    " + current_kernel + " = clCreateKernel(__meta_gen_opencl_" + outFile + "_current_frame->" + filename + "_prog, \"" + func->getNameAsString() + "\", &createError);\n");
+        cache->kernelInit.push_back(ERROR_CHECK("    ", "createError", "OpenCL kernel creation error"));
     //Generate a clReleaseKernelExpression
-	cache->kernelDeinit.push_back("    releaseError = clReleaseKernel(" + current_kernel + ");\n");
-        cache->kernelDeinit.push_back(ERROR_CHECK("releaseError", "OpenCL kernel release error"));
+	cache->kernelDeinit.push_back("      releaseError = clReleaseKernel(" + current_kernel + ");\n");
+        cache->kernelDeinit.push_back(ERROR_CHECK("      ", "releaseError", "OpenCL kernel release error"));
 
 	//Begin constructing the host wrapper
-	std::string hostProto = "cl_int " + host_func + "(";
+	std::string hostProto = "cl_int " + host_func + " set_args(";
 	std::string setArgs = "";
         std::string doxygen = "/** Automatically-generated by MetaGen-CL\n";
+       /*
         if (singleWorkItem) doxygen += "Kernel function is detected as Single-Work-Item\n";
     doxygen += "\\param queue the cl_command_queue on which to enqueue the kernel\n";
     doxygen += "\\param grid_size a size_t[3] providing the number of workgroups in the X and Y dimensions, and the number of iterations in the Z dimension\n";
     doxygen +="\\param block_size a size_t[3] providing the workgroup size in the X, Y, Z dimensions";
-	
     if (singleWorkItem) {
       doxygen += " (detected as single-work-item, must be {1, 1, 1})\n";
     } else if (work_group_size[3] == 1) {
@@ -340,7 +448,7 @@ void PrototypeHandler::run(const MatchFinder::MatchResult &Result) {
     } else {
       doxygen += "\n";
     }
-
+	*/
     //Add module-registration check/lazy registration
     setArgs += "  if (meta_gen_opencl_" + outFile + "_registration == NULL) meta_register_module(&meta_gen_opencl_" + outFile + "_registry);\n";
     //Query the frame to launch the kernel on from the queue
@@ -352,108 +460,12 @@ void PrototypeHandler::run(const MatchFinder::MatchResult &Result) {
     //Add a per-program check for initialization
     setArgs += "  if (frame->" + filename + "_init != 1) return CL_INVALID_PROGRAM;\n";
 
-        //TODO Add other wrapper fuction parameters
     hostProto += "cl_command_queue queue, ";
+    
+    //hostProto += "cl_command_queue queue, size_t (*grid_size)[3], size_t (*block_size)[3], ";
     setArgs += "  cl_int retCode = CL_SUCCESS;\n";
     //Add pseudo auto-scaling safety code
-    int pos = 0;
-    for (ParmVarDecl * parm : func->parameters()) {
-      //Figure out the host-side representation of the param
-      PrototypeHandler::argInfo * info = analyzeDevParam(parm, *Result.Context, output_file_h);
-      //Add it to the wrapper param list
-      //If it's not local, directly use the host type and get/set the data itself
-      if (info->isGlobalOrConst) {
-        hostProto += "cl_mem * " + info->name + ", ";
-        setArgs += "  retCode = clSetKernelArg(" + framed_kernel + ", " + std::to_string(pos) + ", sizeof(cl_mem), " + info->name + ");\n";
-        setArgs += ERROR_CHECK("retCode", "OpenCL kernel argument assignment error (arg: \\\"" + info->name + "\\\", host wrapper: \\\"" + host_func + "\\\")");
-        doxygen += "\\param " + info->name + " a cl_mem buffer, must internally store " + info->hostType + " types\n";
-      } else if (info->isLocal) { //If it is local, instead create a size variable and set the size of the memory region
-        hostProto += "size_t " + info->name + "_num_local_elems, ";
-        setArgs += "  retCode = clSetKernelArg(" + framed_kernel + ", " + std::to_string(pos) + ", sizeof(" + info->hostType + ") * " + info->name + "_num_local_elems, NULL);\n";
-        setArgs += ERROR_CHECK("retCode", "OpenCL kernel argument assignment error (arg: \\\"" + info->name + "\\\", host wrapper: \\\"" + host_func + "\\\")");
-        doxygen += "\\param " + info->name + "_num_local_elems allocate __local memory space for this many " + info->hostType + " elements\n";
-      } else {
-        hostProto += info->hostType + " " + info->name + ", ";
-        //generate a clSetKernelArg expression
-        setArgs += "  retCode = clSetKernelArg(" + framed_kernel + ", " + std::to_string(pos) + ", sizeof(" + info->hostType + "), &" + info->name + ");\n";
-        setArgs += ERROR_CHECK("retCode", "OpenCL kernel argument assignment error (arg: \\\"" + info->name + "\\\", host wrapper: \\\"" + host_func + "\\\")");
-        doxygen += "\\param " + info->name + " scalar parameter of type \"" + info->hostType + "\"\n";
-      }
-      pos++;
-    }
-    //Remove the extra ", "
-    hostProto.erase(hostProto.size()-2, 2);
-
-        //TODO Add other wrapper function parameters
-    //FIXME For now the MM type is ignored TODO add a a_typeless type to metamorph's type enum
-//    hostProto += ", meta_type_id type, int async, cl_event * event";
-    hostProto += ", int async, cl_event * event";
-//    doxygen += "\\param type the MetaMorph type of the function\n";
-    doxygen += "\\param async whether the kernel should run asynchronously\n";
-    doxygen += "\\param event returns the cl_event corresponding to the kernel launch if run asynchronously\n";
-    //Add the forward declaration now that it's finished
-    cache->hostProtos.push_back(hostProto + ");\n");
-
-    //TODO can we detect work size based on calls to get_global_id, get_local_id, etc?
-    //TODO add enforced host restrictions to doxygen
-    doxygen += "*/\n";
-
-    //Assemble the wrapper definition
-    std::string wrapper = "";
-    wrapper += doxygen + hostProto + ") {\n";
-    //TODO add other initialization
-    //Add the clSetKernelArg calls;
-    wrapper += setArgs;
-    //TODO autodetect work dimensions
-    int workDim = 1;
-    //TODO handle work offset
-    std::string offset = "NULL";
-    //TODO handle worksizes
-    std::string globalSize = "grid", localSize = "block";
-    //TODO handle events
-    std::string eventWaitListSize = "0", eventWaitList = "NULL", retEvent = "event";
-    //Add the launch
-    //TODO Detect if single-work-item from kernel funcs (not just attribute)
-	wrapper += "}\n";
-	cache->hostFuncImpls.push_back(wrapper + "\n");
-	
-	
-	//********************* Start here::
-
-	hostProto = "cl_int enqueue_ker" + host_func + "(";
-	setArgs = "";
-    doxygen = "/** Automatically-generated by MetaGen-CL\n";
-       if (singleWorkItem) doxygen += "Kernel function is detected as Single-Work-Item\n";
-    doxygen += "\\param queue the cl_command_queue on which to enqueue the kernel\n";
-    doxygen += "\\param grid_size a size_t[3] providing the number of workgroups in the X and Y dimensions, and the number of iterations in the Z dimension\n";
-    doxygen +="\\param block_size a size_t[3] providing the workgroup size in the X, Y, Z dimensions";
-    if (singleWorkItem) {
-      doxygen += " (detected as single-work-item, must be {1, 1, 1})\n";
-    } else if (work_group_size[3] == 1) {
-      doxygen += " (work_group_size_hint attribute suggests {" + std::to_string(work_group_size[0]) + ", " + std::to_string(work_group_size[1]) + ", " + std::to_string(work_group_size[2]) + "})\n";
-    } else if (work_group_size[3] == 2) {
-      doxygen += " (reqd_work_group_size attribute requires {" + std::to_string(work_group_size[0]) + ", " + std::to_string(work_group_size[1]) + ", " + std::to_string(work_group_size[2]) + "})\n";
-    } else {
-      doxygen += "\n";
-    }
-
-    //Add module-registration check/lazy registration
-    setArgs += "  if (meta_gen_opencl_" + outFile + "_registration == NULL) meta_register_module(&meta_gen_opencl_" + outFile + "_registry);\n";
-    //Query the frame to launch the kernel on from the queue
-    setArgs += "  struct __meta_gen_opencl_" + outFile + "_frame * frame = __meta_gen_opencl_" + outFile + "_current_frame;\n";
-    setArgs += "  if (queue != NULL) frame = __meta_gen_opencl_" + outFile + "_lookup_frame(queue);\n";
-    //NULL check that the frame is valid
-    setArgs += "  //If the user requests a queue this module doesn't know about, or a NULL queue and there is no current frame\n";
-    setArgs += "  if (frame == NULL) return CL_INVALID_COMMAND_QUEUE;\n"; 
-    //Add a per-program check for initialization
-    setArgs += "  if (frame->" + filename + "_init != 1) return CL_INVALID_PROGRAM;\n";
-
-        //TODO Add other wrapper fuction parameters
-    hostProto += "cl_command_queue queue, size_t (*grid_size)[3], size_t (*block_size)[3], ";
-	hostProto += "int async, cl_event * event";
-	cache->hostProtos.push_back(hostProto + ");\n");
-    setArgs += "  cl_int retCode = CL_SUCCESS;\n";
-    //Add pseudo auto-scaling safety code
+    /*
     setArgs += "  size_t grid[3];\n";
     if (work_group_size[3] == 0 && !singleWorkItem) {
       setArgs += "  size_t block[3] = METAMORPH_OCL_DEFAULT_BLOCK_3D;\n";
@@ -469,12 +481,12 @@ void PrototypeHandler::run(const MatchFinder::MatchResult &Result) {
     setArgs += "    iters = 1;\n";
     setArgs += "  } else {\n";
     if (work_group_size[3] == 1) {
-      setArgs += "    if (!(block[0] == block_size[0] && block[1] == block_size[1] && block[2] == block_size[2])) {\n";
+      setArgs += "    if (!(block[0] == (*block_size)[0] && block[1] == (*block_size)[1] && block[2] == (*block_size)[2])) {\n";
       setArgs += "      fprintf(stderr, \"Warning: kernel " + func->getNameAsString() + " suggests a workgroup size of {" + std::to_string(work_group_size[0]) + ", " + std::to_string(work_group_size[1]) + ", " + std::to_string(work_group_size[2]) + "} at \%s:\%d\\n\", __FILE__, __LINE__);\n";
       setArgs += "    }\n";
 
     } else if (work_group_size[3] == 2 || singleWorkItem) {
-      setArgs += "    if (!(block[0] == block_size[0] && block[1] == block_size[1] && block[2] == block_size[2])";
+      setArgs += "    if (!(block[0] == (*block_size)[0] && block[1] == (*block_size)[1] && block[2] == (*block_size)[2])";
       if (singleWorkItem) setArgs += " && !(grid[0] == 1 && grid[1] == 1 && grid[2] == 1)";
       setArgs += ") {\n";
       setArgs += "      fprintf(stderr, \"Error: kernel " + func->getNameAsString() + " requires a workgroup size of {" + std::to_string(work_group_size[0]) + ", " + std::to_string(work_group_size[1]) + ", " + std::to_string(work_group_size[2]) + "}, aborting launch at \%s:\%d\\n\", __FILE__, __LINE__);\n";
@@ -489,56 +501,187 @@ void PrototypeHandler::run(const MatchFinder::MatchResult &Result) {
     setArgs += "    block[2] = (*block_size)[2];\n";
     setArgs += "    iters = (*grid_size)[2];\n";
     setArgs += "  }\n";
+	*/
+    int pos = 0;
+    for (ParmVarDecl * parm : func->parameters()) {
+      //Figure out the host-side representation of the param
+      PrototypeHandler::argInfo * info = analyzeDevParam(parm, *Result.Context, output_file_h);
+      //Add it to the wrapper param list
+      //If it's not local, directly use the host type and get/set the data itself
+      if (info->isGlobalOrConst) {
+        hostProto += "cl_mem * " + info->name + ", ";
+        setArgs += "  retCode = clSetKernelArg(" + framed_kernel + ", " + std::to_string(pos) + ", sizeof(cl_mem), " + info->name + ");\n";
+        setArgs += ERROR_CHECK("  ", "retCode", "OpenCL kernel argument assignment error (arg: \\\"" + info->name + "\\\", host wrapper: \\\"" + host_func + "\\\")");
+        doxygen += "\\param " + info->name + " a cl_mem buffer, must internally store " + info->hostType + " types\n";
+      } else if (info->isLocal) { //If it is local, instead create a size variable and set the size of the memory region
+        hostProto += "size_t " + info->name + "_num_local_elems, ";
+        setArgs += "  retCode = clSetKernelArg(" + framed_kernel + ", " + std::to_string(pos) + ", sizeof(" + info->hostType + ") * " + info->name + "_num_local_elems, NULL);\n";
+        setArgs += ERROR_CHECK("  ", "retCode", "OpenCL kernel argument assignment error (arg: \\\"" + info->name + "\\\", host wrapper: \\\"" + host_func + "\\\")");
+        doxygen += "\\param " + info->name + "_num_local_elems allocate __local memory space for this many " + info->hostType + " elements\n";
+      } else {
+        hostProto += info->hostType + " " + info->name + ", ";
+        //generate a clSetKernelArg expression
+        setArgs += "  retCode = clSetKernelArg(" + framed_kernel + ", " + std::to_string(pos) + ", sizeof(" + info->hostType + "), &" + info->name + ");\n";
+        setArgs += ERROR_CHECK("  ", "retCode", "OpenCL kernel argument assignment error (arg: \\\"" + info->name + "\\\", host wrapper: \\\"" + host_func + "\\\")");
+        doxygen += "\\param " + info->name + " scalar parameter of type \"" + info->hostType + "\"\n";
+      }
+      pos++;
+    }
+    //Remove the extra ", "
+    setArgs += "  return retCode;\n";
+    hostProto.erase(hostProto.size()-2, 2);
 
-	wrapper ="";
+    /// \todo FIXME Once we have a good way of dealing with explicitly-typed kernels re-add the meta_type_id parameter TODO add a a_typeless type to metamorph's type enum
+//    hostProto += ", meta_type_id type, int async, cl_event * event";
+    hostProto += ", int async, cl_event * event";
+//    doxygen += "\\param type the MetaMorph type of the function\n";
+    doxygen += "\\param async whether the kernel should run asynchronously\n";
+    doxygen += "\\param event returns the cl_event corresponding to the kernel launch if run asynchronously\n";
+    //Add the forward declaration now that it's finished
+    cache->hostProtos.push_back(hostProto + ");\n");
+
+    /// \todo TODO One we enforce any special host restrictions, add to doxygen
+    doxygen += "*/\n";
+
+
+    //Assemble the wrapper definition
+    std::string wrapper = "";
+    wrapper += doxygen + hostProto + ") {\n";
+    //Add the clSetKernelArg calls;
+    wrapper += setArgs;
+    /// \bug TODO workDim should not assume 1D kernels, we need to capture it as a variable and check the provided grid/block
+    int workDim = 1;
+    /// \todo TODO expose and handle work offset
+    std::string offset = "NULL";
+    std::string globalSize = "grid", localSize = "block";
+    /// \todo TODO expose and handle eventWaitLists and retEvents
+    std::string eventWaitListSize = "0", eventWaitList = "NULL", retEvent = "event";
+    wrapper += "}\n";
+    cache->hostFuncImpls.push_back(wrapper + "\n");
+    
+    //New wrapper for calling kernel
+    hostProto = "cl_int " + host_func + "_enqueue_kernel(";
+    setArgs = "";
+     doxygen = "/** Automatically-generated by MetaGen-CL\n";
+    setArgs += "  if (meta_gen_opencl_" + outFile + "_registration == NULL) meta_register_module(&meta_gen_opencl_" + outFile + "_registry);\n";
+    //Query the frame to launch the kernel on from the queue
+    setArgs += "  struct __meta_gen_opencl_" + outFile + "_frame * frame = __meta_gen_opencl_" + outFile + "_current_frame;\n";
+    setArgs += "  if (queue != NULL) frame = __meta_gen_opencl_" + outFile + "_lookup_frame(queue);\n";
+    //NULL check that the frame is valid
+    setArgs += "  //If the user requests a queue this module doesn't know about, or a NULL queue and there is no current frame\n";
+    setArgs += "  if (frame == NULL) return CL_INVALID_COMMAND_QUEUE;\n"; 
+    //Add a per-program check for initialization
+    setArgs += "  if (frame->" + filename + "_init != 1) return CL_INVALID_PROGRAM;\n";
+
+     
+    if (singleWorkItem) doxygen += "Kernel function is detected as Single-Work-Item\n";
+    doxygen += "\\param queue the cl_command_queue on which to enqueue the kernel\n";
+    doxygen += "\\param grid_size a size_t[3] providing the number of workgroups in the X and Y dimensions, and the number of iterations in the Z dimension\n";
+    doxygen +="\\param block_size a size_t[3] providing the workgroup size in the X, Y, Z dimensions";
+    if (singleWorkItem) {
+      doxygen += " (detected as single-work-item, must be {1, 1, 1})\n";
+    } else if (work_group_size[3] == 1) {
+      doxygen += " (work_group_size_hint attribute suggests {" + std::to_string(work_group_size[0]) + ", " + std::to_string(work_group_size[1]) + ", " + std::to_string(work_group_size[2]) + "})\n";
+    } else if (work_group_size[3] == 2) {
+      doxygen += " (reqd_work_group_size attribute requires {" + std::to_string(work_group_size[0]) + ", " + std::to_string(work_group_size[1]) + ", " + std::to_string(work_group_size[2]) + "})\n";
+    } else {
+      doxygen += "\n";
+    }
+	
+    hostProto += "cl_command_queue queue, size_t (*grid_size)[3], size_t (*block_size)[3], ";
+    hostProto += "int async, cl_event * event";
+    cache->hostProtos.push_back(hostProto + ");\n");
+    setArgs += "  cl_int retCode = CL_SUCCESS;\n";
+    setArgs += "  size_t grid[3];\n";
+    if (work_group_size[3] == 0 && !singleWorkItem) {
+      setArgs += "  size_t block[3] = METAMORPH_OCL_DEFAULT_BLOCK_3D;\n";
+    } else if (singleWorkItem) {
+      setArgs += "  size_t block[3] = {1, 1, 1};\n";
+    } else {
+      setArgs += "  size_t block[3] = {" + std::to_string(work_group_size[0]) + ", " + std::to_string(work_group_size[1]) + ", " + std::to_string(work_group_size[2]) + "};\n";
+    }
+    setArgs += "  int iters;\n\n";
+    setArgs += "  //Default runs a single workgroup\n";
+    setArgs += "  if (grid_size == NULL || block_size == NULL) {\n";
+    setArgs += "    grid[0] = block[0];\n    grid[1] = block[1];\n    grid[2] = block[2];\n";
+    setArgs += "    iters = 1;\n";
+    setArgs += "  } else {\n";
+    if (work_group_size[3] == 1) {
+      setArgs += "    if (!(block[0] == (*block_size)[0] && block[1] == (*block_size)[1] && block[2] == (*block_size)[2])) {\n";
+      setArgs += "      fprintf(stderr, \"Warning: kernel " + func->getNameAsString() + " suggests a workgroup size of {" + std::to_string(work_group_size[0]) + ", " + std::to_string(work_group_size[1]) + ", " + std::to_string(work_group_size[2]) + "} at \%s:\%d\\n\", __FILE__, __LINE__);\n";
+      setArgs += "    }\n";
+
+    } else if (work_group_size[3] == 2 || singleWorkItem) {
+      setArgs += "    if (!(block[0] == (*block_size)[0] && block[1] == (*block_size)[1] && block[2] == (*block_size)[2])";
+      if (singleWorkItem) setArgs += " && !(grid[0] == 1 && grid[1] == 1 && grid[2] == 1)";
+      setArgs += ") {\n";
+      setArgs += "      fprintf(stderr, \"Error: kernel " + func->getNameAsString() + " requires a workgroup size of {" + std::to_string(work_group_size[0]) + ", " + std::to_string(work_group_size[1]) + ", " + std::to_string(work_group_size[2]) + "}, aborting launch at \%s:\%d\\n\", __FILE__, __LINE__);\n";
+      setArgs += "      return CL_INVALID_WORK_GROUP_SIZE;\n";
+      setArgs += "    }\n";
+    }
+    setArgs += "    grid[0] = (*grid_size)[0] * (*block_size)[0];\n";
+    setArgs += "    grid[1] = (*grid_size)[1] * (*block_size)[1];\n";
+    setArgs += "    grid[2] = (*block_size)[2];\n";
+    setArgs += "    block[0] = (*block_size)[0];\n";
+    setArgs += "    block[1] = (*block_size)[1];\n";
+    setArgs += "    block[2] = (*block_size)[2];\n";
+    setArgs += "    iters = (*grid_size)[2];\n";
+    setArgs += "  }\n";
+    wrapper ="";
+    //Add the launch
     if (singleWorkItem || (work_group_size[3] != 0 && work_group_size[0] == 1 && work_group_size[1] == 1 && work_group_size[2] == 1)) {
       setArgs += "  retCode = clEnqueueTask(frame->queue, " + framed_kernel + ", " + eventWaitListSize + ", " + eventWaitList + ", " + retEvent + ");\n";
-        setArgs += ERROR_CHECK("retCode", "OpenCL kernel enqueue error (host wrapper: \\\"" + host_func + "\\\")");
+         setArgs+= ERROR_CHECK("  ", "retCode", "OpenCL kernel enqueue error (host wrapper: \\\"" + host_func + "\\\")");
     } else {
       setArgs += "  retCode = clEnqueueNDRangeKernel(frame->queue, " + framed_kernel + ", " + std::to_string(workDim) + ", " + offset + ", " + globalSize + ", " + localSize + ", " + eventWaitListSize + ", " + eventWaitList + ", " + retEvent + ");\n";
-        setArgs += ERROR_CHECK("retCode", "OpenCL kernel enqueue error (host wrapper: \\\"" + host_func + "\\\")");
+        setArgs += ERROR_CHECK("  ", "retCode", "OpenCL kernel enqueue error (host wrapper: \\\"" + host_func + "\\\")");
     }
     setArgs += "  if (!async) {\n";
     setArgs += "    retCode = clFinish(frame->queue);\n";
-    setArgs += ERROR_CHECK("retCode", "OpenCL kernel execution error (host wrapper: \\\"" + host_func + "\\\")");
+    setArgs += ERROR_CHECK("    ", "retCode", "OpenCL kernel execution error (host wrapper: \\\"" + host_func + "\\\")");
     setArgs += "  }\n";
     setArgs += "  return retCode;\n";
+    
+    setArgs += "}\n";
     doxygen += " */\n";
-    //TODO check errors and return codes/events (if sync/async)
+    //Finalize the wrapper
     wrapper += doxygen + hostProto + ") {\n";
-    //TODO add other initialization
     //Add the clSetKernelArg calls;
     wrapper += setArgs;
-    //TODO autodetect work dimensions
-     workDim = 1;
-    //TODO handle work offset
-   offset = "NULL";
-    //TODO handle worksizes
-    globalSize = "grid", localSize = "block";
-    //TODO handle events
-     eventWaitListSize = "0", eventWaitList = "NULL", retEvent = "event";
-    //Add the launch
-    //TODO Detect if single-work-item from kernel funcs (not just attribute)
-	wrapper += "}\n";
-	cache->hostFuncImpls.push_back(wrapper + "\n");
-
-    //Finalize the wrapper
+    /// \bug TODO workDim should not assume 1D kernels, we need to capture it as a variable and check the provided grid/block
+    workDim = 1;
+    /// \todo TODO expose and handle work offset
+     offset = "NULL";
+     globalSize = "grid", localSize = "block";
+    /// \todo TODO expose and handle eventWaitLists and retEvents
+    eventWaitListSize = "0", eventWaitList = "NULL", retEvent = "event";
+    //wrapper += "}\n";
+    cache->hostFuncImpls.push_back(wrapper + "\n");
     
-	
-	
-	
-	//********************* End Here::
   }
 }
 
+/** Simple override to consume kernel ASTs and look for kernels */
 class KernelASTConsumer : public ASTConsumer {
   public:
+    /**
+     * A simple ASTMatcher consumer to catch NDRange and Single Work Item Kernels
+     * \param comp The compiler instance used to generate this AST
+     * \param out_c This input file's output implementation buffer (could be unified or per-input)
+     * \param out_h This input file's output header buffer (could be unified or per-input)
+     * \param file The input filename, trimmed of leading path and trailing filetype extension
+     * \post Matcher has all our ASTMatchers added to it
+     * \post CI contains a pointer to comp
+     */
     KernelASTConsumer(CompilerInstance* comp, raw_ostream * out_c, raw_ostream * out_h, std::string file) : CI(comp) {
       Matcher.addMatcher(
+        /** Looking for functions that are either */
         functionDecl(anyOf(
+          /** A single work item */
           functionDecl(allOf(
             hasAttr(attr::Kind::OpenCLKernel),
             isDefinition(),
+            /** If it calls these functions it won't be treated as SWI by Intel/Altera */
             unless(hasDescendant(callExpr(callee(
               functionDecl(anyOf(
                 hasName("get_global_id"),
@@ -549,15 +692,22 @@ class KernelASTConsumer : public ASTConsumer {
               )).bind("nd_func")
             ))))
           )).bind("swi_kernel_def"),
+          /** An NDRange */
           functionDecl(allOf(
             hasAttr(attr::Kind::OpenCLKernel),
             isDefinition()
           )).bind("kernel_def")
         )),
+      /** When a kernel is found, pass it off to a handler */
       new PrototypeHandler(out_c, out_h, file));
     }
+    /**
+     * Simple override to trigger the ASTMatchers
+     * \param Context the ASTContext we are handling
+     * \post All kernel functions in the AST have been matched, callbacks triggered, and appropriate host code generated and cached
+     */
     void HandleTranslationUnit(ASTContext &Context) override {
-      //TODO Anything that needs to go here?
+      /** \todo TODO Any pre-match actions that need to take place? */
       Matcher.matchAST(Context);
     }
 
@@ -566,22 +716,44 @@ class KernelASTConsumer : public ASTConsumer {
     CompilerInstance * CI;
 };
 
+
+
+/**
+ * \brief Handler for a single .cl input file
+ *
+ * A custom class that allows us to do once-per-input things before
+ *  handling individual kernels
+ * Responsible for:
+ *   creating output files in non-unified mode
+ *   generating and storing init and deinit boilerplate in the global host
+ *    code storage cache
+ */
 class MetaGenCLFrontendAction : public ASTFrontendAction {
   public:
     MetaGenCLFrontendAction() {}
 
-    bool BeginInvocation(CompilerInstance &CompInst) {
-      //TODO, do we need to do anything before parsing like adding headers, etc?
-      return ASTFrontendAction::BeginInvocation(CompInst);
-    }
-
-    void EndSourceFileAction() {
-      //TODO what do we need to do at the end of a file
-    }
-
+//
+//    /** Currently unused mechanism for adding things before parsing */
+//    bool BeginInvocation(CompilerInstance &CompInst) {
+//      // \todo TODO, do we need to do anything before parsing like adding headers, etc?
+//      return ASTFrontendAction::BeginInvocation(CompInst);
+//    }
+//
+//    /** Currently unused mechanism for doing extra things after parsing */
+//    void EndSourceFileAction() {
+//      // \todo TODO what do we need to do at the end of a file
+//    }
+//
+    /**
+     * Create output files (if not unified) and all once-per-input boilerplate
+     *  (i.e. context management structs, cl_programs, program init/deinit)
+     * \param CI The CompilerInstance used to generate the AST we're going to consumer
+     * \param infile The input file that was parsed to generate the AST, with path and filetype extension
+     * \return a new KernelASTConsumer to Match all the kernel functions
+     * \post AllHostCodeCaches[trimFileSlashesAndType(infile.str()) contains a hostCodeCache with all the once-per-input-file boilerplate already generated
+     * \post If running in non-unified-output mode, buffers for both .c and .h outputs with the same name as infile are created and added to the hostCodeCache object
+     */
     std::unique_ptr<ASTConsumer> CreateASTConsumer(CompilerInstance &CI, StringRef infile) override {
-      //TODO Do we need to do anything between parsing and AST Traversal?
-      //TODO all this stuff needs to be moved
       //generate the cl_program
        //At the beginning of processing each new file, create the associated once-per-input-file boilerplate
        //By looking up the host code cache in the map, we force it to exist so we can populate it
@@ -593,35 +765,34 @@ class MetaGenCLFrontendAction : public ASTFrontendAction {
       
       hostCodeCache * cache = AllHostCaches[file] = new hostCodeCache();
       //Add the core boilerplate to the hostCode cache
-      //TODO add a function to metamorph for human-readable OpenCL error codes
-      cache->runOnceInit += "#ifdef WITH_INTELFPGA\n";
-      //TODO enforce Intel name filtering to remove "kernel"
-      //TODO allow them to configure the source path in an environment variable?
-      cache->runOnceInit += "  __meta_gen_opencl_" + outFile + "_current_frame->" + file + "_progLen = metaOpenCLLoadProgramSource(\"" + file + ".aocx\", &__meta_gen_opencl_" + outFile + "_current_frame->" + file + "_progSrc);\n";
+      /// \todo TODO add a function to metamorph for human-readable OpenCL error codes
+      cache->runOnceInit += "  if ((vendor & meta_cl_device_is_accel) && ((vendor & meta_cl_device_vendor_mask) == meta_cl_device_vendor_intelfpga)) {\n";
+      /// \todo TODO enforce Intel name filtering to remove "kernel"
+      cache->runOnceInit += "    __meta_gen_opencl_" + outFile + "_current_frame->" + file + "_progLen = metaOpenCLLoadProgramSource(\"" + file + ".aocx\", &__meta_gen_opencl_" + outFile + "_current_frame->" + file + "_progSrc);\n";
+      cache->runOnceInit += "    if (__meta_gen_opencl_" + outFile + "_current_frame->" + file + "_progLen != -1)\n";
+      cache->runOnceInit += "      __meta_gen_opencl_" + outFile + "_current_frame->" + file + "_prog = clCreateProgramWithBinary(meta_context, 1, &meta_device, &__meta_gen_opencl_" + outFile + "_current_frame->" + file + "_progLen, (const unsigned char **)&__meta_gen_opencl_" + outFile + "_current_frame->" + file + "_progSrc, NULL, &buildError);\n";
+      cache->runOnceInit += "  } else {\n";
+      cache->runOnceInit += "    __meta_gen_opencl_" + outFile + "_current_frame->" + file + "_progLen = metaOpenCLLoadProgramSource(\"" + file + ".cl\", &__meta_gen_opencl_" + outFile + "_current_frame->" + file + "_progSrc);\n";
+      cache->runOnceInit += "    if (__meta_gen_opencl_" + outFile + "_current_frame->" + file + "_progLen != -1)\n";
+      cache->runOnceInit += "      __meta_gen_opencl_" + outFile + "_current_frame->" + file + "_prog = clCreateProgramWithSource(meta_context, 1, &__meta_gen_opencl_" + outFile + "_current_frame->" + file + "_progSrc, &__meta_gen_opencl_" + outFile + "_current_frame->" + file + "_progLen, &buildError);\n";
+      cache->runOnceInit += "  }\n";
       cache->runOnceInit += "  if (__meta_gen_opencl_" + outFile + "_current_frame->" + file + "_progLen != -1) {\n";
-      cache->runOnceInit += "     __meta_gen_opencl_" + outFile + "_current_frame->" + file + "_prog = clCreateProgramWithBinary(meta_context, 1, &meta_device, &__meta_gen_opencl_" + outFile + "_current_frame->" + file + "_progLen, (const unsigned char **)&__meta_gen_opencl_" + outFile + "_current_frame->" + file + "_progSrc, NULL, &buildError);\n";
-      cache->runOnceInit += "#else\n";
-      //TODO allow them to configure the source path in an environment variable?
-      cache->runOnceInit += "  __meta_gen_opencl_" + outFile + "_current_frame->" + file + "_progLen = metaOpenCLLoadProgramSource(\"" + file + ".cl\", &__meta_gen_opencl_" + outFile + "_current_frame->" + file + "_progSrc);\n";
-      cache->runOnceInit += "  if (__meta_gen_opencl_" + outFile + "_current_frame->" + file + "_progLen != -1) {\n";
-      cache->runOnceInit += "    __meta_gen_opencl_" + outFile + "_current_frame->" + file + "_prog = clCreateProgramWithSource(meta_context, 1, &__meta_gen_opencl_" + outFile + "_current_frame->" + file + "_progSrc, &__meta_gen_opencl_" + outFile + "_current_frame->" + file + "_progLen, &buildError);\n";
-      cache->runOnceInit += "#endif\n";
-      cache->runOnceInit += ERROR_CHECK("buildError", "OpenCL program creation error");
+      cache->runOnceInit += ERROR_CHECK("    ", "buildError", "OpenCL program creation error");
       cache->runOnceInit += "    buildError = clBuildProgram(__meta_gen_opencl_" + outFile + "_current_frame->" + file + "_prog, 1, &meta_device, __meta_gen_opencl_" + file + "_custom_args ? __meta_gen_opencl_" + file + "_custom_args : \"\", NULL, NULL);\n";
       cache->runOnceInit += "    if (buildError != CL_SUCCESS) {\n";
       cache->runOnceInit += "      size_t logsize = 0;\n";
       cache->runOnceInit += "      clGetProgramBuildInfo(__meta_gen_opencl_" + outFile + "_current_frame->" + file + "_prog, meta_device, CL_PROGRAM_BUILD_LOG, 0, NULL, &logsize);\n";
       cache->runOnceInit += "      char * buildLog = (char *) malloc(sizeof(char) * (logsize + 1));\n";
       cache->runOnceInit += "      clGetProgramBuildInfo(__meta_gen_opencl_" + outFile + "_current_frame->" + file + "_prog, meta_device, CL_PROGRAM_BUILD_LOG, logsize, buildLog, NULL);\n";
-      cache->runOnceInit += ERROR_CHECK("buildError", "OpenCL program build error");
+      cache->runOnceInit += ERROR_CHECK("      ", "buildError", "OpenCL program build error");
       cache->runOnceInit += "      fprintf(stderr, \"Build Log:\\n\%s\\n\", buildLog);\n";
       cache->runOnceInit += "      free(buildLog);\n";
       cache->runOnceInit += "    } else {\n";
       cache->runOnceInit += "      __meta_gen_opencl_" + outFile + "_current_frame->" + file + "_init = 1;\n";
       cache->runOnceInit += "    }\n";
-      cache->runOnceInit += "  }\n";
+//Moved      cache->runOnceInit += "  }\n";
       cache->runOnceDeinit += "      releaseError = clReleaseProgram(__meta_gen_opencl_" + outFile + "_current_frame->" + file + "_prog);\n";
-      cache->runOnceDeinit += ERROR_CHECK("releaseError", "OpenCL program release error"); 
+      cache->runOnceDeinit += ERROR_CHECK("      ", "releaseError", "OpenCL program release error"); 
       cache->runOnceDeinit += "      free(__meta_gen_opencl_" + outFile + "_current_frame->" + file + "_progSrc);\n";
       cache->runOnceDeinit += "      __meta_gen_opencl_" + outFile + "_current_frame->" + file + "_progLen = 0;\n";
       cache->runOnceDeinit += "      __meta_gen_opencl_" + outFile + "_current_frame->" + file + "_init = 0;\n";
@@ -630,12 +801,13 @@ class MetaGenCLFrontendAction : public ASTFrontendAction {
 	cache->outfile_h = unified_output_h;
       } else {
         std::error_code error_c, error_h;
-        //FIXME: Check error returns;
-	//FIXME Filter off the .cl extension before outfile creation
+        /// \todo FIXME: Check error returns;
+	/// \todo FIXME Filter off the .cl extension before outfile creation
         cache->outfile_c = new llvm::raw_fd_ostream(file + ".c", error_c, llvm::sys::fs::F_None);
 	cache->outfile_h = new llvm::raw_fd_ostream(file + ".h", error_h, llvm::sys::fs::F_None);
         llvm::errs() << error_c.message() << error_h.message();
       }
+
       return llvm::make_unique<KernelASTConsumer>(&CI, cache->outfile_c, cache->outfile_h, file);
     }
 
@@ -643,8 +815,12 @@ class MetaGenCLFrontendAction : public ASTFrontendAction {
     CompilerInstance *CI;
 };
 
-//For each input file in AllHostCaches, fill output files
-//TODO Implement errorcode
+/**
+ * Finish generating all output files by organizing cached code from AllHostCaches
+ * \post All output .c/.h files are generated and flushed
+ * \return An error code informing if anything went wrong
+ * \todo TODO implement sane error codes to detect if anything went wrong
+ */
 int populateOutputFiles() {
   int errcode = 0;
 
@@ -680,7 +856,7 @@ int populateOutputFiles() {
     }
 
     //Emit user-defined types in the header file
-    //FIXME ensure we only get one copy of each in unified mode
+    /// \todo TEST ensure we only get one copy of each in unified mode
     //We use the fileCachePair output .h file as the key since we may be in unified mode but still want to get types from all input files
     for (std::pair<QualType, std::string> t : ImportedTypes[fileCachePair.second->outfile_h]) {
       *out_h << t.second;
@@ -716,7 +892,7 @@ int populateOutputFiles() {
       *out_h << "  cl_device_id device;\n  cl_context context;\n  cl_command_queue queue;\n";
     }
     //Generate the program variable (one per input file)
-    //TODO support one-kernel-per-program convention
+    /// \todo TODO support one-kernel-per-program convention?
     *out_h << "  const char * " << fileCachePair.first << "_progSrc;\n";
     *out_h << "  size_t " << fileCachePair.first << "_progLen;\n";
     *out_h << "  cl_program " << fileCachePair.first << "_prog;\n";
@@ -791,6 +967,7 @@ int populateOutputFiles() {
       *out_c << "  new_frame->queue = meta_queue;\n";
       *out_c << "  new_frame->context = meta_context;\n";
       *out_c << "  __meta_gen_opencl_" << outFileName << "_current_frame = new_frame;\n";
+      *out_c << "  meta_cl_device_vendor vendor = metaOpenCLDetectDevice(new_frame->device);\n";
     }
     //Add the clCreateProgram bits
     *out_c << fileCachePair.second->runOnceInit;
@@ -798,6 +975,8 @@ int populateOutputFiles() {
     for ( std::string kern : fileCachePair.second->kernelInit) {
       *out_c << kern;
     }
+    //Finish the program's creation block
+    *out_c << "  }\n";
     //inhibit registration on subsequent passes in unified mode
     unifiedFirstPass = false;
   }
@@ -891,13 +1070,21 @@ int populateOutputFiles() {
   return errcode;
 }
 
+/**
+ * Simple driver to bootstrap the Clang machinery that reads the input .cl files, and then populates output files with generated code
+ * \param argc The number of command line tokens
+ * \param argv a vector of C strings of all command-line tokens
+ * \return an error code to return to the OS informing whether anything went wrong
+ * \todo TODO Implement sane error codes
+ * \post all input .cl files have been read andd appropriate host implementations and header files generated
+ */
 int main(int argc, const char ** argv) {
   int errcode = 0;
   CommonOptionsParser op(argc, argv, MetaGenCLCategory);
   //If they want unified output, generate the files
   if (UnifiedOutputFile.getValue() != "") {
     std::error_code error;
-    //FIXME Check error returns
+    /// \todo FIXME Check error returns
     unified_output_c = new llvm::raw_fd_ostream(UnifiedOutputFile.getValue() + ".c", error, llvm::sys::fs::F_None);
     unified_output_h = new llvm::raw_fd_ostream(UnifiedOutputFile.getValue() + ".h", error, llvm::sys::fs::F_None);
   }
