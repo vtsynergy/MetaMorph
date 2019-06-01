@@ -53,8 +53,8 @@ CXX := g++
 
 CXXFLAGS := -g -O0 -std=c++11 -fno-rtti
 
-ifeq ($(OS), "ubuntu")
-ifeq ($(VER), "18.04")
+ifeq ($(OS), ubuntu)
+ifeq ($(VER), 18.04)
 #TODO safety check these exist
 CLANG_LDFLAGS := -ltinfo -lz
 endif
@@ -85,7 +85,7 @@ CLANG_LIBS := -L $(LLVM_BUILD_PATH)/lib \
 	-lLLVMBinaryFormat \
 	-lLLVMProfileData \
 	-Wl,--end-group \
-	-lpthread -lz
+	-lpthread
 
 all: metaCL
 
