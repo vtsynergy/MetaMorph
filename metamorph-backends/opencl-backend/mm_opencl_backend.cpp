@@ -188,7 +188,7 @@ cl_int metaOpenCLBuildSingleKernelProgram(metaOpenCLStackFrame * frame, cl_progr
 				TRANSPOSE_TILE_DIM, TRANSPOSE_TILE_BLOCK_ROWS, prog_args);
 
 	}
-	ret |= clBuildProgram(prog, 1, &(frame->device), args,
+	ret |= clBuildProgram(*prog, 1, &(frame->device), args,
 			NULL, NULL);
 	//Let us know if there's any errors in the build process
 	if (ret != CL_SUCCESS) {
