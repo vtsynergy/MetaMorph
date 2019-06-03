@@ -419,9 +419,9 @@ void PrototypeHandler::run(const MatchFinder::MatchResult &Result) {
     
     //Creating the AST consumer forces all the once-per-input boilerplate to be generated so we don't have to do it here
         hostCodeCache * cache = AllHostCaches[filename];
-        std::string framed_kernel = "frame->" + func->getNameAsString() + "_kernel";
+        std::string framed_kernel = "frame->" + filename + "_" + func->getNameAsString() + "_kernel";
         std::string current_kernel = "__meta_gen_opencl_" + outFile + "_current_" + framed_kernel;
-	cache->cl_kernels.push_back("  cl_kernel " + func->getNameAsString() + "_kernel;\n");
+	cache->cl_kernels.push_back("  cl_kernel " + filename + "_" + func->getNameAsString() + "_kernel;\n");
     //Generate a clCreatKernelExpression
 	//cache->kernelInit.push_back("    if (__meta_gen_opencl_" + outFile + "_current_frame->" + filename + "_progLen != -1) " + current_kernel + " = clCreateKernel(__meta_gen_opencl_" + outFile + "_current_frame->" + filename + "_prog, \"" + func->getNameAsString() + "\", &createError);\n");
 	cache->kernelInit.push_back("    " + current_kernel + " = clCreateKernel(__meta_gen_opencl_" + outFile + "_current_frame->" + filename + "_prog, \"" + func->getNameAsString() + "\", &createError);\n");
