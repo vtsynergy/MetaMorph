@@ -543,8 +543,8 @@ void PrototypeHandler::run(const MatchFinder::MatchResult &Result) {
     wrapper += doxygen + hostProto + ") {\n";
     //Add the clSetKernelArg calls;
     wrapper += setArgs;
-    /// \bug TODO workDim should not assume 1D kernels, we need to capture it as a variable and check the provided grid/block
-    int workDim = 1;
+    /// \bug TODO workDim should not assume 3D kernels, we need to capture it from the kernel's attribute or the provided grid/block
+    int workDim = 3;
     /// \todo TODO expose and handle work offset
     std::string offset = "NULL";
     std::string globalSize = "grid", localSize = "block";

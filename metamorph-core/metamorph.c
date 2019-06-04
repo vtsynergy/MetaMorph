@@ -1871,7 +1871,7 @@ a_err meta_crc_cb(a_dim3 * grid_size, a_dim3 * block_size, void * dev_input, int
 #ifdef WITH_TIMERS
 	metaTimerQueueFrame * frame = (metaTimerQueueFrame*)malloc (sizeof(metaTimerQueueFrame));
 	frame->mode = run_mode;
-	frame->size = local_size*get_atype_size(type);
+	frame->size = (*block_size)[0]*get_atype_size(type);
 	frame->name = "CRC";
 #endif
 

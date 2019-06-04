@@ -16,6 +16,7 @@
 #define METAMORPH_OPENCL_BACKEND_H
 
 #ifndef METAMORPH_H
+#define WITH_OPENCL
 #include "../../include/metamorph.h"
 #endif
 
