@@ -768,6 +768,9 @@ metaOpenCLStackFrame * metaOpenCLPopStackFrame() {
 
 //Not meant to be called by users
 __attribute__((destructor)) a_int meta_destroy_OpenCL() {
+#ifdef WITH_TIMERS
+	metaTimersFinish();
+#endif
 	//Deregister all modules that ONLY implement OpenCL
 	int numOCLModules, retModCount;
 	//TODO If we ever make this threadsafe, the deregister function will protect us from re-deregistration

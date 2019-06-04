@@ -1,6 +1,7 @@
 #include "metamorph_timers.h"
 
 metaTimerQueue metaBuiltinQueues[queue_count];
+a_bool __meta_timers_initialized = false;
 
 a_err cl_get_event_node(metaTimerQueue * queue, char * ename, metaTimerQueueFrame ** frame)
 {
@@ -83,6 +84,7 @@ printf("POI profiling event '%s' (timer side) %lu\n",temp->name,start_time);
 //Take a copy of the frame and insert it on to the selected queue.
 // Do nothing else with the frame, the caller should handle releasing it.
 a_err metaTimerEnqueue(metaTimerQueueFrame * frame, metaTimerQueue * queue) {
+	if (!__meta_timers_initialized) metaTimersInit();
 	//allocate a new node - still in the thread-private allocated state
 	metaTimerQueueNode * newnode = (metaTimerQueueNode*) malloc(
 			sizeof(metaTimerQueueNode));
@@ -116,6 +118,7 @@ a_err metaTimerEnqueue(metaTimerQueueFrame * frame, metaTimerQueue * queue) {
 //Take the copy of the front frame on the queue, and then remove it from the queue
 // Do nothing else with the frame's copy, the caller should allocate and free it.
 a_err metaTimerDequeue(metaTimerQueueFrame ** frame, metaTimerQueue * queue) {
+	if (!__meta_timers_initialized) metaTimersInit();
 	//TODO add a check to make sure the caller actually allocated the frame
 	//TODO make this dequeue hazard-aware 
 	int count = 0;
@@ -155,6 +158,7 @@ a_err metaTimerDequeue(metaTimerQueueFrame ** frame, metaTimerQueue * queue) {
 // Library Call, and should never be called again. If called a second time before
 // metaTimersFinish is called, will be a silent NOOP.
 a_err metaTimersInit() {
+	if (__meta_timers_initialized) return -1;
 	//Each builtin queue needs one of these pairs
 	// try to use the enum ints/names to minimize changes if new members
 	// are added to the enum
@@ -257,6 +261,8 @@ a_err metaTimersInit() {
 	metaBuiltinQueues[k_crc].head->mode = metaModeUnset;
 	metaBuiltinQueues[k_crc].head->next = NULL;
 	metaBuiltinQueues[k_crc].name = "crc kernel call";
+
+	__meta_timers_initialized = true;
 }
 
 //Workhorse that loops over a queue until it receives an empty signal
