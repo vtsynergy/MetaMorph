@@ -462,7 +462,7 @@ void PrototypeHandler::run(const MatchFinder::MatchResult &Result) {
     hostProto += "cl_command_queue queue, size_t (*grid_size)[3], size_t (*block_size)[3], ";
     setArgs += "  cl_int retCode = CL_SUCCESS;\n";
     //Add pseudo auto-scaling safety code
-	setArgs += "  bool nullBlock = (block_size != NULL && (*block_size)[0] == 0 && (*block_size)[1] == 0 && (*block_size)[2] == 0);\n";
+	setArgs += "  a_bool nullBlock = (block_size != NULL && (*block_size)[0] == 0 && (*block_size)[1] == 0 && (*block_size)[2] == 0);\n";
     setArgs += "  size_t grid[3];\n";
     if (work_group_size[3] == 0 && !singleWorkItem) {
       setArgs += "  size_t block[3] = METAMORPH_OCL_DEFAULT_BLOCK_3D;\n";
@@ -492,7 +492,7 @@ void PrototypeHandler::run(const MatchFinder::MatchResult &Result) {
     }
     setArgs += "    grid[0] = (*grid_size)[0] * (nullBlock ? 1 : (*block_size)[0]);\n";
     setArgs += "    grid[1] = (*grid_size)[1] * (nullBlock ? 1 : (*block_size)[1]);\n";
-    setArgs += "    grid[2] = (nullBlock ? : 1 (*block_size)[2]);\n";
+    setArgs += "    grid[2] = (nullBlock ? 1 : (*block_size)[2]);\n";
     setArgs += "    block[0] = (*block_size)[0];\n";
     setArgs += "    block[1] = (*block_size)[1];\n";
     setArgs += "    block[2] = (*block_size)[2];\n";
