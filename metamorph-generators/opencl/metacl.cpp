@@ -459,7 +459,7 @@ void PrototypeHandler::run(const MatchFinder::MatchResult &Result) {
     //Add a per-program check for initialization
     setArgs += "  if (frame->" + filename + "_init != 1) return CL_INVALID_PROGRAM;\n";
 
-    hostProto += "cl_command_queue queue, size_t (*grid_size)[3], size_t (*block_size)[3], ";
+    hostProto += "cl_command_queue queue, size_t (*grid_size)[3], size_t (*block_size)[3], size_t (*offset)[3], ";
     setArgs += "  cl_int retCode = CL_SUCCESS;\n";
     //Add pseudo auto-scaling safety code
 	setArgs += "  a_bool nullBlock = (block_size != NULL && (*block_size)[0] == 0 && (*block_size)[1] == 0 && (*block_size)[2] == 0);\n";
@@ -547,7 +547,7 @@ void PrototypeHandler::run(const MatchFinder::MatchResult &Result) {
     /// \bug TODO workDim should not assume 3D kernels, we need to capture it from the kernel's attribute or the provided grid/block
     int workDim = 3;
     /// \todo TODO expose and handle work offset
-    std::string offset = "NULL";
+
     std::string globalSize = "grid", localSize = "(nullBlock ? NULL : block)";
     /// \todo TODO expose and handle eventWaitLists and retEvents
     std::string eventWaitListSize = "0", eventWaitList = "NULL", retEvent = "event";
