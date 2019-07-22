@@ -492,7 +492,7 @@ void PrototypeHandler::run(const MatchFinder::MatchResult &Result) {
     }
     setArgs += "    grid[0] = (*grid_size)[0] * (nullBlock ? 1 : (*block_size)[0]);\n";
     setArgs += "    grid[1] = (*grid_size)[1] * (nullBlock ? 1 : (*block_size)[1]);\n";
-    setArgs += "    grid[2] = (nullBlock ? 1 : (*block_size)[2]);\n";
+    setArgs += "    grid[2] = (*grid_size)[2] * (nullBlock ? 1 : (*block_size)[2]);\n";
     setArgs += "    block[0] = (*block_size)[0];\n";
     setArgs += "    block[1] = (*block_size)[1];\n";
     setArgs += "    block[2] = (*block_size)[2];\n";
