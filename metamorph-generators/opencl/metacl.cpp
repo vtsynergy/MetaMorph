@@ -546,7 +546,6 @@ void PrototypeHandler::run(const MatchFinder::MatchResult &Result) {
     wrapper += setArgs;
     /// \bug TODO workDim should not assume 3D kernels, we need to capture it from the kernel's attribute or the provided grid/block
     int workDim = 3;
-    /// \todo TODO expose and handle work offset
 
     std::string globalSize = "grid", localSize = "(nullBlock ? NULL : block)";
     /// \todo TODO expose and handle eventWaitLists and retEvents
@@ -556,7 +555,7 @@ void PrototypeHandler::run(const MatchFinder::MatchResult &Result) {
       wrapper += "  retCode = clEnqueueTask(frame->queue, " + framed_kernel + ", " + eventWaitListSize + ", " + eventWaitList + ", " + retEvent + ");\n";
         wrapper += ERROR_CHECK("  ", "retCode", "OpenCL kernel enqueue error (host wrapper: \\\"" + host_func + "\\\")");
     } else {
-      wrapper += "  retCode = clEnqueueNDRangeKernel(frame->queue, " + framed_kernel + ", " + std::to_string(workDim) + ", " + offset + ", " + globalSize + ", " + localSize + ", " + eventWaitListSize + ", " + eventWaitList + ", " + retEvent + ");\n";
+      wrapper += "  retCode = clEnqueueNDRangeKernel(frame->queue, " + framed_kernel + ", " + std::to_string(workDim) + ", offset, " + globalSize + ", " + localSize + ", " + eventWaitListSize + ", " + eventWaitList + ", " + retEvent + ");\n";
         wrapper += ERROR_CHECK("  ", "retCode", "OpenCL kernel enqueue error (host wrapper: \\\"" + host_func + "\\\")");
     }
     wrapper += "  if (!async) {\n";
