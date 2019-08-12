@@ -5,7 +5,7 @@
 
 #Configure root directories (usually just wherever you pulled MetaMorph and run the makefile from)
 ifndef MM_DIR
-export MM_DIR=$(shell pwd)
+export MM_DIR=$(shell pwd | sed 's/ /\\ /g')
 endif
 export MM_CORE=$(MM_DIR)/metamorph-core
 export MM_MP=$(MM_DIR)/metamorph-backends/openmp-backend
@@ -18,7 +18,6 @@ export MM_LIB=$(MM_DIR)/lib
 MM_AOCX_DIR=$(MM_LIB)
 
 export MM_GEN_CL=$(MM_DIR)/metamorph-generators/opencl
-
 #check if 64-bit libs should be used
 ifeq ($(shell arch),x86_64)
 ARCH_64 = x86_64

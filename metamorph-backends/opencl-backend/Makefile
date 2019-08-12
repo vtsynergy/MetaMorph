@@ -144,7 +144,7 @@ ifeq ($(USE_TIMERS),TRUE)
 endif
 
 libmm_opencl_backend.so:
-	g++ mm_opencl_backend.cpp $(OPT_LVL) $(L_FLAGS) $(INCLUDES) -I$(OPENCL_INCL_DIR) -L$(OPENCL_LIB_DIR) -lOpenCL -o $(MM_LIB)/libmm_opencl_backend.so $(CL_DEFS) -shared -Wl,-soname,libmm_opencl_backend.so -DMETAMORPH_OCL_KERNEL_PATH=\"$(shell pwd):$(MM_LIB):.\"
+	g++ mm_opencl_backend.cpp $(OPT_LVL) $(L_FLAGS) $(INCLUDES) -I$(OPENCL_INCL_DIR) -L$(OPENCL_LIB_DIR) -lOpenCL -o $(MM_LIB)/libmm_opencl_backend.so $(CL_DEFS) -shared -Wl,-soname,libmm_opencl_backend.so -DMETAMORPH_OCL_KERNEL_PATH=\"$(shell pwd | sed 's/ /\ /g' | sed 's/\(.*\)/\"\1\"/g'):$(MM_LIB):.\"
 #deprecated
 #libmm_opencl_intelfpga_backend.so: $(FPGA_DEPS)
 #	g++ mm_opencl_intelfpga_backend.cpp $(OPT_LVL) $(L_FLAGS) $(INCLUDES) $(FPGA_DEF) $(AOCL_COMPILE_CONFIG) $(FPGA_LIB) -I$(OPENCL_INCL_DIR) -L$(OPENCL_LIB_DIR) -lOpenCL -o $(MM_LIB)/libmm_opencl_intelfpga_backend.so -D __OPENCLCC__ -shared -Wl,-soname,libmm_opencl_intelfpga_backend.so

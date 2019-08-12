@@ -59,6 +59,9 @@ ifeq ($(VER), 18.04)
 CLANG_LDFLAGS := -ltinfo -lz
 endif
 endif
+ifeq ($(OS), debian)
+CLANG_LDFLAGS := -ltinfo -lz
+endif
 #CLANG_LDFLAGS := `$(LLVM_BIN_PATH)/llvm-config --cxxflags`
 
 CLANG_LIBS := -L $(LLVM_BUILD_PATH)/lib \
