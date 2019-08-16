@@ -466,6 +466,7 @@ cl_int metaOpenCLBuildProgram(metaOpenCLStackFrame * frame) {
 	frame->kernels_init=1;
         //Reinitialize OpenCL add-on modules
         meta_reinitialize_modules(module_implements_opencl);
+	return ret;
 }
 
 //This should not be exposed to the user, just the top and pop functions built on top of it
@@ -739,7 +740,12 @@ metaOpenCLStackFrame * metaOpenCLTopStackFrame() {
 	metaOpenCLStackNode * t = CLStack; //Hazards start
 	//so set a hazard pointer
 	//then copy the node
-	copyStackNodeToFrame(t, &frame);
+	if (CLStack != NULL) {
+		copyStackNodeToFrame(t, &frame);
+	} else {
+		free(frame);
+		return NULL;
+	}
 	//release the hazard pointer
 	//so hazards are over, return the copy and exit
 	return (frame);
@@ -788,6 +794,7 @@ __attribute__((destructor)) a_int meta_destroy_OpenCL() {
 		metaOpenCLDestroyStackFrame(frame);
 		frame = metaOpenCLPopStackFrame();
 	}
+	return 0; //TODO real return code
 }
 
 a_int meta_get_state_OpenCL(cl_platform_id * platform, cl_device_id * device,
@@ -801,6 +808,7 @@ a_int meta_get_state_OpenCL(cl_platform_id * platform, cl_device_id * device,
 		*context = frame->context;
 	if (queue != NULL)
 		*queue = frame->queue;
+	return 0; //TODO real return code
 }
 
 a_int meta_set_state_OpenCL(cl_platform_id platform, cl_device_id device,
@@ -845,7 +853,7 @@ a_int meta_set_state_OpenCL(cl_platform_id platform, cl_device_id device,
 	//push it onto the stack
 	metaOpenCLPushStackFrame(frame);
 	free(frame);
-
+	return 0; //TODO real return code
 }
 
 cl_int metaOpenCLInitStackFrame(metaOpenCLStackFrame ** frame, cl_int device) {
@@ -893,7 +901,7 @@ cl_int metaOpenCLInitStackFrame(metaOpenCLStackFrame ** frame, cl_int device) {
 			CL_MEM_READ_WRITE | CL_MEM_COPY_HOST_PTR, sizeof(cl_int), &zero,
 			NULL);
 	(*frame)->state_init=1;
-
+	return ret;
 }
 
 //calls all the necessary CLRelease* calls for frame members
@@ -903,7 +911,7 @@ cl_int metaOpenCLInitStackFrame(metaOpenCLStackFrame ** frame, cl_int device) {
 //	implement any thread safety, frames should always be thread private, only the stack should be shared, and all franes must be copied to or from stack nodes using the hazard-aware copy methods.
 //	 (more specifically, copying a frame to a node doesn't need to be hazard-aware, as the node cannot be shared unless copied inside the hazard-aware metaOpenCLPushStackFrame. Pop, Top, and copyStackNodeToFrame are all hazard aware and provide a thread-private copy back to the caller.)
 cl_int metaOpenCLDestroyStackFrame(metaOpenCLStackFrame * frame) {
-
+	cl_int ret = CL_SUCCESS;
 	//Since we always calloc the frames, if a kernel or program is uninitialized it will have a value of zero so we can simply safety check the release calls
 	//Release Kernels
 	if (frame->kernel_reduce_db) clReleaseKernel(frame->kernel_reduce_db);
@@ -1089,6 +1097,7 @@ cl_int metaOpenCLDestroyStackFrame(metaOpenCLStackFrame * frame) {
 	free((void *) frame->metaCLProgSrc);
 	frame->metaCLProgLen = 0;
 #endif
+	return ret; //TODO implement real return code
 }
 
 //This is a fallback catchall to ensure some context is initialized
