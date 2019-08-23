@@ -9,7 +9,7 @@ ifneq (, $(shell which lsb_release))
 #TODO provide a last-ditch fallback of building from source
 OS = $(shell lsb_release -si)
 OS := $(shell echo $(OS) | tr '[:upper:]' '[:lower:]')
-ARCH = $(shell uname -m | sed 's/x86_//;s/i[3-6]86/32/')
+ARCH = $(shell uname -m) #| sed 's/x86_//;s/i[3-6]86/32/')
 VER = $(shell lsb_release -sr)
 endif
 endif
