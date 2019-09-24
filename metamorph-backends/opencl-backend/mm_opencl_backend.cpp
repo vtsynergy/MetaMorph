@@ -19,8 +19,8 @@ extern cl_device_id meta_device;
 //Warning, none of these variables are threadsafe, so only one thread should ever
 // perform the one-time scan!!
 cl_uint num_platforms, num_devices;
-cl_platform_id * platforms = NULL;
-cl_device_id * devices = NULL;
+cl_platform_id * __meta_platforms_array = NULL;
+cl_device_id * __meta_devices_array = NULL;
 
 /**
  * Simple data structure to separate the user-exposed concept of OpenCL frames from their storage implementation
@@ -64,10 +64,10 @@ void metaOpenCLQueryDevices() {
 		printf("Failed to query platform count!\n");
 	printf("Number of OpenCL Platforms: %d\n", num_platforms);
 
-	platforms = (cl_platform_id *) malloc(
+	__meta_platforms_array = (cl_platform_id *) malloc(
 			sizeof(cl_platform_id) * (num_platforms + 1));
 
-	if (clGetPlatformIDs(num_platforms, &platforms[0], NULL) != CL_SUCCESS)
+	if (clGetPlatformIDs(num_platforms, &__meta_platforms_array[0], NULL) != CL_SUCCESS)
 		printf("Failed to get platform IDs\n");
 
 	for (i = 0; i < num_platforms; i++) {
@@ -75,29 +75,29 @@ void metaOpenCLQueryDevices() {
 		fprintf(stderr,
 				"OCL DEBUG: clGetDeviceIDs Count query on platform[%d] has address[%x]!\n",
 				i, &temp_uint);
-		if (clGetDeviceIDs(platforms[i], CL_DEVICE_TYPE_ALL, 0, NULL,
+		if (clGetDeviceIDs(__meta_platforms_array[i], CL_DEVICE_TYPE_ALL, 0, NULL,
 				&temp_uint) != CL_SUCCESS)
 			printf("Failed to query device count on platform %d!\n", i);
 		num_devices += temp_uint;
 	}
 	printf("Number of Devices: %d\n", num_devices);
 
-	devices = (cl_device_id *) malloc(sizeof(cl_device_id) * (num_devices + 1));
+	__meta_devices_array = (cl_device_id *) malloc(sizeof(cl_device_id) * (num_devices + 1));
 	temp_uint = 0;
 	for (i = 0; i < num_platforms; i++) {
 		fprintf(stderr,
 				"OCL DEBUG: clGetDeviceIDs IDs query on platform[%d] has addresses[%x][%x]!\n",
-				i, &devices[temp_uint], &temp_uint2);
-		if (clGetDeviceIDs(platforms[i], CL_DEVICE_TYPE_ALL, num_devices,
-				&devices[temp_uint], &temp_uint2) != CL_SUCCESS)
+				i, &__meta_devices_array[temp_uint], &temp_uint2);
+		if (clGetDeviceIDs(__meta_platforms_array[i], CL_DEVICE_TYPE_ALL, num_devices,
+				&__meta_devices_array[temp_uint], &temp_uint2) != CL_SUCCESS)
 			printf("Failed to query device IDs on platform %d!\n", i);
 		temp_uint += temp_uint2;
 		temp_uint2 = 0;
 	}
 
 	//TODO figure out somewhere else to put this, like a terminating callback or something...
-	//free(devices);
-	//free(platforms);
+	//free(__meta_devices_array);
+	//free(__meta_platforms_array);
 }
 
 //Returns the size of the first program with corresponding name found in METAMORPH_OCL_KERNEL_PATH
@@ -861,7 +861,7 @@ cl_int metaOpenCLInitStackFrame(metaOpenCLStackFrame ** frame, cl_int device) {
 	cl_int ret = CL_SUCCESS;
 	//First, make sure we've run the one-time query to initialize the device array.
 	//TODO, fix synchronization on the one-time device query.
-	if (platforms == NULL || devices == NULL || (((long) platforms) == -1)) {
+	if (__meta_platforms_array == NULL || __meta_devices_array == NULL || (((long) __meta_platforms_array) == -1)) {
 		//try to perform the scan, else wait while somebody else finishes it.
 		metaOpenCLQueryDevices();
 	}
@@ -876,7 +876,7 @@ cl_int metaOpenCLInitStackFrame(metaOpenCLStackFrame ** frame, cl_int device) {
 	//TODO implement an intelligent catch for if the device number is out of range
 
 	//copy the chosen device from the array to the new frame
-	(*frame)->device = devices[device];
+	(*frame)->device = __meta_devices_array[device];
 	//reverse lookup the device's platform and add it to the frame
 	clGetDeviceInfo((*frame)->device, CL_DEVICE_PLATFORM,
 			sizeof(cl_platform_id), &((*frame)->platform), NULL);
@@ -1112,7 +1112,7 @@ cl_int metaOpenCLDestroyStackFrame(metaOpenCLStackFrame * frame) {
 cl_int metaOpenCLInitStackFrameDefault(metaOpenCLStackFrame ** frame) {
 	cl_int ret = CL_SUCCESS;
 	//First, make sure we've run the one-time query to initialize the device array
-	if (platforms == NULL || devices == NULL || (((long) platforms) == -1)) {
+	if (__meta_platforms_array == NULL || __meta_devices_array == NULL || (((long) __meta_platforms_array) == -1)) {
 		//try to perform the scan, else wait while somebody else finishes it.
 		metaOpenCLQueryDevices();
 	}
@@ -1123,7 +1123,7 @@ cl_int metaOpenCLInitStackFrameDefault(metaOpenCLStackFrame ** frame) {
 	char buff[128];
 	int i;
 	for (i = 0; i < num_devices; i++) {
-		clGetDeviceInfo(devices[i], CL_DEVICE_NAME, 128, (void *) &buff[0],
+		clGetDeviceInfo(__meta_devices_array[i], CL_DEVICE_NAME, 128, (void *) &buff[0],
 				NULL);
 		fprintf(stderr, "Device [%d]: \"%s\"\n", i, buff);
 	}
@@ -1133,7 +1133,7 @@ cl_int metaOpenCLInitStackFrameDefault(metaOpenCLStackFrame ** frame) {
 	int gpuID = -1;
 
 	if (getenv("TARGET_DEVICE") != NULL) {
-		gpuID = metaOpenCLGetDeviceID(getenv("TARGET_DEVICE"), &devices[0],
+		gpuID = metaOpenCLGetDeviceID(getenv("TARGET_DEVICE"), &__meta_devices_array[0],
 				num_devices);
 		if (gpuID < 0)
 			fprintf(stderr,
@@ -1146,7 +1146,7 @@ cl_int metaOpenCLInitStackFrameDefault(metaOpenCLStackFrame ** frame) {
 
 	gpuID = gpuID < 0 ? 0 : gpuID; //Ternary check to make sure gpuID is valid, if it's less than zero, default to zero, otherwise keep
 
-	clGetDeviceInfo(devices[gpuID], CL_DEVICE_NAME, 128, (void *) &buff[0],
+	clGetDeviceInfo(__meta_devices_array[gpuID], CL_DEVICE_NAME, 128, (void *) &buff[0],
 			NULL);
 	fprintf(stderr, "Selected Device %d: %s\n", gpuID, buff);
 
