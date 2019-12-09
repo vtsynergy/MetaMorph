@@ -459,7 +459,7 @@ void PrototypeHandler::run(const MatchFinder::MatchResult &Result) {
     //Add a per-program check for initialization
     setArgs += "  if (frame->" + filename + "_init != 1) return CL_INVALID_PROGRAM;\n";
 
-    hostProto += "cl_command_queue queue, size_t (*grid_size)[3], size_t (*block_size)[3], size_t (*offset)[3], ";
+    hostProto += "cl_command_queue queue, size_t (*grid_size)[3], size_t (*block_size)[3], size_t (*meta_offset)[3], ";
     setArgs += "  cl_int retCode = CL_SUCCESS;\n";
     //Add pseudo auto-scaling safety code
 	setArgs += "  a_bool nullBlock = (block_size != NULL && (*block_size)[0] == 0 && (*block_size)[1] == 0 && (*block_size)[2] == 0);\n";
@@ -555,7 +555,7 @@ void PrototypeHandler::run(const MatchFinder::MatchResult &Result) {
       wrapper += "  retCode = clEnqueueTask(frame->queue, " + framed_kernel + ", " + eventWaitListSize + ", " + eventWaitList + ", " + retEvent + ");\n";
         wrapper += ERROR_CHECK("  ", "retCode", "OpenCL kernel enqueue error (host wrapper: \\\"" + host_func + "\\\")");
     } else {
-      wrapper += "  retCode = clEnqueueNDRangeKernel(frame->queue, " + framed_kernel + ", " + std::to_string(workDim) + ", offset, " + globalSize + ", " + localSize + ", " + eventWaitListSize + ", " + eventWaitList + ", " + retEvent + ");\n";
+      wrapper += "  retCode = clEnqueueNDRangeKernel(frame->queue, " + framed_kernel + ", " + std::to_string(workDim) + ", meta_offset, " + globalSize + ", " + localSize + ", " + eventWaitListSize + ", " + eventWaitList + ", " + retEvent + ");\n";
         wrapper += ERROR_CHECK("  ", "retCode", "OpenCL kernel enqueue error (host wrapper: \\\"" + host_func + "\\\")");
     }
     wrapper += "  if (!async) {\n";
@@ -830,6 +830,7 @@ int populateOutputFiles() {
       *out_c << "\n";
       //Generate a lookup function to get an initialized frame for the module based on the queue
       //Should this be exposed to the user?
+      *out_h << "struct __meta_gen_opencl_" << outFileName << "_frame * __meta_gen_opencl_" << outFileName << "_lookup_frame(cl_command_queue queue);\n";
       *out_c << "struct __meta_gen_opencl_" << outFileName << "_frame * __meta_gen_opencl_" << outFileName << "_lookup_frame(cl_command_queue queue) {\n";
       *out_c << "  struct __meta_gen_opencl_" << outFileName << "_frame * current = __meta_gen_opencl_" << outFileName << "_current_frame;\n";
       *out_c << "  while (current != NULL) {\n";
