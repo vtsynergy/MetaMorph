@@ -43,6 +43,16 @@ llvm::cl::opt<std::string, false> UnifiedOutputFile(
   llvm::cl::init("") /// < The option defaults to an empty string (which is treated as non-unified mode)
 );
 /**
+ * A command line option to additionally generate separate argument assignment and enqueue functions. Useful if no arguments need to be reset in iterative invocations or if subsets of arguments are assigned at different times. Defaults to false
+ * \return An Option type that can be queried for whether split wrappers should additionally be generated
+ */
+llvm::cl::opt<bool, false> SplitWrappers(
+  "split-wrappers", /// < The name of the option
+   llvm::cl::desc("In addition to combined args+launch wrapper, generate separate argument assignment and enqueue wrappers."), /// The option's help text
+  llvm::cl::value_desc("<true/false>"), /// < Description of the option as a boolean
+  llvm::cl::init(false) /// < The option defaults to true
+);
+/**
  * A command line option to control generation of error checks on all OpenCL Runtime calls. Disabling may slightly reduce runtime overhead for already-validated codes. Not recommended for development codes. Defaults to true 
  * \return An Option type that can be queried for whether inline error checking should be performed
  */
