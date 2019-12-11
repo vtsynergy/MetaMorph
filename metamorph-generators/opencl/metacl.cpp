@@ -5,7 +5,7 @@
  *
  * <a href="../../LICENSE">Please see license information in the main MetaMorph repository</a>
  *
- * MetaGen-CL
+ * MetaCL
  * A tool to consume OpenCL kernel files and produce MetaMorph-compatible
  * host-side wrappers for the contained kernels.
  *
@@ -31,7 +31,7 @@ using namespace clang::tooling;
 /** \deprecated a shorthand way to append a ternary-checked generated error-check string to an existing std::string buffer */
 #define APPEND_ERROR_CHECK(string, indent, errorcode, text) string += ERROR_CHECK(indent, errorcode, text)
 
-static llvm::cl::OptionCategory MetaGenCLCategory("MetaGen-CL Options");
+static llvm::cl::OptionCategory MetaCLCategory("MetaCL Options");
 
 /** A command line option to specify that all input .cl files should be wrapped by a single pair of host .h/.c files, and the name to use. Defaults to non-unified
  * \return An Option type that can be queried for the name of the unified output files or "" if none is specified
@@ -399,7 +399,7 @@ void PrototypeHandler::run(const MatchFinder::MatchResult &Result) {
   if (func) {
     //Figure out the host-side name
     /// \todo TODO Proposed Feature: If the name of the kernel ends in "_<cl_type>", strip it and register it as an explicitly typed kernel (for sharing a host wrapper) for all other cases, create a new meta_typeless type
-      std::string host_func = "meta_gen_opencl_" + filename + "_" + func->getNameAsString();
+      std::string host_func = "metacl_" + filename + "_" + func->getNameAsString();
     /// \todo TODO hoist attribute handling out to it's own function that returns a single data structure with all the kernel attributes we might need to handle
     unsigned int work_group_size[4] = {1, 1, 1, 0}; //4th member is the type of the size (0 = unspecified, 1 = hint, 2 = required, 3 = intel required)
     for (auto attr : func->getAttrs()) {
@@ -428,48 +428,47 @@ void PrototypeHandler::run(const MatchFinder::MatchResult &Result) {
     /// \todo TODO check the prototype for any remaining OpenCL-specific attributes that require the host to behave in a particular way
     
     //Creating the AST consumer forces all the once-per-input boilerplate to be generated so we don't have to do it here
-        hostCodeCache * cache = AllHostCaches[filename];
-        std::string framed_kernel = "frame->" + filename + "_" + func->getNameAsString() + "_kernel";
-        std::string current_kernel = "__meta_gen_opencl_" + outFile + "_current_" + framed_kernel;
-	cache->cl_kernels.push_back("  cl_kernel " + filename + "_" + func->getNameAsString() + "_kernel;\n");
+    hostCodeCache * cache = AllHostCaches[filename];
+    std::string framed_kernel = "frame->" + filename + "_" + func->getNameAsString() + "_kernel";
+    std::string current_kernel = "__metacl_" + outFile + "_current_" + framed_kernel;
+    cache->cl_kernels.push_back("  cl_kernel " + filename + "_" + func->getNameAsString() + "_kernel;\n");
     //Generate a clCreatKernelExpression
-	//cache->kernelInit.push_back("    if (__meta_gen_opencl_" + outFile + "_current_frame->" + filename + "_progLen != -1) " + current_kernel + " = clCreateKernel(__meta_gen_opencl_" + outFile + "_current_frame->" + filename + "_prog, \"" + func->getNameAsString() + "\", &createError);\n");
-	cache->kernelInit.push_back("    " + current_kernel + " = clCreateKernel(__meta_gen_opencl_" + outFile + "_current_frame->" + filename + "_prog, \"" + func->getNameAsString() + "\", &createError);\n");
-        cache->kernelInit.push_back(ERROR_CHECK("    ", "createError", "OpenCL kernel creation error"));
+    cache->kernelInit.push_back("    " + current_kernel + " = clCreateKernel(__metacl_" + outFile + "_current_frame->" + filename + "_prog, \"" + func->getNameAsString() + "\", &createError);\n");
+    cache->kernelInit.push_back(ERROR_CHECK("    ", "createError", "OpenCL kernel creation error"));
     //Generate a clReleaseKernelExpression
-	cache->kernelDeinit.push_back("      releaseError = clReleaseKernel(" + current_kernel + ");\n");
-        cache->kernelDeinit.push_back(ERROR_CHECK("      ", "releaseError", "OpenCL kernel release error"));
+    cache->kernelDeinit.push_back("      releaseError = clReleaseKernel(" + current_kernel + ");\n");
+    cache->kernelDeinit.push_back(ERROR_CHECK("      ", "releaseError", "OpenCL kernel release error"));
 
-	//Strings to assemble common elements
-	//Doxygen header(s)
-	std::string doxygenGeneral = "", doxygenArgs = "", doxygenEnqueue = "";
-	//The launch parameter list
-	std::string launchParams = "";
-	//The argument assignment parameter list
-	std::string kernargParams = "";
-	//The registration/initialization check
-	std::string regCheck = "";
-	//The worksize computation/validation
-	std::string sizeCheck = "";
-	//The actual argument assignments
-	std::string setArgs = "";
-	//The actual kernel invocation and completion
-	std::string enqueue = "";
-	//The kernel wrapping function(s) are completely assembled later
+    //Strings to assemble common elements
+    //Doxygen header(s)
+    std::string doxygenGeneral = "", doxygenArgs = "", doxygenEnqueue = "";
+    //The launch parameter list
+    std::string launchParams = "";
+    //The argument assignment parameter list
+    std::string kernargParams = "";
+    //The registration/initialization check
+    std::string regCheck = "";
+    //The worksize computation/validation
+    std::string sizeCheck = "";
+    //The actual argument assignments
+    std::string setArgs = "";
+    //The actual kernel invocation and completion
+    std::string enqueue = "";
+    //The kernel wrapping function(s) are completely assembled later
 
 
-	//Begin constructing the host wrapper
+    //Begin constructing the host wrapper
 
     //Construct general doxygen
-        doxygenGeneral += "/** Automatically-generated by MetaGen-CL\n";
-        if (singleWorkItem) doxygenGeneral += "Kernel function is detected as Single-Work-Item\n";
+    doxygenGeneral += "/** Automatically-generated by MetaCL\n";
+    if (singleWorkItem) doxygenGeneral += "Kernel function is detected as Single-Work-Item\n";
 
     //Construct the registration and initialization check
     //Add module-registration check/lazy registration
-    regCheck += "  if (meta_gen_opencl_" + outFile + "_registration == NULL) meta_register_module(&meta_gen_opencl_" + outFile + "_registry);\n";
+    regCheck += "  if (metacl_" + outFile + "_registration == NULL) meta_register_module(&metacl_" + outFile + "_registry);\n";
     //Query the frame to launch the kernel on from the queue
-    regCheck += "  struct __meta_gen_opencl_" + outFile + "_frame * frame = __meta_gen_opencl_" + outFile + "_current_frame;\n";
-    regCheck += "  if (queue != NULL) frame = __meta_gen_opencl_" + outFile + "_lookup_frame(queue);\n";
+    regCheck += "  struct __metacl_" + outFile + "_frame * frame = __metacl_" + outFile + "_current_frame;\n";
+    regCheck += "  if (queue != NULL) frame = __metacl_" + outFile + "_lookup_frame(queue);\n";
     //NULL check that the frame is valid
     regCheck += "  //If the user requests a queue this module doesn't know about, or a NULL queue and there is no current frame\n";
     regCheck += "  if (frame == NULL) return CL_INVALID_COMMAND_QUEUE;\n"; 
@@ -510,10 +509,9 @@ void PrototypeHandler::run(const MatchFinder::MatchResult &Result) {
     //At this point we have everything we need to finalize the setArg-only wrapper, do so if we're running with SplitWrappers=true;
     if (SplitWrappers.getValue()) {
       //First, construct the prototype
-      std::string setArgWrapper = hostProto + "_set_args(cl_command_queue queue" + kernargParams + ")";
+      std::string setArgWrapper = "cl_int " + host_func + "_set_args(cl_command_queue queue" + kernargParams + ")";
       //Then add it to the header with the doxygen elements
       cache->hostProtos.push_back(doxygenGeneral + doxygenArgs + " */\n" + setArgWrapper + ";\n");
-
       //Then start assembling the implementation
       setArgWrapper += " {\n";
       //Need the registration and initialization checks in place
@@ -545,9 +543,6 @@ void PrototypeHandler::run(const MatchFinder::MatchResult &Result) {
     }
     doxygenEnqueue += "\\param async whether the kernel should run asynchronously\n";
     doxygenEnqueue += "\\param event returns the cl_event corresponding to the kernel launch if run asynchronously\n";
-    //FIXME Need to generate the unified header again
-    //Add the forward declaration now that it's finished
-    //cache->hostProtos.push_back(hostProto + ");\n");
 
     //Assemble the worksize checking code
     //Add pseudo auto-scaling safety code
@@ -597,7 +592,7 @@ void PrototypeHandler::run(const MatchFinder::MatchResult &Result) {
     std::string eventWaitListSize = "0", eventWaitList = "NULL", retEvent = "event";
     if (singleWorkItem || (work_group_size[3] != 0 && work_group_size[0] == 1 && work_group_size[1] == 1 && work_group_size[2] == 1)) {
       enqueue += "  retCode = clEnqueueTask(frame->queue, " + framed_kernel + ", " + eventWaitListSize + ", " + eventWaitList + ", " + retEvent + ");\n";
-      equeue += ERROR_CHECK("  ", "retCode", "OpenCL kernel enqueue error (host wrapper: \\\"" + host_func + "\\\")");
+      enqueue += ERROR_CHECK("  ", "retCode", "OpenCL kernel enqueue error (host wrapper: \\\"" + host_func + "\\\")");
     } else {
       enqueue += "  retCode = clEnqueueNDRangeKernel(frame->queue, " + framed_kernel + ", " + std::to_string(workDim) + ", meta_offset, " + globalSize + ", " + localSize + ", " + eventWaitListSize + ", " + eventWaitList + ", " + retEvent + ");\n";
       enqueue += ERROR_CHECK("  ", "retCode", "OpenCL kernel enqueue error (host wrapper: \\\"" + host_func + "\\\")");
@@ -611,7 +606,7 @@ void PrototypeHandler::run(const MatchFinder::MatchResult &Result) {
     //At this point we have everything we need to finalize the launch-only wrapper, do so if we're running with SplitWrappers=true
     if(SplitWrappers.getValue()) {
       //First, construct the prototype
-      std::string enqueueWrapper = hostProto + "_enqueue_again(cl_command_queue queue" + launchParams + ")";
+      std::string enqueueWrapper = "cl_int " + host_func + "_enqueue_again(cl_command_queue queue" + launchParams + ")";
       //Then add it to the header with the doxygen elements
       cache->hostProtos.push_back(doxygenGeneral + doxygenEnqueue + " */\n" + enqueueWrapper + ";\n");
 
@@ -630,9 +625,9 @@ void PrototypeHandler::run(const MatchFinder::MatchResult &Result) {
 
 
     //We can now also construct the unified version
-    std::string unifiedWrapper = hostProto + "(cl_command_queue queue" + launchParams + kernargParams + ")";
+    std::string unifiedWrapper = "cl_int " + host_func + "(cl_command_queue queue" + launchParams + kernargParams + ")";
     //Then add it to the header with the doxygen elements
-    cache->hostProtos.push_back(doxygenGeneral + doxygenEnqueue + doxygenArgs + " */\n" + unifiedWrapper + ";\n";
+    cache->hostProtos.push_back(doxygenGeneral + doxygenEnqueue + doxygenArgs + " */\n" + unifiedWrapper + ";\n");
     //Then assemble the implementation
     unifiedWrapper += " {\n";
     //Need the registration and initialization checks in place
@@ -642,7 +637,6 @@ void PrototypeHandler::run(const MatchFinder::MatchResult &Result) {
     //Then we need to assign each of the arguments
     unifiedWrapper += setArgs;
     //Then launch the task/kernel and possibly wait for it to finish
-    unifiedWrapper += enqueue;
     unifiedWrapper += enqueue;
     //Then finalize the function
     unifiedWrapper += "  return retCode;\n}\n";
@@ -718,9 +712,9 @@ class KernelASTConsumer : public ASTConsumer {
  *   generating and storing init and deinit boilerplate in the global host
  *    code storage cache
  */
-class MetaGenCLFrontendAction : public ASTFrontendAction {
+class MetaCLFrontendAction : public ASTFrontendAction {
   public:
-    MetaGenCLFrontendAction() {}
+    MetaCLFrontendAction() {}
 
 //
 //    /** Currently unused mechanism for adding things before parsing */
@@ -758,34 +752,34 @@ class MetaGenCLFrontendAction : public ASTFrontendAction {
       /// \todo TODO add a function to metamorph for human-readable OpenCL error codes
       cache->runOnceInit += "  if ((vendor & meta_cl_device_is_accel) && ((vendor & meta_cl_device_vendor_mask) == meta_cl_device_vendor_intelfpga)) {\n";
       /// \todo TODO enforce Intel name filtering to remove "kernel"
-      cache->runOnceInit += "    __meta_gen_opencl_" + outFile + "_current_frame->" + file + "_progLen = metaOpenCLLoadProgramSource(\"" + file + ".aocx\", &__meta_gen_opencl_" + outFile + "_current_frame->" + file + "_progSrc);\n";
-      cache->runOnceInit += "    if (__meta_gen_opencl_" + outFile + "_current_frame->" + file + "_progLen != -1)\n";
-      cache->runOnceInit += "      __meta_gen_opencl_" + outFile + "_current_frame->" + file + "_prog = clCreateProgramWithBinary(meta_context, 1, &meta_device, &__meta_gen_opencl_" + outFile + "_current_frame->" + file + "_progLen, (const unsigned char **)&__meta_gen_opencl_" + outFile + "_current_frame->" + file + "_progSrc, NULL, &buildError);\n";
+      cache->runOnceInit += "    __metacl_" + outFile + "_current_frame->" + file + "_progLen = metaOpenCLLoadProgramSource(\"" + file + ".aocx\", &__metacl_" + outFile + "_current_frame->" + file + "_progSrc);\n";
+      cache->runOnceInit += "    if (__metacl_" + outFile + "_current_frame->" + file + "_progLen != -1)\n";
+      cache->runOnceInit += "      __metacl_" + outFile + "_current_frame->" + file + "_prog = clCreateProgramWithBinary(meta_context, 1, &meta_device, &__metacl_" + outFile + "_current_frame->" + file + "_progLen, (const unsigned char **)&__metacl_" + outFile + "_current_frame->" + file + "_progSrc, NULL, &buildError);\n";
       cache->runOnceInit += "  } else {\n";
-      cache->runOnceInit += "    __meta_gen_opencl_" + outFile + "_current_frame->" + file + "_progLen = metaOpenCLLoadProgramSource(\"" + file + ".cl\", &__meta_gen_opencl_" + outFile + "_current_frame->" + file + "_progSrc);\n";
-      cache->runOnceInit += "    if (__meta_gen_opencl_" + outFile + "_current_frame->" + file + "_progLen != -1)\n";
-      cache->runOnceInit += "      __meta_gen_opencl_" + outFile + "_current_frame->" + file + "_prog = clCreateProgramWithSource(meta_context, 1, &__meta_gen_opencl_" + outFile + "_current_frame->" + file + "_progSrc, &__meta_gen_opencl_" + outFile + "_current_frame->" + file + "_progLen, &buildError);\n";
+      cache->runOnceInit += "    __metacl_" + outFile + "_current_frame->" + file + "_progLen = metaOpenCLLoadProgramSource(\"" + file + ".cl\", &__metacl_" + outFile + "_current_frame->" + file + "_progSrc);\n";
+      cache->runOnceInit += "    if (__metacl_" + outFile + "_current_frame->" + file + "_progLen != -1)\n";
+      cache->runOnceInit += "      __metacl_" + outFile + "_current_frame->" + file + "_prog = clCreateProgramWithSource(meta_context, 1, &__metacl_" + outFile + "_current_frame->" + file + "_progSrc, &__metacl_" + outFile + "_current_frame->" + file + "_progLen, &buildError);\n";
       cache->runOnceInit += "  }\n";
-      cache->runOnceInit += "  if (__meta_gen_opencl_" + outFile + "_current_frame->" + file + "_progLen != -1) {\n";
+      cache->runOnceInit += "  if (__metacl_" + outFile + "_current_frame->" + file + "_progLen != -1) {\n";
       cache->runOnceInit += ERROR_CHECK("    ", "buildError", "OpenCL program creation error");
-      cache->runOnceInit += "    buildError = clBuildProgram(__meta_gen_opencl_" + outFile + "_current_frame->" + file + "_prog, 1, &meta_device, __meta_gen_opencl_" + file + "_custom_args ? __meta_gen_opencl_" + file + "_custom_args : \"\", NULL, NULL);\n";
+      cache->runOnceInit += "    buildError = clBuildProgram(__metacl_" + outFile + "_current_frame->" + file + "_prog, 1, &meta_device, __metacl_" + file + "_custom_args ? __metacl_" + file + "_custom_args : \"\", NULL, NULL);\n";
       cache->runOnceInit += "    if (buildError != CL_SUCCESS) {\n";
       cache->runOnceInit += "      size_t logsize = 0;\n";
-      cache->runOnceInit += "      clGetProgramBuildInfo(__meta_gen_opencl_" + outFile + "_current_frame->" + file + "_prog, meta_device, CL_PROGRAM_BUILD_LOG, 0, NULL, &logsize);\n";
+      cache->runOnceInit += "      clGetProgramBuildInfo(__metacl_" + outFile + "_current_frame->" + file + "_prog, meta_device, CL_PROGRAM_BUILD_LOG, 0, NULL, &logsize);\n";
       cache->runOnceInit += "      char * buildLog = (char *) malloc(sizeof(char) * (logsize + 1));\n";
-      cache->runOnceInit += "      clGetProgramBuildInfo(__meta_gen_opencl_" + outFile + "_current_frame->" + file + "_prog, meta_device, CL_PROGRAM_BUILD_LOG, logsize, buildLog, NULL);\n";
+      cache->runOnceInit += "      clGetProgramBuildInfo(__metacl_" + outFile + "_current_frame->" + file + "_prog, meta_device, CL_PROGRAM_BUILD_LOG, logsize, buildLog, NULL);\n";
       cache->runOnceInit += ERROR_CHECK("      ", "buildError", "OpenCL program build error");
       cache->runOnceInit += "      fprintf(stderr, \"Build Log:\\n\%s\\n\", buildLog);\n";
       cache->runOnceInit += "      free(buildLog);\n";
       cache->runOnceInit += "    } else {\n";
-      cache->runOnceInit += "      __meta_gen_opencl_" + outFile + "_current_frame->" + file + "_init = 1;\n";
+      cache->runOnceInit += "      __metacl_" + outFile + "_current_frame->" + file + "_init = 1;\n";
       cache->runOnceInit += "    }\n";
 //Moved      cache->runOnceInit += "  }\n";
-      cache->runOnceDeinit += "      releaseError = clReleaseProgram(__meta_gen_opencl_" + outFile + "_current_frame->" + file + "_prog);\n";
+      cache->runOnceDeinit += "      releaseError = clReleaseProgram(__metacl_" + outFile + "_current_frame->" + file + "_prog);\n";
       cache->runOnceDeinit += ERROR_CHECK("      ", "releaseError", "OpenCL program release error"); 
-      cache->runOnceDeinit += "      free(__meta_gen_opencl_" + outFile + "_current_frame->" + file + "_progSrc);\n";
-      cache->runOnceDeinit += "      __meta_gen_opencl_" + outFile + "_current_frame->" + file + "_progLen = 0;\n";
-      cache->runOnceDeinit += "      __meta_gen_opencl_" + outFile + "_current_frame->" + file + "_init = 0;\n";
+      cache->runOnceDeinit += "      free(__metacl_" + outFile + "_current_frame->" + file + "_progSrc);\n";
+      cache->runOnceDeinit += "      __metacl_" + outFile + "_current_frame->" + file + "_progLen = 0;\n";
+      cache->runOnceDeinit += "      __metacl_" + outFile + "_current_frame->" + file + "_init = 0;\n";
       if (unified_output_c != NULL) {
 	cache->outfile_c = unified_output_c;
 	cache->outfile_h = unified_output_h;
@@ -854,8 +848,8 @@ int populateOutputFiles() {
 
     //Generate a space to place arguments (for each input file)
     *out_c << "//TODO: Expose this with a function (with safety checks) rather than a variable\n";
-    *out_c << "const char * __meta_gen_opencl_" << fileCachePair.first << "_custom_args = NULL;\n";
-    *out_h << "extern const char * __meta_gen_opencl_" << fileCachePair.first << "_custom_args;\n";
+    *out_c << "const char * __metacl_" << fileCachePair.first << "_custom_args = NULL;\n";
+    *out_h << "extern const char * __metacl_" << fileCachePair.first << "_custom_args;\n";
     //inhibit header block for the remaining files if unified
     unifiedFirstPass = false;
   }
@@ -864,9 +858,9 @@ int populateOutputFiles() {
   // accumulates across source files
   if (isUnified) {
     //Generate the unified module's OpenCL frame
-    *out_h << "struct __meta_gen_opencl_" << outFileName << "_frame;\n";
-    *out_h << "struct __meta_gen_opencl_" << outFileName << "_frame {\n";
-    *out_h << "  struct __meta_gen_opencl_" << outFileName << "_frame * next_frame;\n";
+    *out_h << "struct __metacl_" << outFileName << "_frame;\n";
+    *out_h << "struct __metacl_" << outFileName << "_frame {\n";
+    *out_h << "  struct __metacl_" << outFileName << "_frame * next_frame;\n";
     *out_h << "  cl_device_id device;\n  cl_context context;\n  cl_command_queue queue;\n";
   }
   for (std::pair<std::string, hostCodeCache *> fileCachePair : AllHostCaches) {
@@ -876,9 +870,9 @@ int populateOutputFiles() {
       out_h = fileCachePair.second->outfile_h;
       outFileName = fileCachePair.first;
       //Generate the module's OpenCL frame
-      *out_h << "struct __meta_gen_opencl_" << outFileName << "_frame;\n";
-      *out_h << "struct __meta_gen_opencl_" << outFileName << "_frame {\n";
-      *out_h << "  struct __meta_gen_opencl_" << outFileName << "frame * next_frame;\n";
+      *out_h << "struct __metacl_" << outFileName << "_frame;\n";
+      *out_h << "struct __metacl_" << outFileName << "_frame {\n";
+      *out_h << "  struct __metacl_" << outFileName << "frame * next_frame;\n";
       *out_h << "  cl_device_id device;\n  cl_context context;\n  cl_command_queue queue;\n";
     }
     //Generate the program variable (one per input file)
@@ -906,13 +900,13 @@ int populateOutputFiles() {
     if (!isUnified || unifiedFirstPass) {
       //Finish the struct (in the header) and create a pointer to this module's active copy
       *out_h << "};\n";
-      *out_c << "struct __meta_gen_opencl_" << outFileName << "_frame * __meta_gen_opencl_" << outFileName << "_current_frame = NULL;\n";
+      *out_c << "struct __metacl_" << outFileName << "_frame * __metacl_" << outFileName << "_current_frame = NULL;\n";
       *out_c << "\n";
       //Generate a lookup function to get an initialized frame for the module based on the queue
       //Should this be exposed to the user?
-      *out_h << "struct __meta_gen_opencl_" << outFileName << "_frame * __meta_gen_opencl_" << outFileName << "_lookup_frame(cl_command_queue queue);\n";
-      *out_c << "struct __meta_gen_opencl_" << outFileName << "_frame * __meta_gen_opencl_" << outFileName << "_lookup_frame(cl_command_queue queue) {\n";
-      *out_c << "  struct __meta_gen_opencl_" << outFileName << "_frame * current = __meta_gen_opencl_" << outFileName << "_current_frame;\n";
+      *out_h << "struct __metacl_" << outFileName << "_frame * __metacl_" << outFileName << "_lookup_frame(cl_command_queue queue);\n";
+      *out_c << "struct __metacl_" << outFileName << "_frame * __metacl_" << outFileName << "_lookup_frame(cl_command_queue queue) {\n";
+      *out_c << "  struct __metacl_" << outFileName << "_frame * current = __metacl_" << outFileName << "_current_frame;\n";
       *out_c << "  while (current != NULL) {\n";
       *out_c << "    if (current->queue == queue) break;\n";
       *out_c << "    current = current->next_frame;\n";
@@ -924,40 +918,40 @@ int populateOutputFiles() {
       *out_h << "#ifdef __cplusplus\n";
       *out_h << "extern \"C\" {\n";
       *out_h << "#endif\n";
-      *out_h << "a_module_record * meta_gen_opencl_" << outFileName << "_registry(a_module_record * record);\n";
-      *out_c << "a_module_record * meta_gen_opencl_" << outFileName << "_registration = NULL;\n";
-      *out_c << "a_module_record * meta_gen_opencl_" << outFileName << "_registry(a_module_record * record) {\n";
-      *out_c << "  if (record == NULL) return meta_gen_opencl_" << outFileName << "_registration;\n";
-      *out_c << "  a_module_record * old_registration = meta_gen_opencl_" << outFileName << "_registration;\n";
+      *out_h << "a_module_record * metacl_" << outFileName << "_registry(a_module_record * record);\n";
+      *out_c << "a_module_record * metacl_" << outFileName << "_registration = NULL;\n";
+      *out_c << "a_module_record * metacl_" << outFileName << "_registry(a_module_record * record) {\n";
+      *out_c << "  if (record == NULL) return metacl_" << outFileName << "_registration;\n";
+      *out_c << "  a_module_record * old_registration = metacl_" << outFileName << "_registration;\n";
       *out_c << "  if (old_registration == NULL) {\n";
       *out_c << "    record->implements = module_implements_opencl;\n";
-      *out_c << "    record->module_init = &meta_gen_opencl_" << outFileName << "_init;\n";
-      *out_c << "    record->module_deinit = &meta_gen_opencl_" << outFileName << "_deinit;\n";
-      *out_c << "    record->module_registry_func = &meta_gen_opencl_" << outFileName << "_registry;\n";
-      *out_c << "    meta_gen_opencl_" << outFileName << "_registration = record;\n";
+      *out_c << "    record->module_init = &metacl_" << outFileName << "_init;\n";
+      *out_c << "    record->module_deinit = &metacl_" << outFileName << "_deinit;\n";
+      *out_c << "    record->module_registry_func = &metacl_" << outFileName << "_registry;\n";
+      *out_c << "    metacl_" << outFileName << "_registration = record;\n";
       *out_c << "  }\n";
       *out_c << "  if (old_registration != NULL && old_registration != record) return record;\n";
-      *out_c << "  if (old_registration == record) meta_gen_opencl_" << outFileName << "_registration = NULL;\n";
+      *out_c << "  if (old_registration == record) metacl_" << outFileName << "_registration = NULL;\n";
       *out_c << "  return old_registration;\n";
       *out_c << "}\n";
       //Generate the initialization wrapper
-      *out_h << "void meta_gen_opencl_" << outFileName << "_init();\n";
-      *out_c << "void meta_gen_opencl_" << outFileName << "_init() {\n";
+      *out_h << "void metacl_" << outFileName << "_init();\n";
+      *out_c << "void metacl_" << outFileName << "_init() {\n";
       *out_c << "  cl_int buildError, createError;\n";
       //Ensure the module is registered
-      *out_c << "  if (meta_gen_opencl_" << outFileName << "_registration == NULL) {\n";
-      *out_c << "    meta_register_module(&meta_gen_opencl_" << outFileName << "_registry);\n";
+      *out_c << "  if (metacl_" << outFileName << "_registration == NULL) {\n";
+      *out_c << "    meta_register_module(&metacl_" << outFileName << "_registry);\n";
       *out_c << "    return;\n";
       *out_c << "  }\n";
       //Ensure a MetaMorph OpenCL state exists
       *out_c << "  if (meta_context == NULL) metaOpenCLFallBack();\n";
       //Ensure a program/kernel storage frame is initialized
-      *out_c << "  struct __meta_gen_opencl_" << outFileName << "_frame * new_frame = (struct __meta_gen_opencl_" << outFileName << "_frame *) calloc(1, sizeof(struct __meta_gen_opencl_" << outFileName << "_frame));\n";
-      *out_c << "  new_frame->next_frame = __meta_gen_opencl_" << outFileName << "_current_frame;\n";
+      *out_c << "  struct __metacl_" << outFileName << "_frame * new_frame = (struct __metacl_" << outFileName << "_frame *) calloc(1, sizeof(struct __metacl_" << outFileName << "_frame));\n";
+      *out_c << "  new_frame->next_frame = __metacl_" << outFileName << "_current_frame;\n";
       *out_c << "  new_frame->device = meta_device;\n";
       *out_c << "  new_frame->queue = meta_queue;\n";
       *out_c << "  new_frame->context = meta_context;\n";
-      *out_c << "  __meta_gen_opencl_" << outFileName << "_current_frame = new_frame;\n";
+      *out_c << "  __metacl_" << outFileName << "_current_frame = new_frame;\n";
       *out_c << "  meta_cl_device_vendor vendor = metaOpenCLDetectDevice(new_frame->device);\n";
     }
     //Add the clCreateProgram bits
@@ -983,22 +977,22 @@ int populateOutputFiles() {
       outFileName = fileCachePair.first;
     }
     if (!isUnified || unifiedFirstPass) {
-      *out_c << "  meta_gen_opencl_" << outFileName << "_registration->initialized = 1;\n";
+      *out_c << "  metacl_" << outFileName << "_registration->initialized = 1;\n";
       *out_c << "}\n\n";
       //Generate the deconstruction wrapper
-      *out_h << "void meta_gen_opencl_" << outFileName << "_deinit();\n";
-      *out_c << "void meta_gen_opencl_" << outFileName << "_deinit() {\n";
+      *out_h << "void metacl_" << outFileName << "_deinit();\n";
+      *out_c << "void metacl_" << outFileName << "_deinit() {\n";
       *out_c << "  cl_int releaseError;\n";
       //Ensure we are deregistered with MetaMorph-core
-//      *out_c << "  if (meta_gen_opencl_" << outFileName << "_registration != NULL) {\n";
-//      *out_c << "    meta_deregister_module(&meta_gen_opencl_" << outFileName << "_registry);\n";
+//      *out_c << "  if (metacl_" << outFileName << "_registration != NULL) {\n";
+//      *out_c << "    meta_deregister_module(&metacl_" << outFileName << "_registry);\n";
 //      *out_c << "    return;\n";
 //      *out_c << "  }\n";
       //Esnure a program/kernel storage frame exists
-      *out_c << "  if (__meta_gen_opencl_" << outFileName << "_current_frame != NULL) {\n";
+      *out_c << "  if (__metacl_" << outFileName << "_current_frame != NULL) {\n";
     }
     //Release all the kernels
-    *out_c << "    if (__meta_gen_opencl_" << outFileName << "_current_frame->" << fileCachePair.first << "_progLen != -1) {\n";
+    *out_c << "    if (__metacl_" << outFileName << "_current_frame->" << fileCachePair.first << "_progLen != -1) {\n";
     for (std::string kern : fileCachePair.second->kernelDeinit) {
       *out_c << kern;
     }
@@ -1021,11 +1015,11 @@ int populateOutputFiles() {
     }
     if (!isUnified || unifiedFirstPass) {
       //Release the program and frame
-      *out_c << "    struct __meta_gen_opencl_" << outFileName << "_frame * next_frame = __meta_gen_opencl_" << outFileName << "_current_frame->next_frame;\n";
-      *out_c << "    free(__meta_gen_opencl_" << outFileName << "_current_frame);\n";
-      *out_c << "    __meta_gen_opencl_" << outFileName << "_current_frame = next_frame;\n";
-      *out_c << "    if (__meta_gen_opencl_" << outFileName << "_current_frame == NULL && meta_gen_opencl_" << outFileName << "_registration != NULL) {\n";
-      *out_c << "      meta_gen_opencl_" << outFileName << "_registration->initialized = 0;\n";
+      *out_c << "    struct __metacl_" << outFileName << "_frame * next_frame = __metacl_" << outFileName << "_current_frame->next_frame;\n";
+      *out_c << "    free(__metacl_" << outFileName << "_current_frame);\n";
+      *out_c << "    __metacl_" << outFileName << "_current_frame = next_frame;\n";
+      *out_c << "    if (__metacl_" << outFileName << "_current_frame == NULL && metacl_" << outFileName << "_registration != NULL) {\n";
+      *out_c << "      metacl_" << outFileName << "_registration->initialized = 0;\n";
       *out_c << "    }\n";
       *out_c << "  }\n";
       //Finish the deinit wrapper
@@ -1071,7 +1065,7 @@ int populateOutputFiles() {
  */
 int main(int argc, const char ** argv) {
   int errcode = 0;
-  CommonOptionsParser op(argc, argv, MetaGenCLCategory);
+  CommonOptionsParser op(argc, argv, MetaCLCategory);
   //If they want unified output, generate the files
   if (UnifiedOutputFile.getValue() != "") {
     std::error_code error;
@@ -1081,7 +1075,7 @@ int main(int argc, const char ** argv) {
   }
   CompilationDatabase& CompDB = op.getCompilations();
   ClangTool Tool(CompDB, op.getSourcePathList());
-  Tool.run(newFrontendActionFactory<MetaGenCLFrontendAction>().get());
+  Tool.run(newFrontendActionFactory<MetaCLFrontendAction>().get());
 
   //After the tool runs, dump all the host code we have cached to appropriate output files.
   errcode = populateOutputFiles();
