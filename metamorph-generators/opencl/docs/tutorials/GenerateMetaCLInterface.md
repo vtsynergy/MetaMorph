@@ -40,6 +40,10 @@ For example `./metaCL A.cl B.cl C.cl -- ...` would produce `A.c` `A.h` `B.c` `B.
 
 `--inline-error-check=<true/false>` (Default: TRUE) This MetaCL option can be used to _disable_ the generation of simple OpenCL Runtime API error checks in generated code, which may trade safety for a slight performance gain. If left on, every generated API call is immediately checked for a returned error. (However `clEnqueue..()` operations are **not** forced to `clFinish()`, rather the return code from the enqueue call is checked.)
 
+`--split-wrappers=<true/false>` (Default: FALSE) This option can be used to _enable_ the generation of two additional wrappers for each kernel. One which only assigns all the kernel arguments (metacl_filename_kernelName_set_args), and one which only invokes the kernel (metacl_filename*kernelName_enqueue_again). This can be useful to pre-assign arguments once for an iterative kernel, without incurring the assignment overhead on subsequent calls.
+
+`--cuda-grid-block=<true/false>` (Default: FALSE) By default, MetaCL generates launch wrappers assuming the execution configuration is specified according to the semantics of OpenCL's global and local worksizes, i.e. total work elements in a dimension, and work elements within a workgroup. By enabling this flag, the wrappers can instead be generated using the CUDA grid/block model, i.e. the total number of work groups in a dimension, and the number of work elements within a workgroup. This can be useful if you are converting an existing CUDA application to OpenCL, or are implementing an application which provides both CUDA and OpenCL implementations. (The MetaMorph API historically uses grid/blcok semantics across all backends, so you may also wish to enable this for consistency if you use any of the built-in kernels.)
+
 
 Common Project-specific compilation arguments
 ---------------------------------------------

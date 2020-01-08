@@ -4,7 +4,7 @@
 
 MetaCL is designed to encapsulate the vast majority of OpenCL's host-side boilerplate within logical explicit wrapper functions, and semi-automatic triggering of initialization and deconstruction work. As such, it is often worthwhile to port an existing application from "pure" OpenCL to MetaCL+MetaMorph to reduce developer workload and streamline application logic.
 
-This tutorial will walk through a typical set of changes necessary for converting an existing pure OpenCL application to use a MetaCL-generated interface and a minimal set of MetaMorph OpenCL support features. It presumes MetaCL and MetaMorph have been installed according to [the installation tutorial](./InstallingMetaCL.md) and a single MetaCL-generated interface `my_metacl_module.c/h` via the `unified-output-file="my_metacl_module"` option detailed in [the MetaCL usage tutorial](./GenerateMetaCLInterface.md).
+This tutorial will walk through a typical set of changes necessary for converting an existing pure OpenCL application to use a MetaCL-generated interface and a minimal set of MetaMorph OpenCL support features. It presumes MetaCL and MetaMorph have been installed according to [the installation tutorial](./InstallingMetaCL.md) and a single MetaCL-generated interface `myModule.c/h` via the `unified-output-file="myModule"` option detailed in [the MetaCL usage tutorial](./GenerateMetaCLInterface.md).
 
 Integrating a MetaCL-ized interface into an existing application typically requires changes to both the build system (few), as well as application code. This tutorial presumes the build system is based on a simple monolithic Makefile.
 
@@ -26,16 +26,16 @@ For convenience and abstraction, the following make variables are used throughou
 One of the benefits of MetaCL is that it allows the OpenCL host-to-device interface to be cheaply regenerated automatically. To ensure any changes to the kernel files are immediately represented in this interface, we want to create a new make target to regenerate the interface.
 
 ```Makefile
-my_metacl_module.c : $(EXISTING_CL_SOURCES)
-        /path/to/metaCL $(EXISTING_CL_SOURCES) --unified-output-file="my_metacl_module" -- -include opencl-c.h -I /path/to/metaCL/Clang/includes $(CFLAGS) ($KERNEL_CFLAGS)
+myModule.c : $(EXISTING_CL_SOURCES)
+        /path/to/metaCL $(EXISTING_CL_SOURCES) --unified-output-file="myModule" -- -include opencl-c.h -I /path/to/metaCL/Clang/includes $(CFLAGS) ($KERNEL_CFLAGS)
 ```
 
 **(Warning: Do not manually edit the generated files if you intend to regenerate them as part of your build process. Further, do not give any manually-written host files the same name as your kernel file or `unified-output-file`. MetaCL will currently destroy and replace its output files without warning.)**
 
 ## Create a new Make target to compile the generated interface any time it changes
 ```Makefile
-my_metacl_module.o : my_metacl_module.c
-        gcc -o my_metacl_module.o my_metacl_module.c $(CFLAGS)
+myModule.o : myModule.c
+        gcc -o myModule.o myModule.c $(CFLAGS)
 ```
 
 ## Add the MetaMorph header path and define to any host lines that need it
@@ -46,8 +46,8 @@ my_existing_file.o : my_existing_file.c
 
 ## Add new elements to the final binary linking target
 ```Makefile
-myFinalLinkedBinary : $(EXISTING_OBJ_FILES) my_metacl_module.o
-        gcc -o myFinalLinkedBinary $(EXISTING_OBJ_FILES) my_metacl_module.o $(LDFLAGS) -L /path/to/MetaMorph/lib -lmetamorph -lmm_opencl_backend
+myFinalLinkedBinary : $(EXISTING_OBJ_FILES) myModule.o
+        gcc -o myFinalLinkedBinary $(EXISTING_OBJ_FILES) myModule.o $(LDFLAGS) -L /path/to/MetaMorph/lib -lmetamorph -lmm_opencl_backend
 ```
 
 
@@ -61,7 +61,7 @@ The main one-time effort of converting an existing OpenCL application to use a M
 ```C
 #define WITH_OPENCL
 #include <metamorph.h>
-#include "my_metacl_module.h
+#include "myModule.h
 ```
 
 The general MetaMorph header implicitly includes the MetaMorph OpenCL API functions when `WITH_OPENCL` is defined, and is required in any source file that references either the MetaMorph OpenCL API or the MetaCL-generated API.
@@ -88,9 +88,9 @@ The MetaMorph OpenCL API provides common functionality that MetaCL-generated cod
 
 While this provides simple ease of use, it does force the whatever function triggered the registration to pay the runtime cost of initializing the entire module. In order to pay this cost up front and isolate it from performance-critical regions of code, we recommend explicitly registering the module by providing a pointer to the generated `registry` function to `meta_register_module`.
 
-For example a MetaCL-generated module named `metacl_module` would use this explicit registration:
+For example a MetaCL-generated module named `myModule` would use this explicit registration:
 ```C
-meta_register_module(&meta_gen_opencl_metacl_module_registry);
+meta_register_module(&metacl_myModule_registry);
 ```
 
 
@@ -112,13 +112,13 @@ Further, the loader reads the `METAMORPH_OCL_KERNEL_PATH` environment variable f
 ## Remove existing cl_program and cl_kernel variables and initialization
 MetaCL manages `cl_program` and `cl_kernel` variables on a per-queue basis. In most uses there should no longer be a need for raw access to them (and if there is, such power-users can extract their values from the management struct).
 
-Additionally, MetaCL generates a single initialization function per output file (`meta_gen_opencl_<filename>_init()`), which triggers program loading, program building, and kernel creation. This should not typically be manually called, but rather is called implicitly when the generated module is registered to MetaMorph, and each time MetaMorph is switched to a new device thereafter.
+Additionally, MetaCL generates a single initialization function per output file (`metacl_<filename>_init()`), which triggers program loading, program building, and kernel creation. This should not typically be manually called, but rather is called implicitly when the generated module is registered to MetaMorph, and each time MetaMorph is switched to a new device thereafter.
 
 
 ## Set the kernel build arguments string for each kernel file
 Since `cl_programs` no longer need to be explicitly managed by the user, a mechanism is needed to ensure that any custom build arguments necessary to tweak the JIT compilation of the kernels can still be provided. Currently, this mechanism is provided on a per-kernel-file basis via `extern char *` variables. These are named according to the input file with the following convention:
 
-`__meta_gen_opencl_<input filename>_custom_args`
+`__metacl_<input filename>_custom_args`
 
 Any custom compiler arguments provided to the MetaCL invocation (such as `-I` include search paths or `-D` defines), as well as optimization flags (such as `-cl-fast-relaxed-math`) should be incorporated into a single C string, and the associated variable pointed to it. Each input file that must be JIT compiled with custom arguments must be separately assigned, though if the arguments are the same they may be pointed to the same C string.
 
@@ -132,9 +132,11 @@ MetaCL exposes a single host-side wrapper function for each kernel. Rather than 
 ## Remove unwrapped kernel enqueue calls.
 MetaCL generates an enqueue call (`Task` or `NDRange` depending on kernel requirements) within each kernel's generated wrapper. If enabled, this call is automatically error-checked for safety. Additionally, the wrapper can be invoked in synchronous mode, in which case immediately after enqueing the target `cl_command_queue` will be flushed with `clFinish`, before returning to the caller.
 
-## Replace existing global and local worksizes with MetaCL's grid and block
+## Replace existing global and local worksizes with MetaCL's dim3 types
 **REQUIRED**
-MetaCL kernel wrappers around NDRange kernels require the work dimensionality be set during invocation. For consistency with the rest of the MetaMorph API, this uses the grid-of-blocks notation (i.e. "CUDA-style"), **not** the global/local notation. The grid dimensionality can easily be derived from the global and local size as below:
+MetaCL kernel wrappers around NDRange kernels require the work dimensionality be set during invocation using the MetaMorph a_dim3 type, (an array of 3 size_t elements). Unused dimensions should be set to 1. If you wish to take advantage of OpenCL's automatic local sizing (i.e. a NULL localSize), simply set all three local dimensions to zero. If either size is NULL, then a single work group will be enqueued, using the size specified in either a `reqd_work_group_size` or `work_group_size_hint` attribute, or falling back to MetaMorph's compiled default 3D workgroup size.
+
+If you have enabled the `cuda-grid-block` MetaCL option, then you should instead specify your worksizes using the the grid-of-blocks notation (i.e. "CUDA-style"), **not** the global/local notation. The grid dimensionality can easily be derived from the global and local size as below:
 ```C
 a_dim3 grid, block;
 block[0] = localSize[0]; block[1] = localSize[1]; block[2] = localSize[2];
@@ -145,7 +147,7 @@ grid[2] = (globalSize[2]/localSize[2]) + (globalSize[2] % localSize[2] > 0) ? 1 
 
 
 ## Remove existing cl_program and cl_kernel destruction
-MetaCL generates a single destruction function for each output file (`meta_gen_opencl_<filename>_init()`), which releases the associated `cl_program`(s) and `cl_kernel`(s). As such, there is no longer a need to manually `clRelease...()` these objects. Furthermore, when the MetaCL-generated module is deregistered from MetaMorph, each initialized set of `cl_program`(s) and `cl_kernel`(s) is automatically deinitialized. (As noted [below](#Explicitly-deregister-generated-module-from-MetaMorph), deregistration can also be performed automatically at program end.)
+MetaCL generates a single destruction function for each output file (`metacl_<filename>_init()`), which releases the associated `cl_program`(s) and `cl_kernel`(s). As such, there is no longer a need to manually `clRelease...()` these objects. Furthermore, when the MetaCL-generated module is deregistered from MetaMorph, each initialized set of `cl_program`(s) and `cl_kernel`(s) is automatically deinitialized. (As noted [below](#Explicitly-deregister-generated-module-from-MetaMorph), deregistration can also be performed automatically at program end.)
 
 
 ## Explicitly deregister generated module from MetaMorph

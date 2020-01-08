@@ -31,7 +31,7 @@ Makefile](../../Makefile) to reflect your operating system. If a pre-built binar
 #### Alternative clang installs
 As a _[Clang Tool](https://clang.llvm.org/docs/LibTooling.html)_, MetaCL should be compatible with any Clang 
 installation that provides all the libraries listed in the `CLANG_LIBS` variable of the [MetaCL 
-Makefile](../../Makefile). You may prevent the MetaCL Makefile from trying to download an additional version 
+Makefile](../../Makefile), but has been designed for Clang 6.0 or newer. You may prevent the MetaCL Makefile from trying to download an additional version 
 of Clang by modifying the `LLVM_BUILD_PATH` variable to point to the directory that contains the existing 
 Clang installation's `bin`, `include`, and `lib` directories. _In the [How to use MetaCL](./GenerateMetaCLInterface.md) tutorial this alternative path will likely need to be substituted when providing the Clang include directory to the MetaCL invocation with `-I <path to Clang's implementation of opencl-c.h>`_
 
