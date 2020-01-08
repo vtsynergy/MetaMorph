@@ -1188,6 +1188,7 @@ meta_cl_device_vendor metaOpenCLDetectDevice(cl_device_id dev) {
   //TODO AMD ROCM
   //TODO Intel CPU/GPU
   if (strcmp(name, "Intel(R) FPGA SDK for OpenCL(TM)") == 0) ret = (meta_cl_device_vendor)(ret | meta_cl_device_vendor_intelfpga);
+  if (strcmp(name, "Intel(R) FPGA Emulation Platform for OpenCL(TM)") == 0) ret = (meta_cl_device_vendor)(ret | meta_cl_device_vendor_intelfpga);
   if (strcmp(name, "Altera SDK for OpenCL") == 0) ret = (meta_cl_device_vendor)(ret | meta_cl_device_vendor_intelfpga);
   //TODO Xilinx
   if (strcmp(name, "Portable Computing Language") == 0) ret = (meta_cl_device_vendor)(ret | meta_cl_device_vendor_pocl);
