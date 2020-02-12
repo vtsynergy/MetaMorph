@@ -4,17 +4,92 @@ Maintainer: Paul Sathre <sath6220@cs.vt.edu>
 Build-Depends: debhelper (>= 10)
 Standards-Version: 4.1.2
 Section: libs
-Homepage: <insert the upstream URL, if relevant>
-#Vcs-Git: https://anonscm.debian.org/git/collab-maint/metamorph.git
-#Vcs-Browser: https://anonscm.debian.org/cgit/collab-maint/metamorph.git
+Vcs-Git: https://github.com/VTSynergy/MetaMorph.git
+Vcs-Browser: https://github.com/VTSynergy/MetaMorph
 
-Package: metamorph-dev
-Section: libdevel
+Package: metamorph
+Section: libs
 Architecture: any
 Multi-Arch: same
-Depends: metamorphBROKEN (= ${binary:Version}), ${misc:Depends}
-Description: <insert up to 60 chars description>
- <insert long description, indented with spaces>
+Depends: metamorphBROKEN (= ${binary:Version}), ${shlibs:Depends}, ${misc:Depends}
+Recommends: metamorph-openmp
+Description: MetaMorph Core Library
+ The MetaMorph Core Library implements the core API and bridge across supported backends
+
+Package: metamorph-openmp
+Section: libs
+Architecture: any
+Multi-Arch: same
+Depends: metamorph (= ${binary:Version}), ${shlibs:Depends}, ${misc:Depends}
+Description: MetaMorph Core Library
+ The MetaMorph Core Library implements the core API and bridge across supported backends
+
+Package: metamorph-cuda
+Section: libs
+Architecture: any
+Multi-Arch: same
+Depends: metamorph (= ${binary:Version}), ${shlibs:Depends}, ${misc:Depends}
+Enhances: metamorph
+Description: MetaMorph Core Library
+ The MetaMorph OpenCL Backend implements the CUDA versions of MetaMorph's top-level functions.
+
+Package: metamorph-opencl
+Section: libs
+Architecture: any
+Multi-Arch: same
+Depends: metamorph (= ${binary:Version}), ${shlibs:Depends}, ${misc:Depends}
+Enhances: metamorph
+Description: MetaMorph OpenCL Backend
+ The MetaMorph OpenCL Backend implements the OpenCL versions of MetaMorph's top-level
+ functions.
+ It also provides OpenCL-specific functionality to support general OpenCL applications,
+ particularly those created with MetaCL.
+
+Package: metamorph-dev
+Section: libs
+Architecture: any
+Multi-Arch: same
+Depends: metamorph (= ${binary:Version}), ${shlibs:Depends}, ${misc:Depends}
+#Doesn't need to recommend any backend, a dev could write to the MM API and not care what backends exist
+Description: MetaMorph Core Library Development Files
+ The MetaMorph Core Library implements the core API and bridge across supported backends
+
+Package: metamorph-openmp-dev
+Section: libs
+Architecture: any
+Multi-Arch: same
+Depends: metamorph-openmp, metamorph-dev (= ${binary:Version}), ${shlibs:Depends}, ${misc:Depends}
+Description: MetaMorph Core Library
+ The MetaMorph Core Library implements the core API and bridge across supported backends
+
+Package: metamorph-cuda-dev
+Section: libs
+Architecture: any
+Multi-Arch: same
+Depends: metamorph-cuda, metamorph-dev (= ${binary:Version}), ${shlibs:Depends}, ${misc:Depends}
+Description: MetaMorph Core Library
+ The MetaMorph Core Library implements the core API and bridge across supported backends
+
+Package: metamorph-opencl-dev
+Section: libs
+Architecture: any
+Multi-Arch: same
+Suggests: metacl
+Depends: metamorph-opencl, metamorph-dev (= ${binary:Version}), ${shlibs:Depends}, ${misc:Depends}
+Description: MetaMorph Core Library
+ The MetaMorph Core Library implements the core API and bridge across supported backends
+
+Package: metacl
+Section: devel
+Architecture: any
+Multi-Arch: same
+Depends: clang 6.0.1 (= ${binary:Version}), ${misc:Depends}
+Description: MetaCL OpenCL Host Autogenerator
+ MetaCL is an autogenerator for OpenCL host code based on the Clang/LLVM compiler framework.
+ Given a set of OpenCL kernel file(s), it generates the appropriate boilerplate to initialze
+  the kernels and invoke them, wrapped inside a convenient and simplified API.
+ Generated code is dependent on metamorph-opencl and metamorph to run, and corresponding
+  dev packages to compile, but the MetaCL tool itself does not.
 
 Package: metamorphBROKEN
 Architecture: any
