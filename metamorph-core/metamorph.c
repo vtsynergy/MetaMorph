@@ -24,6 +24,7 @@
  */
 
 #include "metamorph.h"
+#include <dlfcn.h>
 #ifdef ALIGNED_MEMORY
 #include "xmmintrin.h"
 #endif
@@ -194,6 +195,73 @@ a_err meta_reinitialize_modules(a_module_implements_backend module_type) {
   return 0;
 }
 
+//Globally-set capability flag
+a_module_implements_backend core_capability = module_implements_general | module_implements_fortran;
+struct backend_handles {
+  void * openmp_handle;
+  void * opencl_handle;
+  void * cuda_handle;
+  void * mpi_handle;
+  void * profiling_handle;
+};
+struct backend_handles backends = {NULL, NULL, NULL, NULL, NULL};
+
+//Constuctor initializr, should not typically need to be manually called
+//For now it just does the auto-discovery of installed backend .sos to enable capability at runtime based on what's installed
+__attribute__((constructor)) void meta_init() {
+  //do auto-discovery of each backend and plugin
+  //FIXME Not sure if we need RTLD_DEEPBIND
+  backends.cuda_handle = dlopen("libmm_cuda_backend.so", RTLD_NOW | RTLD_GLOBAL);
+  if (backends.cuda_handle == NULL) fprintf(stderr, "No CUDA backend detected\n");
+  else {
+    core_capability |= module_implements_cuda;
+    fprintf(stderr, "CUDA backend found\n");
+  }
+  backends.opencl_handle = dlopen("libmm_opencl_backend.so", RTLD_NOW | RTLD_GLOBAL);
+  if (backends.opencl_handle == NULL) fprintf(stderr, "No OpenCL backend detected\n");
+  else {
+    core_capability |= module_implements_opencl;
+    fprintf(stderr, "OpenCL backend found\n");
+  }
+  //If i understand the dynamic loader correctly, we should not need to explicitly load the runtime libs, they will be pulled in automatically be loading the backend
+//  dlopen("libOpenCL.so", RTLD_NOW | RTLD_GLOBAL);
+  backends.openmp_handle = dlopen("libmm_openmp_backend.so", RTLD_NOW | RTLD_GLOBAL);
+  if (backends.openmp_handle == NULL) fprintf(stderr, "No OpenMP backend detected\n");
+  else {
+    core_capability |= module_implements_openmp;
+    fprintf(stderr, "OpenMP backend found\n");
+  }
+  backends.mpi_handle = dlopen("libmm_mpi.so", RTLD_NOW | RTLD_GLOBAL);
+  if (backends.mpi_handle == NULL) fprintf(stderr, "No MPI plugin detected\n");
+  else {
+    core_capability |= module_implements_mpi;
+    fprintf(stderr, "MPI plugin found\n");
+  }
+  backends.profiling_handle = dlopen("libmm_profiling.so", RTLD_NOW | RTLD_GLOBAL);
+  if (backends.profiling_handle == NULL) fprintf(stderr, "No OpenCL backend detected\n");
+  else {
+    core_capability |= module_implements_profiling;
+    fprintf(stderr, "Profiling plugin found\n");
+  }
+}
+
+__attribute__((destructor)) void meta_finalize() {
+  if (core_capability | module_implements_cuda) {
+    dlclose(backends.cuda_handle);
+  }
+  if (core_capability | module_implements_opencl) {
+    dlclose(backends.opencl_handle);
+  }
+  if (core_capability | module_implements_openmp) {
+    dlclose(backends.openmp_handle);
+  }
+  if (core_capability | module_implements_mpi) {
+    dlclose(backends.mpi_handle);
+  }
+  if (core_capability | module_implements_profiling) {
+    dlclose(backends.profiling_handle);
+  }
+}
 #ifdef WITH_OPENCL
 cl_context meta_context = NULL;
 cl_command_queue meta_queue = NULL;
