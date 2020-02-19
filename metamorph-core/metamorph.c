@@ -198,35 +198,86 @@ a_err meta_reinitialize_modules(a_module_implements_backend module_type) {
 //Globally-set capability flag
 a_module_implements_backend core_capability = module_implements_general | module_implements_fortran;
 struct backend_handles {
-  void * openmp_handle;
-  void * opencl_handle;
-  void * cuda_handle;
+  void * openmp_be_handle;
+  void * opencl_be_handle;
+  void * opencl_lib_handle;
+  void * cuda_be_handle;
   void * mpi_handle;
   void * profiling_handle;
 };
-struct backend_handles backends = {NULL, NULL, NULL, NULL, NULL};
+struct backend_handles backends = {NULL};
+struct opencl_dyn_ptrs {
+  void (* metaOpenCLFallback)(void);
+  a_err (* metaOpenCLAlloc)(void**, size_t);
+  a_err (* metaOpenCLFree)(void*);
+  a_err (* metaOpenCLWrite)(void*, void*, size_t, a_bool, meta_callback*, void*);
+  a_err (* metaOpenCLRead)(void*, void*, size_t, a_bool, meta_callback*, void*);
+  a_err (* metaOpenCLDevCopy)(void*, void*, size_t, a_bool, meta_callback*, void*);
+  a_err (* metaOpenCLInitByID)(a_int);
+  a_err (* metaOpenCLCurrDev)(a_int*);
+  a_err (* metaOpenCLMaxWorkSizes)(a_dim3*, a_dim3*);
+  a_err (* metaOpenCLFlush)();
+  a_err (* opencl_dotProd)(size_t (*)[3], size_t (*)[3], void *, void *, size_t (*)[3], size_t (*)[3], size_t (*)[3], void *, meta_type_id, int, meta_callback *, void *, void *);
+  a_err (* opencl_reduce)(size_t (*)[3], size_t (*)[3], void *, size_t (*)[3], size_t (*)[3], size_t (*)[3], void *, meta_type_id, int, meta_callback *, void *, void *);
+a_err (* opencl_transpose_face)(size_t (*)[3], size_t (*)[3], void *, void *, size_t (*)[3], size_t (*)[3], meta_type_id, int, meta_callback *, void *, void *);
+a_err (* opencl_pack_face)(size_t (*)[3], size_t (*)[3], void *, void *, meta_face *, int *, meta_type_id, int, meta_callback *, void *, void *, void *, void *, void *);
+a_err (* opencl_unpack_face)(size_t (*)[3], size_t (*)[3], void *, void *, meta_face *, int *, meta_type_id, int, meta_callback *, void *, void *, void *, void *, void *);
+a_err (* opencl_stencil_3d7p)(size_t (*)[3], size_t (*)[3], void *, void *, size_t (*)[3], size_t (*)[3], size_t (*)[3], meta_type_id, int, meta_callback *, void *, void *);
+a_err (* opencl_csr)(size_t (*)[3], size_t (*)[3], size_t, void *, void *, void *, void *, void *, meta_type_id, int, meta_callback *, void *, void *);
+a_err (* opencl_crc)(void *, int, int, int, void *, meta_type_id, int, meta_callback *, void *, void *);
+};
+struct opencl_dyn_ptrs opencl_symbols = {NULL};
+#define CHECKED_DLSYM(lib, handle, sym, sym_ptr) {\
+  sym_ptr = dlsym(handle, sym);\
+  char *sym_err; \
+  if ((sym_err = dlerror()) != NULL) {\
+    fprintf(stderr, "Could not dynamically load symbol \"%s\" in library \"%s\", error: \"%s\"\n", sym, lib, sym_err);\
+    exit(1);\
+  }\
+}\
 
 //Constuctor initializr, should not typically need to be manually called
 //For now it just does the auto-discovery of installed backend .sos to enable capability at runtime based on what's installed
 __attribute__((constructor)) void meta_init() {
   //do auto-discovery of each backend and plugin
   //FIXME Not sure if we need RTLD_DEEPBIND
-  backends.cuda_handle = dlopen("libmm_cuda_backend.so", RTLD_NOW | RTLD_GLOBAL);
-  if (backends.cuda_handle == NULL) fprintf(stderr, "No CUDA backend detected\n");
+  backends.cuda_be_handle = dlopen("libmm_cuda_backend.so", RTLD_NOW | RTLD_GLOBAL);
+  if (backends.cuda_be_handle == NULL) fprintf(stderr, "No CUDA backend detected\n");
   else {
     core_capability |= module_implements_cuda;
     fprintf(stderr, "CUDA backend found\n");
   }
-  backends.opencl_handle = dlopen("libmm_opencl_backend.so", RTLD_NOW | RTLD_GLOBAL);
-  if (backends.opencl_handle == NULL) fprintf(stderr, "No OpenCL backend detected\n");
+  backends.opencl_be_handle = dlopen("libmm_opencl_backend.so", RTLD_NOW | RTLD_GLOBAL);
+  backends.opencl_lib_handle = dlopen("libOpenCL.so", RTLD_NOW | RTLD_GLOBAL);
+  if (backends.opencl_be_handle == NULL) fprintf(stderr, "No OpenCL backend detected\n");
+  else if (backends.opencl_lib_handle == NULL) fprintf(stderr, "No OpenCL runtime detected\n");
   else {
     core_capability |= module_implements_opencl;
+    CHECKED_DLSYM("libmm_opencl_backend.so", backends.opencl_be_handle, "metaOpenCLFallback", opencl_symbols.metaOpenCLFallback);
+    CHECKED_DLSYM("libmm_opencl_backend.so", backends.opencl_be_handle, "metaOpenCLAlloc", opencl_symbols.metaOpenCLAlloc);
+    CHECKED_DLSYM("libmm_opencl_backend.so", backends.opencl_be_handle, "metaOpenCLFree", opencl_symbols.metaOpenCLFree);
+    CHECKED_DLSYM("libmm_opencl_backend.so", backends.opencl_be_handle, "metaOpenCLWrite", opencl_symbols.metaOpenCLWrite);
+    CHECKED_DLSYM("libmm_opencl_backend.so", backends.opencl_be_handle, "metaOpenCLRead", opencl_symbols.metaOpenCLRead);
+    CHECKED_DLSYM("libmm_opencl_backend.so", backends.opencl_be_handle, "metaOpenCLDevCopy", opencl_symbols.metaOpenCLDevCopy);
+    CHECKED_DLSYM("libmm_opencl_backend.so", backends.opencl_be_handle, "metaOpenCLInitByID", opencl_symbols.metaOpenCLInitByID);
+    CHECKED_DLSYM("libmm_opencl_backend.so", backends.opencl_be_handle, "metaOpenCLCurrDev", opencl_symbols.metaOpenCLCurrDev);
+    CHECKED_DLSYM("libmm_opencl_backend.so", backends.opencl_be_handle, "metaOpenCLMaxWorkSizes", opencl_symbols.metaOpenCLMaxWorkSizes);
+    CHECKED_DLSYM("libmm_opencl_backend.so", backends.opencl_be_handle, "metaOpenCLFlush", opencl_symbols.metaOpenCLFlush);
+    CHECKED_DLSYM("libmm_opencl_backend.so", backends.opencl_be_handle, "opencl_dotProd", opencl_symbols.opencl_dotProd);
+    CHECKED_DLSYM("libmm_opencl_backend.so", backends.opencl_be_handle, "opencl_reduce", opencl_symbols.opencl_reduce);
+    CHECKED_DLSYM("libmm_opencl_backend.so", backends.opencl_be_handle, "opencl_transpose_face", opencl_symbols.opencl_transpose_face);
+    CHECKED_DLSYM("libmm_opencl_backend.so", backends.opencl_be_handle, "opencl_pack_face", opencl_symbols.opencl_pack_face);
+    CHECKED_DLSYM("libmm_opencl_backend.so", backends.opencl_be_handle, "opencl_unpack_face", opencl_symbols.opencl_unpack_face);
+    CHECKED_DLSYM("libmm_opencl_backend.so", backends.opencl_be_handle, "opencl_stencil_3d7p", opencl_symbols.opencl_stencil_3d7p);
+    CHECKED_DLSYM("libmm_opencl_backend.so", backends.opencl_be_handle, "opencl_csr", opencl_symbols.opencl_csr);
+    CHECKED_DLSYM("libmm_opencl_backend.so", backends.opencl_be_handle, "opencl_crc", opencl_symbols.opencl_crc);
+
     fprintf(stderr, "OpenCL backend found\n");
   }
   //If i understand the dynamic loader correctly, we should not need to explicitly load the runtime libs, they will be pulled in automatically be loading the backend
 //  dlopen("libOpenCL.so", RTLD_NOW | RTLD_GLOBAL);
-  backends.openmp_handle = dlopen("libmm_openmp_backend.so", RTLD_NOW | RTLD_GLOBAL);
-  if (backends.openmp_handle == NULL) fprintf(stderr, "No OpenMP backend detected\n");
+  backends.openmp_be_handle = dlopen("libmm_openmp_backend.so", RTLD_NOW | RTLD_GLOBAL);
+  if (backends.openmp_be_handle == NULL) fprintf(stderr, "No OpenMP backend detected\n");
   else {
     core_capability |= module_implements_openmp;
     fprintf(stderr, "OpenMP backend found\n");
@@ -238,7 +289,7 @@ __attribute__((constructor)) void meta_init() {
     fprintf(stderr, "MPI plugin found\n");
   }
   backends.profiling_handle = dlopen("libmm_profiling.so", RTLD_NOW | RTLD_GLOBAL);
-  if (backends.profiling_handle == NULL) fprintf(stderr, "No OpenCL backend detected\n");
+  if (backends.profiling_handle == NULL) fprintf(stderr, "No profiling plugin detected\n");
   else {
     core_capability |= module_implements_profiling;
     fprintf(stderr, "Profiling plugin found\n");
@@ -246,43 +297,22 @@ __attribute__((constructor)) void meta_init() {
 }
 
 __attribute__((destructor)) void meta_finalize() {
-  if (core_capability | module_implements_cuda) {
-    dlclose(backends.cuda_handle);
+  if (core_capability & module_implements_cuda) {
+    dlclose(backends.cuda_be_handle);
   }
-  if (core_capability | module_implements_opencl) {
-    dlclose(backends.opencl_handle);
+  if (core_capability & module_implements_opencl) {
+    dlclose(backends.opencl_be_handle);
   }
-  if (core_capability | module_implements_openmp) {
-    dlclose(backends.openmp_handle);
+  if (core_capability & module_implements_openmp) {
+    dlclose(backends.openmp_be_handle);
   }
-  if (core_capability | module_implements_mpi) {
+  if (core_capability & module_implements_mpi) {
     dlclose(backends.mpi_handle);
   }
-  if (core_capability | module_implements_profiling) {
+  if (core_capability & module_implements_profiling) {
     dlclose(backends.profiling_handle);
   }
 }
-#ifdef WITH_OPENCL
-cl_context meta_context = NULL;
-cl_command_queue meta_queue = NULL;
-cl_device_id meta_device = NULL;
-
-/*metaTimerQueueFrame * hold_ex_frame = (metaTimerQueueFrame *)malloc (sizeof(metaTimerQueueFrame));
-metaTimerQueueFrame * hold_wr_frame = (metaTimerQueueFrame *)malloc (sizeof(metaTimerQueueFrame));
-*/
-//All this does is wrap calling metaOpenCLInitStackFrameDefault
-// and setting meta_context and meta_queue appropriately
-void metaOpenCLFallBack() {
-	metaOpenCLStackFrame * frame;
-	metaOpenCLInitStackFrameDefault(&frame);
-	meta_context = frame->context;
-	meta_queue = frame->queue;
-	meta_device = frame->device;
-	metaOpenCLPushStackFrame(frame);
-	free(frame); //This is safe, it's just a copy of what should now be
-				 // the bottom of the stack
-}
-#endif
 
 //Unexposed convenience function to get the byte width of a selected type
 size_t get_atype_size(meta_type_id type) {
@@ -332,15 +362,16 @@ a_err meta_alloc(void ** ptr, size_t size) {
 		break;
 #endif
 
-#ifdef WITH_OPENCL
 		case metaModePreferOpenCL:
 		{
-		//Make sure some context exists..
-		if (meta_context == NULL) metaOpenCLFallBack();
-		*ptr = (void *) clCreateBuffer(meta_context, CL_MEM_READ_WRITE, size, NULL, (cl_int *)&ret);
+		if (opencl_symbols.metaOpenCLAlloc != NULL) ret = (*(opencl_symbols.metaOpenCLAlloc))(ptr, size);
+		else {
+		  fprintf(stderr, "OpenCL backend improperly loaded or missing symbol \"metaOpenCLAlloc\"\n");
+		  //FIXME output a real error code
+		  ret = -1;
+	  	}
 		}
 		break;
-#endif
 
 #ifdef WITH_OPENMP
 		case metaModePreferOpenMP:
@@ -375,15 +406,16 @@ a_err meta_free(void * ptr) {
 		break;
 #endif
 
-#ifdef WTIH_OPENCL
 		case metaModePreferOpenCL:
 		{
-		//Make sure some context exists..
-		if (meta_context == NULL) metaOpenCLFallBack();
-		ret = clReleaseMemObject((cl_mem)ptr);
+		if (opencl_symbols.metaOpenCLFree != NULL) ret = (*(opencl_symbols.metaOpenCLFree))(ptr);
+		else {
+		  fprintf(stderr, "OpenCL backend improperly loaded or missing symbol \"metaOpenCLFree\"\n");
+		  //FIXME output a real error code
+		  ret = -1;
+	  	}
 		}
 		break;
-#endif
 
 #ifdef WITH_OPENMP
 		case metaModePreferOpenMP:
@@ -398,45 +430,6 @@ a_err meta_free(void * ptr) {
 	return (ret);
 }
 
-
-#ifdef WITH_TIMERS
-#ifdef WITH_OPENCL
-//getting a pointer to specific event  
-a_err meta_get_event(char * qname, char * ename, cl_event ** e)
-{
-	a_err ret;
-	metaTimerQueueFrame * frame = (metaTimerQueueFrame*) malloc(sizeof(metaTimerQueueFrame));
-
-	if(strcmp(qname,"c_D2H") == 0)
-		ret = cl_get_event_node(&(metaBuiltinQueues[c_D2H]), ename, &frame);
-	else if(strcmp(qname,"c_H2D") == 0)
-		ret = cl_get_event_node(&(metaBuiltinQueues[c_H2D]), ename, &frame);
-	else if(strcmp(qname,"c_D2D") == 0)
-		ret = cl_get_event_node(&(metaBuiltinQueues[c_D2D]), ename, &frame);
-	else if(strcmp(qname,"k_csr") == 0)
-		ret = cl_get_event_node(&(metaBuiltinQueues[k_csr]), ename, &frame);
-        else if(strcmp(qname,"k_crc") == 0)
-                ret = cl_get_event_node(&(metaBuiltinQueues[k_crc]), ename, &frame);
-	else
-		printf("Event queue '%s' is not recognized...\n",qname);	
-
-/*	if(frame == NULL)
-		printf("event node search failed ..\n");
-	else
-		printf("This is 'MetaMorph C core', event '%s' retrieved succesfully\n",frame->name);
-*/
-
-/*
-cl_ulong start_time;
-size_t return_bytes;
-clGetEventProfilingInfo(frame->event.opencl,CL_PROFILING_COMMAND_QUEUED,sizeof(cl_ulong),&start_time,&return_bytes);
-printf("check profiling event is correct (MM side) %lu\n",start_time);
-*/	
-	(*e) =&(frame->event.opencl);
-	return(ret);
-}
-#endif // WITH_OPENCL
-#endif // WITH_TIMERS
 
 
 
@@ -486,33 +479,16 @@ a_err meta_copy_h2d_cb(void * dst, void * src, size_t size, a_bool async,
 		break;
 #endif
 
-#ifdef WITH_OPENCL
 		case metaModePreferOpenCL:
 		{
-		//Make sure some context exists..
-		if (meta_context == NULL) metaOpenCLFallBack();
-#ifdef WITH_TIMERS
-		//if(wait != NULL)
-		//{
-		//	ret = clEnqueueWriteBuffer(meta_queue, (cl_mem) dst, ((async) ? CL_FALSE : CL_TRUE), 0, size, src, 1, wait, &(frame->event.opencl));
-		//	CHKERR(ret, "Failed to write to source array!");
-		//}
-		//else
-		//{
-			ret = clEnqueueWriteBuffer(meta_queue, (cl_mem) dst, ((async) ? CL_FALSE : CL_TRUE), 0, size, src, 0, NULL, &(frame->event.opencl));
-//			CHKERR(ret, "Failed to write to source array!");
-//		}
-		//If timers exist, use their event to add the callback
-		if ((void*)call != NULL && call_pl != NULL) clSetEventCallback(frame->event.opencl, CL_COMPLETE, call->openclCallback, call_pl);
-#else
-		//If timers don't exist, get the event via a locally-scoped event to add to the callback
-		cl_event cb_event;
-		ret = clEnqueueWriteBuffer(meta_queue, (cl_mem) dst, ((async) ? CL_FALSE : CL_TRUE), 0, size, src, 0, NULL, &cb_event);
-		if ((void*)call != NULL && call_pl != NULL) clSetEventCallback(cb_event, CL_COMPLETE, call->openclCallback, call_pl);
-#endif
+		if (opencl_symbols.metaOpenCLWrite != NULL) ret = (*(opencl_symbols.metaOpenCLWrite))(dst, src, size, async, call, call_pl);
+		else {
+		  fprintf(stderr, "OpenCL backend improperly loaded or missing symbol \"metaOpenCLWrite\"\n");
+		  //FIXME output a real error code
+		  ret = -1;
+	  	}
 		}
 		break;
-#endif
 
 #ifdef WITH_OPENMP
 		case metaModePreferOpenMP:
@@ -591,33 +567,16 @@ a_err meta_copy_d2h_cb(void * dst, void * src, size_t size, a_bool async,
 		break;
 #endif
 
-#ifdef WITH_OPENCL
 		case metaModePreferOpenCL:
 		{
-		//Make sure some context exists..
-		if (meta_context == NULL) metaOpenCLFallBack();
-#ifdef WITH_TIMERS
-		//if(wait != NULL)
-		//{
-		//	ret = clEnqueueReadBuffer(meta_queue, (cl_mem) src, ((async) ? CL_FALSE : CL_TRUE), 0, size, dst, 1, wait, &(frame->event.opencl));
-			//ret = clEnqueueReadBuffer(meta_queue, (cl_mem) src, ((async) ? CL_FALSE : CL_TRUE), 0, size, dst, 0, NULL, &(frame->event.opencl));
-		//}
-		//else
-		//{
-			ret = clEnqueueReadBuffer(meta_queue, (cl_mem) src, ((async) ? CL_FALSE : CL_TRUE), 0, size, dst, 0, NULL, &(frame->event.opencl));
-		//}
-
-		//If timers exist, use their event to add the callback
-		if ((void*)call != NULL && call_pl != NULL) clSetEventCallback(frame->event.opencl, CL_COMPLETE, call->openclCallback, call_pl);
-#else
-		//If timers don't exist, get the event via a locally-scoped event to add to the callback
-		cl_event cb_event;
-		ret = clEnqueueReadBuffer(meta_queue, (cl_mem) src, ((async) ? CL_FALSE : CL_TRUE), 0, size, dst, 0, NULL, &cb_event);
-		if ((void*)call != NULL && call_pl != NULL) clSetEventCallback(cb_event, CL_COMPLETE, call->openclCallback, call_pl);
-#endif
+		if (opencl_symbols.metaOpenCLRead != NULL) ret = (*(opencl_symbols.metaOpenCLRead))(dst, src, size, async, call, call_pl);
+		else {
+		  fprintf(stderr, "OpenCL backend improperly loaded or missing symbol \"metaOpenCLRead\"\n");
+		  //FIXME output a real error code
+		  ret = -1;
+	  	}
 		}
 		break;
-#endif
 
 #ifdef WITH_OPENMP
 		case metaModePreferOpenMP:
@@ -689,33 +648,16 @@ a_err meta_copy_d2d_cb(void * dst, void * src, size_t size, a_bool async,
 		break;
 #endif
 
-#ifdef WITH_OPENCL
 		case metaModePreferOpenCL:
 		{
-		//Make sure some context exists..
-		if (meta_context == NULL) metaOpenCLFallBack();
-#ifdef WITH_TIMERS
-		//if(wait != NULL)
-		//{
-		//	ret = clEnqueueCopyBuffer(meta_queue, (cl_mem) src, (cl_mem) dst, 0, 0, size, 1, wait, &(frame->event.opencl));
-		//}
-		//else
-		//{
-			ret = clEnqueueCopyBuffer(meta_queue, (cl_mem) src, (cl_mem) dst, 0, 0, size, 0, NULL, &(frame->event.opencl));
-		//}
-		//If timers exist, use their event to add the callback
-		if ((void*)call != NULL && call_pl != NULL) clSetEventCallback(frame->event.opencl, CL_COMPLETE, call->openclCallback, call_pl);
-#else
-		//If timers don't exist, get the event via a locally-scoped event to add to the callback
-		cl_event cb_event;
-		ret = clEnqueueCopyBuffer(meta_queue, (cl_mem) src, (cl_mem) dst, 0, 0, size, 0, NULL, &cb_event);
-		if ((void*)call != NULL && call_pl != NULL) clSetEventCallback(cb_event, CL_COMPLETE, call->openclCallback, call_pl);
-#endif
-		//clEnqueueCopyBuffer is by default async, so clFinish
-		if (!async) clFinish(meta_queue);
+		if (opencl_symbols.metaOpenCLDevCopy != NULL) ret = (*(opencl_symbols.metaOpenCLDevCopy))(dst, src, size, async, call, call_pl);
+		else {
+		  fprintf(stderr, "OpenCL backend improperly loaded or missing symbol \"metaOpenCLDevCopy\"\n");
+		  //FIXME output a real error code
+		  ret = -1;
+	  	}
 		}
 		break;
-#endif
 
 #ifdef WITH_OPENMP
 		case metaModePreferOpenMP:
@@ -759,10 +701,9 @@ a_err meta_set_acc(int accel, meta_preferred_mode mode) {
 #ifdef WITH_CUDA
 			if (strcmp(getenv("METAMORPH_MODE"), "CUDA") == 0) return meta_set_acc(accel, metaModePreferCUDA);
 #endif
-
-#ifdef WITH_OPENCL
+if (core_capability | module_implements_opencl) { 
 			if (strcmp(getenv("METAMORPH_MODE"), "OpenCL") == 0 || strcmp(getenv("METAMORPH_MODE"), "OpenCL_DEBUG") == 0) return meta_set_acc(accel, metaModePreferOpenCL);
-#endif
+}
 
 #ifdef WITH_OPENMP
 			if (strcmp(getenv("METAMORPH_MODE"), "OpenMP") == 0) return meta_set_acc(accel, metaModePreferOpenMP);
@@ -785,9 +726,7 @@ a_err meta_set_acc(int accel, meta_preferred_mode mode) {
 #ifdef WITH_CUDA
 		fprintf(stderr, "\"CUDA\"\n");
 #endif
-#ifdef WITH_OPENCL
-		fprintf(stderr, "\"OpenCL\" (or \"OpenCL_DEBUG\")\n");
-#endif
+		if (core_capability | module_implements_opencl) fprintf(stderr, "\"OpenCL\" (or \"OpenCL_DEBUG\")\n");
 #ifdef WITH_OPENMP
 		fprintf(stderr, "\"OpenMP\"\n");
 #endif
@@ -806,21 +745,16 @@ a_err meta_set_acc(int accel, meta_preferred_mode mode) {
 		break;
 #endif
 
-#ifdef WITH_OPENCL
 		case metaModePreferOpenCL:
-		{	metaOpenCLStackFrame * frame;
-			metaOpenCLInitStackFrame(&frame, (cl_int) accel); //no hazards, frames are thread-private
-			metaOpenCLPushStackFrame(frame);//no hazards, HPs are internally managed when copying the frame to a new stack node before pushing.
-
-			//Now it's safe to free the frame
-			// But not to destroy it, as we shouldn't release the frame members
-			free(frame);
-			//If users request it, a full set of contexts could be pre-initialized..
-			// but we can lessen overhead by only eagerly initializing one.
-			//fprintf(stderr, "OpenCL Mode not yet implemented!\n");
+		{
+		if (opencl_symbols.metaOpenCLInitByID != NULL) ret = (*(opencl_symbols.metaOpenCLInitByID))(accel);
+		else {
+		  fprintf(stderr, "OpenCL backend improperly loaded or missing symbol \"metaOpenCLInitByID\"\n");
+		  //FIXME output a real error code
+		  ret = -1;
+	  	}
 		}
 		break;
-#endif
 
 #ifdef WITH_OPENMP
 		case metaModePreferOpenMP:
@@ -850,18 +784,17 @@ a_err meta_get_acc(int * accel, meta_preferred_mode * mode) {
 		break;
 #endif
 
-#ifdef WITH_OPENCL
 		case metaModePreferOpenCL:
 		{
-		//Make sure some context exists..
-		if (meta_context == NULL) metaOpenCLFallBack();
-		//TODO implement appropriate response for OpenCL device number
-		//TODO implement this based on metaOpenCLTopStackFrame
-		//fprintf(stderr, "OpenCL Device Query not yet implemented!\n");
 		*mode = metaModePreferOpenCL;
+		if (opencl_symbols.metaOpenCLCurrDev != NULL) ret = (*(opencl_symbols.metaOpenCLCurrDev))(accel);
+		else {
+		  fprintf(stderr, "OpenCL backend improperly loaded or missing symbol \"metaOpenCLCurrDev\"\n");
+		  //FIXME output a real error code
+		  ret = -1;
+	  	}
 		}
 		break;
-#endif
 
 #ifdef WITH_OPENMP
 		case metaModePreferOpenMP:
@@ -895,24 +828,16 @@ a_err meta_validate_worksize(a_dim3 * grid_size, a_dim3 * block_size) {
 		break;
 #endif
 
-#ifdef WITH_OPENCL
 		case metaModePreferOpenCL:
 		{
-		//Make sure some context exists..
-		if (meta_context == NULL) metaOpenCLFallBack();
-		size_t max_wg_size, max_wg_dim_sizes[3];
-		ret = clGetDeviceInfo(meta_device, CL_DEVICE_MAX_WORK_GROUP_SIZE, sizeof(size_t), &max_wg_size, NULL);
-		ret |= clGetDeviceInfo(meta_device, CL_DEVICE_MAX_WORK_ITEM_SIZES, sizeof(size_t)*3, &max_wg_dim_sizes, NULL);
-		if ((*block_size)[0] * (*block_size)[1] * (*block_size)[2] > max_wg_size)
-		{	fprintf(stderr, "Error: Maximum block volume is: %lu\nRequested block volume of: %lu (%lu * %lu * %lu) not supported!\n", max_wg_size, (*block_size)[0] * (*block_size)[1] * (*block_size)[2], (*block_size)[0], (*block_size)[1], (*block_size)[2]); ret |= -1;}
-
-		if ((*block_size)[0] > max_wg_dim_sizes[0]) {fprintf(stderr, "Error: Maximum block size for dimension 0 is: %lu\nRequested 0th dimension size of: %lu not supported\n!", max_wg_dim_sizes[0], (*block_size)[0]); ret |= -1;}
-		if ((*block_size)[1] > max_wg_dim_sizes[1]) {fprintf(stderr, "Error: Maximum block size for dimension 1 is: %lu\nRequested 1st dimension size of: %lu not supported\n!", max_wg_dim_sizes[1], (*block_size)[1]); ret |= -1;}
-		if ((*block_size)[2] > max_wg_dim_sizes[2]) {fprintf(stderr, "Error: Maximum block size for dimension 2 is: %lu\nRequested 2nd dimension size of: %lu not supported\n!", max_wg_dim_sizes[2], (*block_size)[2]); ret |= -1;}
-		return(ret);
+		if (opencl_symbols.metaOpenCLMaxWorkSizes != NULL) ret = (*(opencl_symbols.metaOpenCLMaxWorkSizes))(grid_size, block_size);
+		else {
+		  fprintf(stderr, "OpenCL backend improperly loaded or missing symbol \"metaOpenCLMaxWorkSizes\"\n");
+		  //FIXME output a real error code
+		  ret = -1;
+	  	}
 		}
 		break;
-#endif
 
 #ifdef WITH_OPENMP
 		case metaModePreferOpenMP:
@@ -930,6 +855,7 @@ a_err meta_validate_worksize(a_dim3 * grid_size, a_dim3 * block_size) {
 // transfers from the MPI plugin
 //It could easily handle timer dumping as well, but that might not be ideal
 a_err meta_flush() {
+a_err ret = 0;
 	switch (run_mode) {
 	default:
 	case metaModePreferGeneric:
@@ -942,15 +868,16 @@ a_err meta_flush() {
 		break;
 #endif
 
-#ifdef WITH_OPENCL
 		case metaModePreferOpenCL:
 		{
-		//Make sure some context exists..
-		if (meta_context == NULL) metaOpenCLFallBack();
-		clFinish(meta_queue);
+		if (opencl_symbols.metaOpenCLFlush != NULL) ret = (*(opencl_symbols.metaOpenCLFlush))();
+		else {
+		  fprintf(stderr, "OpenCL backend improperly loaded or missing symbol \"metaOpenCLFlush\"\n");
+		  //FIXME output a real error code
+		  ret = -1;
+	  	}
 		}
 		break;
-#endif
 
 #ifdef WITH_OPENMP
 		case metaModePreferOpenMP: {
@@ -964,7 +891,7 @@ a_err meta_flush() {
 #ifdef WITH_MPI
 	finish_mpi_requests();
 #endif
-	printf("\n");
+return ret;
 }
 
 //Simple wrapper for synchronous kernel
@@ -975,15 +902,15 @@ a_err meta_flush() {
 a_err meta_dotProd(a_dim3 * grid_size, a_dim3 * block_size, void * data1,
 		void * data2, a_dim3 * array_size, a_dim3 * array_start,
 		a_dim3 * array_end, void * reduction_var, meta_type_id type,
-		a_bool async) {
+		a_bool async, void * ret_event) {
 	return meta_dotProd_cb(grid_size, block_size, data1, data2, array_size,
 			array_start, array_end, reduction_var, type, async,
-			(meta_callback*) NULL, NULL);
+			(meta_callback*) NULL, NULL, ret_event);
 }
 a_err meta_dotProd_cb(a_dim3 * grid_size, a_dim3 * block_size, void * data1,
 		void * data2, a_dim3 * array_size, a_dim3 * array_start,
 		a_dim3 * array_end, void * reduction_var, meta_type_id type,
-		a_bool async, meta_callback *call, void *call_pl) {
+		a_bool async, meta_callback *call, void *call_pl, void * ret_event) {
 	a_err ret;
 
 	//FIXME? Consider adding a compiler flag "UNCHECKED_EXPLICIT" to streamline out sanity checks like this
@@ -1064,9 +991,11 @@ a_err meta_dotProd_cb(a_dim3 * grid_size, a_dim3 * block_size, void * data1,
 	}
 
 #ifdef WITH_TIMERS
+	if (run_mode != metaModePreferOpenCL) {
 	metaTimerQueueFrame * frame = (metaTimerQueueFrame*)malloc (sizeof(metaTimerQueueFrame));
 	frame->mode = run_mode;
 	frame->size = (*array_size)[0]*(*array_size)[1]*(*array_size)[2]*get_atype_size(type);
+	}
 #endif
 	switch (run_mode) {
 	default:
@@ -1087,22 +1016,16 @@ a_err meta_dotProd_cb(a_dim3 * grid_size, a_dim3 * block_size, void * data1,
 		}
 #endif
 
-#ifdef WITH_OPENCL
 		case metaModePreferOpenCL:
 		{
-#ifdef WITH_TIMERS
-		ret = (a_err) opencl_dotProd(grid_size, block_size, data1, data2, array_size, array_start, array_end, reduction_var, type, async, &(frame->event.opencl));
-		//If timers exist, use their event to add the callback
-		if ((void*)call != NULL && call_pl != NULL) clSetEventCallback(frame->event.opencl, CL_COMPLETE, call->openclCallback, call_pl);
-#else
-		//If timers don't exist, get the event via a locally-scoped event to add to the callback
-		cl_event cb_event;
-		ret = (a_err) opencl_dotProd(grid_size, block_size, data1, data2, array_size, array_start, array_end, reduction_var, type, async, &cb_event);
-		if ((void*)call != NULL && call_pl != NULL) clSetEventCallback(cb_event, CL_COMPLETE, call->openclCallback, call_pl);
-#endif
+		if (opencl_symbols.opencl_dotProd != NULL) ret = (*(opencl_symbols.opencl_dotProd))(grid_size, block_size, data1, data2, array_size, array_start, array_end, reduction_var, type, async, call, call_pl, ret_event);
+		else {
+		  fprintf(stderr, "OpenCL backend improperly loaded or missing symbol \"opencl_dotProd\"\n");
+		  //FIXME output a real error code
+		  ret = -1;
+	  	}
 		}
 		break;
-#endif
 
 #ifdef WITH_OPENMP
 		case metaModePreferOpenMP:
@@ -1122,7 +1045,9 @@ a_err meta_dotProd_cb(a_dim3 * grid_size, a_dim3 * block_size, void * data1,
 #endif
 	}
 #ifdef WITH_TIMERS
+	if (run_mode != metaModePreferOpenCL) {
 	metaTimerEnqueue(frame, &(metaBuiltinQueues[k_dotProd]));
+	}
 #endif
 	return (ret);
 }
@@ -1134,14 +1059,14 @@ a_err meta_dotProd_cb(a_dim3 * grid_size, a_dim3 * block_size, void * data1,
 //Workhorse for both sync and async reductions
 a_err meta_reduce(a_dim3 * grid_size, a_dim3 * block_size, void * data,
 		a_dim3 * array_size, a_dim3 * array_start, a_dim3 * array_end,
-		void * reduction_var, meta_type_id type, a_bool async) {
+		void * reduction_var, meta_type_id type, a_bool async, void * ret_event) {
 	return meta_reduce_cb(grid_size, block_size, data, array_size, array_start,
-			array_end, reduction_var, type, async, (meta_callback*) NULL, NULL);
+			array_end, reduction_var, type, async, (meta_callback*) NULL, NULL, ret_event);
 }
 a_err meta_reduce_cb(a_dim3 * grid_size, a_dim3 * block_size, void * data,
 		a_dim3 * array_size, a_dim3 * array_start, a_dim3 * array_end,
 		void * reduction_var, meta_type_id type, a_bool async,
-		meta_callback *call, void *call_pl) {
+		meta_callback *call, void *call_pl, void * ret_event) {
 	a_err ret;
 
 	//FIXME? Consider adding a compiler flag "UNCHECKED_EXPLICIT" to streamline out sanity checks like this
@@ -1222,9 +1147,11 @@ a_err meta_reduce_cb(a_dim3 * grid_size, a_dim3 * block_size, void * data,
 	}
 
 #ifdef WITH_TIMERS
+	if (run_mode != metaModePreferOpenCL) {
 	metaTimerQueueFrame * frame = (metaTimerQueueFrame*)malloc (sizeof(metaTimerQueueFrame));
 	frame->mode = run_mode;
 	frame->size = (*array_size)[0]*(*array_size)[1]*(*array_size)[2]*get_atype_size(type);
+	}
 #endif
 	switch (run_mode) {
 	default:
@@ -1245,22 +1172,16 @@ a_err meta_reduce_cb(a_dim3 * grid_size, a_dim3 * block_size, void * data,
 		}
 #endif
 
-#ifdef WITH_OPENCL
 		case metaModePreferOpenCL:
 		{
-#ifdef WITH_TIMERS
-		ret = (a_err) opencl_reduce(grid_size, block_size, data, array_size, array_start, array_end, reduction_var, type, async, &(frame->event.opencl));
-		//If timers exist, use their event to add the callback
-		if ((void*)call != NULL && call_pl != NULL) clSetEventCallback(frame->event.opencl, CL_COMPLETE, call->openclCallback, call_pl);
-#else
-		//If timers don't exist, get the event via a locally-scoped event to add to the callback
-		cl_event cb_event;
-		ret = (a_err) opencl_reduce(grid_size, block_size, data, array_size, array_start, array_end, reduction_var, type, async, &cb_event);
-		if ((void*)call != NULL && call_pl != NULL) clSetEventCallback(cb_event, CL_COMPLETE, call->openclCallback, call_pl);
-#endif
+		if (opencl_symbols.opencl_reduce != NULL) ret = (*(opencl_symbols.opencl_reduce))(grid_size, block_size, data, array_size, array_start, array_end, reduction_var, type, async, call, call_pl, ret_event);
+		else {
+		  fprintf(stderr, "OpenCL backend improperly loaded or missing symbol \"opencl_reduce\"\n");
+		  //FIXME output a real error code
+		  ret = -1;
+	  	}
 		}
 		break;
-#endif
 
 #ifdef WITH_OPENMP
 		case metaModePreferOpenMP:
@@ -1280,7 +1201,9 @@ a_err meta_reduce_cb(a_dim3 * grid_size, a_dim3 * block_size, void * data,
 #endif
 	}
 #ifdef WITH_TIMERS
+	if (run_mode != metaModePreferOpenCL) {
 	metaTimerEnqueue(frame, &(metaBuiltinQueues[k_reduce]));
+	}
 #endif
 	return (ret);
 }
@@ -1346,13 +1269,13 @@ meta_face * make_slab_from_3d(int face, int ni, int nj, int nk, int thickness) {
 //Workhorse for both sync and async transpose
 a_err meta_transpose_face(a_dim3 * grid_size, a_dim3 * block_size,
 		void *indata, void *outdata, a_dim3 * arr_dim_xy, a_dim3 * tran_dim_xy,
-		meta_type_id type, a_bool async) {
+		meta_type_id type, a_bool async, void * ret_event) {
 	return meta_transpose_face_cb(grid_size, block_size, indata, outdata,
-			arr_dim_xy, tran_dim_xy, type, async, (meta_callback*) NULL, NULL);
+			arr_dim_xy, tran_dim_xy, type, async, (meta_callback*) NULL, NULL, ret_event);
 }
 a_err meta_transpose_face_cb(a_dim3 * grid_size, a_dim3 * block_size,
 		void *indata, void *outdata, a_dim3 * arr_dim_xy, a_dim3 * tran_dim_xy,
-		meta_type_id type, a_bool async, meta_callback *call, void *call_pl) {
+		meta_type_id type, a_bool async, meta_callback *call, void *call_pl, void * ret_event) {
 	a_err ret;
 	//FIXME? Consider adding a compiler flag "UNCHECKED_EXPLICIT" to streamline out sanity checks like this
 	//Before we do anything, sanity check that trans_dim_xy fits inside arr_dim_xy
@@ -1379,9 +1302,11 @@ a_err meta_transpose_face_cb(a_dim3 * grid_size, a_dim3 * block_size,
 
 	}
 #ifdef WITH_TIMERS
+	if (run_mode != metaModePreferOpenCL) {
 	metaTimerQueueFrame * frame = (metaTimerQueueFrame*)malloc (sizeof(metaTimerQueueFrame));
 	frame->mode = run_mode;
 	frame->size = (*tran_dim_xy)[0]*(*tran_dim_xy)[1]*get_atype_size(type);
+	}
 #endif
 	switch (run_mode) {
 	default:
@@ -1402,22 +1327,16 @@ a_err meta_transpose_face_cb(a_dim3 * grid_size, a_dim3 * block_size,
 		}
 #endif
 
-#ifdef WITH_OPENCL
 		case metaModePreferOpenCL:
 		{
-#ifdef WITH_TIMERS
-		ret = (a_err) opencl_transpose_face(grid_size, block_size, indata, outdata, arr_dim_xy, tran_dim_xy, type, async, &(frame->event.opencl));
-		//If timers exist, use their event to add the callback
-		if ((void*)call != NULL && call_pl != NULL) clSetEventCallback(frame->event.opencl, CL_COMPLETE, call->openclCallback, call_pl);
-#else
-		//If timers don't exist, get the event via a locally-scoped event to add to the callback
-		cl_event cb_event;
-		ret = (a_err) opencl_transpose_face(grid_size, block_size, indata, outdata, arr_dim_xy, tran_dim_xy, type, async, &cb_event);
-		if ((void*)call != NULL && call_pl != NULL) clSetEventCallback(cb_event, CL_COMPLETE, call->openclCallback, call_pl);
-#endif
+		if (opencl_symbols.opencl_transpose_face != NULL) ret = (*(opencl_symbols.opencl_transpose_face))(grid_size, block_size, indata, outdata, arr_dim_xy, tran_dim_xy, type, async, call, call_pl, ret_event);
+		else {
+		  fprintf(stderr, "OpenCL backend improperly loaded or missing symbol \"opencl_transpose_face\"\n");
+		  //FIXME output a real error code
+		  ret = -1;
+	  	}
 		}
 		break;
-#endif
 
 #ifdef WITH_OPENMP
 		case metaModePreferOpenMP:
@@ -1438,7 +1357,9 @@ a_err meta_transpose_face_cb(a_dim3 * grid_size, a_dim3 * block_size,
 #endif
 	}
 #ifdef WITH_TIMERS
+	if (run_mode != metaModePreferOpenCL) {
 	metaTimerEnqueue(frame, &(metaBuiltinQueues[k_transpose_2d_face]));
+	}
 #endif
 	return (ret);
 }
@@ -1446,13 +1367,13 @@ a_err meta_transpose_face_cb(a_dim3 * grid_size, a_dim3 * block_size,
 //Workhorse for both sync and async pack
 a_err meta_pack_face(a_dim3 * grid_size, a_dim3 * block_size,
 		void *packed_buf, void *buf, meta_face *face,
-		meta_type_id type, a_bool async) {
+		meta_type_id type, a_bool async, void * ret_event_k1, void * ret_event_c1, void * ret_event_c2, void * ret_event_c3) {
 	return meta_pack_face_cb(grid_size, block_size, packed_buf, buf, face,
-			type, async, (meta_callback*) NULL, NULL);
+			type, async, (meta_callback*) NULL, NULL, ret_event_k1, ret_event_c1, ret_event_c2, ret_event_c3);
 }
 a_err meta_pack_face_cb(a_dim3 * grid_size, a_dim3 * block_size,
 		void *packed_buf, void *buf, meta_face *face,
-		meta_type_id type, a_bool async, meta_callback *call, void *call_pl) {
+		meta_type_id type, a_bool async, meta_callback *call, void *call_pl, void * ret_event_k1, void * ret_event_c1, void * ret_event_c2, void * ret_event_c3) {
 	a_err ret;
 	//FIXME? Consider adding a compiler flag "UNCHECKED_EXPLICIT" to streamline out sanity checks like this
 	//Before we do anything, sanity check that the face is set up
@@ -1468,6 +1389,7 @@ a_err meta_pack_face_cb(a_dim3 * grid_size, a_dim3 * block_size,
 		return -1;
 	}
 #ifdef WITH_TIMERS
+	if (run_mode != metaModePreferOpenCL) {
 	//TODO: Add another queue for copies into constant memory
 	//TODO: Hoist copies into constant memory out of the cores to here
 	metaTimerQueueFrame * frame_k1 = (metaTimerQueueFrame*)malloc (sizeof(metaTimerQueueFrame));
@@ -1483,6 +1405,7 @@ a_err meta_pack_face_cb(a_dim3 * grid_size, a_dim3 * block_size,
 	frame_c2->size = get_atype_size(type)*3;
 	frame_c3->size = get_atype_size(type)*3;
 //	frame->size = (*dim_xy)[0]*(*dim_xy)[1]*get_atype_size(type);
+	}
 #endif
 
 	//figure out what the aggregate size of all descendant branches are
@@ -1525,22 +1448,16 @@ a_err meta_pack_face_cb(a_dim3 * grid_size, a_dim3 * block_size,
 		}
 #endif
 
-#ifdef WITH_OPENCL
 		case metaModePreferOpenCL:
 		{
-#ifdef WITH_TIMERS
-		ret = (a_err) opencl_pack_face(grid_size, block_size, packed_buf, buf, face, remain_dim, type, async, &(frame_k1->event.opencl), &(frame_c1->event.opencl), &(frame_c2->event.opencl), &(frame_c3->event.opencl));
-		//If timers exist, use their event to add the callback
-		if ((void*)call != NULL && call_pl != NULL) clSetEventCallback(frame_k1->event.opencl, CL_COMPLETE, call->openclCallback, call_pl);
-#else
-		//If timers don't exist, get the event via a locally-scoped event to add to the callback
-		cl_event cb_event;
-		ret = (a_err) opencl_pack_face(grid_size, block_size, packed_buf, buf, face, remain_dim, type, async, &cb_event, NULL, NULL, NULL);
-		if ((void*)call != NULL && call_pl != NULL) clSetEventCallback(cb_event, CL_COMPLETE, call->openclCallback, call_pl);
-#endif
+		if (opencl_symbols.opencl_pack_face != NULL) ret = (*(opencl_symbols.opencl_pack_face))(grid_size, block_size, packed_buf, buf, face, remain_dim, type, async, call, call_pl, ret_event_k1, ret_event_c1, ret_event_c2, ret_event_c3);
+		else {
+		  fprintf(stderr, "OpenCL backend improperly loaded or missing symbol \"opencl_pack_face\"\n");
+		  //FIXME output a real error code
+		  ret = -1;
+	  	}
 		}
 		break;
-#endif
 
 #ifdef WITH_OPENMP
 		case metaModePreferOpenMP:
@@ -1566,11 +1483,13 @@ a_err meta_pack_face_cb(a_dim3 * grid_size, a_dim3 * block_size,
 #endif
 	}
 #ifdef WITH_TIMERS
+	if (run_mode != metaModePreferOpenCL) {
 	//TODO Add queue c_H2Dc for copies into constant memory
 	metaTimerEnqueue(frame_k1, &(metaBuiltinQueues[k_pack_2d_face]));
 	metaTimerEnqueue(frame_c1, &(metaBuiltinQueues[c_H2Dc]));
 	metaTimerEnqueue(frame_c2, &(metaBuiltinQueues[c_H2Dc]));
 	metaTimerEnqueue(frame_c3, &(metaBuiltinQueues[c_H2Dc]));
+	}
 #endif
 	return (ret);
 }
@@ -1579,13 +1498,13 @@ a_err meta_pack_face_cb(a_dim3 * grid_size, a_dim3 * block_size,
 //TODO fix frame->size to reflect face size
 a_err meta_unpack_face(a_dim3 * grid_size, a_dim3 * block_size,
 		void *packed_buf, void *buf, meta_face *face,
-		meta_type_id type, a_bool async) {
+		meta_type_id type, a_bool async, void * ret_event_k1, void * ret_event_c1, void * ret_event_c2, void * ret_event_c3) {
 	return meta_unpack_face_cb(grid_size, block_size, packed_buf, buf, face,
-			type, async, (meta_callback*) NULL, NULL);
+			type, async, (meta_callback*) NULL, NULL, ret_event_k1, ret_event_c1, ret_event_c2, ret_event_c3);
 }
 a_err meta_unpack_face_cb(a_dim3 * grid_size, a_dim3 * block_size,
 		void *packed_buf, void *buf, meta_face *face,
-		meta_type_id type, a_bool async, meta_callback *call, void *call_pl) {
+		meta_type_id type, a_bool async, meta_callback *call, void *call_pl, void * ret_event_k1, void * ret_event_c1, void * ret_event_c2, void * ret_event_c3) {
 	a_err ret;
 	//FIXME? Consider adding a compiler flag "UNCHECKED_EXPLICIT" to streamline out sanity checks like this
 	//Before we do anything, sanity check that the face is set up
@@ -1601,6 +1520,7 @@ a_err meta_unpack_face_cb(a_dim3 * grid_size, a_dim3 * block_size,
 		return -1;
 	}
 #ifdef WITH_TIMERS
+	if (run_mode != metaModePreferOpenCL) {
 	//TODO: Add another queue for copies into constant memory
 	//TODO: Hoist copies into constant memory out of the cores to here
 	metaTimerQueueFrame * frame_k1 = (metaTimerQueueFrame*)malloc (sizeof(metaTimerQueueFrame));
@@ -1616,6 +1536,7 @@ a_err meta_unpack_face_cb(a_dim3 * grid_size, a_dim3 * block_size,
 	frame_c2->size = get_atype_size(type)*3;
 	frame_c3->size = get_atype_size(type)*3;
 //	frame->size = (*dim_xy)[0]*(*dim_xy)[1]*get_atype_size(type);
+	}
 #endif
 
 	//figure out what the aggregate size of all descendant branches are
@@ -1649,22 +1570,16 @@ a_err meta_unpack_face_cb(a_dim3 * grid_size, a_dim3 * block_size,
 		}
 #endif
 
-#ifdef WITH_OPENCL
 		case metaModePreferOpenCL:
 		{
-#ifdef WITH_TIMERS
-		ret = (a_err) opencl_unpack_face(grid_size, block_size, packed_buf, buf, face, remain_dim, type, async, &(frame_k1->event.opencl), &(frame_c1->event.opencl), &(frame_c2->event.opencl), &(frame_c3->event.opencl));
-		//If timers exist, use their event to add the callback
-		if ((void*)call != NULL && call_pl != NULL) clSetEventCallback(frame_k1->event.opencl, CL_COMPLETE, call->openclCallback, call_pl);
-#else
-		//If timers don't exist, get the event via a locally-scoped event to add to the callback
-		cl_event cb_event;
-		ret = (a_err) opencl_unpack_face(grid_size, block_size, packed_buf, buf, face, remain_dim, type, async, &cb_event, NULL, NULL, NULL);
-		if ((void*)call != NULL && call_pl != NULL) clSetEventCallback(cb_event, CL_COMPLETE, call->openclCallback, call_pl);
-#endif
+		if (opencl_symbols.opencl_unpack_face != NULL) ret = (*(opencl_symbols.opencl_unpack_face))(grid_size, block_size, packed_buf, buf, face, remain_dim, type, async, call, call_pl, ret_event_k1, ret_event_c1, ret_event_c2, ret_event_c3);
+		else {
+		  fprintf(stderr, "OpenCL backend improperly loaded or missing symbol \"opencl_unpack_face\"\n");
+		  //FIXME output a real error code
+		  ret = -1;
+	  	}
 		}
 		break;
-#endif
 
 #ifdef WITH_OPENMP
 		case metaModePreferOpenMP:
@@ -1690,11 +1605,13 @@ a_err meta_unpack_face_cb(a_dim3 * grid_size, a_dim3 * block_size,
 #endif
 	}
 #ifdef WITH_TIMERS
+	if (run_mode != metaModePreferOpenCL) {
 	//TODO Add queue c_H2Dc for copies into constant memory
 	metaTimerEnqueue(frame_k1, &(metaBuiltinQueues[k_unpack_2d_face]));
 	metaTimerEnqueue(frame_c1, &(metaBuiltinQueues[c_H2Dc]));
 	metaTimerEnqueue(frame_c2, &(metaBuiltinQueues[c_H2Dc]));
 	metaTimerEnqueue(frame_c3, &(metaBuiltinQueues[c_H2Dc]));
+	}
 #endif
 	return (ret);
 }
@@ -1702,15 +1619,15 @@ a_err meta_unpack_face_cb(a_dim3 * grid_size, a_dim3 * block_size,
 //Workhorse for both sync and async stencil
 a_err meta_stencil_3d7p(a_dim3 * grid_size, a_dim3 * block_size, void *indata,
 		void *outdata, a_dim3 * array_size, a_dim3 * array_start,
-		a_dim3 * array_end, meta_type_id type, a_bool async) {
+		a_dim3 * array_end, meta_type_id type, a_bool async, void * ret_event) {
 	return meta_stencil_3d7p_cb(grid_size, block_size, indata, outdata,
 			array_size, array_start, array_end, type, async,
-			(meta_callback*) NULL, NULL);
+			(meta_callback*) NULL, NULL, ret_event);
 }
 a_err meta_stencil_3d7p_cb(a_dim3 * grid_size, a_dim3 * block_size,
 		void *indata, void *outdata, a_dim3 * array_size, a_dim3 * array_start,
 		a_dim3 * array_end, meta_type_id type, a_bool async,
-		meta_callback *call, void *call_pl) {
+		meta_callback *call, void *call_pl, void * ret_event) {
 	a_err ret;
 
 	//FIXME? Consider adding a compiler flag "UNCHECKED_EXPLICIT" to streamline out sanity checks like this
@@ -1791,9 +1708,11 @@ a_err meta_stencil_3d7p_cb(a_dim3 * grid_size, a_dim3 * block_size,
 	}
 
 #ifdef WITH_TIMERS
+	if (run_mode != metaModePreferOpenCL) {
 	metaTimerQueueFrame * frame = (metaTimerQueueFrame*)malloc (sizeof(metaTimerQueueFrame));
 	frame->mode = run_mode;
 	frame->size = (*array_size)[0]*(*array_size)[1]*(*array_size)[2]*get_atype_size(type);
+	}
 #endif
 	switch (run_mode) {
 	default:
@@ -1814,23 +1733,16 @@ a_err meta_stencil_3d7p_cb(a_dim3 * grid_size, a_dim3 * block_size,
 		}
 #endif
 
-#ifdef WITH_OPENCL
 		case metaModePreferOpenCL:
 		{
-#ifdef WITH_TIMERS
-		ret = (a_err) opencl_stencil_3d7p(grid_size, block_size, indata, outdata, array_size, array_start, array_end, type, async, &(frame->event.opencl));
-		//If timers exist, use their event to add the callback
-		if ((void*)call != NULL && call_pl != NULL) clSetEventCallback(frame->event.opencl, CL_COMPLETE, call->openclCallback, call_pl);
-#else
-		//If timers don't exist, get the event via a locally-scoped event to add to the callback
-		cl_event cb_event;
-		ret = (a_err) opencl_stencil_3d7p(grid_size, block_size, indata, outdata, array_size, array_start, array_end, type, async, &cb_event);
-
-		if ((void*)call != NULL && call_pl != NULL) clSetEventCallback(cb_event, CL_COMPLETE, call->openclCallback, call_pl);
-#endif
+		if (opencl_symbols.opencl_stencil_3d7p != NULL) ret = (*(opencl_symbols.opencl_stencil_3d7p))(grid_size, block_size, indata, outdata, array_size, array_start, array_end, type, async, call, call_pl, ret_event);
+		else {
+		  fprintf(stderr, "OpenCL backend improperly loaded or missing symbol \"opencl_stencil_3d7p\"\n");
+		  //FIXME output a real error code
+		  ret = -1;
+	  	}
 		}
 		break;
-#endif
 
 #ifdef WITH_OPENMP
 		case metaModePreferOpenMP:
@@ -1850,7 +1762,9 @@ a_err meta_stencil_3d7p_cb(a_dim3 * grid_size, a_dim3 * block_size,
 #endif
 	}
 #ifdef WITH_TIMERS
+	if (run_mode != metaModePreferOpenCL) {
 	metaTimerEnqueue(frame, &(metaBuiltinQueues[k_stencil_3d7p]));
+	}
 #endif
 	return (ret);
 }
@@ -1858,22 +1772,24 @@ a_err meta_stencil_3d7p_cb(a_dim3 * grid_size, a_dim3 * block_size,
 //SPMV API (meta_csr)//
 ///////////////////////
 a_err meta_csr(a_dim3 * grid_size, a_dim3 * block_size, size_t global_size, void * csr_ap, void * csr_aj, void * csr_ax, void * x_loc, void * y_loc, 
-		size_t wg_size, meta_type_id type, a_bool async) {//, cl_event * wait) {
+		size_t wg_size, meta_type_id type, a_bool async, void * ret_event) {//, cl_event * wait) {
 	return meta_csr_cb(grid_size, block_size, global_size, csr_ap, csr_aj, csr_ax, x_loc, y_loc,
 			wg_size, type, async,
 			// wait,
-			(meta_callback*) NULL, NULL);
+			(meta_callback*) NULL, NULL, ret_event);
 }
 a_err meta_csr_cb(a_dim3 * grid_size, a_dim3 * block_size, size_t global_size, void * csr_ap, void * csr_aj, void * csr_ax, void * x_loc, void * y_loc,
 		size_t wg_size, meta_type_id type, a_bool async,
 		// cl_event * wait,
-		meta_callback *call, void *call_pl) {
+		meta_callback *call, void *call_pl, void * ret_event) {
 	a_err ret;
 #ifdef WITH_TIMERS
+	if (run_mode != metaModePreferOpenCL) {
 	metaTimerQueueFrame * frame = (metaTimerQueueFrame*)malloc (sizeof(metaTimerQueueFrame));
 	frame->mode = run_mode;
 	frame->size = wg_size*get_atype_size(type);
 	frame->name = "CSR";
+	}
 #endif
 
 	switch (run_mode) {
@@ -1888,27 +1804,16 @@ a_err meta_csr_cb(a_dim3 * grid_size, a_dim3 * block_size, size_t global_size, v
 		break;
 #endif
 
-#ifdef WITH_OPENCL
 		case metaModePreferOpenCL:
 		{
-#ifdef WITH_TIMERS
-		ret = (a_err) opencl_csr(grid_size, block_size, global_size, csr_ap, csr_aj, csr_ax, x_loc, y_loc, type, async,
-		// wait,
-		 &(frame->event.opencl));
-		//If timers exist, use their event to add the callback
-		if ((void*)call != NULL && call_pl != NULL) clSetEventCallback(frame->event.opencl, CL_COMPLETE, call->openclCallback, call_pl);
-#else
-		//If timers don't exist, get the event via a locally-scoped event to add to the callback
-		cl_event cb_event;
-		ret = (a_err) opencl_csr(grid_size, block_size, global_size, csr_ap, csr_aj, csr_ax, x_loc, y_loc, type, async,
-		// wait,
-		 &cb_event);
-
-		if ((void*)call != NULL && call_pl != NULL) clSetEventCallback(cb_event, CL_COMPLETE, call->openclCallback, call_pl);
-#endif
+		if (opencl_symbols.opencl_csr != NULL) ret = (*(opencl_symbols.opencl_csr))(grid_size, block_size, global_size, csr_ap, csr_aj, csr_ax, x_loc, y_loc, type, async, call, call_pl, ret_event);
+		else {
+		  fprintf(stderr, "OpenCL backend improperly loaded or missing symbol \"opencl_csr\"\n");
+		  //FIXME output a real error code
+		  ret = -1;
+	  	}
 		}
 		break;
-#endif
 
 #ifdef WITH_OPENMP
 		case metaModePreferOpenMP:
@@ -1917,7 +1822,9 @@ a_err meta_csr_cb(a_dim3 * grid_size, a_dim3 * block_size, size_t global_size, v
 #endif
 	}
 #ifdef WITH_TIMERS
+	if (run_mode != metaModePreferOpenCL) {
 	metaTimerEnqueue(frame, &(metaBuiltinQueues[k_csr]));
+	}
 #endif
 	return (ret);
 }
@@ -1926,21 +1833,23 @@ a_err meta_csr_cb(a_dim3 * grid_size, a_dim3 * block_size, size_t global_size, v
 //CRC API (meta_crc)//
 ///////////////////////
 a_err meta_crc(a_dim3 * grid_size, a_dim3 * block_size, void * dev_input, int page_size, int num_words, int numpages, void * dev_output, 
-		meta_type_id type, a_bool async) {//, cl_event * wait) {
+		meta_type_id type, a_bool async, void * ret_event) {//, cl_event * wait) {
 	return meta_crc_cb(grid_size, block_size, dev_input, page_size, num_words, numpages, dev_output,
 			type, async,// wait,
-			(meta_callback*) NULL, NULL);
+			(meta_callback*) NULL, NULL, ret_event);
 }
 a_err meta_crc_cb(a_dim3 * grid_size, a_dim3 * block_size, void * dev_input, int page_size, int num_words, int numpages, void * dev_output,
 		meta_type_id type, a_bool async,
 		// cl_event * wait,
-		meta_callback *call, void *call_pl) {
+		meta_callback *call, void *call_pl, void * ret_event) {
 	a_err ret;
 #ifdef WITH_TIMERS
+	if (run_mode != metaModePreferOpenCL) {
 	metaTimerQueueFrame * frame = (metaTimerQueueFrame*)malloc (sizeof(metaTimerQueueFrame));
 	frame->mode = run_mode;
 	frame->size = (*block_size)[0]*get_atype_size(type);
 	frame->name = "CRC";
+	}
 #endif
 
 	switch (run_mode) {
@@ -1955,26 +1864,16 @@ a_err meta_crc_cb(a_dim3 * grid_size, a_dim3 * block_size, void * dev_input, int
 		break;
 #endif
 
-#ifdef WITH_OPENCL
 		case metaModePreferOpenCL:
 		{
-#ifdef WITH_TIMERS
-		ret = (a_err) opencl_crc(dev_input, page_size, num_words, numpages, dev_output, type, async,
-		// wait,
-		 &(frame->event.opencl));
-		
-		if ((void*)call != NULL && call_pl != NULL) clSetEventCallback(frame->event.opencl, CL_COMPLETE, call->openclCallback, call_pl);
-#else
-		cl_event cb_event;
-		ret = (a_err) opencl_crc(dev_input, page_size, num_words, numpages, dev_output, type, async,
-		// wait,
-		 &cb_event);
-
-		if ((void*)call != NULL && call_pl != NULL) clSetEventCallback(cb_event, CL_COMPLETE, call->openclCallback, call_pl);
-#endif
+		if (opencl_symbols.opencl_crc != NULL) ret = (*(opencl_symbols.opencl_crc))(dev_input, page_size, num_words, numpages, dev_output, type, async, call, call_pl, ret_event);
+		else {
+		  fprintf(stderr, "OpenCL backend improperly loaded or missing symbol \"opencl_crc\"\n");
+		  //FIXME output a real error code
+		  ret = -1;
+	  	}
 		}
 		break;
-#endif
 
 #ifdef WITH_OPENMP
 		case metaModePreferOpenMP:
@@ -1983,7 +1882,9 @@ a_err meta_crc_cb(a_dim3 * grid_size, a_dim3 * block_size, void * dev_input, int
 #endif
 	}
 #ifdef WITH_TIMERS
+	if (run_mode != metaModePreferOpenCL) {
 	metaTimerEnqueue(frame, &(metaBuiltinQueues[k_crc]));
+	}
 #endif
 	return (ret);
 }

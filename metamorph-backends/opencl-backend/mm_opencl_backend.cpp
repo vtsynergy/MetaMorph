@@ -10,11 +10,11 @@ extern "C" {
 #endif
 
 /** The globally-exposed cl_context for the most recently initialized OpenCL frame */
-extern cl_context meta_context;
+cl_context meta_context;
 /** The globally-exposed cl_command_queue for the most recently initialized OpenCL frame */
-extern cl_command_queue meta_queue;
+cl_command_queue meta_queue;
 /** The globally-exposed cl_device_id for the most recently initialized OpenCL frame */
-extern cl_device_id meta_device;
+cl_device_id meta_device;
 
 //Warning, none of these variables are threadsafe, so only one thread should ever
 // perform the one-time scan!!
@@ -765,11 +765,35 @@ metaOpenCLStackFrame * metaOpenCLPopStackFrame() {
 	}
 	//and pull the node off the stack
 	CLStack = t->next;
+	// Once we pop, we have to assume MetaMorph no longer controlls the state, so set it to the new top or NULL if we've freed the last state
+	if (CLStack != NULL) {
+	meta_context = CLStack->frame.context;
+	meta_queue = CLStack->frame.queue;
+	meta_device = CLStack->frame.device;
+	meta_reinitialize_modules(module_implements_opencl);
+	} else {
+	meta_context = NULL;
+	meta_queue = NULL;
+	meta_device = NULL;
+	}
 	//Do something with the memory
 	/// \todo FIXME: This looks like it should be on, else we're leaking free(t);
 	//release the hazard pointer
 	//so hazards are over, return the copy and exit
 	return (frame);
+}
+
+//All this does is wrap calling metaOpenCLInitStackFrameDefault
+// and setting meta_context and meta_queue appropriately
+void metaOpenCLFallback() {
+	metaOpenCLStackFrame * frame;
+	metaOpenCLInitStackFrameDefault(&frame);
+	meta_context = frame->context;
+	meta_queue = frame->queue;
+	meta_device = frame->device;
+	metaOpenCLPushStackFrame(frame);
+	free(frame); //This is safe, it's just a copy of what should now be
+				 // the bottom of the stack
 }
 
 //Not meant to be called by users
@@ -856,6 +880,43 @@ a_int meta_set_state_OpenCL(cl_platform_id platform, cl_device_id device,
 	return 0; //TODO real return code
 }
 
+#ifdef WITH_TIMERS
+//getting a pointer to specific event  
+a_err meta_get_event(char * qname, char * ename, cl_event ** e)
+{
+	a_err ret;
+	metaTimerQueueFrame * frame = (metaTimerQueueFrame*) malloc(sizeof(metaTimerQueueFrame));
+
+	if(strcmp(qname,"c_D2H") == 0)
+		ret = cl_get_event_node(&(metaBuiltinQueues[c_D2H]), ename, &frame);
+	else if(strcmp(qname,"c_H2D") == 0)
+		ret = cl_get_event_node(&(metaBuiltinQueues[c_H2D]), ename, &frame);
+	else if(strcmp(qname,"c_D2D") == 0)
+		ret = cl_get_event_node(&(metaBuiltinQueues[c_D2D]), ename, &frame);
+	else if(strcmp(qname,"k_csr") == 0)
+		ret = cl_get_event_node(&(metaBuiltinQueues[k_csr]), ename, &frame);
+        else if(strcmp(qname,"k_crc") == 0)
+                ret = cl_get_event_node(&(metaBuiltinQueues[k_crc]), ename, &frame);
+	else
+		printf("Event queue '%s' is not recognized...\n",qname);	
+
+/*	if(frame == NULL)
+		printf("event node search failed ..\n");
+	else
+		printf("This is 'MetaMorph C core', event '%s' retrieved succesfully\n",frame->name);
+*/
+
+/*
+cl_ulong start_time;
+size_t return_bytes;
+clGetEventProfilingInfo(frame->event.opencl,CL_PROFILING_COMMAND_QUEUED,sizeof(cl_ulong),&start_time,&return_bytes);
+printf("check profiling event is correct (MM side) %lu\n",start_time);
+*/	
+	(*e) =&(frame->event.opencl);
+	return(ret);
+}
+#endif // WITH_TIMERS
+
 cl_int metaOpenCLInitStackFrame(metaOpenCLStackFrame ** frame, cl_int device) {
 	int zero = 0;
 	cl_int ret = CL_SUCCESS;
@@ -904,6 +965,54 @@ cl_int metaOpenCLInitStackFrame(metaOpenCLStackFrame ** frame, cl_int device) {
 	return ret;
 }
 
+a_err metaOpenCLInitByID(a_int id) {
+  a_err ret = CL_SUCCESS;
+  metaOpenCLStackFrame * frame;
+  ret = metaOpenCLInitStackFrame(&frame, (cl_int) id); //no hazards, frames are thread-private
+  metaOpenCLPushStackFrame(frame);//no hazards, HPs are internally managed when copying the frame to a new stack node before pushing.
+  //Now it's safe to free the frame
+  // But not to destroy it, as we shouldn't release the frame members
+  free(frame);
+  //If users request it, a full set of contexts could be pre-initialized..
+  // but we can lessen overhead by only eagerly initializing one.
+  //fprintf(stderr, "OpenCL Mode not yet implemented!\n");
+  return ret;
+}
+
+a_err metaOpenCLCurrDev(a_int * id) {
+  //Make sure some context exists..
+  if (meta_context == NULL) metaOpenCLFallback();
+  *id = -1;
+  int i;
+  for (i= 0; i < num_devices; i++) {
+    if (__meta_devices_array[i] == meta_device) *id = i;
+  }
+  return (*id == -1 ? -1 : CL_SUCCESS);
+}
+
+a_err metaOpenCLMaxWorkSizes(a_dim3 * work_groups, a_dim3 * work_items) {
+  a_err ret = CL_SUCCESS;
+		//Make sure some context exists..
+		if (meta_context == NULL) metaOpenCLFallback();
+		size_t max_wg_size, max_wg_dim_sizes[3];
+		ret = clGetDeviceInfo(meta_device, CL_DEVICE_MAX_WORK_GROUP_SIZE, sizeof(size_t), &max_wg_size, NULL);
+		ret |= clGetDeviceInfo(meta_device, CL_DEVICE_MAX_WORK_ITEM_SIZES, sizeof(size_t)*3, &max_wg_dim_sizes, NULL);
+		if ((*work_items)[0] * (*work_items)[1] * (*work_items)[2] > max_wg_size)
+		{	fprintf(stderr, "Error: Maximum block volume is: %lu\nRequested block volume of: %lu (%lu * %lu * %lu) not supported!\n", max_wg_size, (*work_items)[0] * (*work_items)[1] * (*work_items)[2], (*work_items)[0], (*work_items)[1], (*work_items)[2]); ret |= -1;}
+
+		if ((*work_items)[0] > max_wg_dim_sizes[0]) {fprintf(stderr, "Error: Maximum block size for dimension 0 is: %lu\nRequested 0th dimension size of: %lu not supported\n!", max_wg_dim_sizes[0], (*work_items)[0]); ret |= -1;}
+		if ((*work_items)[1] > max_wg_dim_sizes[1]) {fprintf(stderr, "Error: Maximum block size for dimension 1 is: %lu\nRequested 1st dimension size of: %lu not supported\n!", max_wg_dim_sizes[1], (*work_items)[1]); ret |= -1;}
+		if ((*work_items)[2] > max_wg_dim_sizes[2]) {fprintf(stderr, "Error: Maximum block size for dimension 2 is: %lu\nRequested 2nd dimension size of: %lu not supported\n!", max_wg_dim_sizes[2], (*work_items)[2]); ret |= -1;}
+		return ret;
+}
+
+a_err metaOpenCLFlush() {
+  a_err ret = CL_SUCCESS;
+		//Make sure some context exists..
+		if (meta_context == NULL) metaOpenCLFallback();
+		clFinish(meta_queue);
+  return ret;
+}
 //calls all the necessary CLRelease* calls for frame members
 //DOES NOT:
 //	pop any stack nodes
@@ -1198,7 +1307,99 @@ meta_cl_device_vendor metaOpenCLDetectDevice(cl_device_id dev) {
   return ret;
 }
 
+a_err metaOpenCLAlloc(void ** ptr, size_t size) {
+  a_err ret;
+		//Make sure some context exists..
+		if (meta_context == NULL) metaOpenCLFallback();
+		*ptr = (void *) clCreateBuffer(meta_context, CL_MEM_READ_WRITE, size, NULL, (cl_int *)&ret);
+  return ret;
+}
 
+a_err metaOpenCLFree(void* ptr) {
+  a_err ret;
+		//Make sure some context exists..
+		if (meta_context == NULL) metaOpenCLFallback();
+		ret = clReleaseMemObject((cl_mem)ptr);
+  return ret;
+}
+
+a_err metaOpenCLWrite(void * dst, void * src, size_t size, a_bool async, meta_callback *call, void *call_pl) {
+  a_err ret;
+		//Make sure some context exists..
+		if (meta_context == NULL) metaOpenCLFallback();
+#ifdef WITH_TIMERS
+		//if(wait != NULL)
+		//{
+		//	ret = clEnqueueWriteBuffer(meta_queue, (cl_mem) dst, ((async) ? CL_FALSE : CL_TRUE), 0, size, src, 1, wait, &(frame->event.opencl));
+		//	CHKERR(ret, "Failed to write to source array!");
+		//}
+		//else
+		//{
+			ret = clEnqueueWriteBuffer(meta_queue, (cl_mem) dst, ((async) ? CL_FALSE : CL_TRUE), 0, size, src, 0, NULL, &(frame->event.opencl));
+//			CHKERR(ret, "Failed to write to source array!");
+//		}
+		//If timers exist, use their event to add the callback
+		if ((void*)call != NULL && call_pl != NULL) clSetEventCallback(frame->event.opencl, CL_COMPLETE, (openclCallback) call, call_pl);
+#else
+		//If timers don't exist, get the event via a locally-scoped event to add to the callback
+		cl_event cb_event;
+		ret = clEnqueueWriteBuffer(meta_queue, (cl_mem) dst, ((async) ? CL_FALSE : CL_TRUE), 0, size, src, 0, NULL, &cb_event);
+		if ((void*)call != NULL && call_pl != NULL) clSetEventCallback(cb_event, CL_COMPLETE, (openclCallback)call, call_pl);
+#endif
+  return ret;
+}
+
+a_err metaOpenCLRead(void * dst, void * src, size_t size, a_bool async, meta_callback *call, void *call_pl) {
+  a_err ret;
+		//Make sure some context exists..
+		if (meta_context == NULL) metaOpenCLFallback();
+#ifdef WITH_TIMERS
+		//if(wait != NULL)
+		//{
+		//	ret = clEnqueueReadBuffer(meta_queue, (cl_mem) src, ((async) ? CL_FALSE : CL_TRUE), 0, size, dst, 1, wait, &(frame->event.opencl));
+			//ret = clEnqueueReadBuffer(meta_queue, (cl_mem) src, ((async) ? CL_FALSE : CL_TRUE), 0, size, dst, 0, NULL, &(frame->event.opencl));
+		//}
+		//else
+		//{
+			ret = clEnqueueReadBuffer(meta_queue, (cl_mem) src, ((async) ? CL_FALSE : CL_TRUE), 0, size, dst, 0, NULL, &(frame->event.opencl));
+		//}
+
+		//If timers exist, use their event to add the callback
+		if ((void*)call != NULL && call_pl != NULL) clSetEventCallback(frame->event.opencl, CL_COMPLETE, (openclCallback) call, call_pl);
+#else
+		//If timers don't exist, get the event via a locally-scoped event to add to the callback
+		cl_event cb_event;
+		ret = clEnqueueReadBuffer(meta_queue, (cl_mem) src, ((async) ? CL_FALSE : CL_TRUE), 0, size, dst, 0, NULL, &cb_event);
+		if ((void*)call != NULL && call_pl != NULL) clSetEventCallback(cb_event, CL_COMPLETE, (openclCallback)call, call_pl);
+#endif
+  return ret;
+}
+
+a_err metaOpenCLDevCopy(void * dst, void * src, size_t size, a_bool async, meta_callback *call, void *call_pl) {
+  a_err ret;
+		//Make sure some context exists..
+		if (meta_context == NULL) metaOpenCLFallback();
+#ifdef WITH_TIMERS
+		//if(wait != NULL)
+		//{
+		//	ret = clEnqueueCopyBuffer(meta_queue, (cl_mem) src, (cl_mem) dst, 0, 0, size, 1, wait, &(frame->event.opencl));
+		//}
+		//else
+		//{
+			ret = clEnqueueCopyBuffer(meta_queue, (cl_mem) src, (cl_mem) dst, 0, 0, size, 0, NULL, &(frame->event.opencl));
+		//}
+		//If timers exist, use their event to add the callback
+		if ((void*)call != NULL && call_pl != NULL) clSetEventCallback(frame->event.opencl, CL_COMPLETE, (openclCallback) call, call_pl);
+#else
+		//If timers don't exist, get the event via a locally-scoped event to add to the callback
+		cl_event cb_event;
+		ret = clEnqueueCopyBuffer(meta_queue, (cl_mem) src, (cl_mem) dst, 0, 0, size, 0, NULL, &cb_event);
+		if ((void*)call != NULL && call_pl != NULL) clSetEventCallback(cb_event, CL_COMPLETE, (openclCallback)call, call_pl);
+#endif
+		//clEnqueueCopyBuffer is by default async, so clFinish
+		if (!async) clFinish(meta_queue);
+  return ret;
+}
 //  !this kernel works for 3D data only.
 //  ! PHI1 and PHI2 are input arrays.
 //  ! s* parameters are start values in each dimension.
@@ -1208,11 +1409,11 @@ meta_cl_device_vendor metaOpenCLDetectDevice(cl_device_id dev) {
 //  ! i,j,k are the array dimensions
 //  ! len_ is number of threads in a threadblock.
 //  !      This can be computed in the kernel itself.
-cl_int opencl_dotProd(size_t (*grid_size)[3], size_t (*block_size)[3],
+a_err opencl_dotProd(size_t (*grid_size)[3], size_t (*block_size)[3],
 		void * data1, void * data2, size_t (*array_size)[3],
 		size_t (*arr_start)[3], size_t (*arr_end)[3], void * reduced_val,
-		meta_type_id type, int async, cl_event * event) {
-	cl_int ret;
+		meta_type_id type, int async, meta_callback *call, void *call_pl, void * ret_event) {
+	a_err ret;
 	cl_kernel kern;
 	cl_int smem_len;
 	size_t grid[3];
@@ -1239,7 +1440,7 @@ cl_int opencl_dotProd(size_t (*grid_size)[3], size_t (*block_size)[3],
 	smem_len = block[0] * block[1] * block[2];
 	//before enqueuing, get a copy of the top stack frame
 	//Make sure some context exists..
-	if (meta_context == NULL) metaOpenCLFallBack();
+	if (meta_context == NULL) metaOpenCLFallback();
 	metaOpenCLStackFrame * frame = metaOpenCLTopStackFrame();
 	if (frame->kernels_init != 1) metaOpenCLBuildProgram(frame);
 
@@ -1321,8 +1522,19 @@ cl_int opencl_dotProd(size_t (*grid_size)[3], size_t (*block_size)[3],
 				"Error: unexpected type, cannot set shared memory size in 'opencl_dotProd'!\n");
 	}
 
+  cl_event event;
+  if (ret_event != NULL) event = *((cl_event *)ret_event);
 	ret |= clEnqueueNDRangeKernel(frame->queue, kern, 3, NULL, grid, block, 0,
-			NULL, event);
+			NULL, &event);
+		if ((void*)call != NULL && call_pl != NULL) clSetEventCallback(event, CL_COMPLETE, (openclCallback) call, call_pl);
+#ifdef WITH_TIMERS
+	metaTimerQueueFrame * timer_frame = (metaTimerQueueFrame*)malloc (sizeof(metaTimerQueueFrame));
+	timer_frame->mode = run_mode;
+	timer_frame->size = (*array_size)[0]*(*array_size)[1]*(*array_size)[2]*get_atype_size(type);
+	(timer_frame->event.opencl) = event;
+	metaTimerEnqueue(timer_frame, &(metaBuiltinQueues[k_dotProd]));
+#endif
+  if (ret_event != NULL) *((cl_event *)ret_event) = event;
 
 	//TODO find a way to make explicit sync optional
 	if (!async)
@@ -1334,11 +1546,11 @@ cl_int opencl_dotProd(size_t (*grid_size)[3], size_t (*block_size)[3],
 	return (ret);
 }
 
-cl_int opencl_reduce(size_t (*grid_size)[3], size_t (*block_size)[3],
+a_err opencl_reduce(size_t (*grid_size)[3], size_t (*block_size)[3],
 		void * data, size_t (*array_size)[3], size_t (*arr_start)[3],
 		size_t (*arr_end)[3], void * reduced_val, meta_type_id type, int async,
-		cl_event * event) {
-	cl_int ret;
+		meta_callback *call, void *call_pl, void * ret_event) {
+	a_err ret;
 	cl_kernel kern;
 	cl_int smem_len;
 	size_t grid[3];
@@ -1364,7 +1576,7 @@ cl_int opencl_reduce(size_t (*grid_size)[3], size_t (*block_size)[3],
 	smem_len = block[0] * block[1] * block[2];
 	//before enqueuing, get a copy of the top stack frame
 	//Make sure some context exists..
-	if (meta_context == NULL) metaOpenCLFallBack();
+	if (meta_context == NULL) metaOpenCLFallback();
 	metaOpenCLStackFrame * frame = metaOpenCLTopStackFrame();
 	if (frame->kernels_init != 1) metaOpenCLBuildProgram(frame);
 
@@ -1444,8 +1656,19 @@ cl_int opencl_reduce(size_t (*grid_size)[3], size_t (*block_size)[3],
 		fprintf(stderr,
 				"Error: unexpected type, cannot set shared memory size in 'opencl_reduce'!\n");
 	}
+  cl_event event;
+  if (ret_event != NULL) event = *((cl_event *)ret_event);
 	ret |= clEnqueueNDRangeKernel(frame->queue, kern, 3, NULL, grid, block, 0,
-			NULL, event);
+			NULL, &event);
+		if ((void*)call != NULL && call_pl != NULL) clSetEventCallback(event, CL_COMPLETE, (openclCallback) call, call_pl);
+#ifdef WITH_TIMERS
+	metaTimerQueueFrame * timer_frame = (metaTimerQueueFrame*)malloc (sizeof(metaTimerQueueFrame));
+	timer_frame->mode = run_mode;
+	timer_frame->size = (*array_size)[0]*(*array_size)[1]*(*array_size)[2]*get_atype_size(type);
+	(timer_frame->event.opencl) = event;
+	metaTimerEnqueue(timer_frame, &(metaBuiltinQueues[k_reduce]));
+#endif
+  if (ret_event != NULL) *((cl_event *)ret_event) = event;
 
 	//TODO find a way to make explicit sync optional
 	if (!async)
@@ -1458,9 +1681,8 @@ cl_int opencl_reduce(size_t (*grid_size)[3], size_t (*block_size)[3],
 }
 
 cl_int opencl_transpose_face(size_t (*grid_size)[3], size_t (*block_size)[3],
-		void * indata, void *outdata, size_t (*arr_dim_xy)[3],
-		size_t (*tran_dim_xy)[3], meta_type_id type, int async,
-		cl_event * event) {
+		void *indata, void *outdata, size_t (*arr_dim_xy)[3],
+		size_t (*tran_dim_xy)[3], meta_type_id type, int async, meta_callback * call, void *call_pl, void* ret_event) {
 	cl_int ret;
 	cl_kernel kern;
 	cl_int smem_len;
@@ -1490,7 +1712,7 @@ cl_int opencl_transpose_face(size_t (*grid_size)[3], size_t (*block_size)[3],
 	// Need a better (safe) way of accessing the stack for kernel launches
 	//before enqueuing, get a copy of the top stack frame
 	//Make sure some context exists..
-	if (meta_context == NULL) metaOpenCLFallBack();
+	if (meta_context == NULL) metaOpenCLFallback();
 	metaOpenCLStackFrame * frame = metaOpenCLTopStackFrame();
 	if (frame->kernels_init != 1) metaOpenCLBuildProgram(frame);
 
@@ -1556,8 +1778,19 @@ cl_int opencl_transpose_face(size_t (*grid_size)[3], size_t (*block_size)[3],
 		fprintf(stderr,
 				"Error: unexpected type, cannot set shared memory size in 'opencl_transpose_face'!\n");
 	}
+  cl_event event;
+  if (ret_event != NULL) event = *((cl_event *)ret_event);
 	ret |= clEnqueueNDRangeKernel(frame->queue, kern, 2, NULL, grid, block, 0,
-			NULL, event);
+			NULL, &event);
+		if ((void*)call != NULL && call_pl != NULL) clSetEventCallback(event, CL_COMPLETE, (openclCallback) call, call_pl);
+#ifdef WITH_TIMERS
+	metaTimerQueueFrame * timer_frame = (metaTimerQueueFrame*)malloc (sizeof(metaTimerQueueFrame));
+	timer_frame->mode = run_mode;
+	timer_frame->size = (*tran_dim_xy)[0]*(*tran_dim_xy)[1]*get_atype_size(type);
+	(timer_frame->event.opencl) = event;
+	metaTimerEnqueue(timer_frame, &(metaBuiltinQueues[k_transpose_2d_face]));
+#endif
+  if (ret_event != NULL) *((cl_event *)ret_event) = event;
 
 	//TODO find a way to make explicit sync optional
 	if (!async)
@@ -1570,8 +1803,7 @@ cl_int opencl_transpose_face(size_t (*grid_size)[3], size_t (*block_size)[3],
 
 cl_int opencl_pack_face(size_t (*grid_size)[3], size_t (*block_size)[3],
 		void *packed_buf, void *buf, meta_face *face,
-		int *remain_dim, meta_type_id type, int async, cl_event * event_k1,
-		cl_event * event_c1, cl_event *event_c2, cl_event *event_c3) {
+		int *remain_dim, meta_type_id type, int async, meta_callback * call, void *call_pl, void * ret_event_k1, void * ret_event_c1, void * ret_event_c2, void * ret_event_c3) {
 	cl_int ret;
 	cl_kernel kern;
 	cl_int size = face->size[0] * face->size[1] * face->size[2];
@@ -1580,20 +1812,29 @@ cl_int opencl_pack_face(size_t (*grid_size)[3], size_t (*block_size)[3],
 	size_t block[3] = { 256, 1, 1 };
 	//before enqueuing, get a copy of the top stack frame
 	//Make sure some context exists..
-	if (meta_context == NULL) metaOpenCLFallBack();
+	if (meta_context == NULL) metaOpenCLFallback();
 	metaOpenCLStackFrame * frame = metaOpenCLTopStackFrame();
 	if (frame->kernels_init != 1) metaOpenCLBuildProgram(frame);
 
 	//copy required pieces of the face struct into constant memory
+  cl_event event_c1;
+  if (ret_event_c1 != NULL) event_c1 = *((cl_event *)ret_event_c1);
 	ret = clEnqueueWriteBuffer(frame->queue, frame->constant_face_size,
 			((async) ? CL_FALSE : CL_TRUE), 0, sizeof(cl_int) * face->count,
-			face->size, 0, NULL, event_c1);
+			face->size, 0, NULL, &event_c1);
+  if (ret_event_c1 != NULL) *((cl_event *)ret_event_c1) = event_c1;
+  cl_event event_c2;
+  if (ret_event_c2 != NULL) event_c2 = *((cl_event *)ret_event_c2);
 	ret |= clEnqueueWriteBuffer(frame->queue, frame->constant_face_stride,
 			((async) ? CL_FALSE : CL_TRUE), 0, sizeof(cl_int) * face->count,
-			face->stride, 0, NULL, event_c2);
+			face->stride, 0, NULL, &event_c2);
+  if (ret_event_c2 != NULL) *((cl_event *)ret_event_c2) = event_c2;
+  cl_event event_c3;
+  if (ret_event_c3 != NULL) event_c3 = *((cl_event *)ret_event_c3);
 	ret |= clEnqueueWriteBuffer(frame->queue, frame->constant_face_child_size,
 			((async) ? CL_FALSE : CL_TRUE), 0, sizeof(cl_int) * face->count,
-			remain_dim, 0, NULL, event_c3);
+			remain_dim, 0, NULL, &event_c3);
+  if (ret_event_c3 != NULL) *((cl_event *)ret_event_c3) = event_c3;
 //TODO update to use user-provided grid/block once multi-element per thread scaling is added
 //	size_t grid[3] = {(*grid_size)[0]*(*block_size)[0], (*grid_size)[1]*(*block_size)[1], (*block_size)[2]};
 //	size_t block[3] = {(*block_size)[0], (*block_size)[1], (*block_size)[2]};
@@ -1670,8 +1911,34 @@ cl_int opencl_pack_face(size_t (*grid_size)[3], size_t (*block_size)[3],
 	ret |= clSetKernelArg(kern, 7, sizeof(cl_mem *),
 			&frame->constant_face_child_size);
 	ret |= clSetKernelArg(kern, 8, smem_size, NULL);
+  cl_event event_k1;
+  if (ret_event_k1 != NULL) event_k1 = *((cl_event *)ret_event_k1);
 	ret |= clEnqueueNDRangeKernel(frame->queue, kern, 1, NULL, grid, block, 0,
-			NULL, event_k1);
+			NULL, &event_k1);
+		if ((void*)call != NULL && call_pl != NULL) clSetEventCallback(event_k1, CL_COMPLETE, (openclCallback) call, call_pl);
+#ifdef WITH_TIMERS
+	metaTimerQueueFrame * timer_frame_k1 = (metaTimerQueueFrame*)malloc (sizeof(metaTimerQueueFrame));
+	metaTimerQueueFrame * timer_frame_c1 = (metaTimerQueueFrame*)malloc (sizeof(metaTimerQueueFrame));
+	metaTimerQueueFrame * timer_frame_c2 = (metaTimerQueueFrame*)malloc (sizeof(metaTimerQueueFrame));
+	metaTimerQueueFrame * timer_frame_c3 = (metaTimerQueueFrame*)malloc (sizeof(metaTimerQueueFrame));
+	timer_frame_k1->mode = run_mode;
+	timer_frame_c1->mode = run_mode;
+	timer_frame_c2->mode = run_mode;
+	timer_frame_c3->mode = run_mode;
+	timer_frame_k1->size = get_atype_size(type)*face->size[0]*face->size[1]*face->size[2];
+	timer_frame_c1->size = get_atype_size(type)*3;
+	timer_frame_c2->size = get_atype_size(type)*3;
+	timer_frame_c3->size = get_atype_size(type)*3;
+	(timer_frame_k1->event.opencl) = event_k1;
+	(timer_frame_c1->event.opencl) = event_c1;
+	(timer_frame_c2->event.opencl) = event_c2;
+	(timer_frame_c3->event.opencl) = event_c3;
+	metaTimerEnqueue(timer_frame_k1, &(metaBuiltinQueues[k_pack_2d_face]));
+	metaTimerEnqueue(timer_frame_c1, &(metaBuiltinQueues[c_H2Dc]));
+	metaTimerEnqueue(timer_frame_c2, &(metaBuiltinQueues[c_H2Dc]));
+	metaTimerEnqueue(timer_frame_c3, &(metaBuiltinQueues[c_H2Dc]));
+#endif
+  if (ret_event_k1 != NULL) *((cl_event *)ret_event_k1) = event_k1;
 
 	//TODO find a way to make explicit sync optional
 	if (!async)
@@ -1685,8 +1952,7 @@ cl_int opencl_pack_face(size_t (*grid_size)[3], size_t (*block_size)[3],
 
 cl_int opencl_unpack_face(size_t (*grid_size)[3], size_t (*block_size)[3],
 		void *packed_buf, void *buf, meta_face *face,
-		int *remain_dim, meta_type_id type, int async, cl_event * event_k1,
-		cl_event * event_c1, cl_event *event_c2, cl_event *event_c3) {
+		int *remain_dim, meta_type_id type, int async, meta_callback * call, void *call_pl, void* ret_event_k1, void * ret_event_c1, void * ret_event_c2, void * ret_event_c3) {
 
 	cl_int ret;
 	cl_kernel kern;
@@ -1696,20 +1962,29 @@ cl_int opencl_unpack_face(size_t (*grid_size)[3], size_t (*block_size)[3],
 	size_t block[3] = { 256, 1, 1 };
 	//before enqueuing, get a copy of the top stack frame
 	//Make sure some context exists..
-	if (meta_context == NULL) metaOpenCLFallBack();
+	if (meta_context == NULL) metaOpenCLFallback();
 	metaOpenCLStackFrame * frame = metaOpenCLTopStackFrame();
 	if (frame->kernels_init != 1) metaOpenCLBuildProgram(frame);
 
 	//copy required pieces of the face struct into constant memory
+  cl_event event_c1;
+  if (ret_event_c1 != NULL) event_c1 = *((cl_event *)ret_event_c1);
 	ret = clEnqueueWriteBuffer(frame->queue, frame->constant_face_size,
 			((async) ? CL_FALSE : CL_TRUE), 0, sizeof(cl_int) * face->count,
-			face->size, 0, NULL, event_c1);
+			face->size, 0, NULL, &event_c1);
+  if (ret_event_c1 != NULL) *((cl_event *)ret_event_c1) = event_c1;
+  cl_event event_c2;
+  if (ret_event_c2 != NULL) event_c2 = *((cl_event *)ret_event_c2);
 	ret |= clEnqueueWriteBuffer(frame->queue, frame->constant_face_stride,
 			((async) ? CL_FALSE : CL_TRUE), 0, sizeof(cl_int) * face->count,
-			face->stride, 0, NULL, event_c2);
+			face->stride, 0, NULL, &event_c2);
+  if (ret_event_c2 != NULL) *((cl_event *)ret_event_c2) = event_c2;
+  cl_event event_c3;
+  if (ret_event_c3 != NULL) event_c3 = *((cl_event *)ret_event_c3);
 	ret |= clEnqueueWriteBuffer(frame->queue, frame->constant_face_child_size,
 			((async) ? CL_FALSE : CL_TRUE), 0, sizeof(cl_int) * face->count,
-			remain_dim, 0, NULL, event_c3);
+			remain_dim, 0, NULL, &event_c3);
+  if (ret_event_c3 != NULL) *((cl_event *)ret_event_c3) = event_c3;
 //TODO update to use user-provided grid/block once multi-element per thread scaling is added
 //	size_t grid[3] = {(*grid_size)[0]*(*block_size)[0], (*grid_size)[1]*(*block_size)[1], (*block_size)[2]};
 //	size_t block[3] = {(*block_size)[0], (*block_size)[1], (*block_size)[2]};
@@ -1786,8 +2061,34 @@ cl_int opencl_unpack_face(size_t (*grid_size)[3], size_t (*block_size)[3],
 	ret |= clSetKernelArg(kern, 7, sizeof(cl_mem *),
 			&frame->constant_face_child_size);
 	ret |= clSetKernelArg(kern, 8, smem_size, NULL);
+  cl_event event_k1;
+  if (ret_event_k1 != NULL) event_k1 = *((cl_event *)ret_event_k1);
 	ret |= clEnqueueNDRangeKernel(frame->queue, kern, 1, NULL, grid, block, 0,
-			NULL, event_k1);
+			NULL, &event_k1);
+		if ((void*)call != NULL && call_pl != NULL) clSetEventCallback(event_k1, CL_COMPLETE, (openclCallback) call, call_pl);
+#ifdef WITH_TIMERS
+	metaTimerQueueFrame * timer_frame_k1 = (metaTimerQueueFrame*)malloc (sizeof(metaTimerQueueFrame));
+	metaTimerQueueFrame * timer_frame_c1 = (metaTimerQueueFrame*)malloc (sizeof(metaTimerQueueFrame));
+	metaTimerQueueFrame * timer_frame_c2 = (metaTimerQueueFrame*)malloc (sizeof(metaTimerQueueFrame));
+	metaTimerQueueFrame * timer_frame_c3 = (metaTimerQueueFrame*)malloc (sizeof(metaTimerQueueFrame));
+	timer_frame_k1->mode = run_mode;
+	timer_frame_c1->mode = run_mode;
+	timer_frame_c2->mode = run_mode;
+	timer_frame_c3->mode = run_mode;
+	timer_frame_k1->size = get_atype_size(type)*face->size[0]*face->size[1]*face->size[2];
+	timer_frame_c1->size = get_atype_size(type)*3;
+	timer_frame_c2->size = get_atype_size(type)*3;
+	timer_frame_c3->size = get_atype_size(type)*3;
+	(timer_frame_k1->event.opencl) = event_k1;
+	(timer_frame_c1->event.opencl) = event_c1;
+	(timer_frame_c2->event.opencl) = event_c2;
+	(timer_frame_c3->event.opencl) = event_c3;
+	metaTimerEnqueue(timer_frame_k1, &(metaBuiltinQueues[k_unpack_2d_face]));
+	metaTimerEnqueue(timer_frame_c1, &(metaBuiltinQueues[c_H2Dc]));
+	metaTimerEnqueue(timer_frame_c2, &(metaBuiltinQueues[c_H2Dc]));
+	metaTimerEnqueue(timer_frame_c3, &(metaBuiltinQueues[c_H2Dc]));
+#endif
+  if (ret_event_k1 != NULL) *((cl_event *)ret_event_k1) = event_k1;
 
 	//TODO find a way to make explicit sync optional
 	if (!async)
@@ -1802,7 +2103,7 @@ cl_int opencl_unpack_face(size_t (*grid_size)[3], size_t (*block_size)[3],
 cl_int opencl_stencil_3d7p(size_t (*grid_size)[3], size_t (*block_size)[3],
 		void * indata, void * outdata, size_t (*array_size)[3],
 		size_t (*arr_start)[3], size_t (*arr_end)[3], meta_type_id type,
-		int async, cl_event * event) {
+		int async, meta_callback * call, void *call_pl, void* ret_event) {
 	cl_int ret = CL_SUCCESS;
 	cl_kernel kern;
 	cl_int smem_len;
@@ -1838,7 +2139,7 @@ cl_int opencl_stencil_3d7p(size_t (*grid_size)[3], size_t (*block_size)[3],
 	smem_len = (block[0] + 2) * (block[1] + 2) * block[2];
 #endif
 	//Make sure some context exists..
-	if (meta_context == NULL) metaOpenCLFallBack();
+	if (meta_context == NULL) metaOpenCLFallback();
 	metaOpenCLStackFrame * frame = metaOpenCLTopStackFrame();
 	if (frame->kernels_init != 1) metaOpenCLBuildProgram(frame);
 
@@ -1911,8 +2212,19 @@ cl_int opencl_stencil_3d7p(size_t (*grid_size)[3], size_t (*block_size)[3],
 		fprintf(stderr,
 				"Error: unexpected type, cannot set shared memory size in 'opencl_stencil_3d7p'!\n");
 	}
+  cl_event event;
+  if (ret_event != NULL) event = *((cl_event *)ret_event);
 	ret |= clEnqueueNDRangeKernel(frame->queue, kern, 3, NULL, grid, block, 0,
-			NULL, event);
+			NULL, &event);
+		if ((void*)call != NULL && call_pl != NULL) clSetEventCallback(event, CL_COMPLETE, (openclCallback) call, call_pl);
+#ifdef WITH_TIMERS
+	metaTimerQueueFrame * timer_frame = (metaTimerQueueFrame*)malloc (sizeof(metaTimerQueueFrame));
+	timer_frame->mode = run_mode;
+	timer_frame->size = (*array_size)[0]*(*array_size)[1]*(*array_size)[2]*get_atype_size(type);
+	(timer_frame->event.opencl) = event;
+	metaTimerEnqueue(timer_frame, &(metaBuiltinQueues[k_stencil_3d7p]));
+#endif
+  if (ret_event != NULL) *((cl_event *)ret_event) = event;
 
 	if (!async)
 		ret |= clFinish(frame->queue);
@@ -1924,9 +2236,7 @@ cl_int opencl_stencil_3d7p(size_t (*grid_size)[3], size_t (*block_size)[3],
 
 cl_int opencl_csr(size_t (*grid_size)[3], size_t (*block_size)[3], size_t global_size,
 		void * csr_ap, void * csr_aj, void * csr_ax, void * x_loc, void * y_loc, 
-		meta_type_id type, int async,
-		// cl_event * wait, 
-		cl_event * event) {
+		meta_type_id type, int async, meta_callback * call, void *call_pl, void* ret_event) {
 
 	cl_int ret = CL_SUCCESS;
 	cl_kernel kern;
@@ -1944,7 +2254,7 @@ cl_int opencl_csr(size_t (*grid_size)[3], size_t (*block_size)[3], size_t global
 	}
 	
 	//Make sure some context exists..
-	if (meta_context == NULL) metaOpenCLFallBack();
+	if (meta_context == NULL) metaOpenCLFallback();
 	metaOpenCLStackFrame * frame = metaOpenCLTopStackFrame();
 	if (frame->kernels_init != 1) metaOpenCLBuildProgram(frame);
 	switch (type) {
@@ -1980,7 +2290,19 @@ cl_int opencl_csr(size_t (*grid_size)[3], size_t (*block_size)[3], size_t global
 	ret |= clSetKernelArg(kern, 5, sizeof(cl_mem *), &y_loc);
 	
 	//ret = clEnqueueNDRangeKernel(frame->queue, kern, 1, NULL, &grid, &block, 1, wait, event);
-	ret |= clEnqueueNDRangeKernel(frame->queue, kern, 1, NULL, &grid, &block, 0, NULL, event);
+  cl_event event;
+  if (ret_event != NULL) event = *((cl_event *)ret_event);
+	ret |= clEnqueueNDRangeKernel(frame->queue, kern, 1, NULL, &grid, &block, 0, NULL, &event);
+		if ((void*)call != NULL && call_pl != NULL) clSetEventCallback(event, CL_COMPLETE, (openclCallback) call, call_pl);
+#ifdef WITH_TIMERS
+	metaTimerQueueFrame * timer_frame = (metaTimerQueueFrame*)malloc (sizeof(metaTimerQueueFrame));
+	timer_frame->mode = run_mode;
+	timer_frame->size = wg_size*get_atype_size(type);
+	timer_frame->name = "CSR";
+	(timer_frame->event.opencl) = event;
+	metaTimerEnqueue(timer_frame, &(metaBuiltinQueues[k_csr]));
+#endif
+  if (ret_event != NULL) *((cl_event *)ret_event) = event;
 	if (!async)
 		ret |= clFinish(frame->queue);
 	free(frame);
@@ -1991,9 +2313,7 @@ cl_int opencl_csr(size_t (*grid_size)[3], size_t (*block_size)[3], size_t global
 
 
 cl_int opencl_crc(void * dev_input, int page_size, int num_words, int numpages, void * dev_output, 
-		meta_type_id type, int async,
-		// cl_event * wait, 
-		cl_event * event) {
+		meta_type_id type, int async, meta_callback * call, void *call_pl, void* ret_event) {
 
 	cl_int ret = CL_SUCCESS;
 	cl_kernel kern;
@@ -2002,7 +2322,7 @@ cl_int opencl_crc(void * dev_input, int page_size, int num_words, int numpages, 
 //TODO I doubt there is any reason for non-FPGA platforms to use a task
 //TODO Since it operates on binary data, having it typed is sort of nonsense	
 	//Make sure some context exists..
-	if (meta_context == NULL) metaOpenCLFallBack();
+	if (meta_context == NULL) metaOpenCLFallback();
 	metaOpenCLStackFrame * frame = metaOpenCLTopStackFrame();
 	if (frame->kernels_init != 1) metaOpenCLBuildProgram(frame);
 	switch (type) {
@@ -2037,7 +2357,19 @@ cl_int opencl_crc(void * dev_input, int page_size, int num_words, int numpages, 
 	ret |= clSetKernelArg(kern, 4, sizeof(cl_mem *), &dev_output);
 	
 	//ret = clEnqueueTask(frame->queue, kern, 1, wait, event);
-	ret = clEnqueueTask(frame->queue, kern, 1, NULL, event);
+  cl_event event;
+  if (ret_event != NULL) event = *((cl_event *)ret_event);
+	ret = clEnqueueTask(frame->queue, kern, 1, NULL, &event);
+		if ((void*)call != NULL && call_pl != NULL) clSetEventCallback(event, CL_COMPLETE, (openclCallback) call, call_pl);
+#ifdef WITH_TIMERS
+	metaTimerQueueFrame * timer_frame = (metaTimerQueueFrame*)malloc (sizeof(metaTimerQueueFrame));
+	timer_frame->mode = run_mode;
+	timer_frame->size = (*block_size)[0]*get_atype_size(type);
+	timer_frame->name = "CRC";
+	(timer_frame->event.opencl) = event;
+	metaTimerEnqueue(timer_frame, &(metaBuiltinQueues[k_crc]));
+#endif
+  if (ret_event != NULL) *((cl_event *)ret_event) = event;
 	
 	if (!async)
 		ret |= clFinish(frame->queue);

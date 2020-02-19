@@ -109,12 +109,6 @@ meta_face * make_slab_from_3d(int face, int ni, int nj, int nk, int thickness);
 #endif
 #endif
 
-#ifdef WITH_OPENCL
-#ifndef METAMORPH_OPENCL_BACKEND_H
-#include "mm_opencl_backend.h"
-#endif
-#endif
-
 #ifdef WITH_OPENMP
 #ifndef METAMORPH_OPENMP_BACKEND_H
 #include "mm_openmp_backend.h"
@@ -153,15 +147,6 @@ typedef struct HPRecType {
 } HPRecType;
 //Shared HP variables
 
-#ifdef WITH_OPENCL
-//These are not needed if they're declared in metamorph.c
-//	extern cl_context meta_context;
-//	extern cl_command_queue meta_queue;
-//	extern cl_device_id meta_device;
-void metaOpenCLFallBack();
-
-#endif
-
 typedef enum {
 	//A special-purpose mode which indicates none has been declared
 	// used by sentinel nodes in the timer plugin queues
@@ -169,9 +154,7 @@ typedef enum {
 #ifdef WITH_CUDA
 metaModePreferCUDA = 1,
 #endif
-#ifdef WITH_OPENCL
 metaModePreferOpenCL = 2,
-#endif
 #ifdef WITH_OPENMP
 metaModePreferOpenMP = 3,
 #endif
@@ -220,28 +203,14 @@ a_err meta_set_acc(int accel, meta_preferred_mode mode);
 a_err meta_get_acc(int * accel, meta_preferred_mode * mode);
 a_err meta_validate_worksize(a_dim3 * grid_size, a_dim3 * block_size);
 a_err meta_flush();
-//share meta_context with with existing software
-#ifdef WITH_OPENCL
-a_int meta_get_state_OpenCL(cl_platform_id * platform, cl_device_id * device,
-		cl_context * context, cl_command_queue * queue);
-a_int meta_set_state_OpenCL(cl_platform_id platform, cl_device_id device,
-		cl_context context, cl_command_queue queue);
-#endif
 
-//Some OpenCL implementations (may) not provide the CL_CALLBACK convention
-#ifdef WITH_OPENCL
-#ifndef CL_CALLBACK
-#define CL_CALLBACK
-#endif
-#endif
-typedef union meta_callback {
-#ifdef WITH_CUDA
-void (CUDART_CB * cudaCallback)(cudaStream_t stream, cudaError_t status, void *data);
-#endif //WITH_CUDA
-#ifdef WITH_OPENCL
-void (CL_CALLBACK * openclCallback)(cl_event event, cl_int status, void * data);
-#endif //WITH_OPENCL
-} meta_callback;
+//TODO confirm the new callback pass-throughs with the simplified type still work
+typedef void (*meta_callback)(void);
+//typedef union meta_callback {
+//#ifdef WITH_CUDA
+//void (CUDART_CB * cudaCallback)(cudaStream_t stream, cudaError_t status, void *data);
+//#endif //WITH_CUDA
+//} meta_callback;
 
 //FIXME: As soon as the MPI implementation is finished, if
 // payloads are still not needed, remove this code
@@ -257,24 +226,10 @@ void * data;
 }cuda_callback_payload;
 #endif //WITH_CUDA
 
-#ifdef WITH_OPENCL
-typedef struct opencl_callback_payload {
-//Unneeded, the event is provided by the library function responsible for
-//	setting the callback
-//		cl_event event;
-//Unneeded, the status *MUST* always be CL_COMPLETE
-//		cl_int status;
-void * data;
-}opencl_callback_payload;
-#endif //WITH_OPENCL
-
 typedef union meta_callback_payload {
 #ifdef WITH_CUDA
 cuda_callback_payload cuda_pl;
 #endif //WITH_CUDA
-#ifdef WITH_OPENCL
-opencl_callback_payload opencl_pl;
-#endif //WITH_OPENCL
 } meta_callback_payload;
 
 //FIXME: If custom payloads are not needed, clean up the code above
@@ -293,41 +248,34 @@ a_err meta_copy_d2d_cb(void * dst, void * src, size_t size, a_bool async,
 	meta_callback *call, void *call_pl);
 a_err meta_transpose_face_cb(a_dim3 * grid_size, a_dim3 * block_size,
 	void *indata, void *outdata, a_dim3 * arr_dim_xy, a_dim3 * tran_dim_xy,
-	meta_type_id type, a_bool async, meta_callback *call, void *call_pl);
+	meta_type_id type, a_bool async, meta_callback *call, void *call_pl, void * ret_event);
 a_err meta_pack_face_cb(a_dim3 * grid_size, a_dim3 * block_size,
 	void *packed_buf, void *buf, meta_face *face, meta_type_id type,
-	a_bool async, meta_callback *call, void *call_pl);
+	a_bool async, meta_callback *call, void *call_pl, void * ret_event_k1, void * ret_event_c1, void * ret_event_c2, void * ret_event_c3);
 a_err meta_unpack_face_cb(a_dim3 * grid_size, a_dim3 * block_size,
 	void *packed_buf, void *buf, meta_face *face, meta_type_id type,
-	a_bool async, meta_callback *call, void *call_pl);
+	a_bool async, meta_callback *call, void *call_pl, void * ret_event_k1, void * ret_event_c1, void * ret_event_c2, void * ret_event_c3);
 a_err meta_dotProd_cb(a_dim3 * grid_size, a_dim3 * block_size, void * data1,
 	void * data2, a_dim3 * array_size, a_dim3 * array_start, a_dim3 * array_end,
 	void * reduction_var, meta_type_id type, a_bool async, meta_callback *call,
-	void *call_pl);
+	void *call_pl, void * ret_event);
 a_err meta_reduce_cb(a_dim3 * grid_size, a_dim3 * block_size, void * data,
 	a_dim3 * array_size, a_dim3 * array_start, a_dim3 * array_end,
 	void * reduction_var, meta_type_id type, a_bool async, meta_callback *call,
-	void *call_pl);
+	void *call_pl, void * ret_event);
 a_err meta_stencil_3d7p_cb(a_dim3 * grid_size, a_dim3 * block_size,
 	void *indata, void *outdata, a_dim3 * array_size, a_dim3 * array_start,
 	a_dim3 * array_end, meta_type_id type, a_bool async, meta_callback *call,
-	void *call_pl);
+	void *call_pl, void * ret_event);
 a_err meta_csr_cb(a_dim3 * grid_size, a_dim3 * block_size, size_t global_size, void * csr_ap, void * csr_aj, void * csr_ax, void * x_loc, void * y_loc,
 		size_t wg_size, meta_type_id type, a_bool async,
 		// cl_event * wait,
-		meta_callback *call, void *call_pl);
+		meta_callback *call, void *call_pl, void * ret_event);
 a_err meta_crc_cb(a_dim3 * grid_size, a_dim3 * block_size, void * dev_input, int page_size, int num_words, int numpages, void * dev_output,
 		meta_type_id type, a_bool async,
 		// cl_event * wait,
-		meta_callback *call, void *call_pl);
+		meta_callback *call, void *call_pl, void * ret_event);
 		
-		
-#ifdef WITH_TIMERS
-#ifdef WITH_OPENCL
-//getting a pointer to specific event  
-a_err meta_get_event(char * qname, char * ename, cl_event ** e);
-#endif // WITH_OPENCL
-#endif // WITH_TIMERS
 
 //Reduced-complexity calls
 // These are the ones applications built on top of the library should use
@@ -339,26 +287,26 @@ a_err meta_copy_d2h(void * dst, void * src, size_t size, a_bool async);//, char 
 a_err meta_copy_d2d(void * dst, void * src, size_t size, a_bool async);//, char * event_name, cl_event * wait);
 a_err meta_transpose_face(a_dim3 * grid_size, a_dim3 * block_size,
 	void *indata, void *outdata, a_dim3 * arr_dim_xy, a_dim3 * tran_dim_xy,
-	meta_type_id type, a_bool async);
+	meta_type_id type, a_bool async, void * ret_event);
 a_err meta_pack_face(a_dim3 * grid_size, a_dim3 * block_size,
 	void *packed_buf, void *buf, meta_face *face, meta_type_id type,
-	a_bool async);
+	a_bool async, void * ret_event_k1, void * ret_event_c1, void * ret_event_c2, void * ret_event_c3);
 a_err meta_unpack_face(a_dim3 * grid_size, a_dim3 * block_size,
 	void *packed_buf, void *buf, meta_face *face, meta_type_id type,
-	a_bool async);
+	a_bool async, void * ret_event_k1, void * ret_event_c1, void * ret_event_c2, void * ret_event_c3);
 a_err meta_dotProd(a_dim3 * grid_size, a_dim3 * block_size, void * data1,
 	void * data2, a_dim3 * array_size, a_dim3 * array_start, a_dim3 * array_end,
-	void * reduction_var, meta_type_id type, a_bool async);
+	void * reduction_var, meta_type_id type, a_bool async, void * ret_event);
 a_err meta_reduce(a_dim3 * grid_size, a_dim3 * block_size, void * data,
 	a_dim3 * array_size, a_dim3 * array_start, a_dim3 * array_end,
-	void * reduction_var, meta_type_id type, a_bool async);
+	void * reduction_var, meta_type_id type, a_bool async, void * ret_event);
 a_err meta_stencil_3d7p(a_dim3 * grid_size, a_dim3 * block_size, void *indata,
 	void *outdata, a_dim3 * array_size, a_dim3 * array_start,
-	a_dim3 * array_end, meta_type_id type, a_bool async);
+	a_dim3 * array_end, meta_type_id type, a_bool async, void * ret_event);
 a_err meta_csr(a_dim3 * grid_size, a_dim3 * block_size, size_t global_size, void * csr_ap, void * csr_aj, void * csr_ax, void * x_loc, void * y_loc, 
-	size_t wg_size, meta_type_id type, a_bool async);//, cl_event * wait);
+	size_t wg_size, meta_type_id type, a_bool async, void * ret_event);//, cl_event * wait);
 a_err meta_crc(a_dim3 * grid_size, a_dim3 * block_size, void * dev_input, int page_size, int num_words, int numpages, void * dev_output, 
-	meta_type_id type, a_bool async);//, cl_event * wait);
+	meta_type_id type, a_bool async, void * ret_event);//, cl_event * wait);
 
 //MPI functions need access to all top-level calls and types
 //MPI needs to be before timers, so that timers can output rank info - if available

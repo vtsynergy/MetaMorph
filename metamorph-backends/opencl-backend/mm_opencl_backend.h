@@ -16,7 +16,6 @@
 #define METAMORPH_OPENCL_BACKEND_H
 
 #ifndef METAMORPH_H
-#define WITH_OPENCL
 #include "../../include/metamorph.h"
 #endif
 
@@ -406,6 +405,33 @@ cl_int metaOpenCLInitCoreKernels();
  */
 meta_cl_device_vendor metaOpenCLDetectDevice(cl_device_id dev);
 
+//Some OpenCL implementations (may) not provide the CL_CALLBACK convention
+#ifndef CL_CALLBACK
+#define CL_CALLBACK
+#endif
+typedef void (CL_CALLBACK * openclCallback)(cl_event event, cl_int status, void * data);
+//TODO Doxygen these pass-through functions
+//Note that they are really only meant to support the dynamic backend loading, users should either use the API-agnositic top-level version, or the runtime-specific, not these shims
+a_err metaOpenCLAlloc(void ** ptr, size_t size);
+a_err metaOpenCLFree(void * prt);
+a_err metaOpenCLWrite(void * dst, void * src, size_t size, a_bool async, meta_callback *call, void *call_pl);
+a_err metaOpenCLRead(void * dst, void * src, size_t size, a_bool async, meta_callback *call, void *call_pl);
+a_err metaOpenCLDevCopy(void * dst, void * src, size_t size, a_bool async, meta_callback *call, void *call_pl);
+a_err metaOpenCLInitByID(a_int id);
+a_err metaOpenCLCurrDev(a_int *id);
+a_err metaOpenCLMaxWorkSizes(a_dim3 * work_groups, a_dim3 * work_items);
+a_err metaOpenCLFlush();
+//share meta_context with with existing software
+a_int meta_get_state_OpenCL(cl_platform_id * platform, cl_device_id * device,
+		cl_context * context, cl_command_queue * queue);
+a_int meta_set_state_OpenCL(cl_platform_id platform, cl_device_id device,
+		cl_context context, cl_command_queue queue);
+		
+#ifdef WITH_TIMERS
+//getting a pointer to specific event  
+a_err meta_get_event(char * qname, char * ename, cl_event ** e);
+#endif // WITH_TIMERS
+
 /**
  * OpenCL wrapper to all dot product kernels
  * \param grid_size The number of workgroups in each dimension (NOT the global work size)
@@ -425,7 +451,7 @@ meta_cl_device_vendor metaOpenCLDetectDevice(cl_device_id dev);
 cl_int opencl_dotProd(size_t (*grid_size)[3], size_t (*block_size)[3],
 		void * data1, void * data2, size_t (*array_size)[3],
 		size_t (*arr_start)[3], size_t (*arr_end)[3], void * reduced_val,
-		meta_type_id type, int async, cl_event * event);
+		meta_type_id type, int async, meta_callback * call, void *call_pl, void* ret_event);
 
 /**
  * OpenCL wrapper to all reduction sum kernels
@@ -445,7 +471,7 @@ cl_int opencl_dotProd(size_t (*grid_size)[3], size_t (*block_size)[3],
 cl_int opencl_reduce(size_t (*grid_size)[3], size_t (*block_size)[3],
 		void * data, size_t (*array_size)[3], size_t (*arr_start)[3],
 		size_t (*arr_end)[3], void * reduced_val, meta_type_id type, int async,
-		cl_event * event);
+		meta_callback *call, void *call_pl, void * ret_event);
 /**
  * OpenCL wrapper to transpose a 2D array
  * \param grid_size The number of workgroups in each dimension (NOT the global work size)
@@ -462,8 +488,7 @@ cl_int opencl_reduce(size_t (*grid_size)[3], size_t (*block_size)[3],
  */
 cl_int opencl_transpose_face(size_t (*grid_size)[3], size_t (*block_size)[3],
 		void *indata, void *outdata, size_t (*arr_dim_xy)[3],
-		size_t (*tran_dim_xy)[3], meta_type_id type, int async,
-		cl_event * event);
+		size_t (*tran_dim_xy)[3], meta_type_id type, int async, meta_callback * call, void *call_pl, void* ret_event);
 /**
  * OpenCL wrapper for the face packing kernel
  * \param grid_size The number of workgroups to run in the X dimension, Y and Z are ignored (NOT the global worksize)
@@ -484,8 +509,7 @@ cl_int opencl_transpose_face(size_t (*grid_size)[3], size_t (*block_size)[3],
  */
 cl_int opencl_pack_face(size_t (*grid_size)[3], size_t (*block_size)[3],
 		void *packed_buf, void *buf, meta_face *face,
-		int *remain_dim, meta_type_id type, int async, cl_event * event_k1,
-		cl_event * event_c1, cl_event *event_c2, cl_event *event_c3);
+		int *remain_dim, meta_type_id type, int async, meta_callback * call, void *call_pl, void * ret_event_k1, void * ret_event_c1, void * ret_event_c2, void * ret_event_c3);
 /**
  * OpenCL wrapper for the face unpacking kernel
  * \param grid_size The number of workgroups to run in the X dimension, Y and Z are ignored (NOT the global worksize)
@@ -506,8 +530,7 @@ cl_int opencl_pack_face(size_t (*grid_size)[3], size_t (*block_size)[3],
  */
 cl_int opencl_unpack_face(size_t (*grid_size)[3], size_t (*block_size)[3],
 		void *packed_buf, void *buf, meta_face *face,
-		int *remain_dim, meta_type_id type, int async, cl_event * event_k1,
-		cl_event * event_c1, cl_event *event_c2, cl_event *event_c3);
+		int *remain_dim, meta_type_id type, int async, meta_callback * call, void *call_pl, void* ret_event_k1, void * ret_event_c1, void * ret_event_c2, void * ret_event_c3);
 /**
  * OpenCL wrapper for the 3D 7-point stencil averaging kernel
  * \param grid_size The number of workgroups to run in each dimension (NOT the global worksize)
@@ -528,7 +551,7 @@ cl_int opencl_unpack_face(size_t (*grid_size)[3], size_t (*block_size)[3],
 cl_int opencl_stencil_3d7p(size_t (*grid_size)[3], size_t (*block_size)[3],
 		void * indata, void * outdata, size_t (*array_size)[3],
 		size_t (*arr_start)[3], size_t (*arr_end)[3], meta_type_id type,
-		int async, cl_event * event);
+		int async, meta_callback * call, void *call_pl, void* ret_event);
 /**
  * OpenCL wrapper for the SPMV kernel for CSR sparse matrix format
  * \param grid_size The number of workgroups to run in the X dimension, Y and Z are ignored (NOT the global worksize)
@@ -548,9 +571,7 @@ cl_int opencl_stencil_3d7p(size_t (*grid_size)[3], size_t (*block_size)[3],
  */
 cl_int opencl_csr(size_t (*grid_size)[3], size_t (*block_size)[3], size_t global_size,
 		void * csr_ap, void * csr_aj, void * csr_ax, void * x_loc, void * y_loc, 
-		meta_type_id type, int async,
-		// cl_event * wait, 
-		cl_event * event);
+		meta_type_id type, int async, meta_callback * call, void *call_pl, void* ret_event);
 /**
  * OpenCL wrapper for the cyclic redundancy check task kernel
  * \param dev_input The input buffer to perform the redundancy check on
@@ -569,9 +590,7 @@ cl_int opencl_csr(size_t (*grid_size)[3], size_t (*block_size)[3], size_t global
  * \bug non-CL types need to be passed to the kernel through enforced-width cl_\<type\>s
  */
 cl_int opencl_crc(void * dev_input, int page_size, int num_words, int numpages, void * dev_output, 
-		meta_type_id type, int async,
-		// cl_event * wait, 
-		cl_event * event);
+		meta_type_id type, int async, meta_callback * call, void *call_pl, void* ret_event);
 
 
 #if defined(__OPENCLCC__) || defined(__cplusplus)
