@@ -68,6 +68,7 @@ typedef enum {
 	a_ch = 8, 		// char
 	a_uc = 9 		// unsigned char
 } meta_type_id;
+size_t get_atype_size(meta_type_id type);
 
 //Define Marshaling option bitmasks
 #define METAMORPH_MARSH_OPT_NONE (0)
@@ -190,6 +191,12 @@ typedef struct a_module_record {
   char initialized;// = 0;
 } a_module_record;
 
+//A simple abstract type to store the type of event and a payload pointer containing the actual backend-specific value
+typedef struct meta_event {
+  meta_preferred_mode mode;
+  void * event_pl;
+} meta_event;
+
 //Not meant for users, lets MM components lookup sets of related modules
 int lookup_implementing_modules(a_module_record ** retRecords, size_t szRetRecords, a_module_implements_backend signature, a_bool matchAny);
 //Triggers for user modules to interop with metamorph
@@ -203,6 +210,9 @@ a_err meta_set_acc(int accel, meta_preferred_mode mode);
 a_err meta_get_acc(int * accel, meta_preferred_mode * mode);
 a_err meta_validate_worksize(a_dim3 * grid_size, a_dim3 * block_size);
 a_err meta_flush();
+
+a_err meta_init_event(meta_event *);
+a_err meta_destroy_event(meta_event);
 
 //TODO confirm the new callback pass-throughs with the simplified type still work
 typedef void (*meta_callback)(void);
@@ -239,74 +249,74 @@ cuda_callback_payload cuda_pl;
 // The callback/payload structure is not built for user-specified callbacks
 a_err meta_copy_h2d_cb(void * dst, void * src, size_t size, a_bool async,
 	//char * event_name, cl_event * wait,
-	meta_callback *call, void *call_pl);
+	meta_callback *call, void *call_pl, meta_event * ret_event);
 a_err meta_copy_d2h_cb(void * dst, void * src, size_t size, a_bool async,
 	//char * event_name, cl_event * wait,
-	meta_callback *call, void *call_pl);
+	meta_callback *call, void *call_pl, meta_event * ret_event);
 a_err meta_copy_d2d_cb(void * dst, void * src, size_t size, a_bool async,
 	//char * event_name, cl_event * wait,
-	meta_callback *call, void *call_pl);
+	meta_callback *call, void *call_pl, meta_event * ret_event);
 a_err meta_transpose_face_cb(a_dim3 * grid_size, a_dim3 * block_size,
 	void *indata, void *outdata, a_dim3 * arr_dim_xy, a_dim3 * tran_dim_xy,
-	meta_type_id type, a_bool async, meta_callback *call, void *call_pl, void * ret_event);
+	meta_type_id type, a_bool async, meta_callback *call, void *call_pl, meta_event * ret_event);
 a_err meta_pack_face_cb(a_dim3 * grid_size, a_dim3 * block_size,
 	void *packed_buf, void *buf, meta_face *face, meta_type_id type,
-	a_bool async, meta_callback *call, void *call_pl, void * ret_event_k1, void * ret_event_c1, void * ret_event_c2, void * ret_event_c3);
+	a_bool async, meta_callback *call, void *call_pl, meta_event * ret_event_k1, meta_event * ret_event_c1, meta_event * ret_event_c2, meta_event * ret_event_c3);
 a_err meta_unpack_face_cb(a_dim3 * grid_size, a_dim3 * block_size,
 	void *packed_buf, void *buf, meta_face *face, meta_type_id type,
-	a_bool async, meta_callback *call, void *call_pl, void * ret_event_k1, void * ret_event_c1, void * ret_event_c2, void * ret_event_c3);
+	a_bool async, meta_callback *call, void *call_pl, meta_event * ret_event_k1, meta_event * ret_event_c1, meta_event * ret_event_c2, meta_event * ret_event_c3);
 a_err meta_dotProd_cb(a_dim3 * grid_size, a_dim3 * block_size, void * data1,
 	void * data2, a_dim3 * array_size, a_dim3 * array_start, a_dim3 * array_end,
 	void * reduction_var, meta_type_id type, a_bool async, meta_callback *call,
-	void *call_pl, void * ret_event);
+	void *call_pl, meta_event * ret_event);
 a_err meta_reduce_cb(a_dim3 * grid_size, a_dim3 * block_size, void * data,
 	a_dim3 * array_size, a_dim3 * array_start, a_dim3 * array_end,
 	void * reduction_var, meta_type_id type, a_bool async, meta_callback *call,
-	void *call_pl, void * ret_event);
+	void *call_pl, meta_event * ret_event);
 a_err meta_stencil_3d7p_cb(a_dim3 * grid_size, a_dim3 * block_size,
 	void *indata, void *outdata, a_dim3 * array_size, a_dim3 * array_start,
 	a_dim3 * array_end, meta_type_id type, a_bool async, meta_callback *call,
-	void *call_pl, void * ret_event);
+	void *call_pl, meta_event * ret_event);
 a_err meta_csr_cb(a_dim3 * grid_size, a_dim3 * block_size, size_t global_size, void * csr_ap, void * csr_aj, void * csr_ax, void * x_loc, void * y_loc,
-		size_t wg_size, meta_type_id type, a_bool async,
+		meta_type_id type, a_bool async,
 		// cl_event * wait,
-		meta_callback *call, void *call_pl, void * ret_event);
+		meta_callback *call, void *call_pl, meta_event * ret_event);
 a_err meta_crc_cb(a_dim3 * grid_size, a_dim3 * block_size, void * dev_input, int page_size, int num_words, int numpages, void * dev_output,
 		meta_type_id type, a_bool async,
 		// cl_event * wait,
-		meta_callback *call, void *call_pl, void * ret_event);
+		meta_callback *call, void *call_pl, meta_event * ret_event);
 		
 
 //Reduced-complexity calls
 // These are the ones applications built on top of the library should use
 // Memory copy host to device
-a_err meta_copy_h2d(void * dst, void * src, size_t size, a_bool async);//, char * event_name, cl_event * wait);
+a_err meta_copy_h2d(void * dst, void * src, size_t size, a_bool async, meta_event * ret_event);//, char * event_name, cl_event * wait);
 // Memory copy device to host
-a_err meta_copy_d2h(void * dst, void * src, size_t size, a_bool async);//, char * event_name, cl_event * wait);
+a_err meta_copy_d2h(void * dst, void * src, size_t size, a_bool async, meta_event * ret_event);//, char * event_name, cl_event * wait);
 // Memory copy device to device
-a_err meta_copy_d2d(void * dst, void * src, size_t size, a_bool async);//, char * event_name, cl_event * wait);
+a_err meta_copy_d2d(void * dst, void * src, size_t size, a_bool async, meta_event * ret_event);//, char * event_name, cl_event * wait);
 a_err meta_transpose_face(a_dim3 * grid_size, a_dim3 * block_size,
 	void *indata, void *outdata, a_dim3 * arr_dim_xy, a_dim3 * tran_dim_xy,
-	meta_type_id type, a_bool async, void * ret_event);
+	meta_type_id type, a_bool async, meta_event * ret_event);
 a_err meta_pack_face(a_dim3 * grid_size, a_dim3 * block_size,
 	void *packed_buf, void *buf, meta_face *face, meta_type_id type,
-	a_bool async, void * ret_event_k1, void * ret_event_c1, void * ret_event_c2, void * ret_event_c3);
+	a_bool async, meta_event * ret_event_k1, meta_event * ret_event_c1, meta_event * ret_event_c2, meta_event * ret_event_c3);
 a_err meta_unpack_face(a_dim3 * grid_size, a_dim3 * block_size,
 	void *packed_buf, void *buf, meta_face *face, meta_type_id type,
-	a_bool async, void * ret_event_k1, void * ret_event_c1, void * ret_event_c2, void * ret_event_c3);
+	a_bool async, meta_event * ret_event_k1, meta_event * ret_event_c1, meta_event * ret_event_c2, meta_event * ret_event_c3);
 a_err meta_dotProd(a_dim3 * grid_size, a_dim3 * block_size, void * data1,
 	void * data2, a_dim3 * array_size, a_dim3 * array_start, a_dim3 * array_end,
-	void * reduction_var, meta_type_id type, a_bool async, void * ret_event);
+	void * reduction_var, meta_type_id type, a_bool async, meta_event * ret_event);
 a_err meta_reduce(a_dim3 * grid_size, a_dim3 * block_size, void * data,
 	a_dim3 * array_size, a_dim3 * array_start, a_dim3 * array_end,
-	void * reduction_var, meta_type_id type, a_bool async, void * ret_event);
+	void * reduction_var, meta_type_id type, a_bool async, meta_event * ret_event);
 a_err meta_stencil_3d7p(a_dim3 * grid_size, a_dim3 * block_size, void *indata,
 	void *outdata, a_dim3 * array_size, a_dim3 * array_start,
-	a_dim3 * array_end, meta_type_id type, a_bool async, void * ret_event);
+	a_dim3 * array_end, meta_type_id type, a_bool async, meta_event * ret_event);
 a_err meta_csr(a_dim3 * grid_size, a_dim3 * block_size, size_t global_size, void * csr_ap, void * csr_aj, void * csr_ax, void * x_loc, void * y_loc, 
-	size_t wg_size, meta_type_id type, a_bool async, void * ret_event);//, cl_event * wait);
+	meta_type_id type, a_bool async, meta_event * ret_event);//, cl_event * wait);
 a_err meta_crc(a_dim3 * grid_size, a_dim3 * block_size, void * dev_input, int page_size, int num_words, int numpages, void * dev_output, 
-	meta_type_id type, a_bool async, void * ret_event);//, cl_event * wait);
+	meta_type_id type, a_bool async, meta_event * ret_event);//, cl_event * wait);
 
 //MPI functions need access to all top-level calls and types
 //MPI needs to be before timers, so that timers can output rank info - if available

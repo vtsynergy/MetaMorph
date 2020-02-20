@@ -1,8 +1,10 @@
 #include "metamorph_timers.h"
+#include <string.h>
 
 metaTimerQueue metaBuiltinQueues[queue_count];
 a_bool __meta_timers_initialized = false;
 
+//TODO Paul:Understand and condense this function, if possible, consider renaming
 a_err cl_get_event_node(metaTimerQueue * queue, char * ename, metaTimerQueueFrame ** frame)
 {
 	printf("searching for event : %s\n",ename);
@@ -282,7 +284,7 @@ void flushWorker(metaTimerQueue * queue, int level) {
 
 		if(level == 0)
 		{
-#ifdef WITH_OPENCL
+#ifdef OLD_WITH_OPENCL
 			if (frame->mode == metaModePreferOpenCL)
 			{
 				clGetEventProfilingInfo(frame->event.opencl, CL_PROFILING_COMMAND_START, sizeof(unsigned long), &start, NULL);
@@ -302,7 +304,7 @@ void flushWorker(metaTimerQueue * queue, int level) {
 				cudaEventElapsedTime(&temp_t, frame->event.cuda[0], frame->event.cuda[1]);
 			}
 #endif
-#ifdef WITH_OPENCL
+#ifdef OLD_WITH_OPENCL
 			else if (frame->mode == metaModePreferOpenCL) {
 				//TODO add a check via clGetEventInfo to make sure the event has completed
 				clGetEventProfilingInfo(frame->event.opencl, CL_PROFILING_COMMAND_START, sizeof(unsigned long), &start, NULL);

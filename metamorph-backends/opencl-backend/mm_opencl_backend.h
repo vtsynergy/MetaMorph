@@ -43,6 +43,10 @@
 extern "C" {
 #endif
 
+//Declare global state variables, they should not be modified by the user
+extern cl_context meta_context;
+extern cl_command_queue meta_queue;
+extern cl_device_id meta_device;
 /** This is a simple enum to store important details about the type of device and which vendor is providing the implementation
  * Currently ontly used to check for Altera/IntelFPGA at runtime to load .aocx files rather than .cl
  */
@@ -414,13 +418,14 @@ typedef void (CL_CALLBACK * openclCallback)(cl_event event, cl_int status, void 
 //Note that they are really only meant to support the dynamic backend loading, users should either use the API-agnositic top-level version, or the runtime-specific, not these shims
 a_err metaOpenCLAlloc(void ** ptr, size_t size);
 a_err metaOpenCLFree(void * prt);
-a_err metaOpenCLWrite(void * dst, void * src, size_t size, a_bool async, meta_callback *call, void *call_pl);
-a_err metaOpenCLRead(void * dst, void * src, size_t size, a_bool async, meta_callback *call, void *call_pl);
-a_err metaOpenCLDevCopy(void * dst, void * src, size_t size, a_bool async, meta_callback *call, void *call_pl);
+a_err metaOpenCLWrite(void * dst, void * src, size_t size, a_bool async, meta_callback *call, void *call_pl, void * ret_event);
+a_err metaOpenCLRead(void * dst, void * src, size_t size, a_bool async, meta_callback *call, void *call_pl, void * ret_event);
+a_err metaOpenCLDevCopy(void * dst, void * src, size_t size, a_bool async, meta_callback *call, void *call_pl, void * ret_event);
 a_err metaOpenCLInitByID(a_int id);
 a_err metaOpenCLCurrDev(a_int *id);
 a_err metaOpenCLMaxWorkSizes(a_dim3 * work_groups, a_dim3 * work_items);
 a_err metaOpenCLFlush();
+a_err metaOpenCLCreateEvent(void **);
 //share meta_context with with existing software
 a_int meta_get_state_OpenCL(cl_platform_id * platform, cl_device_id * device,
 		cl_context * context, cl_command_queue * queue);

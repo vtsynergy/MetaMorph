@@ -8,11 +8,12 @@
 //The module must include metamorph.h for data types and function calls
 #include "metamorph.h"
 
-//If the plugin provides OpenCL, these global variables provide access to the current OpenCL state and should be used for initialization
 #ifdef WITH_OPENCL
-extern cl_context meta_context;
-extern cl_command_queue meta_queue;
-extern cl_device_id meta_device;
+#include "mm_opencl_backend.h"
+//If the plugin provides OpenCL, these global variables exposed in the OpenCL header provide access to the current OpenCL state and should be used for initialization
+//extern cl_context meta_context;
+//extern cl_command_queue meta_queue;
+//extern cl_device_id meta_device;
 #endif
 
 //The module must keep a copy of its own registration(s), and it should always be initialized to NULL, and only updated by calls to the registration function itself

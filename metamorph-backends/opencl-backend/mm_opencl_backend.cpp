@@ -107,15 +107,15 @@ size_t metaOpenCLLoadProgramSource(const char *filename, const char **progSrc) {
 	//environment variable + METAMORPH_OCL_KERNEL_PATH
 	char * path = NULL;
 	if (getenv("METAMORPH_OCL_KERNEL_PATH") != NULL) {
-		size_t needed = snprintf(NULL, 0, "%s:"METAMORPH_OCL_KERNEL_PATH, getenv("METAMORPH_OCL_KERNEL_PATH"));
+		size_t needed = snprintf(NULL, 0, "%s:" METAMORPH_OCL_KERNEL_PATH, getenv("METAMORPH_OCL_KERNEL_PATH"));
 		path = (char*)calloc(needed+1, sizeof(char));
-		snprintf(path, needed+1, "%s:"METAMORPH_OCL_KERNEL_PATH, getenv("METAMORPH_OCL_KERNEL_PATH"));
+		snprintf(path, needed+1, "%s:" METAMORPH_OCL_KERNEL_PATH, getenv("METAMORPH_OCL_KERNEL_PATH"));
 	} else {
 		size_t needed = snprintf(NULL, 0, METAMORPH_OCL_KERNEL_PATH);
 		path = (char*)calloc(needed+1, sizeof(char));
 		snprintf(path, needed+1, METAMORPH_OCL_KERNEL_PATH);
 	}
-	char * token = strtok(path, ":");
+	char const * token = strtok(path, ":");
 	FILE *f = NULL;
 	if (token == NULL) token = "."; //handle completely empty path
 	//loop over all paths until a copy is found, notify if none found
@@ -911,8 +911,9 @@ cl_ulong start_time;
 size_t return_bytes;
 clGetEventProfilingInfo(frame->event.opencl,CL_PROFILING_COMMAND_QUEUED,sizeof(cl_ulong),&start_time,&return_bytes);
 printf("check profiling event is correct (MM side) %lu\n",start_time);
-*/	
-	(*e) =&(frame->event.opencl);
+*/
+	(*e) =((cl_event *)frame->event.event_pl);	
+//	(*e) =&(frame->event.opencl);
 	return(ret);
 }
 #endif // WITH_TIMERS
@@ -1013,6 +1014,16 @@ a_err metaOpenCLFlush() {
 		clFinish(meta_queue);
   return ret;
 }
+
+//Just a small wrapper around a cl_event allocator to keep the real datatype exclusively inside the OpenCL backend.
+a_err metaOpenCLCreateEvent(void ** ret_event) {
+  a_err ret = CL_SUCCESS;
+  if (ret_event != NULL) *ret_event = malloc(sizeof(cl_event));
+  else ret = CL_INVALID_EVENT;
+  return ret;
+}
+
+
 //calls all the necessary CLRelease* calls for frame members
 //DOES NOT:
 //	pop any stack nodes
@@ -1323,79 +1334,70 @@ a_err metaOpenCLFree(void* ptr) {
   return ret;
 }
 
-a_err metaOpenCLWrite(void * dst, void * src, size_t size, a_bool async, meta_callback *call, void *call_pl) {
+a_err metaOpenCLWrite(void * dst, void * src, size_t size, a_bool async, meta_callback *call, void *call_pl, void * ret_event) {
   a_err ret;
 		//Make sure some context exists..
 		if (meta_context == NULL) metaOpenCLFallback();
+  cl_event event;
+  if (ret_event != NULL) event = *((cl_event *)ret_event);
+		ret = clEnqueueWriteBuffer(meta_queue, (cl_mem) dst, ((async) ? CL_FALSE : CL_TRUE), 0, size, src, 0, NULL, &event);
+		if ((void*)call != NULL && call_pl != NULL) clSetEventCallback(event, CL_COMPLETE, (openclCallback)call, call_pl);
 #ifdef WITH_TIMERS
-		//if(wait != NULL)
-		//{
-		//	ret = clEnqueueWriteBuffer(meta_queue, (cl_mem) dst, ((async) ? CL_FALSE : CL_TRUE), 0, size, src, 1, wait, &(frame->event.opencl));
-		//	CHKERR(ret, "Failed to write to source array!");
-		//}
-		//else
-		//{
-			ret = clEnqueueWriteBuffer(meta_queue, (cl_mem) dst, ((async) ? CL_FALSE : CL_TRUE), 0, size, src, 0, NULL, &(frame->event.opencl));
-//			CHKERR(ret, "Failed to write to source array!");
-//		}
-		//If timers exist, use their event to add the callback
-		if ((void*)call != NULL && call_pl != NULL) clSetEventCallback(frame->event.opencl, CL_COMPLETE, (openclCallback) call, call_pl);
-#else
-		//If timers don't exist, get the event via a locally-scoped event to add to the callback
-		cl_event cb_event;
-		ret = clEnqueueWriteBuffer(meta_queue, (cl_mem) dst, ((async) ? CL_FALSE : CL_TRUE), 0, size, src, 0, NULL, &cb_event);
-		if ((void*)call != NULL && call_pl != NULL) clSetEventCallback(cb_event, CL_COMPLETE, (openclCallback)call, call_pl);
+	metaTimerQueueFrame * timer_frame = (metaTimerQueueFrame*)malloc (sizeof(metaTimerQueueFrame));
+	timer_frame->mode = metaModePreferOpenCL;
+	timer_frame->size = size;
+//	(timer_frame->event.opencl) = event;
+	//by creating a timer frame, we also create a meta_event, need to initialize it
+        timer_frame->event.mode = metaModePreferOpenCL; //set mode
+	metaOpenCLCreateEvent(&(timer_frame->event.event_pl)); //heap allocate
+	*((cl_event *)timer_frame->event.event_pl) = event; //copy opaque event value into the new space
+	metaTimerEnqueue(timer_frame, &(metaBuiltinQueues[c_H2D]));
 #endif
+  if (ret_event != NULL) *((cl_event *)ret_event) = event;
   return ret;
 }
 
-a_err metaOpenCLRead(void * dst, void * src, size_t size, a_bool async, meta_callback *call, void *call_pl) {
+a_err metaOpenCLRead(void * dst, void * src, size_t size, a_bool async, meta_callback *call, void *call_pl, void * ret_event) {
   a_err ret;
 		//Make sure some context exists..
 		if (meta_context == NULL) metaOpenCLFallback();
+  cl_event event;
+  if (ret_event != NULL) event = *((cl_event *)ret_event);
+		ret = clEnqueueReadBuffer(meta_queue, (cl_mem) src, ((async) ? CL_FALSE : CL_TRUE), 0, size, dst, 0, NULL, &event);
+		if ((void*)call != NULL && call_pl != NULL) clSetEventCallback(event, CL_COMPLETE, (openclCallback)call, call_pl);
 #ifdef WITH_TIMERS
-		//if(wait != NULL)
-		//{
-		//	ret = clEnqueueReadBuffer(meta_queue, (cl_mem) src, ((async) ? CL_FALSE : CL_TRUE), 0, size, dst, 1, wait, &(frame->event.opencl));
-			//ret = clEnqueueReadBuffer(meta_queue, (cl_mem) src, ((async) ? CL_FALSE : CL_TRUE), 0, size, dst, 0, NULL, &(frame->event.opencl));
-		//}
-		//else
-		//{
-			ret = clEnqueueReadBuffer(meta_queue, (cl_mem) src, ((async) ? CL_FALSE : CL_TRUE), 0, size, dst, 0, NULL, &(frame->event.opencl));
-		//}
-
-		//If timers exist, use their event to add the callback
-		if ((void*)call != NULL && call_pl != NULL) clSetEventCallback(frame->event.opencl, CL_COMPLETE, (openclCallback) call, call_pl);
-#else
-		//If timers don't exist, get the event via a locally-scoped event to add to the callback
-		cl_event cb_event;
-		ret = clEnqueueReadBuffer(meta_queue, (cl_mem) src, ((async) ? CL_FALSE : CL_TRUE), 0, size, dst, 0, NULL, &cb_event);
-		if ((void*)call != NULL && call_pl != NULL) clSetEventCallback(cb_event, CL_COMPLETE, (openclCallback)call, call_pl);
+	metaTimerQueueFrame * timer_frame = (metaTimerQueueFrame*)malloc (sizeof(metaTimerQueueFrame));
+	timer_frame->mode = metaModePreferOpenCL;
+	timer_frame->size = size;
+//	(timer_frame->event.opencl) = event;
+        timer_frame->event.mode = metaModePreferOpenCL; //set mode
+	metaOpenCLCreateEvent(&(timer_frame->event.event_pl)); //heap allocate
+	*((cl_event *)timer_frame->event.event_pl) = event; //copy opaque event value into the new space
+	metaTimerEnqueue(timer_frame, &(metaBuiltinQueues[c_D2H]));
 #endif
+  if (ret_event != NULL) *((cl_event *)ret_event) = event;
   return ret;
 }
 
-a_err metaOpenCLDevCopy(void * dst, void * src, size_t size, a_bool async, meta_callback *call, void *call_pl) {
+a_err metaOpenCLDevCopy(void * dst, void * src, size_t size, a_bool async, meta_callback *call, void *call_pl, void * ret_event) {
   a_err ret;
 		//Make sure some context exists..
 		if (meta_context == NULL) metaOpenCLFallback();
+  cl_event event;
+  if (ret_event != NULL) event = *((cl_event *)ret_event);
+		ret = clEnqueueCopyBuffer(meta_queue, (cl_mem) src, (cl_mem) dst, 0, 0, size, 0, NULL, &event);
+		if ((void*)call != NULL && call_pl != NULL) clSetEventCallback(event, CL_COMPLETE, (openclCallback)call, call_pl);
 #ifdef WITH_TIMERS
-		//if(wait != NULL)
-		//{
-		//	ret = clEnqueueCopyBuffer(meta_queue, (cl_mem) src, (cl_mem) dst, 0, 0, size, 1, wait, &(frame->event.opencl));
-		//}
-		//else
-		//{
-			ret = clEnqueueCopyBuffer(meta_queue, (cl_mem) src, (cl_mem) dst, 0, 0, size, 0, NULL, &(frame->event.opencl));
-		//}
-		//If timers exist, use their event to add the callback
-		if ((void*)call != NULL && call_pl != NULL) clSetEventCallback(frame->event.opencl, CL_COMPLETE, (openclCallback) call, call_pl);
-#else
-		//If timers don't exist, get the event via a locally-scoped event to add to the callback
-		cl_event cb_event;
-		ret = clEnqueueCopyBuffer(meta_queue, (cl_mem) src, (cl_mem) dst, 0, 0, size, 0, NULL, &cb_event);
-		if ((void*)call != NULL && call_pl != NULL) clSetEventCallback(cb_event, CL_COMPLETE, (openclCallback)call, call_pl);
+	metaTimerQueueFrame * timer_frame = (metaTimerQueueFrame*)malloc (sizeof(metaTimerQueueFrame));
+	timer_frame->mode = metaModePreferOpenCL;
+	timer_frame->size = size;
+//	(timer_frame->event.opencl) = event;
+        timer_frame->event.mode = metaModePreferOpenCL; //set mode
+	metaOpenCLCreateEvent(&(timer_frame->event.event_pl)); //heap allocate
+	*((cl_event *)timer_frame->event.event_pl) = event; //copy opaque event value into the new space
+	metaTimerEnqueue(timer_frame, &(metaBuiltinQueues[c_D2D]));
 #endif
+  if (ret_event != NULL) *((cl_event *)ret_event) = event;
 		//clEnqueueCopyBuffer is by default async, so clFinish
 		if (!async) clFinish(meta_queue);
   return ret;
@@ -1529,9 +1531,12 @@ a_err opencl_dotProd(size_t (*grid_size)[3], size_t (*block_size)[3],
 		if ((void*)call != NULL && call_pl != NULL) clSetEventCallback(event, CL_COMPLETE, (openclCallback) call, call_pl);
 #ifdef WITH_TIMERS
 	metaTimerQueueFrame * timer_frame = (metaTimerQueueFrame*)malloc (sizeof(metaTimerQueueFrame));
-	timer_frame->mode = run_mode;
+	timer_frame->mode = metaModePreferOpenCL;
 	timer_frame->size = (*array_size)[0]*(*array_size)[1]*(*array_size)[2]*get_atype_size(type);
-	(timer_frame->event.opencl) = event;
+//	(timer_frame->event.opencl) = event;
+        timer_frame->event.mode = metaModePreferOpenCL; //set mode
+	metaOpenCLCreateEvent(&(timer_frame->event.event_pl)); //heap allocate
+	*((cl_event *)timer_frame->event.event_pl) = event; //copy opaque event value into the new space
 	metaTimerEnqueue(timer_frame, &(metaBuiltinQueues[k_dotProd]));
 #endif
   if (ret_event != NULL) *((cl_event *)ret_event) = event;
@@ -1663,9 +1668,12 @@ a_err opencl_reduce(size_t (*grid_size)[3], size_t (*block_size)[3],
 		if ((void*)call != NULL && call_pl != NULL) clSetEventCallback(event, CL_COMPLETE, (openclCallback) call, call_pl);
 #ifdef WITH_TIMERS
 	metaTimerQueueFrame * timer_frame = (metaTimerQueueFrame*)malloc (sizeof(metaTimerQueueFrame));
-	timer_frame->mode = run_mode;
+	timer_frame->mode = metaModePreferOpenCL;
 	timer_frame->size = (*array_size)[0]*(*array_size)[1]*(*array_size)[2]*get_atype_size(type);
-	(timer_frame->event.opencl) = event;
+//	(timer_frame->event.opencl) = event;
+        timer_frame->event.mode = metaModePreferOpenCL; //set mode
+	metaOpenCLCreateEvent(&(timer_frame->event.event_pl)); //heap allocate
+	*((cl_event *)timer_frame->event.event_pl) = event; //copy opaque event value into the new space
 	metaTimerEnqueue(timer_frame, &(metaBuiltinQueues[k_reduce]));
 #endif
   if (ret_event != NULL) *((cl_event *)ret_event) = event;
@@ -1785,9 +1793,11 @@ cl_int opencl_transpose_face(size_t (*grid_size)[3], size_t (*block_size)[3],
 		if ((void*)call != NULL && call_pl != NULL) clSetEventCallback(event, CL_COMPLETE, (openclCallback) call, call_pl);
 #ifdef WITH_TIMERS
 	metaTimerQueueFrame * timer_frame = (metaTimerQueueFrame*)malloc (sizeof(metaTimerQueueFrame));
-	timer_frame->mode = run_mode;
+	timer_frame->mode = metaModePreferOpenCL;
 	timer_frame->size = (*tran_dim_xy)[0]*(*tran_dim_xy)[1]*get_atype_size(type);
-	(timer_frame->event.opencl) = event;
+        timer_frame->event.mode = metaModePreferOpenCL; //set mode
+	metaOpenCLCreateEvent(&(timer_frame->event.event_pl)); //heap allocate
+	*((cl_event *)timer_frame->event.event_pl) = event; //copy opaque event value into the new space
 	metaTimerEnqueue(timer_frame, &(metaBuiltinQueues[k_transpose_2d_face]));
 #endif
   if (ret_event != NULL) *((cl_event *)ret_event) = event;
@@ -1921,18 +1931,26 @@ cl_int opencl_pack_face(size_t (*grid_size)[3], size_t (*block_size)[3],
 	metaTimerQueueFrame * timer_frame_c1 = (metaTimerQueueFrame*)malloc (sizeof(metaTimerQueueFrame));
 	metaTimerQueueFrame * timer_frame_c2 = (metaTimerQueueFrame*)malloc (sizeof(metaTimerQueueFrame));
 	metaTimerQueueFrame * timer_frame_c3 = (metaTimerQueueFrame*)malloc (sizeof(metaTimerQueueFrame));
-	timer_frame_k1->mode = run_mode;
-	timer_frame_c1->mode = run_mode;
-	timer_frame_c2->mode = run_mode;
-	timer_frame_c3->mode = run_mode;
+	timer_frame_k1->mode = metaModePreferOpenCL;
+	timer_frame_c1->mode = metaModePreferOpenCL;
+	timer_frame_c2->mode = metaModePreferOpenCL;
+	timer_frame_c3->mode = metaModePreferOpenCL;
 	timer_frame_k1->size = get_atype_size(type)*face->size[0]*face->size[1]*face->size[2];
 	timer_frame_c1->size = get_atype_size(type)*3;
 	timer_frame_c2->size = get_atype_size(type)*3;
 	timer_frame_c3->size = get_atype_size(type)*3;
-	(timer_frame_k1->event.opencl) = event_k1;
-	(timer_frame_c1->event.opencl) = event_c1;
-	(timer_frame_c2->event.opencl) = event_c2;
-	(timer_frame_c3->event.opencl) = event_c3;
+        timer_frame_k1->event.mode = metaModePreferOpenCL; //set mode
+	metaOpenCLCreateEvent(&(timer_frame_k1->event.event_pl)); //heap allocate
+	*((cl_event *)timer_frame_k1->event.event_pl) = event_k1; //copy opaque event value into the new space
+        timer_frame_c1->event.mode = metaModePreferOpenCL; //set mode
+	metaOpenCLCreateEvent(&(timer_frame_c1->event.event_pl)); //heap allocate
+	*((cl_event *)timer_frame_c1->event.event_pl) = event_c1; //copy opaque event value into the new space
+        timer_frame_c2->event.mode = metaModePreferOpenCL; //set mode
+	metaOpenCLCreateEvent(&(timer_frame_c2->event.event_pl)); //heap allocate
+	*((cl_event *)timer_frame_c2->event.event_pl) = event_c2; //copy opaque event value into the new space
+        timer_frame_c3->event.mode = metaModePreferOpenCL; //set mode
+	metaOpenCLCreateEvent(&(timer_frame_c3->event.event_pl)); //heap allocate
+	*((cl_event *)timer_frame_c3->event.event_pl) = event_c3; //copy opaque event value into the new space
 	metaTimerEnqueue(timer_frame_k1, &(metaBuiltinQueues[k_pack_2d_face]));
 	metaTimerEnqueue(timer_frame_c1, &(metaBuiltinQueues[c_H2Dc]));
 	metaTimerEnqueue(timer_frame_c2, &(metaBuiltinQueues[c_H2Dc]));
@@ -2071,18 +2089,26 @@ cl_int opencl_unpack_face(size_t (*grid_size)[3], size_t (*block_size)[3],
 	metaTimerQueueFrame * timer_frame_c1 = (metaTimerQueueFrame*)malloc (sizeof(metaTimerQueueFrame));
 	metaTimerQueueFrame * timer_frame_c2 = (metaTimerQueueFrame*)malloc (sizeof(metaTimerQueueFrame));
 	metaTimerQueueFrame * timer_frame_c3 = (metaTimerQueueFrame*)malloc (sizeof(metaTimerQueueFrame));
-	timer_frame_k1->mode = run_mode;
-	timer_frame_c1->mode = run_mode;
-	timer_frame_c2->mode = run_mode;
-	timer_frame_c3->mode = run_mode;
+	timer_frame_k1->mode = metaModePreferOpenCL;
+	timer_frame_c1->mode = metaModePreferOpenCL;
+	timer_frame_c2->mode = metaModePreferOpenCL;
+	timer_frame_c3->mode = metaModePreferOpenCL;
 	timer_frame_k1->size = get_atype_size(type)*face->size[0]*face->size[1]*face->size[2];
 	timer_frame_c1->size = get_atype_size(type)*3;
 	timer_frame_c2->size = get_atype_size(type)*3;
 	timer_frame_c3->size = get_atype_size(type)*3;
-	(timer_frame_k1->event.opencl) = event_k1;
-	(timer_frame_c1->event.opencl) = event_c1;
-	(timer_frame_c2->event.opencl) = event_c2;
-	(timer_frame_c3->event.opencl) = event_c3;
+        timer_frame_k1->event.mode = metaModePreferOpenCL; //set mode
+	metaOpenCLCreateEvent(&(timer_frame_k1->event.event_pl)); //heap allocate
+	*((cl_event *)timer_frame_k1->event.event_pl) = event_k1; //copy opaque event value into the new space
+        timer_frame_c1->event.mode = metaModePreferOpenCL; //set mode
+	metaOpenCLCreateEvent(&(timer_frame_c1->event.event_pl)); //heap allocate
+	*((cl_event *)timer_frame_c1->event.event_pl) = event_c1; //copy opaque event value into the new space
+        timer_frame_c2->event.mode = metaModePreferOpenCL; //set mode
+	metaOpenCLCreateEvent(&(timer_frame_c2->event.event_pl)); //heap allocate
+	*((cl_event *)timer_frame_c2->event.event_pl) = event_c2; //copy opaque event value into the new space
+        timer_frame_c3->event.mode = metaModePreferOpenCL; //set mode
+	metaOpenCLCreateEvent(&(timer_frame_c3->event.event_pl)); //heap allocate
+	*((cl_event *)timer_frame_c3->event.event_pl) = event_c3; //copy opaque event value into the new space
 	metaTimerEnqueue(timer_frame_k1, &(metaBuiltinQueues[k_unpack_2d_face]));
 	metaTimerEnqueue(timer_frame_c1, &(metaBuiltinQueues[c_H2Dc]));
 	metaTimerEnqueue(timer_frame_c2, &(metaBuiltinQueues[c_H2Dc]));
@@ -2219,9 +2245,11 @@ cl_int opencl_stencil_3d7p(size_t (*grid_size)[3], size_t (*block_size)[3],
 		if ((void*)call != NULL && call_pl != NULL) clSetEventCallback(event, CL_COMPLETE, (openclCallback) call, call_pl);
 #ifdef WITH_TIMERS
 	metaTimerQueueFrame * timer_frame = (metaTimerQueueFrame*)malloc (sizeof(metaTimerQueueFrame));
-	timer_frame->mode = run_mode;
+	timer_frame->mode = metaModePreferOpenCL;
 	timer_frame->size = (*array_size)[0]*(*array_size)[1]*(*array_size)[2]*get_atype_size(type);
-	(timer_frame->event.opencl) = event;
+        timer_frame->event.mode = metaModePreferOpenCL; //set mode
+	metaOpenCLCreateEvent(&(timer_frame->event.event_pl)); //heap allocate
+	*((cl_event *)timer_frame->event.event_pl) = event; //copy opaque event value into the new space
 	metaTimerEnqueue(timer_frame, &(metaBuiltinQueues[k_stencil_3d7p]));
 #endif
   if (ret_event != NULL) *((cl_event *)ret_event) = event;
@@ -2296,10 +2324,12 @@ cl_int opencl_csr(size_t (*grid_size)[3], size_t (*block_size)[3], size_t global
 		if ((void*)call != NULL && call_pl != NULL) clSetEventCallback(event, CL_COMPLETE, (openclCallback) call, call_pl);
 #ifdef WITH_TIMERS
 	metaTimerQueueFrame * timer_frame = (metaTimerQueueFrame*)malloc (sizeof(metaTimerQueueFrame));
-	timer_frame->mode = run_mode;
-	timer_frame->size = wg_size*get_atype_size(type);
+	timer_frame->mode = metaModePreferOpenCL;
+	timer_frame->size = block*get_atype_size(type);
 	timer_frame->name = "CSR";
-	(timer_frame->event.opencl) = event;
+        timer_frame->event.mode = metaModePreferOpenCL; //set mode
+	metaOpenCLCreateEvent(&(timer_frame->event.event_pl)); //heap allocate
+	*((cl_event *)timer_frame->event.event_pl) = event; //copy opaque event value into the new space
 	metaTimerEnqueue(timer_frame, &(metaBuiltinQueues[k_csr]));
 #endif
   if (ret_event != NULL) *((cl_event *)ret_event) = event;
@@ -2363,10 +2393,13 @@ cl_int opencl_crc(void * dev_input, int page_size, int num_words, int numpages, 
 		if ((void*)call != NULL && call_pl != NULL) clSetEventCallback(event, CL_COMPLETE, (openclCallback) call, call_pl);
 #ifdef WITH_TIMERS
 	metaTimerQueueFrame * timer_frame = (metaTimerQueueFrame*)malloc (sizeof(metaTimerQueueFrame));
-	timer_frame->mode = run_mode;
-	timer_frame->size = (*block_size)[0]*get_atype_size(type);
+	timer_frame->mode = metaModePreferOpenCL;
+	//FIXME: This doesn't seem like the "task size", ask Mohamed
+	timer_frame->size = get_atype_size(type);
 	timer_frame->name = "CRC";
-	(timer_frame->event.opencl) = event;
+        timer_frame->event.mode = metaModePreferOpenCL; //set mode
+	metaOpenCLCreateEvent(&(timer_frame->event.event_pl)); //heap allocate
+	*((cl_event *)timer_frame->event.event_pl) = event; //copy opaque event value into the new space
 	metaTimerEnqueue(timer_frame, &(metaBuiltinQueues[k_crc]));
 #endif
   if (ret_event != NULL) *((cl_event *)ret_event) = event;

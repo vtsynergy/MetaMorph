@@ -25,6 +25,8 @@
 
 #include "metamorph.h"
 #include <dlfcn.h>
+#include <stdlib.h>
+#include <string.h>
 #ifdef ALIGNED_MEMORY
 #include "xmmintrin.h"
 #endif
@@ -210,13 +212,14 @@ struct opencl_dyn_ptrs {
   void (* metaOpenCLFallback)(void);
   a_err (* metaOpenCLAlloc)(void**, size_t);
   a_err (* metaOpenCLFree)(void*);
-  a_err (* metaOpenCLWrite)(void*, void*, size_t, a_bool, meta_callback*, void*);
-  a_err (* metaOpenCLRead)(void*, void*, size_t, a_bool, meta_callback*, void*);
-  a_err (* metaOpenCLDevCopy)(void*, void*, size_t, a_bool, meta_callback*, void*);
+  a_err (* metaOpenCLWrite)(void*, void*, size_t, a_bool, meta_callback*, void*, void *);
+  a_err (* metaOpenCLRead)(void*, void*, size_t, a_bool, meta_callback*, void*, void *);
+  a_err (* metaOpenCLDevCopy)(void*, void*, size_t, a_bool, meta_callback*, void*, void *);
   a_err (* metaOpenCLInitByID)(a_int);
   a_err (* metaOpenCLCurrDev)(a_int*);
   a_err (* metaOpenCLMaxWorkSizes)(a_dim3*, a_dim3*);
   a_err (* metaOpenCLFlush)();
+  a_err (* metaOpenCLCreateEvent)(void**);
   a_err (* opencl_dotProd)(size_t (*)[3], size_t (*)[3], void *, void *, size_t (*)[3], size_t (*)[3], size_t (*)[3], void *, meta_type_id, int, meta_callback *, void *, void *);
   a_err (* opencl_reduce)(size_t (*)[3], size_t (*)[3], void *, size_t (*)[3], size_t (*)[3], size_t (*)[3], void *, meta_type_id, int, meta_callback *, void *, void *);
 a_err (* opencl_transpose_face)(size_t (*)[3], size_t (*)[3], void *, void *, size_t (*)[3], size_t (*)[3], meta_type_id, int, meta_callback *, void *, void *);
@@ -263,6 +266,7 @@ __attribute__((constructor)) void meta_init() {
     CHECKED_DLSYM("libmm_opencl_backend.so", backends.opencl_be_handle, "metaOpenCLCurrDev", opencl_symbols.metaOpenCLCurrDev);
     CHECKED_DLSYM("libmm_opencl_backend.so", backends.opencl_be_handle, "metaOpenCLMaxWorkSizes", opencl_symbols.metaOpenCLMaxWorkSizes);
     CHECKED_DLSYM("libmm_opencl_backend.so", backends.opencl_be_handle, "metaOpenCLFlush", opencl_symbols.metaOpenCLFlush);
+    CHECKED_DLSYM("libmm_opencl_backend.so", backends.opencl_be_handle, "metaOpenCLCreateEvent", opencl_symbols.metaOpenCLCreateEvent);
     CHECKED_DLSYM("libmm_opencl_backend.so", backends.opencl_be_handle, "opencl_dotProd", opencl_symbols.opencl_dotProd);
     CHECKED_DLSYM("libmm_opencl_backend.so", backends.opencl_be_handle, "opencl_reduce", opencl_symbols.opencl_reduce);
     CHECKED_DLSYM("libmm_opencl_backend.so", backends.opencl_be_handle, "opencl_transpose_face", opencl_symbols.opencl_transpose_face);
@@ -314,7 +318,7 @@ __attribute__((destructor)) void meta_finalize() {
   }
 }
 
-//Unexposed convenience function to get the byte width of a selected type
+//convenience function to get the byte width of a selected type
 size_t get_atype_size(meta_type_id type) {
 	switch (type) {
 	case a_db:
@@ -438,20 +442,23 @@ a_err meta_free(void * ptr) {
 //	return meta_copy_h2d(dst, src, size, true);
 //}
 //Workhorse for both sync and async variants
-a_err meta_copy_h2d(void * dst, void * src, size_t size, a_bool async) {//, char * event_name, cl_event * wait) {
+a_err meta_copy_h2d(void * dst, void * src, size_t size, a_bool async, meta_event * ret_event) {//, char * event_name, cl_event * wait) {
 	return meta_copy_h2d_cb(dst, src, size, async,
 	// event_name, wait,
-	 (meta_callback*) NULL, NULL);
+	 (meta_callback*) NULL, NULL, ret_event);
 }
 a_err meta_copy_h2d_cb(void * dst, void * src, size_t size, a_bool async,
 		// char * event_name, cl_event * wait,
-		meta_callback *call, void *call_pl) {
+		meta_callback *call, void *call_pl, meta_event * ret_event) {
 	a_err ret;
 #ifdef WITH_TIMERS
-	metaTimerQueueFrame * frame = (metaTimerQueueFrame *)malloc (sizeof(metaTimerQueueFrame));
+        metaTimerQueueFrame * frame;
+	if (run_mode != metaModePreferOpenCL) {
+	frame = (metaTimerQueueFrame *)malloc (sizeof(metaTimerQueueFrame));
 	frame->mode = run_mode;
 	frame->size = size;
 	//frame->name = event_name;
+	}
 #endif
 	switch (run_mode) {
 	default:
@@ -481,7 +488,7 @@ a_err meta_copy_h2d_cb(void * dst, void * src, size_t size, a_bool async,
 
 		case metaModePreferOpenCL:
 		{
-		if (opencl_symbols.metaOpenCLWrite != NULL) ret = (*(opencl_symbols.metaOpenCLWrite))(dst, src, size, async, call, call_pl);
+		if (opencl_symbols.metaOpenCLWrite != NULL) ret = (*(opencl_symbols.metaOpenCLWrite))(dst, src, size, async, call, call_pl, ret_event);
 		else {
 		  fprintf(stderr, "OpenCL backend improperly loaded or missing symbol \"metaOpenCLWrite\"\n");
 		  //FIXME output a real error code
@@ -516,7 +523,9 @@ clGetEventProfilingInfo(frame->event.opencl,CL_PROFILING_COMMAND_QUEUED,sizeof(c
 printf("check profiling event '%s' (MM side) %lu\n",frame->name,start_time);
 */
 #ifdef WITH_TIMERS
+	if (run_mode != metaModePreferOpenCL) {
 	metaTimerEnqueue(frame, &(metaBuiltinQueues[c_H2D]));
+	}
 #endif
 	return (ret);
 }
@@ -526,20 +535,23 @@ printf("check profiling event '%s' (MM side) %lu\n",frame->name,start_time);
 //	return meta_copy_d2h(dst, src, size, true);
 //}
 //Workhorse for both sync and async copies
-a_err meta_copy_d2h(void *dst, void *src, size_t size, a_bool async) {//, char * event_name, cl_event * wait) {
+a_err meta_copy_d2h(void *dst, void *src, size_t size, a_bool async, meta_event * ret_event) {//, char * event_name, cl_event * wait) {
 	return meta_copy_d2h_cb(dst, src, size, async,
 	// event_name, wait,
-	 (meta_callback*) NULL, NULL);
+	 (meta_callback*) NULL, NULL, ret_event);
 }
 a_err meta_copy_d2h_cb(void * dst, void * src, size_t size, a_bool async,
 		// char * event_name, cl_event * wait,
-		meta_callback *call, void *call_pl) {
+		meta_callback *call, void *call_pl, meta_event * ret_event) {
 	a_err ret;
 #ifdef WITH_TIMERS
-	metaTimerQueueFrame * frame = (metaTimerQueueFrame*)malloc (sizeof(metaTimerQueueFrame));
+        metaTimerQueueFrame * frame;
+	if (run_mode != metaModePreferOpenCL) {
+	frame = (metaTimerQueueFrame*)malloc (sizeof(metaTimerQueueFrame));
 	frame->mode = run_mode;
 	frame->size = size;
 	//frame->name = event_name;
+	}
 #endif
 	switch (run_mode) {
 	default:
@@ -569,7 +581,7 @@ a_err meta_copy_d2h_cb(void * dst, void * src, size_t size, a_bool async,
 
 		case metaModePreferOpenCL:
 		{
-		if (opencl_symbols.metaOpenCLRead != NULL) ret = (*(opencl_symbols.metaOpenCLRead))(dst, src, size, async, call, call_pl);
+		if (opencl_symbols.metaOpenCLRead != NULL) ret = (*(opencl_symbols.metaOpenCLRead))(dst, src, size, async, call, call_pl, ret_event);
 		else {
 		  fprintf(stderr, "OpenCL backend improperly loaded or missing symbol \"metaOpenCLRead\"\n");
 		  //FIXME output a real error code
@@ -597,7 +609,9 @@ a_err meta_copy_d2h_cb(void * dst, void * src, size_t size, a_bool async,
 #endif
 	}
 #ifdef WITH_TIMERS
+	if (run_mode != metaModePreferOpenCL) {
 	metaTimerEnqueue(frame, &(metaBuiltinQueues[c_D2H]));
+	}
 #endif
 	return (ret);
 }
@@ -607,20 +621,23 @@ a_err meta_copy_d2h_cb(void * dst, void * src, size_t size, a_bool async,
 //	return (dst, src, size, true);
 //}
 //Workhorse for both sync and async copies
-a_err meta_copy_d2d(void *dst, void *src, size_t size, a_bool async) {//, char * event_name, cl_event * wait) {
+a_err meta_copy_d2d(void *dst, void *src, size_t size, a_bool async, meta_event * ret_event) {//, char * event_name, cl_event * wait) {
 	return meta_copy_d2d_cb(dst, src, size, async,
 	// event_name, wait, 
-	(meta_callback*) NULL, NULL);
+	(meta_callback*) NULL, NULL, ret_event);
 }
 a_err meta_copy_d2d_cb(void * dst, void * src, size_t size, a_bool async,
 		// char * event_name, cl_event * wait,
-		meta_callback *call, void *call_pl) {
+		meta_callback *call, void *call_pl, meta_event * ret_event) {
 	a_err ret;
 #ifdef WITH_TIMERS
-	metaTimerQueueFrame * frame = (metaTimerQueueFrame*)malloc (sizeof(metaTimerQueueFrame));
+        metaTimerQueueFrame * frame;
+	if (run_mode != metaModePreferOpenCL) {
+	frame = (metaTimerQueueFrame*)malloc (sizeof(metaTimerQueueFrame));
 	frame->mode = run_mode;
 	frame->size = size;
 	//frame->name = event_name;
+	}
 #endif
 	switch (run_mode) {
 	default:
@@ -650,7 +667,7 @@ a_err meta_copy_d2d_cb(void * dst, void * src, size_t size, a_bool async,
 
 		case metaModePreferOpenCL:
 		{
-		if (opencl_symbols.metaOpenCLDevCopy != NULL) ret = (*(opencl_symbols.metaOpenCLDevCopy))(dst, src, size, async, call, call_pl);
+		if (opencl_symbols.metaOpenCLDevCopy != NULL) ret = (*(opencl_symbols.metaOpenCLDevCopy))(dst, src, size, async, call, call_pl, ret_event);
 		else {
 		  fprintf(stderr, "OpenCL backend improperly loaded or missing symbol \"metaOpenCLDevCopy\"\n");
 		  //FIXME output a real error code
@@ -679,7 +696,9 @@ a_err meta_copy_d2d_cb(void * dst, void * src, size_t size, a_bool async,
 #endif
 	}
 #ifdef WITH_TIMERS
+	if (run_mode != metaModePreferOpenCL) {
 	metaTimerEnqueue(frame, &(metaBuiltinQueues[c_D2D]));
+	}
 #endif
 	return (ret);
 }
@@ -894,6 +913,56 @@ a_err ret = 0;
 return ret;
 }
 
+//Simple initializer for an event that sets the mode to whatever we are currently using and initializes an appropriately-sized heap object
+a_err meta_init_event(meta_event * event) {
+  a_err ret = 0;
+  if (event == NULL) return -1;
+  event->mode = run_mode;
+  switch (run_mode) {
+    default:
+    case metaModePreferGeneric:
+    //TODO implement a generic mode
+    break;
+
+#ifdef WITH_CUDA
+    case metaModePreferCUDA: {
+      //TODO: Do something once we update the CUDA backend to dynamically load
+      //TODO Based on the old metaTimerEvent, we may allocate tow, both for start and end
+    }
+    break;
+#endif //WITH CUDA
+
+    case metaModePreferOpenCL:
+    {
+      if (opencl_symbols.metaOpenCLCreateEvent != NULL) ret = (*(opencl_symbols.metaOpenCLCreateEvent))(&(event->event_pl));
+      else {
+        fprintf(stderr, "OpenCL backend improperly loaded or missing symbol \"metaOpenCLCreateEvent\"\n");
+        //FIXME output a real error code
+        ret = -1;
+      }
+      //TODO: Implement the OpenCL event creator
+    }
+    break;
+
+#ifdef WITH_OPENMP
+    case metaModePreferOpenMP: {
+      //TODO: Do something once we update the OpenMP backend to dynamically load
+      //TODO Based on the old metaTimerEvent, we may allocate tow, both for start and end
+    }
+    break;
+#endif 
+  }
+  return ret;
+}
+
+//Simple destructor that free's the backend-agnostic void* event payload
+a_err meta_destroy_event(meta_event event) {
+  a_err ret = 0;
+  if (event.event_pl != NULL) free(event.event_pl);
+  else ret = -1; //TODO We will need our own set of return codes soon
+  return ret;
+}
+
 //Simple wrapper for synchronous kernel
 //a_err meta_dotProd(a_dim3 * grid_size, a_dim3 * block_size, a_double * data1, a_double * data2, a_dim3 * array_size, a_dim3 * array_start, a_dim3 * array_end, a_double * reduction_var) {
 //	return meta_dotProd(grid_size, block_size, data1, data2, array_size, array_start, array_end, reduction_var, true);
@@ -902,7 +971,7 @@ return ret;
 a_err meta_dotProd(a_dim3 * grid_size, a_dim3 * block_size, void * data1,
 		void * data2, a_dim3 * array_size, a_dim3 * array_start,
 		a_dim3 * array_end, void * reduction_var, meta_type_id type,
-		a_bool async, void * ret_event) {
+		a_bool async, meta_event * ret_event) {
 	return meta_dotProd_cb(grid_size, block_size, data1, data2, array_size,
 			array_start, array_end, reduction_var, type, async,
 			(meta_callback*) NULL, NULL, ret_event);
@@ -910,7 +979,7 @@ a_err meta_dotProd(a_dim3 * grid_size, a_dim3 * block_size, void * data1,
 a_err meta_dotProd_cb(a_dim3 * grid_size, a_dim3 * block_size, void * data1,
 		void * data2, a_dim3 * array_size, a_dim3 * array_start,
 		a_dim3 * array_end, void * reduction_var, meta_type_id type,
-		a_bool async, meta_callback *call, void *call_pl, void * ret_event) {
+		a_bool async, meta_callback *call, void *call_pl, meta_event * ret_event) {
 	a_err ret;
 
 	//FIXME? Consider adding a compiler flag "UNCHECKED_EXPLICIT" to streamline out sanity checks like this
@@ -991,8 +1060,9 @@ a_err meta_dotProd_cb(a_dim3 * grid_size, a_dim3 * block_size, void * data1,
 	}
 
 #ifdef WITH_TIMERS
+        metaTimerQueueFrame * frame;
 	if (run_mode != metaModePreferOpenCL) {
-	metaTimerQueueFrame * frame = (metaTimerQueueFrame*)malloc (sizeof(metaTimerQueueFrame));
+	frame = (metaTimerQueueFrame*)malloc (sizeof(metaTimerQueueFrame));
 	frame->mode = run_mode;
 	frame->size = (*array_size)[0]*(*array_size)[1]*(*array_size)[2]*get_atype_size(type);
 	}
@@ -1059,14 +1129,14 @@ a_err meta_dotProd_cb(a_dim3 * grid_size, a_dim3 * block_size, void * data1,
 //Workhorse for both sync and async reductions
 a_err meta_reduce(a_dim3 * grid_size, a_dim3 * block_size, void * data,
 		a_dim3 * array_size, a_dim3 * array_start, a_dim3 * array_end,
-		void * reduction_var, meta_type_id type, a_bool async, void * ret_event) {
+		void * reduction_var, meta_type_id type, a_bool async, meta_event * ret_event) {
 	return meta_reduce_cb(grid_size, block_size, data, array_size, array_start,
 			array_end, reduction_var, type, async, (meta_callback*) NULL, NULL, ret_event);
 }
 a_err meta_reduce_cb(a_dim3 * grid_size, a_dim3 * block_size, void * data,
 		a_dim3 * array_size, a_dim3 * array_start, a_dim3 * array_end,
 		void * reduction_var, meta_type_id type, a_bool async,
-		meta_callback *call, void *call_pl, void * ret_event) {
+		meta_callback *call, void *call_pl, meta_event * ret_event) {
 	a_err ret;
 
 	//FIXME? Consider adding a compiler flag "UNCHECKED_EXPLICIT" to streamline out sanity checks like this
@@ -1147,8 +1217,9 @@ a_err meta_reduce_cb(a_dim3 * grid_size, a_dim3 * block_size, void * data,
 	}
 
 #ifdef WITH_TIMERS
+        metaTimerQueueFrame * frame;
 	if (run_mode != metaModePreferOpenCL) {
-	metaTimerQueueFrame * frame = (metaTimerQueueFrame*)malloc (sizeof(metaTimerQueueFrame));
+	frame = (metaTimerQueueFrame*)malloc (sizeof(metaTimerQueueFrame));
 	frame->mode = run_mode;
 	frame->size = (*array_size)[0]*(*array_size)[1]*(*array_size)[2]*get_atype_size(type);
 	}
@@ -1269,13 +1340,13 @@ meta_face * make_slab_from_3d(int face, int ni, int nj, int nk, int thickness) {
 //Workhorse for both sync and async transpose
 a_err meta_transpose_face(a_dim3 * grid_size, a_dim3 * block_size,
 		void *indata, void *outdata, a_dim3 * arr_dim_xy, a_dim3 * tran_dim_xy,
-		meta_type_id type, a_bool async, void * ret_event) {
+		meta_type_id type, a_bool async, meta_event * ret_event) {
 	return meta_transpose_face_cb(grid_size, block_size, indata, outdata,
 			arr_dim_xy, tran_dim_xy, type, async, (meta_callback*) NULL, NULL, ret_event);
 }
 a_err meta_transpose_face_cb(a_dim3 * grid_size, a_dim3 * block_size,
 		void *indata, void *outdata, a_dim3 * arr_dim_xy, a_dim3 * tran_dim_xy,
-		meta_type_id type, a_bool async, meta_callback *call, void *call_pl, void * ret_event) {
+		meta_type_id type, a_bool async, meta_callback *call, void *call_pl, meta_event * ret_event) {
 	a_err ret;
 	//FIXME? Consider adding a compiler flag "UNCHECKED_EXPLICIT" to streamline out sanity checks like this
 	//Before we do anything, sanity check that trans_dim_xy fits inside arr_dim_xy
@@ -1302,8 +1373,9 @@ a_err meta_transpose_face_cb(a_dim3 * grid_size, a_dim3 * block_size,
 
 	}
 #ifdef WITH_TIMERS
+        metaTimerQueueFrame * frame;
 	if (run_mode != metaModePreferOpenCL) {
-	metaTimerQueueFrame * frame = (metaTimerQueueFrame*)malloc (sizeof(metaTimerQueueFrame));
+	frame = (metaTimerQueueFrame*)malloc (sizeof(metaTimerQueueFrame));
 	frame->mode = run_mode;
 	frame->size = (*tran_dim_xy)[0]*(*tran_dim_xy)[1]*get_atype_size(type);
 	}
@@ -1367,13 +1439,13 @@ a_err meta_transpose_face_cb(a_dim3 * grid_size, a_dim3 * block_size,
 //Workhorse for both sync and async pack
 a_err meta_pack_face(a_dim3 * grid_size, a_dim3 * block_size,
 		void *packed_buf, void *buf, meta_face *face,
-		meta_type_id type, a_bool async, void * ret_event_k1, void * ret_event_c1, void * ret_event_c2, void * ret_event_c3) {
+		meta_type_id type, a_bool async, meta_event * ret_event_k1, meta_event * ret_event_c1, meta_event * ret_event_c2, meta_event * ret_event_c3) {
 	return meta_pack_face_cb(grid_size, block_size, packed_buf, buf, face,
 			type, async, (meta_callback*) NULL, NULL, ret_event_k1, ret_event_c1, ret_event_c2, ret_event_c3);
 }
 a_err meta_pack_face_cb(a_dim3 * grid_size, a_dim3 * block_size,
 		void *packed_buf, void *buf, meta_face *face,
-		meta_type_id type, a_bool async, meta_callback *call, void *call_pl, void * ret_event_k1, void * ret_event_c1, void * ret_event_c2, void * ret_event_c3) {
+		meta_type_id type, a_bool async, meta_callback *call, void *call_pl, meta_event * ret_event_k1, meta_event * ret_event_c1, meta_event * ret_event_c2, meta_event * ret_event_c3) {
 	a_err ret;
 	//FIXME? Consider adding a compiler flag "UNCHECKED_EXPLICIT" to streamline out sanity checks like this
 	//Before we do anything, sanity check that the face is set up
@@ -1389,13 +1461,14 @@ a_err meta_pack_face_cb(a_dim3 * grid_size, a_dim3 * block_size,
 		return -1;
 	}
 #ifdef WITH_TIMERS
+        metaTimerQueueFrame * frame_k1, * frame_c1, * frame_c2, * frame_c3;
 	if (run_mode != metaModePreferOpenCL) {
 	//TODO: Add another queue for copies into constant memory
 	//TODO: Hoist copies into constant memory out of the cores to here
-	metaTimerQueueFrame * frame_k1 = (metaTimerQueueFrame*)malloc (sizeof(metaTimerQueueFrame));
-	metaTimerQueueFrame * frame_c1 = (metaTimerQueueFrame*)malloc (sizeof(metaTimerQueueFrame));
-	metaTimerQueueFrame * frame_c2 = (metaTimerQueueFrame*)malloc (sizeof(metaTimerQueueFrame));
-	metaTimerQueueFrame * frame_c3 = (metaTimerQueueFrame*)malloc (sizeof(metaTimerQueueFrame));
+	frame_k1 = (metaTimerQueueFrame*)malloc (sizeof(metaTimerQueueFrame));
+	frame_c1 = (metaTimerQueueFrame*)malloc (sizeof(metaTimerQueueFrame));
+	frame_c2 = (metaTimerQueueFrame*)malloc (sizeof(metaTimerQueueFrame));
+	frame_c3 = (metaTimerQueueFrame*)malloc (sizeof(metaTimerQueueFrame));
 	frame_k1->mode = run_mode;
 	frame_c1->mode = run_mode;
 	frame_c2->mode = run_mode;
@@ -1498,13 +1571,13 @@ a_err meta_pack_face_cb(a_dim3 * grid_size, a_dim3 * block_size,
 //TODO fix frame->size to reflect face size
 a_err meta_unpack_face(a_dim3 * grid_size, a_dim3 * block_size,
 		void *packed_buf, void *buf, meta_face *face,
-		meta_type_id type, a_bool async, void * ret_event_k1, void * ret_event_c1, void * ret_event_c2, void * ret_event_c3) {
+		meta_type_id type, a_bool async, meta_event * ret_event_k1, meta_event * ret_event_c1, meta_event * ret_event_c2, meta_event * ret_event_c3) {
 	return meta_unpack_face_cb(grid_size, block_size, packed_buf, buf, face,
 			type, async, (meta_callback*) NULL, NULL, ret_event_k1, ret_event_c1, ret_event_c2, ret_event_c3);
 }
 a_err meta_unpack_face_cb(a_dim3 * grid_size, a_dim3 * block_size,
 		void *packed_buf, void *buf, meta_face *face,
-		meta_type_id type, a_bool async, meta_callback *call, void *call_pl, void * ret_event_k1, void * ret_event_c1, void * ret_event_c2, void * ret_event_c3) {
+		meta_type_id type, a_bool async, meta_callback *call, void *call_pl, meta_event * ret_event_k1, meta_event * ret_event_c1, meta_event * ret_event_c2, meta_event * ret_event_c3) {
 	a_err ret;
 	//FIXME? Consider adding a compiler flag "UNCHECKED_EXPLICIT" to streamline out sanity checks like this
 	//Before we do anything, sanity check that the face is set up
@@ -1520,13 +1593,14 @@ a_err meta_unpack_face_cb(a_dim3 * grid_size, a_dim3 * block_size,
 		return -1;
 	}
 #ifdef WITH_TIMERS
+        metaTimerQueueFrame * frame_k1, * frame_c1, * frame_c2, * frame_c3;
 	if (run_mode != metaModePreferOpenCL) {
 	//TODO: Add another queue for copies into constant memory
 	//TODO: Hoist copies into constant memory out of the cores to here
-	metaTimerQueueFrame * frame_k1 = (metaTimerQueueFrame*)malloc (sizeof(metaTimerQueueFrame));
-	metaTimerQueueFrame * frame_c1 = (metaTimerQueueFrame*)malloc (sizeof(metaTimerQueueFrame));
-	metaTimerQueueFrame * frame_c2 = (metaTimerQueueFrame*)malloc (sizeof(metaTimerQueueFrame));
-	metaTimerQueueFrame * frame_c3 = (metaTimerQueueFrame*)malloc (sizeof(metaTimerQueueFrame));
+	frame_k1 = (metaTimerQueueFrame*)malloc (sizeof(metaTimerQueueFrame));
+	frame_c1 = (metaTimerQueueFrame*)malloc (sizeof(metaTimerQueueFrame));
+	frame_c2 = (metaTimerQueueFrame*)malloc (sizeof(metaTimerQueueFrame));
+	frame_c3 = (metaTimerQueueFrame*)malloc (sizeof(metaTimerQueueFrame));
 	frame_k1->mode = run_mode;
 	frame_c1->mode = run_mode;
 	frame_c2->mode = run_mode;
@@ -1619,7 +1693,7 @@ a_err meta_unpack_face_cb(a_dim3 * grid_size, a_dim3 * block_size,
 //Workhorse for both sync and async stencil
 a_err meta_stencil_3d7p(a_dim3 * grid_size, a_dim3 * block_size, void *indata,
 		void *outdata, a_dim3 * array_size, a_dim3 * array_start,
-		a_dim3 * array_end, meta_type_id type, a_bool async, void * ret_event) {
+		a_dim3 * array_end, meta_type_id type, a_bool async, meta_event * ret_event) {
 	return meta_stencil_3d7p_cb(grid_size, block_size, indata, outdata,
 			array_size, array_start, array_end, type, async,
 			(meta_callback*) NULL, NULL, ret_event);
@@ -1627,7 +1701,7 @@ a_err meta_stencil_3d7p(a_dim3 * grid_size, a_dim3 * block_size, void *indata,
 a_err meta_stencil_3d7p_cb(a_dim3 * grid_size, a_dim3 * block_size,
 		void *indata, void *outdata, a_dim3 * array_size, a_dim3 * array_start,
 		a_dim3 * array_end, meta_type_id type, a_bool async,
-		meta_callback *call, void *call_pl, void * ret_event) {
+		meta_callback *call, void *call_pl, meta_event * ret_event) {
 	a_err ret;
 
 	//FIXME? Consider adding a compiler flag "UNCHECKED_EXPLICIT" to streamline out sanity checks like this
@@ -1708,8 +1782,9 @@ a_err meta_stencil_3d7p_cb(a_dim3 * grid_size, a_dim3 * block_size,
 	}
 
 #ifdef WITH_TIMERS
+        metaTimerQueueFrame * frame;
 	if (run_mode != metaModePreferOpenCL) {
-	metaTimerQueueFrame * frame = (metaTimerQueueFrame*)malloc (sizeof(metaTimerQueueFrame));
+	frame = (metaTimerQueueFrame*)malloc (sizeof(metaTimerQueueFrame));
 	frame->mode = run_mode;
 	frame->size = (*array_size)[0]*(*array_size)[1]*(*array_size)[2]*get_atype_size(type);
 	}
@@ -1771,24 +1846,24 @@ a_err meta_stencil_3d7p_cb(a_dim3 * grid_size, a_dim3 * block_size,
 ///////////////////////
 //SPMV API (meta_csr)//
 ///////////////////////
-a_err meta_csr(a_dim3 * grid_size, a_dim3 * block_size, size_t global_size, void * csr_ap, void * csr_aj, void * csr_ax, void * x_loc, void * y_loc, 
-		size_t wg_size, meta_type_id type, a_bool async, void * ret_event) {//, cl_event * wait) {
-	return meta_csr_cb(grid_size, block_size, global_size, csr_ap, csr_aj, csr_ax, x_loc, y_loc,
-			wg_size, type, async,
+a_err meta_csr(a_dim3 * grid_size, a_dim3 * block_size, size_t global_size, void * csr_ap, void * csr_aj, void * csr_ax, void * x_loc, void * y_loc, meta_type_id type, a_bool async, meta_event * ret_event) {//, cl_event * wait) {
+	return meta_csr_cb(grid_size, block_size, global_size, csr_ap, csr_aj, csr_ax, x_loc, y_loc, type, async,
 			// wait,
 			(meta_callback*) NULL, NULL, ret_event);
 }
-a_err meta_csr_cb(a_dim3 * grid_size, a_dim3 * block_size, size_t global_size, void * csr_ap, void * csr_aj, void * csr_ax, void * x_loc, void * y_loc,
-		size_t wg_size, meta_type_id type, a_bool async,
+a_err meta_csr_cb(a_dim3 * grid_size, a_dim3 * block_size, size_t global_size, void * csr_ap, void * csr_aj, void * csr_ax, void * x_loc, void * y_loc, meta_type_id type, a_bool async,
 		// cl_event * wait,
-		meta_callback *call, void *call_pl, void * ret_event) {
+		meta_callback *call, void *call_pl, meta_event * ret_event) {
 	a_err ret;
 #ifdef WITH_TIMERS
-	if (run_mode != metaModePreferOpenCL) {
-	metaTimerQueueFrame * frame = (metaTimerQueueFrame*)malloc (sizeof(metaTimerQueueFrame));
+	metaTimerQueueFrame * frame;
+        if (run_mode != metaModePreferOpenCL) {
+	frame = (metaTimerQueueFrame*)malloc (sizeof(metaTimerQueueFrame));
 	frame->mode = run_mode;
-	frame->size = wg_size*get_atype_size(type);
-	frame->name = "CSR";
+	//FIXME: Need a backend-agnostic default block_size[0] to fall back on
+	if (block_size != NULL) frame->size = (*block_size)[0]*get_atype_size(type);
+	else frame->size = get_atype_size(type);
+	frame->name = (char const *)"CSR";
 	}
 #endif
 
@@ -1833,7 +1908,7 @@ a_err meta_csr_cb(a_dim3 * grid_size, a_dim3 * block_size, size_t global_size, v
 //CRC API (meta_crc)//
 ///////////////////////
 a_err meta_crc(a_dim3 * grid_size, a_dim3 * block_size, void * dev_input, int page_size, int num_words, int numpages, void * dev_output, 
-		meta_type_id type, a_bool async, void * ret_event) {//, cl_event * wait) {
+		meta_type_id type, a_bool async, meta_event * ret_event) {//, cl_event * wait) {
 	return meta_crc_cb(grid_size, block_size, dev_input, page_size, num_words, numpages, dev_output,
 			type, async,// wait,
 			(meta_callback*) NULL, NULL, ret_event);
@@ -1841,11 +1916,12 @@ a_err meta_crc(a_dim3 * grid_size, a_dim3 * block_size, void * dev_input, int pa
 a_err meta_crc_cb(a_dim3 * grid_size, a_dim3 * block_size, void * dev_input, int page_size, int num_words, int numpages, void * dev_output,
 		meta_type_id type, a_bool async,
 		// cl_event * wait,
-		meta_callback *call, void *call_pl, void * ret_event) {
+		meta_callback *call, void *call_pl, meta_event * ret_event) {
 	a_err ret;
 #ifdef WITH_TIMERS
-	if (run_mode != metaModePreferOpenCL) {
-	metaTimerQueueFrame * frame = (metaTimerQueueFrame*)malloc (sizeof(metaTimerQueueFrame));
+	metaTimerQueueFrame * frame;
+        if (run_mode != metaModePreferOpenCL) {
+	frame = (metaTimerQueueFrame*)malloc (sizeof(metaTimerQueueFrame));
 	frame->mode = run_mode;
 	frame->size = (*block_size)[0]*get_atype_size(type);
 	frame->name = "CRC";

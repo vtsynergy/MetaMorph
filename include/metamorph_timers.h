@@ -18,7 +18,7 @@
 #ifdef WITH_CUDA
 #endif
 
-#ifdef WITH_OPENCL
+#ifdef OLD_WITH_OPENCL
 #endif
 
 #ifdef WITH_OPENMP
@@ -27,20 +27,23 @@
 //CUDA needs 2 events to use cudaEventElapsedTime
 //OpenCL only needs one, if using the event returned from an API call
 //OpenMP needs 2 to keep start/end time
+/*
 typedef union metaTimerEvent {
 #ifdef WITH_CUDA
 	cudaEvent_t cuda[2];
 #endif
-#ifdef WITH_OPENCL
+#ifdef OLD_WITH_OPENCL
 	cl_event opencl;
 #endif
 #ifdef WITH_OPENMP
 	double openmp[2];
 #endif
 } metaTimerEvent;
+*/
+typedef meta_event metaTimerEvent;
 
 typedef struct metaTimerQueueFrame {
-	char * name;
+	char const * name;
 	metaTimerEvent event;
 //Hijack meta_preferred_mode enum to advise the user of the frame/node how to interpret event
 	meta_preferred_mode mode;
@@ -51,7 +54,7 @@ typedef struct metaTimerQueueFrame {
 //TODO refactor code to use a frame internally, so that the frame can be changed
 // without having to modify the QueueNode to match
 typedef struct metaTimerQueueNode {
-	char * name;
+	char const * name;
 	metaTimerEvent event;
 //Hijack meta_preferred_mode enum to advise the user of the frame/node how to interpret event
 	meta_preferred_mode mode;
