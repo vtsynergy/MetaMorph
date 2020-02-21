@@ -2,15 +2,6 @@
  * Exposed OpenCL backend functions, defines, and data structures
  */
 
-#ifdef __APPLE__
-#include <OpenCL/opencl.h>
-#else
-#include <CL/opencl.h>
-#endif
-#include <stdlib.h>
-#include <stdio.h>
-#include <string.h>
-
 /** OpenCL Back-End **/
 #ifndef METAMORPH_OPENCL_BACKEND_H
 #define METAMORPH_OPENCL_BACKEND_H
@@ -383,6 +374,9 @@ cl_int metaOpenCLDestroyStackFrame(metaOpenCLStackFrame * frame);
  */
 cl_int metaOpenCLInitStackFrameDefault(metaOpenCLStackFrame ** frame);
 
+//Stub: make sure some device exists
+void metaOpenCLFallback();
+
 /**
  * \brief Load a specified OpenCL kernel implementation
  *
@@ -426,6 +420,9 @@ a_err metaOpenCLCurrDev(a_int *id);
 a_err metaOpenCLMaxWorkSizes(a_dim3 * work_groups, a_dim3 * work_items);
 a_err metaOpenCLFlush();
 a_err metaOpenCLCreateEvent(void **);
+//timing function wrappers
+a_err metaOpenCLEventStartTime(meta_event event, unsigned long * ret_time);
+a_err metaOpenCLEventEndTime(meta_event event, unsigned long * ret_time);
 //share meta_context with with existing software
 a_int meta_get_state_OpenCL(cl_platform_id * platform, cl_device_id * device,
 		cl_context * context, cl_command_queue * queue);

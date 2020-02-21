@@ -3,6 +3,15 @@
  * \bug OpenCL kernel wrappers need to be modified to copy primitive type variables into their cl_\<type\> equivalents before clSetKernelArg to ensure width between device and host
  */
 
+
+#ifdef __APPLE__
+#include <OpenCL/opencl.h>
+#else
+#include <CL/opencl.h>
+#endif
+#include <stdlib.h>
+#include <stdio.h>
+#include <string.h>
 #include "../../metamorph-backends/opencl-backend/mm_opencl_backend.h"
 
 #if defined(__OPENCLCC__) || defined(__cplusplus)
@@ -797,10 +806,7 @@ void metaOpenCLFallback() {
 }
 
 //Not meant to be called by users
-__attribute__((destructor)) a_int meta_destroy_OpenCL() {
-#ifdef WITH_TIMERS
-	metaTimersFinish();
-#endif
+__attribute__((destructor(102))) a_int meta_destroy_OpenCL() {
 	//Deregister all modules that ONLY implement OpenCL
 	int numOCLModules, retModCount;
 	//TODO If we ever make this threadsafe, the deregister function will protect us from re-deregistration
@@ -1023,6 +1029,21 @@ a_err metaOpenCLCreateEvent(void ** ret_event) {
   return ret;
 }
 
+//A simple wrapper to get the start time of a meta_event that contains a cl_event
+a_err metaOpenCLEventStartTime(meta_event event, unsigned long * ret_time) {
+  a_err ret = CL_SUCCESS;
+  if (event.mode == metaModePreferOpenCL && event.event_pl != NULL && ret_time != NULL) ret = clGetEventProfilingInfo(*((cl_event *)event.event_pl), CL_PROFILING_COMMAND_START, sizeof(unsigned long), ret_time, NULL);
+  else ret = CL_INVALID_EVENT;
+  return ret;
+}
+
+//A simple wrapper to get the end time of a meta_event that contains a cl_event
+a_err metaOpenCLEventEndTime(meta_event event, unsigned long * ret_time) {
+  a_err ret = CL_SUCCESS;
+  if (event.mode == metaModePreferOpenCL && event.event_pl != NULL && ret_time != NULL) ret = clGetEventProfilingInfo(*((cl_event *)event.event_pl), CL_PROFILING_COMMAND_END, sizeof(unsigned long), ret_time, NULL);
+  else ret = CL_INVALID_EVENT;
+  return ret;
+}
 
 //calls all the necessary CLRelease* calls for frame members
 //DOES NOT:

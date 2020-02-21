@@ -1,8 +1,16 @@
 #include "metamorph_timers.h"
+#include <dlfcn.h>
 #include <string.h>
 
 metaTimerQueue metaBuiltinQueues[queue_count];
 a_bool __meta_timers_initialized = false;
+extern struct backend_handles backends;
+
+struct opencl_dyn_ptrs_profiling {
+  a_err (* metaOpenCLEventStartTime)(meta_event, unsigned long *);
+  a_err (* metaOpenCLEventEndTime)(meta_event, unsigned long *);
+};
+struct opencl_dyn_ptrs_profiling opencl_timing_funcs = {NULL};
 
 //TODO Paul:Understand and condense this function, if possible, consider renaming
 a_err cl_get_event_node(metaTimerQueue * queue, char * ename, metaTimerQueueFrame ** frame)
@@ -159,7 +167,7 @@ a_err metaTimerDequeue(metaTimerQueueFrame ** frame, metaTimerQueue * queue) {
 //Prepare the environment for timing, should be called by the first METAMORPH Runtime
 // Library Call, and should never be called again. If called a second time before
 // metaTimersFinish is called, will be a silent NOOP.
-a_err metaTimersInit() {
+__attribute__((constructor(104))) a_err metaTimersInit() {
 	if (__meta_timers_initialized) return -1;
 	//Each builtin queue needs one of these pairs
 	// try to use the enum ints/names to minimize changes if new members
@@ -263,6 +271,11 @@ a_err metaTimersInit() {
 	metaBuiltinQueues[k_crc].head->mode = metaModeUnset;
 	metaBuiltinQueues[k_crc].head->next = NULL;
 	metaBuiltinQueues[k_crc].name = "crc kernel call";
+  if (backends.opencl_be_handle != NULL) {
+    CHECKED_DLSYM("libmm_opencl_backend.so", backends.opencl_be_handle, "metaOpenCLEventStartTime", opencl_timing_funcs.metaOpenCLEventStartTime);
+    CHECKED_DLSYM("libmm_opencl_backend.so", backends.opencl_be_handle, "metaOpenCLEventEndTime", opencl_timing_funcs.metaOpenCLEventEndTime);
+    fprintf(stderr, "OpenCL timing functions found\n");
+  }
 
 	__meta_timers_initialized = true;
 }
@@ -271,7 +284,9 @@ a_err metaTimersInit() {
 // Performs work according to what METAMORPH_TIMER_LEVEL is passed in.
 //TODO figure out how to handle encountered events which have not completed
 // (do we put them back on the queue? register a callback? force the command_queue to finish?
+//FIXME needs to handle bad return codes
 void flushWorker(metaTimerQueue * queue, int level) {
+	a_err ret;
 	metaTimerQueueFrame * frame = (metaTimerQueueFrame*) malloc(
 			sizeof(metaTimerQueueFrame));
 	int val;
@@ -284,14 +299,13 @@ void flushWorker(metaTimerQueue * queue, int level) {
 
 		if(level == 0)
 		{
-#ifdef OLD_WITH_OPENCL
 			if (frame->mode == metaModePreferOpenCL)
 			{
-				clGetEventProfilingInfo(frame->event.opencl, CL_PROFILING_COMMAND_START, sizeof(unsigned long), &start, NULL);
-				clGetEventProfilingInfo(frame->event.opencl, CL_PROFILING_COMMAND_END, sizeof(unsigned long), &end, NULL);
+				
+		if (opencl_timing_funcs.metaOpenCLEventStartTime != NULL) ret = (*(opencl_timing_funcs.metaOpenCLEventStartTime))(frame->event, &start);
+		if (opencl_timing_funcs.metaOpenCLEventEndTime != NULL) ret = (*(opencl_timing_funcs.metaOpenCLEventEndTime))(frame->event, &end);
 				temp_t = (end-start)*0.000001;
 			}
-#endif
 		}
 
 		if (level >= 1) {
@@ -304,16 +318,13 @@ void flushWorker(metaTimerQueue * queue, int level) {
 				cudaEventElapsedTime(&temp_t, frame->event.cuda[0], frame->event.cuda[1]);
 			}
 #endif
-#ifdef OLD_WITH_OPENCL
 			else if (frame->mode == metaModePreferOpenCL) {
 				//TODO add a check via clGetEventInfo to make sure the event has completed
-				clGetEventProfilingInfo(frame->event.opencl, CL_PROFILING_COMMAND_START, sizeof(unsigned long), &start, NULL);
-				clGetEventProfilingInfo(frame->event.opencl, CL_PROFILING_COMMAND_END, sizeof(unsigned long), &end, NULL);
-				//TODO does this accumulate need any extra checks?
+		if (opencl_timing_funcs.metaOpenCLEventStartTime != NULL) ret = (*(opencl_timing_funcs.metaOpenCLEventStartTime))(frame->event, &start);
+		if (opencl_timing_funcs.metaOpenCLEventEndTime != NULL) ret = (*(opencl_timing_funcs.metaOpenCLEventEndTime))(frame->event, &end);
 				temp_t = (end-start)*0.000001;
 
 			}
-#endif
 #ifdef WITH_OPENMP
 			else if (frame->mode == metaModePreferOpenMP) {
 				temp_t = (float) ((frame->event.openmp[1] - frame->event.openmp[0]) * 1000.0);
@@ -421,7 +432,7 @@ a_err metaTimersFlush() {
 }
 
 //Safely flush timer stats to the output stream
-a_err metaTimersFinish() {
+__attribute__((destructor(104))) a_err metaTimersFinish() {
 
 	//first, make sure everything is flushed.
 	metaTimersFlush();

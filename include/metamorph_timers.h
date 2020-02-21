@@ -18,8 +18,6 @@
 #ifdef WITH_CUDA
 #endif
 
-#ifdef OLD_WITH_OPENCL
-#endif
 
 #ifdef WITH_OPENMP
 #endif
@@ -90,9 +88,9 @@ enum metaTimerQueueEnum {
 a_err cl_get_event_node(metaTimerQueue * queue, char * ename,  metaTimerQueueFrame ** frame);
 a_err metaTimerEnqueue(metaTimerQueueFrame * frame, metaTimerQueue * queue);
 a_err metaTimerDequeue(metaTimerQueueFrame ** frame, metaTimerQueue * queue);
-a_err metaTimersInit();
+__attribute__((constructor(104))) a_err metaTimersInit();
 a_err metaTimersFlush();
-a_err metaTimersFinish();
+__attribute__((destructor(104))) a_err metaTimersFinish();
 
 extern metaTimerQueue metaBuiltinQueues[];
 #endif //METAMORPH_TIMERS_H

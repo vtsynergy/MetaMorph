@@ -199,14 +199,6 @@ a_err meta_reinitialize_modules(a_module_implements_backend module_type) {
 
 //Globally-set capability flag
 a_module_implements_backend core_capability = module_implements_general | module_implements_fortran;
-struct backend_handles {
-  void * openmp_be_handle;
-  void * opencl_be_handle;
-  void * opencl_lib_handle;
-  void * cuda_be_handle;
-  void * mpi_handle;
-  void * profiling_handle;
-};
 struct backend_handles backends = {NULL};
 struct opencl_dyn_ptrs {
   void (* metaOpenCLFallback)(void);
@@ -230,18 +222,10 @@ a_err (* opencl_csr)(size_t (*)[3], size_t (*)[3], size_t, void *, void *, void 
 a_err (* opencl_crc)(void *, int, int, int, void *, meta_type_id, int, meta_callback *, void *, meta_event *);
 };
 struct opencl_dyn_ptrs opencl_symbols = {NULL};
-#define CHECKED_DLSYM(lib, handle, sym, sym_ptr) {\
-  sym_ptr = dlsym(handle, sym);\
-  char *sym_err; \
-  if ((sym_err = dlerror()) != NULL) {\
-    fprintf(stderr, "Could not dynamically load symbol \"%s\" in library \"%s\", error: \"%s\"\n", sym, lib, sym_err);\
-    exit(1);\
-  }\
-}\
 
 //Constuctor initializr, should not typically need to be manually called
 //For now it just does the auto-discovery of installed backend .sos to enable capability at runtime based on what's installed
-__attribute__((constructor)) void meta_init() {
+__attribute__((constructor(101))) void meta_init() {
   //do auto-discovery of each backend and plugin
   //FIXME Not sure if we need RTLD_DEEPBIND
   backends.cuda_be_handle = dlopen("libmm_cuda_backend.so", RTLD_NOW | RTLD_GLOBAL);
@@ -300,7 +284,7 @@ __attribute__((constructor)) void meta_init() {
   }
 }
 
-__attribute__((destructor)) void meta_finalize() {
+__attribute__((destructor(101))) void meta_finalize() {
   if (core_capability & module_implements_cuda) {
     dlclose(backends.cuda_be_handle);
   }

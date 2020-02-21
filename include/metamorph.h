@@ -191,6 +191,23 @@ typedef struct a_module_record {
   char initialized;// = 0;
 } a_module_record;
 
+//A storage struct for dynamically loaded library handles, not meant for users but needs to be exposed to the plugins
+struct backend_handles {
+  void * openmp_be_handle;
+  void * opencl_be_handle;
+  void * opencl_lib_handle;
+  void * cuda_be_handle;
+  void * mpi_handle;
+  void * profiling_handle;
+};
+#define CHECKED_DLSYM(lib, handle, sym, sym_ptr) {\
+  sym_ptr = dlsym(handle, sym);\
+  char *sym_err; \
+  if ((sym_err = dlerror()) != NULL) {\
+    fprintf(stderr, "Could not dynamically load symbol \"%s\" in library \"%s\", error: \"%s\"\n", sym, lib, sym_err);\
+    exit(1);\
+  }\
+}\
 //A simple abstract type to store the type of event and a payload pointer containing the actual backend-specific value
 typedef struct meta_event {
   meta_preferred_mode mode;
