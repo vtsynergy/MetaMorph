@@ -11,7 +11,9 @@
  * reasonable claims about correctness of the Fortran->C glue
  * code on GNU systems, compiled with our Makefile; if you use
  * some other compilation setup for whatever reason, all bets
- * are off. ISO_C_BINDINGS *should* help.
+ * are off. ISO_C_BINDINGS *should* help
+ * 
+ * FIXME: Fortran interface hasn't been audited for behavior with MetaMorph 0.2b+
  */
 #include "metamorph_fortran_compat.h"
 
@@ -55,7 +57,7 @@ int meta_dotprod_c_(size_t * grid_x, size_t * grid_y, size_t * grid_z,
 	start[0] = *start_x - 1, start[1] = *start_y - 1, start[2] = *start_z - 1;
 	end[0] = *end_x - 1, end[1] = *end_y - 1, end[2] = *end_z - 1;
 	return (int) meta_dotProd(&grid, &block, data1, data2, &size, &start, &end,
-			reduction_var, type, (a_bool) *async);
+			reduction_var, type, (a_bool) *async, NULL);
 }
 int meta_reduce_c_(size_t * grid_x, size_t * grid_y, size_t * grid_z,
 		size_t * block_x, size_t * block_y, size_t * block_z, void * data,
@@ -69,16 +71,16 @@ int meta_reduce_c_(size_t * grid_x, size_t * grid_y, size_t * grid_z,
 	start[0] = *start_x - 1, start[1] = *start_y - 1, start[2] = *start_z - 1;
 	end[0] = *end_x - 1, end[1] = *end_y - 1, end[2] = *end_z - 1;
 	return (int) meta_reduce(&grid, &block, data, &size, &start, &end,
-			reduction_var, type, (a_bool) *async);
+			reduction_var, type, (a_bool) *async, NULL);
 }
 int meta_copy_h2d_c_(void * dst, void * src, size_t * size, int * async) {
-	return (int) meta_copy_h2d(dst, src, *size, (a_bool) *async);
+	return (int) meta_copy_h2d(dst, src, *size, (a_bool) *async, NULL);
 }
 int meta_copy_d2h_c_(void * dst, void * src, size_t * size, int * async) {
-	return (int) meta_copy_d2h(dst, src, *size, (a_bool) *async);
+	return (int) meta_copy_d2h(dst, src, *size, (a_bool) *async, NULL);
 }
 int meta_copy_d2d_c_(void * dst, void * src, size_t * size, int * async) {
-	return (int) meta_copy_d2d(dst, src, *size, (a_bool) *async);
+	return (int) meta_copy_d2d(dst, src, *size, (a_bool) *async, NULL);
 }
 
 #ifdef WITH_TIMERS

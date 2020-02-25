@@ -346,27 +346,21 @@ a_err meta_crc(a_dim3 * grid_size, a_dim3 * block_size, void * dev_input, int pa
 
 //MPI functions need access to all top-level calls and types
 //MPI needs to be before timers, so that timers can output rank info - if available
-#ifdef WITH_MPI
 #ifndef METAMORPH_MPI_H
 #include "metamorph_mpi.h"
-#endif
 #endif
 
 //Event-based timers
 //WITH_TIMERS needs to be here, so the header passthrough can give it the
 // meta_preferred_mode enum
-#ifdef WITH_TIMERS
 #ifndef METAMORPH_TIMERS_H
 #include "metamorph_timers.h"
-#endif
 #endif
 
 //Fortran compatibility plugin needs access to all top-level calls
 // and data types.
-#ifdef WITH_FORTRAN
 #ifndef METAMORPH_FORTRAN_COMPAT_H
 #include "metamorph_fortran_compat.h"
-#endif
 #endif
 
 #ifdef __cplusplus

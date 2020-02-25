@@ -213,7 +213,7 @@ void meta_mpi_finalize() {
 }
 
 //Helper functions for asynchronous transfers
-void init_record_queue() {
+__attribute__((constructor(103))) void init_record_queue() {
 	record_queue.type = sentinel;
 	//No need to set the record, it won't be looked at
 	record_queue.next = NULL;
