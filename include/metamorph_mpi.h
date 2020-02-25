@@ -36,16 +36,16 @@
 //POOL_SIZE must be a power of two for quick masks instead of modulo.
 // Behavior is left undefined if this is violated.
 #ifndef META_MPI_POOL_SIZE
-#define META_MPI_POOL_SIZE 8
+#define META_MPI_POOL_SIZE 16
 #endif
 
 //To keep the structure lightweight, it's a simple ring array.
 // This param specifies how many previous ring slots we should look
 // at for one of appropriate size before just reallocating the current one.
-// The default is 4.
+// The default is half the size.
 //This lookback is part of the "ratchet" behavior of the ring.
 #ifndef META_MPI_POOL_LOOKBACK
-#define META_MPI_POOL_LOOKBACK 4
+#define META_MPI_POOL_LOOKBACK (META_MPI_POOL_SIZE>>1)
 #endif
 
 //Should never be user-edited, it's just for masking the bits needed for
@@ -54,9 +54,6 @@
 
 //Any special concerns
 #ifdef WITH_CUDA
-#endif
-
-#ifdef WITH_OPENCL
 #endif
 
 #ifdef WITH_OPENMP

@@ -232,8 +232,14 @@ a_err meta_init_event(meta_event *);
 a_err meta_destroy_event(meta_event);
 
 //TODO confirm the new callback pass-throughs with the simplified type still work
-typedef void (*meta_callback)(void);
-//typedef union meta_callback {
+struct meta_callback;
+//typedef void (*meta_callback)(void);
+typedef struct meta_callback {
+  void (* callback_func)(struct meta_callback *);
+  meta_preferred_mode callback_mode;
+  void * data_payload;
+  void * backend_status;
+} meta_callback;
 //#ifdef WITH_CUDA
 //void (CUDART_CB * cudaCallback)(cudaStream_t stream, cudaError_t status, void *data);
 //#endif //WITH_CUDA
@@ -241,6 +247,9 @@ typedef void (*meta_callback)(void);
 
 //FIXME: As soon as the MPI implementation is finished, if
 // payloads are still not needed, remove this code
+
+a_err meta_register_callback(meta_callback);
+
 
 #ifdef WITH_CUDA
 typedef struct cuda_callback_payload {
@@ -266,42 +275,42 @@ cuda_callback_payload cuda_pl;
 // The callback/payload structure is not built for user-specified callbacks
 a_err meta_copy_h2d_cb(void * dst, void * src, size_t size, a_bool async,
 	//char * event_name, cl_event * wait,
-	meta_callback *call, void *call_pl, meta_event * ret_event);
+	meta_callback *call, meta_event * ret_event);
 a_err meta_copy_d2h_cb(void * dst, void * src, size_t size, a_bool async,
 	//char * event_name, cl_event * wait,
-	meta_callback *call, void *call_pl, meta_event * ret_event);
+	meta_callback *call, meta_event * ret_event);
 a_err meta_copy_d2d_cb(void * dst, void * src, size_t size, a_bool async,
 	//char * event_name, cl_event * wait,
-	meta_callback *call, void *call_pl, meta_event * ret_event);
+	meta_callback *call, meta_event * ret_event);
 a_err meta_transpose_face_cb(a_dim3 * grid_size, a_dim3 * block_size,
 	void *indata, void *outdata, a_dim3 * arr_dim_xy, a_dim3 * tran_dim_xy,
-	meta_type_id type, a_bool async, meta_callback *call, void *call_pl, meta_event * ret_event);
+	meta_type_id type, a_bool async, meta_callback *call, meta_event * ret_event);
 a_err meta_pack_face_cb(a_dim3 * grid_size, a_dim3 * block_size,
 	void *packed_buf, void *buf, meta_face *face, meta_type_id type,
-	a_bool async, meta_callback *call, void *call_pl, meta_event * ret_event_k1, meta_event * ret_event_c1, meta_event * ret_event_c2, meta_event * ret_event_c3);
+	a_bool async, meta_callback *call, meta_event * ret_event_k1, meta_event * ret_event_c1, meta_event * ret_event_c2, meta_event * ret_event_c3);
 a_err meta_unpack_face_cb(a_dim3 * grid_size, a_dim3 * block_size,
 	void *packed_buf, void *buf, meta_face *face, meta_type_id type,
-	a_bool async, meta_callback *call, void *call_pl, meta_event * ret_event_k1, meta_event * ret_event_c1, meta_event * ret_event_c2, meta_event * ret_event_c3);
+	a_bool async, meta_callback *call, meta_event * ret_event_k1, meta_event * ret_event_c1, meta_event * ret_event_c2, meta_event * ret_event_c3);
 a_err meta_dotProd_cb(a_dim3 * grid_size, a_dim3 * block_size, void * data1,
 	void * data2, a_dim3 * array_size, a_dim3 * array_start, a_dim3 * array_end,
 	void * reduction_var, meta_type_id type, a_bool async, meta_callback *call,
-	void *call_pl, meta_event * ret_event);
+	meta_event * ret_event);
 a_err meta_reduce_cb(a_dim3 * grid_size, a_dim3 * block_size, void * data,
 	a_dim3 * array_size, a_dim3 * array_start, a_dim3 * array_end,
 	void * reduction_var, meta_type_id type, a_bool async, meta_callback *call,
-	void *call_pl, meta_event * ret_event);
+	meta_event * ret_event);
 a_err meta_stencil_3d7p_cb(a_dim3 * grid_size, a_dim3 * block_size,
 	void *indata, void *outdata, a_dim3 * array_size, a_dim3 * array_start,
 	a_dim3 * array_end, meta_type_id type, a_bool async, meta_callback *call,
-	void *call_pl, meta_event * ret_event);
+	meta_event * ret_event);
 a_err meta_csr_cb(a_dim3 * grid_size, a_dim3 * block_size, size_t global_size, void * csr_ap, void * csr_aj, void * csr_ax, void * x_loc, void * y_loc,
 		meta_type_id type, a_bool async,
 		// cl_event * wait,
-		meta_callback *call, void *call_pl, meta_event * ret_event);
+		meta_callback *call, meta_event * ret_event);
 a_err meta_crc_cb(a_dim3 * grid_size, a_dim3 * block_size, void * dev_input, int page_size, int num_words, int numpages, void * dev_output,
 		meta_type_id type, a_bool async,
 		// cl_event * wait,
-		meta_callback *call, void *call_pl, meta_event * ret_event);
+		meta_callback *call, meta_event * ret_event);
 		
 
 //Reduced-complexity calls

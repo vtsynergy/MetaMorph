@@ -204,22 +204,23 @@ struct opencl_dyn_ptrs {
   void (* metaOpenCLFallback)(void);
   a_err (* metaOpenCLAlloc)(void**, size_t);
   a_err (* metaOpenCLFree)(void*);
-  a_err (* metaOpenCLWrite)(void*, void*, size_t, a_bool, meta_callback*, void*, meta_event *);
-  a_err (* metaOpenCLRead)(void*, void*, size_t, a_bool, meta_callback*, void*, meta_event *);
-  a_err (* metaOpenCLDevCopy)(void*, void*, size_t, a_bool, meta_callback*, void*, meta_event *);
+  a_err (* metaOpenCLWrite)(void*, void*, size_t, a_bool, meta_callback*, meta_event *);
+  a_err (* metaOpenCLRead)(void*, void*, size_t, a_bool, meta_callback*, meta_event *);
+  a_err (* metaOpenCLDevCopy)(void*, void*, size_t, a_bool, meta_callback*, meta_event *);
   a_err (* metaOpenCLInitByID)(a_int);
   a_err (* metaOpenCLCurrDev)(a_int*);
   a_err (* metaOpenCLMaxWorkSizes)(a_dim3*, a_dim3*);
   a_err (* metaOpenCLFlush)();
   a_err (* metaOpenCLCreateEvent)(void**);
-  a_err (* opencl_dotProd)(size_t (*)[3], size_t (*)[3], void *, void *, size_t (*)[3], size_t (*)[3], size_t (*)[3], void *, meta_type_id, int, meta_callback *, void *, meta_event *);
-  a_err (* opencl_reduce)(size_t (*)[3], size_t (*)[3], void *, size_t (*)[3], size_t (*)[3], size_t (*)[3], void *, meta_type_id, int, meta_callback *, void *, meta_event *);
-a_err (* opencl_transpose_face)(size_t (*)[3], size_t (*)[3], void *, void *, size_t (*)[3], size_t (*)[3], meta_type_id, int, meta_callback *, void *, meta_event *);
-a_err (* opencl_pack_face)(size_t (*)[3], size_t (*)[3], void *, void *, meta_face *, int *, meta_type_id, int, meta_callback *, void *, meta_event *, meta_event *, meta_event *, meta_event *);
-a_err (* opencl_unpack_face)(size_t (*)[3], size_t (*)[3], void *, void *, meta_face *, int *, meta_type_id, int, meta_callback *, void *, meta_event *, meta_event *, meta_event *, meta_event *);
-a_err (* opencl_stencil_3d7p)(size_t (*)[3], size_t (*)[3], void *, void *, size_t (*)[3], size_t (*)[3], size_t (*)[3], meta_type_id, int, meta_callback *, void *, meta_event *);
-a_err (* opencl_csr)(size_t (*)[3], size_t (*)[3], size_t, void *, void *, void *, void *, void *, meta_type_id, int, meta_callback *, void *, meta_event *);
-a_err (* opencl_crc)(void *, int, int, int, void *, meta_type_id, int, meta_callback *, void *, meta_event *);
+  a_err (* metaOpenCLRegisterCallback)(meta_callback);
+  a_err (* opencl_dotProd)(size_t (*)[3], size_t (*)[3], void *, void *, size_t (*)[3], size_t (*)[3], size_t (*)[3], void *, meta_type_id, int, meta_callback *, meta_event *);
+  a_err (* opencl_reduce)(size_t (*)[3], size_t (*)[3], void *, size_t (*)[3], size_t (*)[3], size_t (*)[3], void *, meta_type_id, int, meta_callback *, meta_event *);
+a_err (* opencl_transpose_face)(size_t (*)[3], size_t (*)[3], void *, void *, size_t (*)[3], size_t (*)[3], meta_type_id, int, meta_callback *, meta_event *);
+a_err (* opencl_pack_face)(size_t (*)[3], size_t (*)[3], void *, void *, meta_face *, int *, meta_type_id, int, meta_callback *, meta_event *, meta_event *, meta_event *, meta_event *);
+a_err (* opencl_unpack_face)(size_t (*)[3], size_t (*)[3], void *, void *, meta_face *, int *, meta_type_id, int, meta_callback *, meta_event *, meta_event *, meta_event *, meta_event *);
+a_err (* opencl_stencil_3d7p)(size_t (*)[3], size_t (*)[3], void *, void *, size_t (*)[3], size_t (*)[3], size_t (*)[3], meta_type_id, int, meta_callback *, meta_event *);
+a_err (* opencl_csr)(size_t (*)[3], size_t (*)[3], size_t, void *, void *, void *, void *, void *, meta_type_id, int, meta_callback *, meta_event *);
+a_err (* opencl_crc)(void *, int, int, int, void *, meta_type_id, int, meta_callback *, meta_event *);
 };
 struct opencl_dyn_ptrs opencl_symbols = {NULL};
 
@@ -251,6 +252,7 @@ __attribute__((constructor(101))) void meta_init() {
     CHECKED_DLSYM("libmm_opencl_backend.so", backends.opencl_be_handle, "metaOpenCLMaxWorkSizes", opencl_symbols.metaOpenCLMaxWorkSizes);
     CHECKED_DLSYM("libmm_opencl_backend.so", backends.opencl_be_handle, "metaOpenCLFlush", opencl_symbols.metaOpenCLFlush);
     CHECKED_DLSYM("libmm_opencl_backend.so", backends.opencl_be_handle, "metaOpenCLCreateEvent", opencl_symbols.metaOpenCLCreateEvent);
+    CHECKED_DLSYM("libmm_opencl_backend.so", backends.opencl_be_handle, "metaOpenCLRegisterCallback", opencl_symbols.metaOpenCLRegisterCallback);
     CHECKED_DLSYM("libmm_opencl_backend.so", backends.opencl_be_handle, "opencl_dotProd", opencl_symbols.opencl_dotProd);
     CHECKED_DLSYM("libmm_opencl_backend.so", backends.opencl_be_handle, "opencl_reduce", opencl_symbols.opencl_reduce);
     CHECKED_DLSYM("libmm_opencl_backend.so", backends.opencl_be_handle, "opencl_transpose_face", opencl_symbols.opencl_transpose_face);
@@ -429,11 +431,11 @@ a_err meta_free(void * ptr) {
 a_err meta_copy_h2d(void * dst, void * src, size_t size, a_bool async, meta_event * ret_event) {//, char * event_name, cl_event * wait) {
 	return meta_copy_h2d_cb(dst, src, size, async,
 	// event_name, wait,
-	 (meta_callback*) NULL, NULL, ret_event);
+	 (meta_callback*) NULL, ret_event);
 }
 a_err meta_copy_h2d_cb(void * dst, void * src, size_t size, a_bool async,
 		// char * event_name, cl_event * wait,
-		meta_callback *call, void *call_pl, meta_event * ret_event) {
+		meta_callback *call, meta_event * ret_event) {
 	a_err ret;
 #ifdef WITH_TIMERS
         metaTimerQueueFrame * frame;
@@ -472,7 +474,7 @@ a_err meta_copy_h2d_cb(void * dst, void * src, size_t size, a_bool async,
 
 		case metaModePreferOpenCL:
 		{
-		if (opencl_symbols.metaOpenCLWrite != NULL) ret = (*(opencl_symbols.metaOpenCLWrite))(dst, src, size, async, call, call_pl, ret_event);
+		if (opencl_symbols.metaOpenCLWrite != NULL) ret = (*(opencl_symbols.metaOpenCLWrite))(dst, src, size, async, call, ret_event);
 		else {
 		  fprintf(stderr, "OpenCL backend improperly loaded or missing symbol \"metaOpenCLWrite\"\n");
 		  //FIXME output a real error code
@@ -522,11 +524,11 @@ printf("check profiling event '%s' (MM side) %lu\n",frame->name,start_time);
 a_err meta_copy_d2h(void *dst, void *src, size_t size, a_bool async, meta_event * ret_event) {//, char * event_name, cl_event * wait) {
 	return meta_copy_d2h_cb(dst, src, size, async,
 	// event_name, wait,
-	 (meta_callback*) NULL, NULL, ret_event);
+	 (meta_callback*) NULL, ret_event);
 }
 a_err meta_copy_d2h_cb(void * dst, void * src, size_t size, a_bool async,
 		// char * event_name, cl_event * wait,
-		meta_callback *call, void *call_pl, meta_event * ret_event) {
+		meta_callback *call, meta_event * ret_event) {
 	a_err ret;
 #ifdef WITH_TIMERS
         metaTimerQueueFrame * frame;
@@ -565,7 +567,7 @@ a_err meta_copy_d2h_cb(void * dst, void * src, size_t size, a_bool async,
 
 		case metaModePreferOpenCL:
 		{
-		if (opencl_symbols.metaOpenCLRead != NULL) ret = (*(opencl_symbols.metaOpenCLRead))(dst, src, size, async, call, call_pl, ret_event);
+		if (opencl_symbols.metaOpenCLRead != NULL) ret = (*(opencl_symbols.metaOpenCLRead))(dst, src, size, async, call, ret_event);
 		else {
 		  fprintf(stderr, "OpenCL backend improperly loaded or missing symbol \"metaOpenCLRead\"\n");
 		  //FIXME output a real error code
@@ -608,11 +610,11 @@ a_err meta_copy_d2h_cb(void * dst, void * src, size_t size, a_bool async,
 a_err meta_copy_d2d(void *dst, void *src, size_t size, a_bool async, meta_event * ret_event) {//, char * event_name, cl_event * wait) {
 	return meta_copy_d2d_cb(dst, src, size, async,
 	// event_name, wait, 
-	(meta_callback*) NULL, NULL, ret_event);
+	(meta_callback*) NULL, ret_event);
 }
 a_err meta_copy_d2d_cb(void * dst, void * src, size_t size, a_bool async,
 		// char * event_name, cl_event * wait,
-		meta_callback *call, void *call_pl, meta_event * ret_event) {
+		meta_callback *call, meta_event * ret_event) {
 	a_err ret;
 #ifdef WITH_TIMERS
         metaTimerQueueFrame * frame;
@@ -651,7 +653,7 @@ a_err meta_copy_d2d_cb(void * dst, void * src, size_t size, a_bool async,
 
 		case metaModePreferOpenCL:
 		{
-		if (opencl_symbols.metaOpenCLDevCopy != NULL) ret = (*(opencl_symbols.metaOpenCLDevCopy))(dst, src, size, async, call, call_pl, ret_event);
+		if (opencl_symbols.metaOpenCLDevCopy != NULL) ret = (*(opencl_symbols.metaOpenCLDevCopy))(dst, src, size, async, call, ret_event);
 		else {
 		  fprintf(stderr, "OpenCL backend improperly loaded or missing symbol \"metaOpenCLDevCopy\"\n");
 		  //FIXME output a real error code
@@ -958,12 +960,12 @@ a_err meta_dotProd(a_dim3 * grid_size, a_dim3 * block_size, void * data1,
 		a_bool async, meta_event * ret_event) {
 	return meta_dotProd_cb(grid_size, block_size, data1, data2, array_size,
 			array_start, array_end, reduction_var, type, async,
-			(meta_callback*) NULL, NULL, ret_event);
+			(meta_callback*) NULL, ret_event);
 }
 a_err meta_dotProd_cb(a_dim3 * grid_size, a_dim3 * block_size, void * data1,
 		void * data2, a_dim3 * array_size, a_dim3 * array_start,
 		a_dim3 * array_end, void * reduction_var, meta_type_id type,
-		a_bool async, meta_callback *call, void *call_pl, meta_event * ret_event) {
+		a_bool async, meta_callback *call, meta_event * ret_event) {
 	a_err ret;
 
 	//FIXME? Consider adding a compiler flag "UNCHECKED_EXPLICIT" to streamline out sanity checks like this
@@ -1072,7 +1074,7 @@ a_err meta_dotProd_cb(a_dim3 * grid_size, a_dim3 * block_size, void * data1,
 
 		case metaModePreferOpenCL:
 		{
-		if (opencl_symbols.opencl_dotProd != NULL) ret = (*(opencl_symbols.opencl_dotProd))(grid_size, block_size, data1, data2, array_size, array_start, array_end, reduction_var, type, async, call, call_pl, ret_event);
+		if (opencl_symbols.opencl_dotProd != NULL) ret = (*(opencl_symbols.opencl_dotProd))(grid_size, block_size, data1, data2, array_size, array_start, array_end, reduction_var, type, async, call, ret_event);
 		else {
 		  fprintf(stderr, "OpenCL backend improperly loaded or missing symbol \"opencl_dotProd\"\n");
 		  //FIXME output a real error code
@@ -1115,12 +1117,12 @@ a_err meta_reduce(a_dim3 * grid_size, a_dim3 * block_size, void * data,
 		a_dim3 * array_size, a_dim3 * array_start, a_dim3 * array_end,
 		void * reduction_var, meta_type_id type, a_bool async, meta_event * ret_event) {
 	return meta_reduce_cb(grid_size, block_size, data, array_size, array_start,
-			array_end, reduction_var, type, async, (meta_callback*) NULL, NULL, ret_event);
+			array_end, reduction_var, type, async, (meta_callback*) NULL, ret_event);
 }
 a_err meta_reduce_cb(a_dim3 * grid_size, a_dim3 * block_size, void * data,
 		a_dim3 * array_size, a_dim3 * array_start, a_dim3 * array_end,
 		void * reduction_var, meta_type_id type, a_bool async,
-		meta_callback *call, void *call_pl, meta_event * ret_event) {
+		meta_callback *call, meta_event * ret_event) {
 	a_err ret;
 
 	//FIXME? Consider adding a compiler flag "UNCHECKED_EXPLICIT" to streamline out sanity checks like this
@@ -1229,7 +1231,7 @@ a_err meta_reduce_cb(a_dim3 * grid_size, a_dim3 * block_size, void * data,
 
 		case metaModePreferOpenCL:
 		{
-		if (opencl_symbols.opencl_reduce != NULL) ret = (*(opencl_symbols.opencl_reduce))(grid_size, block_size, data, array_size, array_start, array_end, reduction_var, type, async, call, call_pl, ret_event);
+		if (opencl_symbols.opencl_reduce != NULL) ret = (*(opencl_symbols.opencl_reduce))(grid_size, block_size, data, array_size, array_start, array_end, reduction_var, type, async, call, ret_event);
 		else {
 		  fprintf(stderr, "OpenCL backend improperly loaded or missing symbol \"opencl_reduce\"\n");
 		  //FIXME output a real error code
@@ -1326,11 +1328,11 @@ a_err meta_transpose_face(a_dim3 * grid_size, a_dim3 * block_size,
 		void *indata, void *outdata, a_dim3 * arr_dim_xy, a_dim3 * tran_dim_xy,
 		meta_type_id type, a_bool async, meta_event * ret_event) {
 	return meta_transpose_face_cb(grid_size, block_size, indata, outdata,
-			arr_dim_xy, tran_dim_xy, type, async, (meta_callback*) NULL, NULL, ret_event);
+			arr_dim_xy, tran_dim_xy, type, async, (meta_callback*) NULL, ret_event);
 }
 a_err meta_transpose_face_cb(a_dim3 * grid_size, a_dim3 * block_size,
 		void *indata, void *outdata, a_dim3 * arr_dim_xy, a_dim3 * tran_dim_xy,
-		meta_type_id type, a_bool async, meta_callback *call, void *call_pl, meta_event * ret_event) {
+		meta_type_id type, a_bool async, meta_callback *call, meta_event * ret_event) {
 	a_err ret;
 	//FIXME? Consider adding a compiler flag "UNCHECKED_EXPLICIT" to streamline out sanity checks like this
 	//Before we do anything, sanity check that trans_dim_xy fits inside arr_dim_xy
@@ -1385,7 +1387,7 @@ a_err meta_transpose_face_cb(a_dim3 * grid_size, a_dim3 * block_size,
 
 		case metaModePreferOpenCL:
 		{
-		if (opencl_symbols.opencl_transpose_face != NULL) ret = (*(opencl_symbols.opencl_transpose_face))(grid_size, block_size, indata, outdata, arr_dim_xy, tran_dim_xy, type, async, call, call_pl, ret_event);
+		if (opencl_symbols.opencl_transpose_face != NULL) ret = (*(opencl_symbols.opencl_transpose_face))(grid_size, block_size, indata, outdata, arr_dim_xy, tran_dim_xy, type, async, call, ret_event);
 		else {
 		  fprintf(stderr, "OpenCL backend improperly loaded or missing symbol \"opencl_transpose_face\"\n");
 		  //FIXME output a real error code
@@ -1425,11 +1427,11 @@ a_err meta_pack_face(a_dim3 * grid_size, a_dim3 * block_size,
 		void *packed_buf, void *buf, meta_face *face,
 		meta_type_id type, a_bool async, meta_event * ret_event_k1, meta_event * ret_event_c1, meta_event * ret_event_c2, meta_event * ret_event_c3) {
 	return meta_pack_face_cb(grid_size, block_size, packed_buf, buf, face,
-			type, async, (meta_callback*) NULL, NULL, ret_event_k1, ret_event_c1, ret_event_c2, ret_event_c3);
+			type, async, (meta_callback*) NULL, ret_event_k1, ret_event_c1, ret_event_c2, ret_event_c3);
 }
 a_err meta_pack_face_cb(a_dim3 * grid_size, a_dim3 * block_size,
 		void *packed_buf, void *buf, meta_face *face,
-		meta_type_id type, a_bool async, meta_callback *call, void *call_pl, meta_event * ret_event_k1, meta_event * ret_event_c1, meta_event * ret_event_c2, meta_event * ret_event_c3) {
+		meta_type_id type, a_bool async, meta_callback *call, meta_event * ret_event_k1, meta_event * ret_event_c1, meta_event * ret_event_c2, meta_event * ret_event_c3) {
 	a_err ret;
 	//FIXME? Consider adding a compiler flag "UNCHECKED_EXPLICIT" to streamline out sanity checks like this
 	//Before we do anything, sanity check that the face is set up
@@ -1507,7 +1509,7 @@ a_err meta_pack_face_cb(a_dim3 * grid_size, a_dim3 * block_size,
 
 		case metaModePreferOpenCL:
 		{
-		if (opencl_symbols.opencl_pack_face != NULL) ret = (*(opencl_symbols.opencl_pack_face))(grid_size, block_size, packed_buf, buf, face, remain_dim, type, async, call, call_pl, ret_event_k1, ret_event_c1, ret_event_c2, ret_event_c3);
+		if (opencl_symbols.opencl_pack_face != NULL) ret = (*(opencl_symbols.opencl_pack_face))(grid_size, block_size, packed_buf, buf, face, remain_dim, type, async, call, ret_event_k1, ret_event_c1, ret_event_c2, ret_event_c3);
 		else {
 		  fprintf(stderr, "OpenCL backend improperly loaded or missing symbol \"opencl_pack_face\"\n");
 		  //FIXME output a real error code
@@ -1557,11 +1559,11 @@ a_err meta_unpack_face(a_dim3 * grid_size, a_dim3 * block_size,
 		void *packed_buf, void *buf, meta_face *face,
 		meta_type_id type, a_bool async, meta_event * ret_event_k1, meta_event * ret_event_c1, meta_event * ret_event_c2, meta_event * ret_event_c3) {
 	return meta_unpack_face_cb(grid_size, block_size, packed_buf, buf, face,
-			type, async, (meta_callback*) NULL, NULL, ret_event_k1, ret_event_c1, ret_event_c2, ret_event_c3);
+			type, async, (meta_callback*) NULL, ret_event_k1, ret_event_c1, ret_event_c2, ret_event_c3);
 }
 a_err meta_unpack_face_cb(a_dim3 * grid_size, a_dim3 * block_size,
 		void *packed_buf, void *buf, meta_face *face,
-		meta_type_id type, a_bool async, meta_callback *call, void *call_pl, meta_event * ret_event_k1, meta_event * ret_event_c1, meta_event * ret_event_c2, meta_event * ret_event_c3) {
+		meta_type_id type, a_bool async, meta_callback *call, meta_event * ret_event_k1, meta_event * ret_event_c1, meta_event * ret_event_c2, meta_event * ret_event_c3) {
 	a_err ret;
 	//FIXME? Consider adding a compiler flag "UNCHECKED_EXPLICIT" to streamline out sanity checks like this
 	//Before we do anything, sanity check that the face is set up
@@ -1630,7 +1632,7 @@ a_err meta_unpack_face_cb(a_dim3 * grid_size, a_dim3 * block_size,
 
 		case metaModePreferOpenCL:
 		{
-		if (opencl_symbols.opencl_unpack_face != NULL) ret = (*(opencl_symbols.opencl_unpack_face))(grid_size, block_size, packed_buf, buf, face, remain_dim, type, async, call, call_pl, ret_event_k1, ret_event_c1, ret_event_c2, ret_event_c3);
+		if (opencl_symbols.opencl_unpack_face != NULL) ret = (*(opencl_symbols.opencl_unpack_face))(grid_size, block_size, packed_buf, buf, face, remain_dim, type, async, call, ret_event_k1, ret_event_c1, ret_event_c2, ret_event_c3);
 		else {
 		  fprintf(stderr, "OpenCL backend improperly loaded or missing symbol \"opencl_unpack_face\"\n");
 		  //FIXME output a real error code
@@ -1680,12 +1682,12 @@ a_err meta_stencil_3d7p(a_dim3 * grid_size, a_dim3 * block_size, void *indata,
 		a_dim3 * array_end, meta_type_id type, a_bool async, meta_event * ret_event) {
 	return meta_stencil_3d7p_cb(grid_size, block_size, indata, outdata,
 			array_size, array_start, array_end, type, async,
-			(meta_callback*) NULL, NULL, ret_event);
+			(meta_callback*) NULL, ret_event);
 }
 a_err meta_stencil_3d7p_cb(a_dim3 * grid_size, a_dim3 * block_size,
 		void *indata, void *outdata, a_dim3 * array_size, a_dim3 * array_start,
 		a_dim3 * array_end, meta_type_id type, a_bool async,
-		meta_callback *call, void *call_pl, meta_event * ret_event) {
+		meta_callback *call, meta_event * ret_event) {
 	a_err ret;
 
 	//FIXME? Consider adding a compiler flag "UNCHECKED_EXPLICIT" to streamline out sanity checks like this
@@ -1794,7 +1796,7 @@ a_err meta_stencil_3d7p_cb(a_dim3 * grid_size, a_dim3 * block_size,
 
 		case metaModePreferOpenCL:
 		{
-		if (opencl_symbols.opencl_stencil_3d7p != NULL) ret = (*(opencl_symbols.opencl_stencil_3d7p))(grid_size, block_size, indata, outdata, array_size, array_start, array_end, type, async, call, call_pl, ret_event);
+		if (opencl_symbols.opencl_stencil_3d7p != NULL) ret = (*(opencl_symbols.opencl_stencil_3d7p))(grid_size, block_size, indata, outdata, array_size, array_start, array_end, type, async, call, ret_event);
 		else {
 		  fprintf(stderr, "OpenCL backend improperly loaded or missing symbol \"opencl_stencil_3d7p\"\n");
 		  //FIXME output a real error code
@@ -1833,11 +1835,11 @@ a_err meta_stencil_3d7p_cb(a_dim3 * grid_size, a_dim3 * block_size,
 a_err meta_csr(a_dim3 * grid_size, a_dim3 * block_size, size_t global_size, void * csr_ap, void * csr_aj, void * csr_ax, void * x_loc, void * y_loc, meta_type_id type, a_bool async, meta_event * ret_event) {//, cl_event * wait) {
 	return meta_csr_cb(grid_size, block_size, global_size, csr_ap, csr_aj, csr_ax, x_loc, y_loc, type, async,
 			// wait,
-			(meta_callback*) NULL, NULL, ret_event);
+			(meta_callback*) NULL, ret_event);
 }
 a_err meta_csr_cb(a_dim3 * grid_size, a_dim3 * block_size, size_t global_size, void * csr_ap, void * csr_aj, void * csr_ax, void * x_loc, void * y_loc, meta_type_id type, a_bool async,
 		// cl_event * wait,
-		meta_callback *call, void *call_pl, meta_event * ret_event) {
+		meta_callback *call, meta_event * ret_event) {
 	a_err ret;
 #ifdef WITH_TIMERS
 	metaTimerQueueFrame * frame;
@@ -1865,7 +1867,7 @@ a_err meta_csr_cb(a_dim3 * grid_size, a_dim3 * block_size, size_t global_size, v
 
 		case metaModePreferOpenCL:
 		{
-		if (opencl_symbols.opencl_csr != NULL) ret = (*(opencl_symbols.opencl_csr))(grid_size, block_size, global_size, csr_ap, csr_aj, csr_ax, x_loc, y_loc, type, async, call, call_pl, ret_event);
+		if (opencl_symbols.opencl_csr != NULL) ret = (*(opencl_symbols.opencl_csr))(grid_size, block_size, global_size, csr_ap, csr_aj, csr_ax, x_loc, y_loc, type, async, call, ret_event);
 		else {
 		  fprintf(stderr, "OpenCL backend improperly loaded or missing symbol \"opencl_csr\"\n");
 		  //FIXME output a real error code
@@ -1895,12 +1897,12 @@ a_err meta_crc(a_dim3 * grid_size, a_dim3 * block_size, void * dev_input, int pa
 		meta_type_id type, a_bool async, meta_event * ret_event) {//, cl_event * wait) {
 	return meta_crc_cb(grid_size, block_size, dev_input, page_size, num_words, numpages, dev_output,
 			type, async,// wait,
-			(meta_callback*) NULL, NULL, ret_event);
+			(meta_callback*) NULL, ret_event);
 }
 a_err meta_crc_cb(a_dim3 * grid_size, a_dim3 * block_size, void * dev_input, int page_size, int num_words, int numpages, void * dev_output,
 		meta_type_id type, a_bool async,
 		// cl_event * wait,
-		meta_callback *call, void *call_pl, meta_event * ret_event) {
+		meta_callback *call, meta_event * ret_event) {
 	a_err ret;
 #ifdef WITH_TIMERS
 	metaTimerQueueFrame * frame;
@@ -1926,7 +1928,7 @@ a_err meta_crc_cb(a_dim3 * grid_size, a_dim3 * block_size, void * dev_input, int
 
 		case metaModePreferOpenCL:
 		{
-		if (opencl_symbols.opencl_crc != NULL) ret = (*(opencl_symbols.opencl_crc))(dev_input, page_size, num_words, numpages, dev_output, type, async, call, call_pl, ret_event);
+		if (opencl_symbols.opencl_crc != NULL) ret = (*(opencl_symbols.opencl_crc))(dev_input, page_size, num_words, numpages, dev_output, type, async, call, ret_event);
 		else {
 		  fprintf(stderr, "OpenCL backend improperly loaded or missing symbol \"opencl_crc\"\n");
 		  //FIXME output a real error code

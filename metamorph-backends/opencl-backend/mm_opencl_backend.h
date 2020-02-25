@@ -412,9 +412,9 @@ typedef void (CL_CALLBACK * openclCallback)(cl_event event, cl_int status, void 
 //Note that they are really only meant to support the dynamic backend loading, users should either use the API-agnositic top-level version, or the runtime-specific, not these shims
 a_err metaOpenCLAlloc(void ** ptr, size_t size);
 a_err metaOpenCLFree(void * prt);
-a_err metaOpenCLWrite(void * dst, void * src, size_t size, a_bool async, meta_callback *call, void *call_pl, meta_event * ret_event);
-a_err metaOpenCLRead(void * dst, void * src, size_t size, a_bool async, meta_callback *call, void *call_pl, meta_event * ret_event);
-a_err metaOpenCLDevCopy(void * dst, void * src, size_t size, a_bool async, meta_callback *call, void *call_pl, meta_event * ret_event);
+a_err metaOpenCLWrite(void * dst, void * src, size_t size, a_bool async, meta_callback *call, meta_event * ret_event);
+a_err metaOpenCLRead(void * dst, void * src, size_t size, a_bool async, meta_callback *call, meta_event * ret_event);
+a_err metaOpenCLDevCopy(void * dst, void * src, size_t size, a_bool async, meta_callback *call, meta_event * ret_event);
 a_err metaOpenCLInitByID(a_int id);
 a_err metaOpenCLCurrDev(a_int *id);
 a_err metaOpenCLMaxWorkSizes(a_dim3 * work_groups, a_dim3 * work_items);
@@ -423,6 +423,10 @@ a_err metaOpenCLCreateEvent(void **);
 //timing function wrappers
 a_err metaOpenCLEventStartTime(meta_event event, unsigned long * ret_time);
 a_err metaOpenCLEventEndTime(meta_event event, unsigned long * ret_time);
+a_err metaOpenCLRegisterCallback(meta_event *, meta_callback *):
+//Might not expose this since it presumes the payload is a meta_callback
+void CL_CALLBACK metaOpenCLCallbackHelper(cl_event, cl_int, void*);
+a_err metaOpenCLExpandCallback(meta_callback, cl_event*, cl_int*, void*);
 //share meta_context with with existing software
 a_int meta_get_state_OpenCL(cl_platform_id * platform, cl_device_id * device,
 		cl_context * context, cl_command_queue * queue);
@@ -453,7 +457,7 @@ a_err meta_get_event(char * qname, char * ename, cl_event ** e);
 cl_int opencl_dotProd(size_t (*grid_size)[3], size_t (*block_size)[3],
 		void * data1, void * data2, size_t (*array_size)[3],
 		size_t (*arr_start)[3], size_t (*arr_end)[3], void * reduced_val,
-		meta_type_id type, int async, meta_callback * call, void *call_pl, meta_event * ret_event);
+		meta_type_id type, int async, meta_callback * call, meta_event * ret_event);
 
 /**
  * OpenCL wrapper to all reduction sum kernels
@@ -532,7 +536,7 @@ cl_int opencl_pack_face(size_t (*grid_size)[3], size_t (*block_size)[3],
  */
 cl_int opencl_unpack_face(size_t (*grid_size)[3], size_t (*block_size)[3],
 		void *packed_buf, void *buf, meta_face *face,
-		int *remain_dim, meta_type_id type, int async, meta_callback * call, void *call_pl, meta_event * ret_event_k1, meta_event * ret_event_c1, meta_event * ret_event_c2, meta_event * ret_event_c3);
+		int *remain_dim, meta_type_id type, int async, meta_callback * call, meta_event * ret_event_k1, meta_event * ret_event_c1, meta_event * ret_event_c2, meta_event * ret_event_c3);
 /**
  * OpenCL wrapper for the 3D 7-point stencil averaging kernel
  * \param grid_size The number of workgroups to run in each dimension (NOT the global worksize)

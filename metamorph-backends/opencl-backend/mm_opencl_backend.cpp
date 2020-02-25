@@ -1045,6 +1045,41 @@ a_err metaOpenCLEventEndTime(meta_event event, unsigned long * ret_time) {
   return ret;
 }
 
+struct opencl_callback_data {
+  cl_int status;
+  cl_event event;
+}
+
+void CL_CALLBACK metaOpenCLCallbackHelper(cl_event event, cl_int status, void * data) {
+  if (data == NULL) return;
+  meta_callback * payload = (meta_callback *) data;
+  struct opencl_callback_data * info = calloc(sizeof(1, struct opencl_callback_data));
+  info->status = status;
+  info->event = event;
+  payload->backend_status = info;
+  (payload->callback_func)((meta_callback *)data);
+}
+
+a_err metaOpenCLExpandCallback(meta_callback call, cl_event* ret_event, cl_int ret_status, void* ret_data) {
+  if (call.backend_status == NULL || ret_status == NULL || ret_data == NULL) return CL_INVALID_VALUE;
+  else if (ret_event == NULL) return CL_INVALID_EVENT;
+  (*ret_event) = ((struct opencl_callback_data *)call.backend_status)->event;
+  (*ret_status) = ((struct opencl_callback_data *)call.backend_status)->status;
+  (*ret_data) = call.data_payload;
+  return CL_SUCCESS;
+}
+
+a_err metaOpenCLRegisterCallback(meta_event * event, meta_callback * call) {
+  a_err ret = CL_SUCCESS;
+    if (event == NULL || event->event_pl == NULL) ret = CL_INVALID_EVENT;
+    else if (call == NULL || call->callback_fun == NULL || call->data_payload == NULL) ret = CL_INVALID_VALUE;
+    else {
+      ret = clSetEventCallback(*((cl_event *)event->event_pl), CL_COMPLETE, metaOpenCLCallbackHelper, (void*)call);
+    }
+return ret;
+}
+
+
 //calls all the necessary CLRelease* calls for frame members
 //DOES NOT:
 //	pop any stack nodes
@@ -1355,14 +1390,14 @@ a_err metaOpenCLFree(void* ptr) {
   return ret;
 }
 
-a_err metaOpenCLWrite(void * dst, void * src, size_t size, a_bool async, meta_callback *call, void *call_pl, meta_event * ret_event) {
+a_err metaOpenCLWrite(void * dst, void * src, size_t size, a_bool async, meta_callback *call, meta_event * ret_event) {
   a_err ret;
 		//Make sure some context exists..
 		if (meta_context == NULL) metaOpenCLFallback();
   cl_event event;
   if (ret_event != NULL && ret_event->mode == metaModePreferOpenCL && ret_event->event_pl != NULL) event = *((cl_event *)ret_event->event_pl);
 		ret = clEnqueueWriteBuffer(meta_queue, (cl_mem) dst, ((async) ? CL_FALSE : CL_TRUE), 0, size, src, 0, NULL, &event);
-		if ((void*)call != NULL && call_pl != NULL) clSetEventCallback(event, CL_COMPLETE, (openclCallback)call, call_pl);
+		if ((void*)call != NULL) clSetEventCallback(event, CL_COMPLETE, metaOpenCLCallbackHelper, (void*)call);
 #ifdef WITH_TIMERS
 	metaTimerQueueFrame * timer_frame = (metaTimerQueueFrame*)malloc (sizeof(metaTimerQueueFrame));
 	timer_frame->mode = metaModePreferOpenCL;
@@ -1378,14 +1413,14 @@ a_err metaOpenCLWrite(void * dst, void * src, size_t size, a_bool async, meta_ca
   return ret;
 }
 
-a_err metaOpenCLRead(void * dst, void * src, size_t size, a_bool async, meta_callback *call, void *call_pl, meta_event * ret_event) {
+a_err metaOpenCLRead(void * dst, void * src, size_t size, a_bool async, meta_callback *call, meta_event * ret_event) {
   a_err ret;
 		//Make sure some context exists..
 		if (meta_context == NULL) metaOpenCLFallback();
   cl_event event;
   if (ret_event != NULL && ret_event->mode == metaModePreferOpenCL && ret_event->event_pl != NULL) event = *((cl_event *)ret_event->event_pl);
 		ret = clEnqueueReadBuffer(meta_queue, (cl_mem) src, ((async) ? CL_FALSE : CL_TRUE), 0, size, dst, 0, NULL, &event);
-		if ((void*)call != NULL && call_pl != NULL) clSetEventCallback(event, CL_COMPLETE, (openclCallback)call, call_pl);
+		if ((void*)call != NULL) clSetEventCallback(event, CL_COMPLETE, metaOpenCLCallbackHelper, (void*)call);
 #ifdef WITH_TIMERS
 	metaTimerQueueFrame * timer_frame = (metaTimerQueueFrame*)malloc (sizeof(metaTimerQueueFrame));
 	timer_frame->mode = metaModePreferOpenCL;
@@ -1400,14 +1435,14 @@ a_err metaOpenCLRead(void * dst, void * src, size_t size, a_bool async, meta_cal
   return ret;
 }
 
-a_err metaOpenCLDevCopy(void * dst, void * src, size_t size, a_bool async, meta_callback *call, void *call_pl, meta_event * ret_event) {
+a_err metaOpenCLDevCopy(void * dst, void * src, size_t size, a_bool async, meta_callback *call, meta_event * ret_event) {
   a_err ret;
 		//Make sure some context exists..
 		if (meta_context == NULL) metaOpenCLFallback();
   cl_event event;
   if (ret_event != NULL && ret_event->mode == metaModePreferOpenCL && ret_event->event_pl != NULL) event = *((cl_event *)ret_event->event_pl);
 		ret = clEnqueueCopyBuffer(meta_queue, (cl_mem) src, (cl_mem) dst, 0, 0, size, 0, NULL, &event);
-		if ((void*)call != NULL && call_pl != NULL) clSetEventCallback(event, CL_COMPLETE, (openclCallback)call, call_pl);
+		if ((void*)call != NULL) clSetEventCallback(event, CL_COMPLETE, metaOpenCLCallbackHelper, (void*)call);
 #ifdef WITH_TIMERS
 	metaTimerQueueFrame * timer_frame = (metaTimerQueueFrame*)malloc (sizeof(metaTimerQueueFrame));
 	timer_frame->mode = metaModePreferOpenCL;
@@ -1435,7 +1470,7 @@ a_err metaOpenCLDevCopy(void * dst, void * src, size_t size, a_bool async, meta_
 a_err opencl_dotProd(size_t (*grid_size)[3], size_t (*block_size)[3],
 		void * data1, void * data2, size_t (*array_size)[3],
 		size_t (*arr_start)[3], size_t (*arr_end)[3], void * reduced_val,
-		meta_type_id type, int async, meta_callback *call, void *call_pl, meta_event * ret_event) {
+		meta_type_id type, int async, meta_callback *call, meta_event * ret_event) {
 	a_err ret;
 	cl_kernel kern;
 	cl_int smem_len;
@@ -1549,7 +1584,7 @@ a_err opencl_dotProd(size_t (*grid_size)[3], size_t (*block_size)[3],
   if (ret_event != NULL && ret_event->mode == metaModePreferOpenCL && ret_event->event_pl != NULL) event = *((cl_event *)ret_event->event_pl);
 	ret |= clEnqueueNDRangeKernel(frame->queue, kern, 3, NULL, grid, block, 0,
 			NULL, &event);
-		if ((void*)call != NULL && call_pl != NULL) clSetEventCallback(event, CL_COMPLETE, (openclCallback) call, call_pl);
+		if ((void*)call != NULL) clSetEventCallback(event, CL_COMPLETE, metaOpenCLCallbackHelper, (void*)call);
 #ifdef WITH_TIMERS
 	metaTimerQueueFrame * timer_frame = (metaTimerQueueFrame*)malloc (sizeof(metaTimerQueueFrame));
 	timer_frame->mode = metaModePreferOpenCL;
@@ -1991,7 +2026,7 @@ cl_int opencl_pack_face(size_t (*grid_size)[3], size_t (*block_size)[3],
 
 cl_int opencl_unpack_face(size_t (*grid_size)[3], size_t (*block_size)[3],
 		void *packed_buf, void *buf, meta_face *face,
-		int *remain_dim, meta_type_id type, int async, meta_callback * call, void *call_pl, meta_event * ret_event_k1, meta_event * ret_event_c1, meta_event * ret_event_c2, meta_event * ret_event_c3) {
+		int *remain_dim, meta_type_id type, int async, meta_callback * call, meta_event * ret_event_k1, meta_event * ret_event_c1, meta_event * ret_event_c2, meta_event * ret_event_c3) {
 
 	cl_int ret;
 	cl_kernel kern;
@@ -2104,7 +2139,7 @@ cl_int opencl_unpack_face(size_t (*grid_size)[3], size_t (*block_size)[3],
   if (ret_event_k1 != NULL && ret_event_k1->mode == metaModePreferOpenCL && ret_event_k1->event_pl != NULL) event_k1 = *((cl_event *)ret_event_k1->event_pl);
 	ret |= clEnqueueNDRangeKernel(frame->queue, kern, 1, NULL, grid, block, 0,
 			NULL, &event_k1);
-		if ((void*)call != NULL && call_pl != NULL) clSetEventCallback(event_k1, CL_COMPLETE, (openclCallback) call, call_pl);
+		if ((void*)call != NULL) clSetEventCallback(event_k1, CL_COMPLETE, metaOpenCLCallbackHelper, (void*)call);
 #ifdef WITH_TIMERS
 	metaTimerQueueFrame * timer_frame_k1 = (metaTimerQueueFrame*)malloc (sizeof(metaTimerQueueFrame));
 	metaTimerQueueFrame * timer_frame_c1 = (metaTimerQueueFrame*)malloc (sizeof(metaTimerQueueFrame));

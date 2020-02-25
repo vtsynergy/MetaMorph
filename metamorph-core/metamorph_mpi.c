@@ -1,3 +1,4 @@
+#include <string.h>
 #include "metamorph_mpi.h"
 
 //This pool manages host staging buffers
@@ -90,7 +91,8 @@ void * pool_alloc(size_t size, int isHost) {
 //Only free moves the token, this is what causes the "ratchet ring queue" behavior
 // If the same buffer is used META_MPI_POOL_SIZE times in a row, all other pool buffers will get freed by it constantly being dropped one cell forward
 //NOT THREADSAFE
-void pool_free(void * buf, size_t size, int isHost) {
+//Uses different pools for bulk user data and internal management structs
+void pool_free(void * buf, size_t size, int isUserData) {
 #ifdef WITH_MPI_POOL_TIMING
 	struct timeval start, end;
 	gettimeofday(&start, NULL);
@@ -102,7 +104,7 @@ void pool_free(void * buf, size_t size, int isHost) {
 	unsigned long * pool_size;
 	void ** pool;
 	unsigned long * token;
-	if (isHost) {
+	if (isUserData) {
 		pool_size = host_buf_pool_size;
 		pool = host_buf_pool;
 		token = &host_pool_token;
@@ -385,9 +387,8 @@ void CUDART_CB cuda_sp_isend_cb(cudaStream_t stream, cudaError_t status, void *d
 	pool_free(data, sizeof(sp_callback_payload), 0);
 }
 #endif //WITH_CUDA
-#ifdef WITH_OPENCL
-void CL_CALLBACK opencl_sp_isend_cb(cl_event event, cl_int status, void *data) {
-	sp_callback_payload * call_pl = (sp_callback_payload *)data;
+void sp_isend_cb(meta_callback * data) {
+	sp_callback_payload * call_pl = (sp_callback_payload *)(data->data_payload);
 	size_t type_size;
 	MPI_Datatype mpi_type = get_mpi_type(call_pl->type, &type_size);
 	MPI_Isend(call_pl->host_packed_buf, call_pl->buf_leng, mpi_type, call_pl->dst_rank, call_pl->tag, MPI_COMM_WORLD, call_pl->req);
@@ -401,9 +402,9 @@ void CL_CALLBACK opencl_sp_isend_cb(cl_event event, cl_int status, void *data) {
 	//once registered, all the params are copied, so the record can be freed
 	pool_free(rec, sizeof(request_record), 0);
 	//once the Isend is invoked and the request is submitted, we can remove the payload
-	pool_free(data, sizeof(sp_callback_payload), 0);
+	pool_free(call_pl, sizeof(sp_callback_payload), 0);
+	pool_free(data, sizeof(meta_callback), 0);
 }
-#endif //EITH_OPENCL
 
 void sp_helper(request_record * sp_request) {
 	//printf("SP_HELPER FIRED!\n");
@@ -446,17 +447,14 @@ a_err meta_mpi_packed_face_send(int dst_rank, void *packed_buf, size_t buf_leng,
 		//Figure out whether to use CUDA or OpenCL callback
 		meta_callback * call = (meta_callback*) pool_alloc(
 				sizeof(meta_callback), 0);
+		call->callback_mode = run_mode;
+		call->callback_func = sp_isend_cb;
 		switch (run_mode) {
 #ifdef WITH_CUDA
 		case metaModePreferCUDA:
 		call->cudaCallback = cuda_sp_isend_cb;
 		break;
 #endif //WITH_CUDA
-#ifdef WITH_OPENCL
-		case metaModePreferOpenCL:
-		call->openclCallback = opencl_sp_isend_cb;
-		break;
-#endif
 		default:
 			//TODO: Do something
 			break;
@@ -470,13 +468,14 @@ a_err meta_mpi_packed_face_send(int dst_rank, void *packed_buf, size_t buf_leng,
 		call_pl->dst_rank = dst_rank;
 		call_pl->tag = tag;
 		call_pl->req = req;
+		call->data_payload = (void *) call_pl;
 		//Copy the buffer to the host, with the callback chain needed to complete the transfer
 		error |= meta_copy_d2h_cb(packed_buf_host, packed_buf,
-				buf_leng * type_size, 0, call, (void*) call_pl);
+				buf_leng * type_size, 0, call, NULL);
 	} else {
 		//copy into the host buffer
 		error |= meta_copy_d2h(packed_buf_host, packed_buf,
-				buf_leng * type_size, 0);
+				buf_leng * type_size, 0, NULL);
 		MPI_Send(packed_buf_host, buf_leng, mpi_type, dst_rank, tag,
 				MPI_COMM_WORLD);
 		//FIXME: remove associated async frees
@@ -489,14 +488,13 @@ a_err meta_mpi_packed_face_send(int dst_rank, void *packed_buf, size_t buf_leng,
 }
 
 //minimal callback to free a host buffer
-#ifdef WITH_OPENCL
 
-void CL_CALLBACK opencl_free_host_cb(cl_event event, cl_int status, void * data) {
-	rp_callback_payload * call_pl = (rp_callback_payload *)data;
+void free_host_cb(meta_callback * data) {
+	rp_callback_payload * call_pl = (rp_callback_payload *)(data->data_payload);
 	pool_free(call_pl->host_packed_buf, call_pl->buf_size, 1);
-	pool_free(data, sizeof(rp_callback_payload), 0);
+	pool_free(call_pl, sizeof(rp_callback_payload), 0);
+	pool_free(data, sizeof(meta_callback), 0);
 }
-#endif //WITH_OPENCL
 #ifdef WITH_CUDA
 void CUDART_CB cuda_free_host_cb(cudaStream_t stream, cudaError_t status, void *data) {
 	rp_callback_payload * call_pl = (rp_callback_payload *)data;
@@ -514,17 +512,14 @@ void rp_helper(request_record * rp_request) {
 	//set up the mode_specific pointer to our free wrapper
 	meta_callback * call = (meta_callback*) pool_alloc(sizeof(meta_callback),
 			0);
+	call->callback_mode = run_mode; 
+	call->callback_func = free_host_cb;
 	switch (run_mode) {
 #ifdef WITH_CUDA
 	case metaModePreferCUDA:
 	call->cudaCallback = cuda_free_host_cb;
 	break;
 #endif //WITH_CUDA
-#ifdef WITH_OPENCL
-	case metaModePreferOpenCL:
-	call->openclCallback = opencl_free_host_cb;
-	break;
-#endif
 	default:
 		//TODO: Do something
 		break;
@@ -533,10 +528,11 @@ void rp_helper(request_record * rp_request) {
 			sizeof(rp_callback_payload), 0);
 	call_pl->host_packed_buf = rp_request->rp_rec.host_packed_buf;
 	call_pl->buf_size = rp_request->rp_rec.buf_size;
+	call->data_payload = call_pl;
 	//and invoke the async copy with the callback specified and the host pointer as the payload
 	meta_copy_h2d_cb(rp_request->rp_rec.dev_packed_buf,
 			rp_request->rp_rec.host_packed_buf, rp_request->rp_rec.buf_size, 1,
-			call, call_pl);
+			call, NULL);
 }
 
 //Essentially a wrapper for a contiguous buffer receive
@@ -601,7 +597,7 @@ a_err meta_mpi_packed_face_recv(int src_rank, void *packed_buf, size_t buf_leng,
 				MPI_COMM_WORLD, &status);
 		//Copy into the device buffer
 		error |= meta_copy_h2d(packed_buf, packed_buf_host,
-				buf_leng * type_size, 0);
+				buf_leng * type_size, 0, NULL);
 		//free the host buffer
 		//FIXME: remove associated async frees
 		pool_free(packed_buf_host, buf_leng * type_size, 1);
@@ -635,12 +631,12 @@ void CUDART_CB cuda_sap_isend_cb(cudaStream_t stream, cudaError_t status, void *
 	//once registered, all the params are copied, so the record can be freed
 	pool_free(rec, sizeof(request_record), 0);
 	//once the Isend is invoked and the request is submitted, we can remove the payload
-	pool_free(data, sizeof(sap_callback_payload), 0);
+	pool_free(call_pl, sizeof(sap_callback_payload), 0);
+	pool_free(data, sizeof(meta_callback), 0);
 }
 #endif //WITH_CUDA
-#ifdef WITH_OPENCL
-void CL_CALLBACK opencl_sap_isend_cb(cl_event event, cl_int status, void *data) {
-	sap_callback_payload * call_pl = (sap_callback_payload *)data;
+void sap_isend_cb(meta_callback * data) {
+	sap_callback_payload * call_pl = (sap_callback_payload *)(data->data_payload);
 	size_t type_size;
 	MPI_Datatype mpi_type = get_mpi_type(call_pl->type, &type_size);
 	MPI_Isend(call_pl->host_packed_buf, call_pl->buf_leng, mpi_type, call_pl->dst_rank, call_pl->tag, MPI_COMM_WORLD, call_pl->req);
@@ -655,9 +651,9 @@ void CL_CALLBACK opencl_sap_isend_cb(cl_event event, cl_int status, void *data) 
 	//once registered, all the params are copied, so the record can be freed
 	pool_free(rec, sizeof(request_record), 0);
 	//once the Isend is invoked and the request is submitted, we can remove the payload
-	pool_free(data, sizeof(sap_callback_payload), 0);
+	pool_free(call_pl, sizeof(sap_callback_payload), 0);
+	pool_free(data, sizeof(meta_callback), 0);
 }
-#endif //EITH_OPENCL
 
 void sap_helper(request_record * sap_request) {
 	//printf("SAP_HELPER FIRED!\n");
@@ -730,21 +726,18 @@ a_err meta_mpi_pack_and_send_face(a_dim3 *grid_size, a_dim3 *block_size,
 	//DO all variants via copy to host
 	if (async) {
 		meta_pack_face(grid_size, block_size, packed_buf, buf, face, type,
-				1);
+				1, NULL, NULL, NULL, NULL);
 		//Figure out whether to use CUDA or OpenCL callback
 		meta_callback * call = (meta_callback*) pool_alloc(
 				sizeof(meta_callback), 0);
+		call->callback_mode = run_mode;
+		call->callback_func = sap_isend_cb;
 		switch (run_mode) {
 #ifdef WITH_CUDA
 		case metaModePreferCUDA:
 		call->cudaCallback = cuda_sap_isend_cb;
 		break;
 #endif //WITH_CUDA
-#ifdef WITH_OPENCL
-		case metaModePreferOpenCL:
-		call->openclCallback = opencl_sap_isend_cb;
-		break;
-#endif
 		default:
 			//TODO: Do something
 			break;
@@ -759,13 +752,13 @@ a_err meta_mpi_pack_and_send_face(a_dim3 *grid_size, a_dim3 *block_size,
 		call_pl->dst_rank = dst_rank;
 		call_pl->tag = tag;
 		call_pl->req = req;
-		meta_copy_d2h_cb(packed_buf_host, packed_buf, size * type_size, 1, call,
-				call_pl);
+		call->data_payload = call_pl;
+		meta_copy_d2h_cb(packed_buf_host, packed_buf, size * type_size, 1, call, NULL);
 	} else {
 		error |= meta_pack_face(grid_size, block_size, packed_buf, buf, face,
-				type, 0);
+				type, 0, NULL, NULL, NULL, NULL);
 		error |= meta_copy_d2h(packed_buf_host, packed_buf, size * type_size,
-				0);
+				0, NULL);
 		MPI_Send(packed_buf_host, size, mpi_type, dst_rank, tag,
 				MPI_COMM_WORLD);
 		//FIXME: remove asynchronous frees too
@@ -781,14 +774,13 @@ a_err meta_mpi_pack_and_send_face(a_dim3 *grid_size, a_dim3 *block_size,
 	//FIXME: Free device packed_buf correctly (with callback if async)
 }
 
-#ifdef WITH_OPENCL
-void CL_CALLBACK opencl_rap_freebufs_cb(cl_event event, cl_int status, void * data) {
-	rap_callback_payload * call_pl = (rap_callback_payload *)data;
+void rap_freebufs_cb(meta_callback * data) {
+	rap_callback_payload * call_pl = (rap_callback_payload *)(data->data_payload);
 	if (call_pl->host_packed_buf != NULL) pool_free(call_pl->host_packed_buf, call_pl->buf_size, 1);
 	//free(call_pl->packed_buf);
-	pool_free(data, sizeof(rap_callback_payload), 0);
+	pool_free(call_pl, sizeof(rap_callback_payload), 0);
+	pool_free(data, sizeof(meta_callback), 0);
 }
-#endif //WITH_OPENCL
 #ifdef WITH_CUDA
 void CUDART_CB cuda_rap_freebufs_cb(cudaStream_t stream, cudaError_t status, void *data) {
 	rap_callback_payload * call_pl = (rap_callback_payload *)data;
@@ -805,17 +797,14 @@ void rap_helper(request_record *rap_request) {
 	//set up the mode_specific pointer to our free wrapper
 	meta_callback * call = (meta_callback*) pool_alloc(sizeof(meta_callback),
 			0);
+	call->callback_mode = run_mode;
+	call->callback_func = rap_freebufs_cb;
 	switch (run_mode) {
 #ifdef WITH_CUDA
 	case metaModePreferCUDA:
 	call->cudaCallback = cuda_rap_freebufs_cb;
 	break;
 #endif //WITH_CUDA
-#ifdef WITH_OPENCL
-	case metaModePreferOpenCL:
-	call->openclCallback = opencl_rap_freebufs_cb;
-	break;
-#endif
 	default:
 		//TODO: Do something
 		break;
@@ -827,11 +816,12 @@ void rap_helper(request_record *rap_request) {
 	if (rap_request->rap_rec.host_packed_buf != NULL) {
 		meta_copy_h2d(rap_request->rap_rec.dev_packed_buf,
 				rap_request->rap_rec.host_packed_buf,
-				rap_request->rap_rec.buf_size, 1);
+				rap_request->rap_rec.buf_size, 1, NULL);
 		call_pl->host_packed_buf = rap_request->rap_rec.host_packed_buf;
 		call_pl->buf_size = rap_request->rap_rec.buf_size;
 	}
 	call_pl->packed_buf = rap_request->rap_rec.dev_packed_buf;
+	call->data_payload = (void*) call_pl;
 	//check that the "NULL grid/block" flags aren't set with ternaries
 	meta_unpack_face_cb(
 			(rap_request->rap_rec.grid_size[0] == 0 ?
@@ -839,8 +829,7 @@ void rap_helper(request_record *rap_request) {
 			(rap_request->rap_rec.block_size[0] == 0 ?
 					NULL : &(rap_request->rap_rec.block_size)),
 			rap_request->rap_rec.dev_packed_buf, rap_request->rap_rec.dev_buf,
-			rap_request->rap_rec.face, rap_request->rap_rec.type, 1, call,
-			(void*) call_pl);
+			rap_request->rap_rec.face, rap_request->rap_rec.type, 1, call, NULL, NULL, NULL, NULL);
 }
 
 //A wrapper that, provided a face, will receive a buffer, and unpack it
@@ -951,13 +940,13 @@ a_err meta_mpi_recv_and_unpack_face(a_dim3 * grid_size, a_dim3 * block_size,
 			memcpy(&(rec->rap_rec.grid_size), grid_size, sizeof(a_dim3));
 		//Otherwise, set the x element to zero as a flag
 		else
-			rec->rap_rec.grid_size[0] = NULL;
+			rec->rap_rec.grid_size[0] = 0;
 		//If they've provided a block_size, copy it
 		if (block_size != NULL)
 			memcpy(&(rec->rap_rec.block_size), block_size, sizeof(a_dim3));
 		//Otherwise, set the x element to zero as a flag
 		else
-			rec->rap_rec.block_size[0] = NULL;
+			rec->rap_rec.block_size[0] = 0;
 		rec->rap_rec.type = type;
 		rec->rap_rec.face = face;
 		//and submit it
@@ -970,12 +959,12 @@ a_err meta_mpi_recv_and_unpack_face(a_dim3 * grid_size, a_dim3 * block_size,
 				&status);
 		//copy the buffer to the device
 		error |= meta_copy_h2d(packed_buf, packed_buf_host, size * type_size,
-				0);
+				0, NULL);
 		//free the host temp buffer
 		pool_free(packed_buf_host, size * type_size, 1);
 		//Unpack on the device
 		error |= meta_unpack_face(grid_size, block_size, packed_buf, buf,
-				face, type, 0);
+				face, type, 0, NULL, NULL, NULL, NULL);
 		//free the device temp buffer
 		//FIXME: remove async frees
 		//meta_free(packed_buf);
