@@ -423,10 +423,10 @@ a_err metaOpenCLCreateEvent(void **);
 //timing function wrappers
 a_err metaOpenCLEventStartTime(meta_event event, unsigned long * ret_time);
 a_err metaOpenCLEventEndTime(meta_event event, unsigned long * ret_time);
-a_err metaOpenCLRegisterCallback(meta_event *, meta_callback *):
+a_err metaOpenCLRegisterCallback(meta_event *, meta_callback *);
 //Might not expose this since it presumes the payload is a meta_callback
 void CL_CALLBACK metaOpenCLCallbackHelper(cl_event, cl_int, void*);
-a_err metaOpenCLExpandCallback(meta_callback, cl_event*, cl_int*, void*);
+a_err metaOpenCLExpandCallback(meta_callback, cl_event*, cl_int*, void**);
 //share meta_context with with existing software
 a_int meta_get_state_OpenCL(cl_platform_id * platform, cl_device_id * device,
 		cl_context * context, cl_command_queue * queue);

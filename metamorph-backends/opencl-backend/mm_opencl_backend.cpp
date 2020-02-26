@@ -1048,19 +1048,19 @@ a_err metaOpenCLEventEndTime(meta_event event, unsigned long * ret_time) {
 struct opencl_callback_data {
   cl_int status;
   cl_event event;
-}
+};
 
 void CL_CALLBACK metaOpenCLCallbackHelper(cl_event event, cl_int status, void * data) {
   if (data == NULL) return;
   meta_callback * payload = (meta_callback *) data;
-  struct opencl_callback_data * info = calloc(sizeof(1, struct opencl_callback_data));
+  struct opencl_callback_data * info = (struct opencl_callback_data *)calloc(1, sizeof(struct opencl_callback_data));
   info->status = status;
   info->event = event;
   payload->backend_status = info;
   (payload->callback_func)((meta_callback *)data);
 }
 
-a_err metaOpenCLExpandCallback(meta_callback call, cl_event* ret_event, cl_int ret_status, void* ret_data) {
+a_err metaOpenCLExpandCallback(meta_callback call, cl_event* ret_event, cl_int * ret_status, void** ret_data) {
   if (call.backend_status == NULL || ret_status == NULL || ret_data == NULL) return CL_INVALID_VALUE;
   else if (ret_event == NULL) return CL_INVALID_EVENT;
   (*ret_event) = ((struct opencl_callback_data *)call.backend_status)->event;
@@ -1072,7 +1072,7 @@ a_err metaOpenCLExpandCallback(meta_callback call, cl_event* ret_event, cl_int r
 a_err metaOpenCLRegisterCallback(meta_event * event, meta_callback * call) {
   a_err ret = CL_SUCCESS;
     if (event == NULL || event->event_pl == NULL) ret = CL_INVALID_EVENT;
-    else if (call == NULL || call->callback_fun == NULL || call->data_payload == NULL) ret = CL_INVALID_VALUE;
+    else if (call == NULL || call->callback_func == NULL || call->data_payload == NULL) ret = CL_INVALID_VALUE;
     else {
       ret = clSetEventCallback(*((cl_event *)event->event_pl), CL_COMPLETE, metaOpenCLCallbackHelper, (void*)call);
     }
