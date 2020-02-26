@@ -674,6 +674,197 @@ __global__ void kernel_stencil_3d7p_v4(const T * __restrict__ ind, T * __restric
 /// END KERNELS
 
 /// BEGIN HOST WRAPPERS
+a_err metaCUDAAlloc(void ** ptr, size_t size) {
+  return cudaMalloc(ptr, size);
+}
+a_err metaCUDAFree(void * ptr) {
+  return cudaFree(ptr);
+}
+  a_err metaCUDAWrite(void * dst, void * src, size_t size, a_bool async, meta_callback * call, meta_event * ret_event) {
+  a_err ret = cudaSuccess;
+  cudaEvent_t * events = NULL;
+  if (ret_event != NULL && ret_event->mode == metaModePreferCUDA && ret_event->event_pl != NULL) {
+    events = ((cudaEvent_t *)ret_event->event_pl);
+  }
+#ifdef WITH_TIMERS
+        metaTimerQueueFrame * frame;
+	frame = (metaTimerQueueFrame*)malloc (sizeof(metaTimerQueueFrame));
+	frame->mode = metaModePreferCUDA;
+	frame->size = size;
+  if (events == NULL) {
+    frame->event.mode = metaModePreferCUDA;
+    metaCUDACreateEvent(&(frame->event.event_pl));
+    events = ((cudaEvent_t *)frame->event.event_pl);
+	}
+  else {
+    frame->event = *ret_event;
+  }
+#endif
+	if (events != NULL) {
+		cudaEventRecord(events[0], 0);
+	}
+		if (async) {
+			ret = cudaMemcpyAsync(dst, src, size, cudaMemcpyHostToDevice, 0);
+		} else {
+			ret = cudaMemcpy(dst, src, size, cudaMemcpyHostToDevice);
+		}
+	if (events != NULL) {
+		cudaEventRecord(events[1], 0);
+	}
+//FIXME CUDA needs to deal with its own callback setup
+			//If a callback is provided, register it immediately after returning from enqueuing the kernel
+			if ((void*)call != NULL) cudaStreamAddCallback(0, metaCUDACallbackHelper, call, 0);
+#ifdef WITH_TIMERS
+	metaTimerEnqueue(frame, &(metaBuiltinQueues[c_H2D]));
+#endif
+	//TODO if we do event copy, assign it back to the callbnack/ret_event here
+  return ret;
+}
+  a_err metaCUDARead(void * dst, void * src, size_t size, a_bool async, meta_callback * call, meta_event * ret_event) {
+  a_err ret = cudaSuccess;
+  cudaEvent_t * events = NULL;
+  if (ret_event != NULL && ret_event->mode == metaModePreferCUDA && ret_event->event_pl != NULL) {
+    events = ((cudaEvent_t *)ret_event->event_pl);
+  }
+#ifdef WITH_TIMERS
+        metaTimerQueueFrame * frame;
+	frame = (metaTimerQueueFrame*)malloc (sizeof(metaTimerQueueFrame));
+	frame->mode = metaModePreferCUDA;
+	frame->size = size;
+  if (events == NULL) {
+    frame->event.mode = metaModePreferCUDA;
+    metaCUDACreateEvent(&(frame->event.event_pl));
+    events = ((cudaEvent_t *)frame->event.event_pl);
+	}
+  else {
+    frame->event = *ret_event;
+  }
+#endif
+	if (events != NULL) {
+		cudaEventRecord(events[0], 0);
+	}
+		if (async) {
+			ret = cudaMemcpyAsync(dst, src, size, cudaMemcpyDeviceToHost, 0);
+		} else {
+			ret = cudaMemcpy(dst, src, size, cudaMemcpyDeviceToHost);
+		}
+	if (events != NULL) {
+		cudaEventRecord(events[1], 0);
+	}
+//FIXME CUDA needs to deal with its own callback setup
+			//If a callback is provided, register it immediately after returning from enqueuing the kernel
+			if ((void*)call != NULL) cudaStreamAddCallback(0, metaCUDACallbackHelper, call, 0);
+#ifdef WITH_TIMERS
+	metaTimerEnqueue(frame, &(metaBuiltinQueues[c_D2H]));
+#endif
+	//TODO if we do event copy, assign it back to the callbnack/ret_event here
+  return ret;
+}
+  a_err metaCUDADevCopy(void*, void*, size_t, a_bool, meta_callback*, meta_event *) {
+  a_err ret = cudaSuccess;
+  cudaEvent_t * events = NULL;
+  if (ret_event != NULL && ret_event->mode == metaModePreferCUDA && ret_event->event_pl != NULL) {
+    events = ((cudaEvent_t *)ret_event->event_pl);
+  }
+#ifdef WITH_TIMERS
+        metaTimerQueueFrame * frame;
+	frame = (metaTimerQueueFrame*)malloc (sizeof(metaTimerQueueFrame));
+	frame->mode = metaModePreferCUDA;
+	frame->size = size;
+  if (events == NULL) {
+    frame->event.mode = metaModePreferCUDA;
+    metaCUDACreateEvent(&(frame->event.event_pl));
+    events = ((cudaEvent_t *)frame->event.event_pl);
+	}
+  else {
+    frame->event = *ret_event;
+  }
+#endif
+	if (events != NULL) {
+		cudaEventRecord(events[0], 0);
+	}
+		if (async) {
+			ret = cudaMemcpyAsync(dst, src, size, cudaMemcpyDeviceToDevice, 0);
+		} else {
+			ret = cudaMemcpy(dst, src, size, cudaMemcpyDeviceToDevice);
+		}
+	if (events != NULL) {
+		cudaEventRecord(events[1], 0);
+	}
+//FIXME CUDA needs to deal with its own callback setup
+			//If a callback is provided, register it immediately after returning from enqueuing the kernel
+			if ((void*)call != NULL) cudaStreamAddCallback(0, metaCUDACallbackHelper, call, 0);
+#ifdef WITH_TIMERS
+	metaTimerEnqueue(frame, &(metaBuiltinQueues[c_D2H]));
+#endif
+	//TODO if we do event copy, assign it back to the callbnack/ret_event here
+  return ret;
+}
+a_err metaCUDAInitByID(a_int accel) {
+  return cudaSetDevice(accel);
+}
+a_err metaCUDACurrDev(a_int * accel) {
+  return cudaGetDevice(accel);
+}
+//FIXME Implement
+  a_err metaCUDAMaxWorkSizes(a_dim3*, a_dim3*) {
+  a_err ret = cudaSuccess;
+  fprintf(stderr, "metaCUDAMaxWorkSizes unimplemented\n");
+  return -1;
+}
+a_err metaCUDAFlush() {
+  return cudaThreadSynchronize();
+}
+a_err metaCUDACreateEvent(void** ret_event) {
+  a_err ret = cudaSuccess;
+  if (ret_event != NULL) {
+    *ret_event = malloc(sizeof(cudaEvent_t)*2);
+    ret = cudaEventCreate(&((cudaEvent_t *)(*ret_event))[0]);
+    ret |= cudaEventCreate(&((cudaEvent_t *)(*ret_event))[1]);
+  }
+  else ret = cudaErrorInvalidValue;
+  return ret;
+}
+a_err metaCUDADestroyEvent(void * event) {
+  a_err ret = cudaSuccess;
+  if (event != NULL) {
+    ret = cudaEventDestroy(((cudaEvent_t*)event)[0]);
+    ret |= cudaEventDestroy(((cudaEvent_t*)event)[1]);
+    free(event);
+  }
+  else ret = cudaErrorInvalidValue;
+  return ret;
+}
+struct cuda_callback_data {
+  cudaError_t status;
+  cudaStream_t stream;
+};
+
+void CUDART_CB  metaCUDACallbackHelper(cudaStream_t stream, cudaError_t status, void * data) {
+  if (data == NULL) return;
+  meta_callback * payload = (meta_callback *) data;
+  struct cuda_callback_data * info = (struct cuda_callback_data *)calloc(1, sizeof(struct cuda_callback_data));
+  info->status = status;
+  info->stream = stream;
+  payload->backend_status = info;
+  (payload->callback_func)((meta_callback *)data);
+}
+a_err metaCUDAExpandCallback(meta_callback call, cudaStream_t * ret_stream, cudaError_t * ret_status, void** ret_data) {
+  if (call.backend_status == NULL || ret_status == NULL || ret_data == NULL || ret_stream == NULL) return cudaErrorInvalidValue;
+  (*ret_stream) = ((struct cuda_callback_data *)call.backend_status)->stream;
+  (*ret_status) = ((struct cuda_callback_data *)call.backend_status)->status;
+  (*ret_data) = call.data_payload;
+  return cudaSuccess;
+}
+a_err metaCUDARegisterCallback(meta_callback * call) {
+  a_err ret = cudaSuccess;
+    if (call == NULL || call->callback_func == NULL || call->data_payload == NULL) ret = cudaErrorInvalidValue;
+    else {
+      ret = cudaStreamAddCallback(0, metaCUDACallbackHelper, (void*)call, 0);
+    }
+return ret;
+}
+
 
 /**
  * Host wrapper for the dot-product kernel
@@ -690,11 +881,8 @@ __global__ void kernel_stencil_3d7p_v4(const T * __restrict__ ind, T * __restric
  * \param event the start and finish events used for asynchronous calls and timing
  * \return either cudaSuccess if async or the result of cudaThreadSynchronize if sync
  */
-cudaError_t cuda_dotProd(size_t (*grid_size)[3], size_t (*block_size)[3],
-		void * data1, void * data2, size_t (*array_size)[3],
-		size_t (*arr_start)[3], size_t (*arr_end)[3], void * reduced_val,
-		meta_type_id type, int async, cudaEvent_t ((*event)[2])) {
-	cudaError_t ret = cudaSuccess;
+  a_err cuda_dotProd(size_t (* grid_size)[3], size_t (* block_size)[3], void * data1, void * data2, size_t (* array_size)[3], size_t (* arr_start)[3], size_t (* arr_end)[3], void * reduced_val, meta_type_id type, int async, meta_callback * call, meta_event * ret_event) {
+	a_err ret = cudaSuccess;
 	size_t smem_len;
 	dim3 grid;
 	dim3 block;
@@ -712,9 +900,26 @@ cudaError_t cuda_dotProd(size_t (*grid_size)[3], size_t (*block_size)[3],
 		iters = (int) (*grid_size)[2];
 	}
 	smem_len = block.x * block.y * block.z;
-	if (event != NULL) {
-		cudaEventCreate(&(*event)[0]);
-		cudaEventRecord((*event)[0], 0);
+  cudaEvent_t * events = NULL;
+  if (ret_event != NULL && ret_event->mode == metaModePreferCUDA && ret_event->event_pl != NULL) {
+    events = ((cudaEvent_t *)ret_event->event_pl);
+  }
+#ifdef WITH_TIMERS
+        metaTimerQueueFrame * frame;
+	frame = (metaTimerQueueFrame*)malloc (sizeof(metaTimerQueueFrame));
+	frame->mode = metaModePreferCUDA;
+	frame->size = (*array_size)[0]*(*array_size)[1]*(*array_size)[2]*get_atype_size(type);
+  if (events == NULL) {
+    frame->event.mode = metaModePreferCUDA;
+    metaCUDACreateEvent(&(frame->event.event_pl));
+    events = ((cudaEvent_t *)frame->event.event_pl);
+	}
+  else {
+    frame->event = *ret_event;
+  }
+#endif
+	if (events != NULL) {
+		cudaEventRecord(events[0], 0);
 	}
 	switch (type) {
 	case a_db:
@@ -742,10 +947,16 @@ cudaError_t cuda_dotProd(size_t (*grid_size)[3], size_t (*block_size)[3],
 				"Error: Function 'cuda_dotProd' not implemented for selected type!\n");
 		break;
 	}
-	if (event != NULL) {
-		cudaEventCreate(&(*event)[1]);
-		cudaEventRecord((*event)[1], 0);
+	if (events != NULL) {
+		cudaEventRecord(events[1], 0);
 	}
+//FIXME CUDA needs to deal with its own callback setup
+			//If a callback is provided, register it immediately after returning from enqueuing the kernel
+			if ((void*)call != NULL) cudaStreamAddCallback(0, metaCUDACallbackHelper, call, 0);
+#ifdef WITH_TIMERS
+	metaTimerEnqueue(timer_frame, &(metaBuiltinQueues[k_dotProd]));
+#endif
+	//TODO if we do event copy, assign it back to the callbnack/ret_event here
 	if (!async)
 		ret = cudaThreadSynchronize();
 	return (ret);
@@ -765,11 +976,8 @@ cudaError_t cuda_dotProd(size_t (*grid_size)[3], size_t (*block_size)[3],
  * \param event the start and finish events used for asynchronous calls and timing
  * \return either cudaSuccess if async or the result of cudaThreadSynchronize if sync
  */
-cudaError_t cuda_reduce(size_t (*grid_size)[3], size_t (*block_size)[3],
-		void * data, size_t (*array_size)[3], size_t (*arr_start)[3],
-		size_t (*arr_end)[3], void * reduced_val, meta_type_id type, int async,
-		cudaEvent_t ((*event)[2])) {
-	cudaError_t ret = cudaSuccess;
+  a_err cuda_reduce(size_t (* grid_size)[3], size_t (* block_size)[3], void * data, size_t (* array_size)[3], size_t (* arr_start)[3], size_t (* arr_end)[3], void * reduced_val, meta_type_id type, int async, meta_callback * call, meta_event * ret_event) {
+	a_err ret = cudaSuccess;
 	size_t smem_len;
 	dim3 grid;
 	dim3 block;
@@ -786,9 +994,26 @@ cudaError_t cuda_reduce(size_t (*grid_size)[3], size_t (*block_size)[3],
 		iters = (*grid_size)[2];
 	}
 	smem_len = block.x * block.y * block.z;
-	if (event != NULL) {
-		cudaEventCreate(&(*event)[0]);
-		cudaEventRecord((*event)[0], 0);
+  cudaEvent_t * events = NULL;
+  if (ret_event != NULL && ret_event->mode == metaModePreferCUDA && ret_event->event_pl != NULL) {
+    events = ((cudaEvent_t *)ret_event->event_pl);
+  }
+#ifdef WITH_TIMERS
+        metaTimerQueueFrame * frame;
+	frame = (metaTimerQueueFrame*)malloc (sizeof(metaTimerQueueFrame));
+	frame->mode = metaModePreferCUDA;
+	frame->size = (*array_size)[0]*(*array_size)[1]*(*array_size)[2]*get_atype_size(type);
+  if (events == NULL) {
+    frame->event.mode = metaModePreferCUDA;
+    metaCUDACreateEvent(&(frame->event.event_pl));
+    events = ((cudaEvent_t *)frame->event.event_pl);
+	}
+  else {
+    frame->event = *ret_event;
+  }
+#endif
+	if (events != NULL) {
+		cudaEventRecord(events[0], 0);
 	}
 	//printf("CUDA Config: grid(%d, %d, %d) block(%d, %d, %d) iters %d\n", grid.x, grid.y, grid.z, block.x, block.y, block.z, iters);
 	switch (type) {
@@ -819,10 +1044,15 @@ cudaError_t cuda_reduce(size_t (*grid_size)[3], size_t (*block_size)[3],
 		break;
 
 	}
-	if (event != NULL) {
-		cudaEventCreate(&(*event)[1]);
-		cudaEventRecord((*event)[1], 0);
+	if (events != NULL) {
+		cudaEventRecord(events[1], 0);
 	}
+			//If a callback is provided, register it immediately after returning from enqueuing the kernel
+			if ((void*)call != NULL) cudaStreamAddCallback(0, metaCUDACallbackHelper, call, 0);
+#ifdef WITH_TIMERS
+	metaTimerEnqueue(timer_frame, &(metaBuiltinQueues[k_reduce]));
+#endif
+	//TODO if we do event copy, assign it back to the callbnack/ret_event here
 	if (!async)
 		ret = cudaThreadSynchronize();
 	//TODO consider derailing for an explictly 2D/1D reduce..
@@ -842,11 +1072,8 @@ cudaError_t cuda_reduce(size_t (*grid_size)[3], size_t (*block_size)[3],
  * \param event the start and finish events used for asynchronous calls and timing
  * \return either cudaSuccess if async or the result of cudaThreadSynchronize if sync
  */
-cudaError_t cuda_transpose_face(size_t (*grid_size)[3],
-		size_t (*block_size)[3], void *indata, void *outdata,
-		size_t (*arr_dim_xy)[3], size_t (*tran_dim_xy)[3], meta_type_id type,
-		int async, cudaEvent_t ((*event)[2])) {
-	cudaError_t ret = cudaSuccess;
+  a_err cuda_transpose_face(size_t (* grid_size)[3], size_t (* block_size)[3], void * indata, void * outdata, size_t (* arr_dim_xy)[3], size_t (* tran_dim_xy)[3], meta_type_id type, int async, meta_callback * call, meta_event * ret_event) {
+	a_err ret = cudaSuccess;
 	size_t smem_len;
 	dim3 grid, block;
 	/// \todo FIXME: make this smart enough to rescale the threadblock (and thus shared memory - e.g. bank conflicts) w.r. double vs. float
@@ -862,9 +1089,26 @@ cudaError_t cuda_transpose_face(size_t (*grid_size)[3],
 	}
 	/// \warning The +1 here is to avoid bank conflicts with 32 floats or 16 doubles and is required by the kernel logic
 	smem_len = (block.x + 1) * block.y * block.z;
-	if (event != NULL) {
-		cudaEventCreate(&(*event)[0]);
-		cudaEventRecord((*event)[0], 0);
+  cudaEvent_t * events = NULL;
+  if (ret_event != NULL && ret_event->mode == metaModePreferCUDA && ret_event->event_pl != NULL) {
+    events = ((cudaEvent_t *)ret_event->event_pl);
+  }
+#ifdef WITH_TIMERS
+        metaTimerQueueFrame * frame;
+	frame = (metaTimerQueueFrame*)malloc (sizeof(metaTimerQueueFrame));
+	frame->mode = metaModePreferCUDA;
+	frame->size = (*tran_dim_xy)[0]*(*trans_dim_xy)[1]*get_atype_size(type);
+  if (events == NULL) {
+    frame->event.mode = metaModePreferCUDA;
+    metaCUDACreateEvent(&(frame->event.event_pl));
+    events = ((cudaEvent_t *)frame->event.event_pl);
+	}
+  else {
+    frame->event = *ret_event;
+  }
+#endif
+	if (events != NULL) {
+		cudaEventRecord(events[0], 0);
 	}
 	switch (type) {
 	case a_db:
@@ -892,10 +1136,15 @@ cudaError_t cuda_transpose_face(size_t (*grid_size)[3],
 				"Error: function 'cuda_transpose_face' not implemented for selected type!\n");
 		break;
 	}
-	if (event != NULL) {
-		cudaEventCreate(&(*event)[1]);
-		cudaEventRecord((*event)[1], 0);
+	if (events != NULL) {
+		cudaEventRecord(events[1], 0);
 	}
+			//If a callback is provided, register it immediately after returning from enqueuing the kernel
+			if ((void*)call != NULL) cudaStreamAddCallback(0, metaCUDACallbackHelper, call, 0);
+#ifdef WITH_TIMERS
+	metaTimerEnqueue(timer_frame, &(metaBuiltinQueues[k_transpose_2d_face]));
+#endif
+	//TODO if we do event copy, assign it back to the callbnack/ret_event here
 	if (!async)
 		ret = cudaThreadSynchronize();
 	return (ret);
@@ -918,51 +1167,91 @@ cudaError_t cuda_transpose_face(size_t (*grid_size)[3],
  * \return either cudaSuccess if async or the result of cudaThreadSynchronize if sync
  * \warning Implemented as a 1D kernel, Y and Z grid/block parameters will be ignored
  */
-cudaError_t cuda_pack_face(size_t (*grid_size)[3], size_t (*block_size)[3],
-		void *packed_buf, void *buf, meta_face *face,
-		int *remain_dim, meta_type_id type, int async,
-		cudaEvent_t ((*event_k1)[2]), cudaEvent_t ((*event_c1)[2]),
-		cudaEvent_t ((*event_c2)[2]), cudaEvent_t ((*event_c3)[2])) {
-	cudaError_t ret = cudaSuccess;
+  a_err cuda_pack_face(size_t (* grid_size)[3], size_t (* block_size)[3], void * packed_buf, void * buf, meta_face * face, int * remain_dim, meta_type_id type, int async, meta_callback * call, meta_event * ret_event_k1, meta_event * ret_event_c1, meta_event * ret_event_c2, meta_event * ret_event_c3) {
+	a_err ret = cudaSuccess;
 	size_t smem_size;
 	dim3 grid, block;
 //	dim3 grid = dim3((*grid_size)[0], (*grid_size)[1], 1);
 //	dim3 block = dim3((*block_size)[0], (*block_size)[1], (*block_size)[2]);
 
 	//copy required piece of the face struct into constant memory
-	if (event_c1 != NULL) {
-		cudaEventCreate(&(*event_c1)[0]);
-		cudaEventRecord((*event_c1)[0], 0);
+  cudaEvent_t * events_c1 = NULL;
+  if (ret_event_c1 != NULL && ret_event_c1->mode == metaModePreferCUDA && ret_event_c1->event_pl != NULL) {
+    events_c1 = ((cudaEvent_t *)ret_event_c1->event_pl);
+  }
+#ifdef WITH_TIMERS
+        metaTimerQueueFrame * frame_c1;
+	frame_c1 = (metaTimerQueueFrame*)malloc (sizeof(metaTimerQueueFrame));
+	frame_c1->mode = metaModePreferCUDA;
+	frame_c1->size = get_atype_size(type)*3;
+  if (events_c1 == NULL) {
+    frame_c1->event.mode = metaModePreferCUDA;
+    metaCUDACreateEvent(&(frame_c1->event.event_pl));
+    events_c1 = ((cudaEvent_t *)frame_c1->event.event_pl);
+	}
+  else {
+    frame_c1->event = *ret_event_c1;
+  }
+#endif
+	if (events_c1 != NULL) {
+		cudaEventRecord(events_c1[0], 0);
 	}
 	cudaMemcpyToSymbol(c_face_size, face->size, face->count * sizeof(int));
-	if (event_c1 != NULL) {
-		cudaEventCreate(&(*event_c1)[1]);
-		cudaEventRecord((*event_c1)[1], 0);
+	if (events_c1 != NULL) {
+		cudaEventRecord(events_c1[1], 0);
 	}
 
-	if (event_c2 != NULL) {
-		cudaEventCreate(&(*event_c2)[0]);
-		cudaEventRecord((*event_c2)[0], 0);
+  cudaEvent_t * events_c2 = NULL;
+  if (ret_event_c2 != NULL && ret_event_c2->mode == metaModePreferCUDA && ret_event_c2->event_pl != NULL) {
+    events_c2 = ((cudaEvent_t *)ret_event_c2->event_pl);
+  }
+#ifdef WITH_TIMERS
+        metaTimerQueueFrame * frame_c2;
+	frame_c2 = (metaTimerQueueFrame*)malloc (sizeof(metaTimerQueueFrame));
+	frame_c2->mode = metaModePreferCUDA;
+	frame_c2->size = get_atype_size(type)*3;
+  if (events_c2 == NULL) {
+    frame_c2->event.mode = metaModePreferCUDA;
+    metaCUDACreateEvent(&(frame_c2->event.event_pl));
+    events_c2 = ((cudaEvent_t *)frame_c2->event.event_pl);
+	}
+  else {
+    frame_c2->event = *ret_event_k1;
+  }
+#endif
+	if (events_c2 != NULL) {
+		cudaEventRecord(events_c2[0], 0);
 	}
 	cudaMemcpyToSymbol(c_face_stride, face->stride, face->count * sizeof(int));
-	if (event_c2 != NULL) {
-		cudaEventCreate(&(*event_c2)[1]);
-		cudaEventRecord((*event_c2)[1], 0);
+	if (events_c2 != NULL) {
+		cudaEventRecord(events_c2[1], 0);
 	}
 
-	if (event_c3 != NULL) {
-		cudaEventCreate(&(*event_c3)[0]);
-		cudaEventRecord((*event_c3)[0], 0);
+  cudaEvent_t * events_c3 = NULL;
+  if (ret_event_c3 != NULL && ret_event_c3->mode == metaModePreferCUDA && ret_event_c3->event_pl != NULL) {
+    events_c3 = ((cudaEvent_t *)ret_event_c3->event_pl);
+  }
+#ifdef WITH_TIMERS
+        metaTimerQueueFrame * frame_c3;
+	frame_c3 = (metaTimerQueueFrame*)malloc (sizeof(metaTimerQueueFrame));
+	frame_c3->mode = metaModePreferCUDA;
+	frame_c3->size = get_atype_size(type)*3;
+  if (events_c3 == NULL) {
+    frame_c3->event.mode = metaModePreferCUDA;
+    metaCUDACreateEvent(&(frame_c3->event.event_pl));
+    events_c3 = ((cudaEvent_t *)frame_c3->event.event_pl);
+	}
+  else {
+    frame_c3->event = *ret_event_c3;
+  }
+#endif
+	if (events_c3 != NULL) {
+		cudaEventRecord(events_c3[0], 0);
 	}
 	cudaMemcpyToSymbol(c_face_child_size, remain_dim,
 			face->count * sizeof(int));
-	if (event_c3 != NULL) {
-		cudaEventCreate(&(*event_c3)[1]);
-		cudaEventRecord((*event_c3)[1], 0);
-	}
-	if (event_k1 != NULL) {
-		cudaEventCreate(&(*event_k1)[0]);
-		cudaEventRecord((*event_k1)[0], 0);
+	if (events_c3 != NULL) {
+		cudaEventRecord(events_c3[1], 0);
 	}
 	/// \todo FIXME: specify a unique macro for each default blocksize
 	if (grid_size == NULL || block_size == NULL) {
@@ -982,6 +1271,27 @@ cudaError_t cuda_pack_face(size_t (*grid_size)[3], size_t (*block_size)[3],
 		grid = dim3((*grid_size)[0], 1, 1);
 	}
 	smem_size = face->count * block.x * sizeof(int);
+  cudaEvent_t * events_k1 = NULL;
+  if (ret_event_k1 != NULL && ret_event_k1->mode == metaModePreferCUDA && ret_event_k1->event_pl != NULL) {
+    events_k1 = ((cudaEvent_t *)ret_event_k1->event_pl);
+  }
+#ifdef WITH_TIMERS
+        metaTimerQueueFrame * frame_k1;
+	frame_k1 = (metaTimerQueueFrame*)malloc (sizeof(metaTimerQueueFrame));
+	frame_k1->mode = metaModePreferCUDA;
+	frame_k1->size = get_atype_size(type)*face->size[0]*face->size[1]*face->size[2];
+  if (events_k1 == NULL) {
+    frame_k1->event.mode = metaModePreferCUDA;
+    metaCUDACreateEvent(&(frame_k1->event.event_pl));
+    events_k1 = ((cudaEvent_t *)frame_k1->event.event_pl);
+	}
+  else {
+    frame_k1->event = *ret_event_k1;
+  }
+#endif
+	if (events_k1 != NULL) {
+		cudaEventRecord(events_k1[0], 0);
+	}
 	switch (type) {
 	case a_db:
 		kernel_pack<double><<<grid, block, smem_size>>>((double *)packed_buf, (double *)buf, face->size[0]*face->size[1]*face->size[2], face->start, face->count);
@@ -1008,10 +1318,18 @@ cudaError_t cuda_pack_face(size_t (*grid_size)[3], size_t (*block_size)[3],
 				"Error: function 'cuda_pack_face' not implemented for selected type!\n");
 		break;
 	}
-	if (event_k1 != NULL) {
-		cudaEventCreate(&(*event_k1)[1]);
-		cudaEventRecord((*event_k1)[1], 0);
+	if (events_k1 != NULL) {
+		cudaEventRecord(events_k1[1], 0);
 	}
+			//If a callback is provided, register it immediately after returning from enqueuing the kernel
+			if ((void*)call != NULL) cudaStreamAddCallback(0, metaCUDACallbackHelper, call, 0);
+#ifdef WITH_TIMERS
+	metaTimerEnqueue(frame_k1, &(metaBuiltinQueues[k_pack_2d_face]));
+	metaTimerEnqueue(frame_c1, &(metaBuiltinQueues[c_H2Dc]));
+	metaTimerEnqueue(frame_c2, &(metaBuiltinQueues[c_H2Dc]));
+	metaTimerEnqueue(frame_c3, &(metaBuiltinQueues[c_H2Dc]));
+#endif
+	//TODO if we do event copy, assign it back to the callbnack/ret_event here
 	if (!async)
 		ret = cudaThreadSynchronize();
 	//TODO consider derailing for an explictly 2D/1D reduce..
@@ -1019,12 +1337,8 @@ cudaError_t cuda_pack_face(size_t (*grid_size)[3], size_t (*block_size)[3],
 
 }
 
-cudaError_t cuda_unpack_face(size_t (*grid_size)[3], size_t (*block_size)[3],
-		void *packed_buf, void *buf, meta_face *face,
-		int *remain_dim, meta_type_id type, int async,
-		cudaEvent_t ((*event_k1)[2]), cudaEvent_t ((*event_c1)[2]),
-		cudaEvent_t ((*event_c2)[2]), cudaEvent_t ((*event_c3)[2])) {
-	cudaError_t ret = cudaSuccess;
+  a_err cuda_unpack_face(size_t (* grid_size)[3], size_t (* block_size)[3], void * packed_buf, void * buf, meta_face * face, int * remain_dim, meta_type_id type, int async, meta_callback * call, meta_event * ret_event_k1, meta_event * ret_event_c1, meta_event * ret_event_c2, meta_event * ret_event_c3) {
+	a_err ret = cudaSuccess;
 	size_t smem_size;
 	dim3 grid, block;
 //TODO: Update to actually use user-provided grid/block once multi-element-per-thread
@@ -1033,41 +1347,85 @@ cudaError_t cuda_unpack_face(size_t (*grid_size)[3], size_t (*block_size)[3],
 //	dim3 block = dim3((*block_size)[0], (*block_size)[1], (*block_size)[2]);
 
 	//copy required piece of the face struct into constant memory
-	if (event_c1 != NULL) {
-		cudaEventCreate(&(*event_c1)[0]);
-		cudaEventRecord((*event_c1)[0], 0);
+  cudaEvent_t * events_c1 = NULL;
+  if (ret_event_c1 != NULL && ret_event_c1->mode == metaModePreferCUDA && ret_event_c1->event_pl != NULL) {
+    events_c1 = ((cudaEvent_t *)ret_event_c1->event_pl);
+  }
+#ifdef WITH_TIMERS
+        metaTimerQueueFrame * frame_c1;
+	frame_c1 = (metaTimerQueueFrame*)malloc (sizeof(metaTimerQueueFrame));
+	frame_c1->mode = metaModePreferCUDA;
+	frame_c1->size = get_atype_size(type)*3;
+  if (events_c1 == NULL) {
+    frame_c1->event.mode = metaModePreferCUDA;
+    metaCUDACreateEvent(&(frame_c1->event.event_pl));
+    events_c1 = ((cudaEvent_t *)frame_c1->event.event_pl);
+	}
+  else {
+    frame_c1->event = *ret_event_c1;
+  }
+#endif
+	if (events_c1 != NULL) {
+		cudaEventRecord(events_c1[0], 0);
 	}
 	cudaMemcpyToSymbol(c_face_size, face->size, face->count * sizeof(int));
-	if (event_c1 != NULL) {
-		cudaEventCreate(&(*event_c1)[1]);
-		cudaEventRecord((*event_c1)[1], 0);
+	if (events_c1 != NULL) {
+		cudaEventRecord(events_c1[1], 0);
 	}
 
-	if (event_c2 != NULL) {
-		cudaEventCreate(&(*event_c2)[0]);
-		cudaEventRecord((*event_c2)[0], 0);
+  cudaEvent_t * events_c2 = NULL;
+  if (ret_event_c2 != NULL && ret_event_c2->mode == metaModePreferCUDA && ret_event_c2->event_pl != NULL) {
+    events_c2 = ((cudaEvent_t *)ret_event_c2->event_pl);
+  }
+#ifdef WITH_TIMERS
+        metaTimerQueueFrame * frame_c2;
+	frame_c2 = (metaTimerQueueFrame*)malloc (sizeof(metaTimerQueueFrame));
+	frame_c2->mode = metaModePreferCUDA;
+	frame_c2->size = get_atype_size(type)*3;
+  if (events_c2 == NULL) {
+    frame_c2->event.mode = metaModePreferCUDA;
+    metaCUDACreateEvent(&(frame_c2->event.event_pl));
+    events_c2 = ((cudaEvent_t *)frame_c2->event.event_pl);
+	}
+  else {
+    frame_c2->event = *ret_event_k1;
+  }
+#endif
+	if (events_c2 != NULL) {
+		cudaEventRecord(events_c2[0], 0);
 	}
 	cudaMemcpyToSymbol(c_face_stride, face->stride, face->count * sizeof(int));
-	if (event_c2 != NULL) {
-		cudaEventCreate(&(*event_c2)[1]);
-		cudaEventRecord((*event_c2)[1], 0);
+	if (events_c2 != NULL) {
+		cudaEventRecord(events_c2[1], 0);
 	}
 
-	if (event_c3 != NULL) {
-		cudaEventCreate(&(*event_c3)[0]);
-		cudaEventRecord((*event_c3)[0], 0);
+  cudaEvent_t * events_c3 = NULL;
+  if (ret_event_c3 != NULL && ret_event_c3->mode == metaModePreferCUDA && ret_event_c3->event_pl != NULL) {
+    events_c3 = ((cudaEvent_t *)ret_event_c3->event_pl);
+  }
+#ifdef WITH_TIMERS
+        metaTimerQueueFrame * frame_c3;
+	frame_c3 = (metaTimerQueueFrame*)malloc (sizeof(metaTimerQueueFrame));
+	frame_c3->mode = metaModePreferCUDA;
+	frame_c3->size = get_atype_size(type)*3;
+  if (events_c3 == NULL) {
+    frame_c3->event.mode = metaModePreferCUDA;
+    metaCUDACreateEvent(&(frame_c3->event.event_pl));
+    events_c3 = ((cudaEvent_t *)frame_c3->event.event_pl);
+	}
+  else {
+    frame_c3->event = *ret_event_c3;
+  }
+#endif
+	if (events_c3 != NULL) {
+		cudaEventRecord(events_c3[0], 0);
 	}
 	cudaMemcpyToSymbol(c_face_child_size, remain_dim,
 			face->count * sizeof(int));
-	if (event_c3 != NULL) {
-		cudaEventCreate(&(*event_c3)[1]);
-		cudaEventRecord((*event_c3)[1], 0);
+	if (events_c3 != NULL) {
+		cudaEventRecord(events_c3[1], 0);
 	}
 //TODO: Create a grid/block similar to Kaixi's look at mpi_wrap.c to figure out how size is computed
-	if (event_k1 != NULL) {
-		cudaEventCreate(&(*event_k1)[0]);
-		cudaEventRecord((*event_k1)[0], 0);
-	}
 	//FIXME: specify a unique macro for each default blocksize
 	if (grid_size == NULL || block_size == NULL) {
 		block = dim3(256, 1, 1);
@@ -1086,6 +1444,27 @@ cudaError_t cuda_unpack_face(size_t (*grid_size)[3], size_t (*block_size)[3],
 		grid = dim3((*grid_size)[0], 1, 1);
 	}
 	smem_size = face->count * block.x * sizeof(int);
+  cudaEvent_t * events_k1 = NULL;
+  if (ret_event_k1 != NULL && ret_event_k1->mode == metaModePreferCUDA && ret_event_k1->event_pl != NULL) {
+    events_k1 = ((cudaEvent_t *)ret_event_k1->event_pl);
+  }
+#ifdef WITH_TIMERS
+        metaTimerQueueFrame * frame_k1;
+	frame_k1 = (metaTimerQueueFrame*)malloc (sizeof(metaTimerQueueFrame));
+	frame_k1->mode = metaModePreferCUDA;
+	frame_k1->size = get_atype_size(type)*face->size[0]*face->size[1]*face->size[2];
+  if (events_k1 == NULL) {
+    frame_k1->event.mode = metaModePreferCUDA;
+    metaCUDACreateEvent(&(frame_k1->event.event_pl));
+    events_k1 = ((cudaEvent_t *)frame_k1->event.event_pl);
+	}
+  else {
+    frame_k1->event = *ret_event_k1;
+  }
+#endif
+	if (events_k1 != NULL) {
+		cudaEventRecord(events_k1[0], 0);
+	}
 	switch (type) {
 	case a_db:
 		kernel_unpack<double><<<grid, block, smem_size>>>((double *)packed_buf, (double *)buf, face->size[0]*face->size[1]*face->size[2], face->start, face->count);
@@ -1112,10 +1491,18 @@ cudaError_t cuda_unpack_face(size_t (*grid_size)[3], size_t (*block_size)[3],
 				"Error: function 'cuda_unpack_face' not implemented for selected type!\n");
 		break;
 	}
-	if (event_k1 != NULL) {
-		cudaEventCreate(&(*event_k1)[1]);
-		cudaEventRecord((*event_k1)[1], 0);
+	if (events_k1 != NULL) {
+		cudaEventRecord(events_k1[1], 0);
 	}
+			//If a callback is provided, register it immediately after returning from enqueuing the kernel
+			if ((void*)call != NULL) cudaStreamAddCallback(0, metaCUDACallbackHelper, call, 0);
+#ifdef WITH_TIMERS
+	metaTimerEnqueue(frame_k1, &(metaBuiltinQueues[k_unpack_2d_face]));
+	metaTimerEnqueue(frame_c1, &(metaBuiltinQueues[c_H2Dc]));
+	metaTimerEnqueue(frame_c2, &(metaBuiltinQueues[c_H2Dc]));
+	metaTimerEnqueue(frame_c3, &(metaBuiltinQueues[c_H2Dc]));
+#endif
+	//TODO if we do event copy, assign it back to the callbnack/ret_event here
 	if (!async)
 		ret = cudaThreadSynchronize();
 	//TODO consider derailing for an explictly 2D/1D reduce..
@@ -1123,11 +1510,8 @@ cudaError_t cuda_unpack_face(size_t (*grid_size)[3], size_t (*block_size)[3],
 
 }
 
-cudaError_t cuda_stencil_3d7p(size_t (*grid_size)[3], size_t (*block_size)[3],
-		void * indata, void * outdata, size_t (*array_size)[3],
-		size_t (*arr_start)[3], size_t (*arr_end)[3], meta_type_id type,
-		int async, cudaEvent_t ((*event)[2])) {
-	cudaError_t ret = cudaSuccess;
+  a_err cuda_stencil_3d7p(size_t (* grid_size)[3], size_t (* block_size)[3], void * indata, void * outdata, size_t (* array_size)[3], size_t (* arr_start)[3], size_t (* arr_end)[3], meta_type_id type, int async, meta_callback * call, meta_event * ret_event) {
+	a_err ret = cudaSuccess;
 	size_t smem_len;
 	dim3 grid;
 	dim3 block;
@@ -1146,13 +1530,27 @@ cudaError_t cuda_stencil_3d7p(size_t (*grid_size)[3], size_t (*block_size)[3],
 		iters = (int) (*grid_size)[2];
 	}
 	smem_len = (block.x + 2) * (block.y + 2) * block.z;
-	//smem_len = 0;
-
-	if (event != NULL) {
-		cudaEventCreate(&(*event)[0]);
-		cudaEventRecord((*event)[0], 0);
+  cudaEvent_t * events = NULL;
+  if (ret_event != NULL && ret_event->mode == metaModePreferCUDA && ret_event->event_pl != NULL) {
+    events = ((cudaEvent_t *)ret_event->event_pl);
+  }
+#ifdef WITH_TIMERS
+        metaTimerQueueFrame * frame;
+	frame = (metaTimerQueueFrame*)malloc (sizeof(metaTimerQueueFrame));
+	frame->mode = metaModePreferCUDA;
+	frame->size = (*array_size)[0]*(*array_size)[1]*(*array_size)[2]*get_atype_size(type);
+  if (events == NULL) {
+    frame->event.mode = metaModePreferCUDA;
+    metaCUDACreateEvent(&(frame->event.event_pl));
+    events = ((cudaEvent_t *)frame->event.event_pl);
 	}
-
+  else {
+    frame->event = *ret_event;
+  }
+#endif
+	if (events != NULL) {
+		cudaEventRecord(events[0], 0);
+	}
 	switch (type) {
 	case a_db:
 		kernel_stencil_3d7p<double><<<grid,block,smem_len*sizeof(double)>>>((double*)indata, (double*)outdata, (*array_size)[0], (*array_size)[1], (*array_size)[2], (*arr_start)[0], (*arr_start)[1], (*arr_start)[2], (*arr_end)[0], (*arr_end)[1], (*arr_end)[2], iters, smem_len);
@@ -1179,11 +1577,15 @@ cudaError_t cuda_stencil_3d7p(size_t (*grid_size)[3], size_t (*block_size)[3],
 				"Error: Function 'cuda_stencil_3d7p' not implemented for selected type!\n");
 		break;
 	}
-
-	if (event != NULL) {
-		cudaEventCreate(&(*event)[1]);
-		cudaEventRecord((*event)[1], 0);
+	if (events != NULL) {
+		cudaEventRecord(events[1], 0);
 	}
+			//If a callback is provided, register it immediately after returning from enqueuing the kernel
+			if ((void*)call != NULL) cudaStreamAddCallback(0, metaCUDACallbackHelper, call, 0);
+#ifdef WITH_TIMERS
+	metaTimerEnqueue(timer_frame, &(metaBuiltinQueues[k_stencil_3d7p]));
+#endif
+	//TODO if we do event copy, assign it back to the callbnack/ret_event here
 	if (!async)
 		ret = cudaThreadSynchronize();
 	return (ret);

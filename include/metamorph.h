@@ -103,13 +103,6 @@ meta_face * make_slab_from_3d(int face, int ni, int nj, int nk, int thickness);
 // are selected, rather if none of their supported back-end are selected,
 // they should just define down to a NOOP.
 
-//TODO change core to back-end in file names
-#ifdef WITH_CUDA
-#ifndef METAMORPH_CUDA_BACKEND_H
-#include "mm_cuda_backend.cuh"
-#endif
-#endif
-
 #ifdef WITH_OPENMP
 #ifndef METAMORPH_OPENMP_BACKEND_H
 #include "mm_openmp_backend.h"
@@ -152,9 +145,7 @@ typedef enum {
 	//A special-purpose mode which indicates none has been declared
 	// used by sentinel nodes in the timer plugin queues
 	metaModeUnset = -1,
-#ifdef WITH_CUDA
 metaModePreferCUDA = 1,
-#endif
 metaModePreferOpenCL = 2,
 #ifdef WITH_OPENMP
 metaModePreferOpenMP = 3,
@@ -197,6 +188,7 @@ struct backend_handles {
   void * opencl_be_handle;
   void * opencl_lib_handle;
   void * cuda_be_handle;
+  void * cuda_lib_handle;
   void * mpi_handle;
   void * profiling_handle;
 };
@@ -209,6 +201,7 @@ struct backend_handles {
   }\
 }\
 //A simple abstract type to store the type of event and a payload pointer containing the actual backend-specific value
+//FIXME meta_events are currently allocated and freed by the client, but assumed to persist throughout. It would be safer to have our own copy the user cannot tamper with
 typedef struct meta_event {
   meta_preferred_mode mode;
   void * event_pl;
@@ -231,44 +224,16 @@ a_err meta_flush();
 a_err meta_init_event(meta_event *);
 a_err meta_destroy_event(meta_event);
 
-//TODO confirm the new callback pass-throughs with the simplified type still work
+//FIXME meta_callbacks are currently allocated and freed by the client, but assumed to persist throughout. It would be safer to have our own copy the user cannot tamper with
 struct meta_callback;
-//typedef void (*meta_callback)(void);
 typedef struct meta_callback {
   void (* callback_func)(struct meta_callback *);
   meta_preferred_mode callback_mode;
   void * data_payload;
   void * backend_status;
 } meta_callback;
-//#ifdef WITH_CUDA
-//void (CUDART_CB * cudaCallback)(cudaStream_t stream, cudaError_t status, void *data);
-//#endif //WITH_CUDA
-//} meta_callback;
-
-//FIXME: As soon as the MPI implementation is finished, if
-// payloads are still not needed, remove this code
 
 a_err meta_register_callback(meta_callback);
-
-
-#ifdef WITH_CUDA
-typedef struct cuda_callback_payload {
-//Unneeded, stream is always 0 (for now)
-//		cudaStream_t stream;
-//Unneeded, errors are managed in the library function responsible for
-//	setting the callback
-//		cudaError_t status;
-void * data;
-}cuda_callback_payload;
-#endif //WITH_CUDA
-
-typedef union meta_callback_payload {
-#ifdef WITH_CUDA
-cuda_callback_payload cuda_pl;
-#endif //WITH_CUDA
-} meta_callback_payload;
-
-//FIXME: If custom payloads are not needed, clean up the code above
 
 //Kernels and transfers with callback params, necessary for MPI helpers
 // These are **NOT** intended to be used externally, only by the library itself
@@ -346,15 +311,19 @@ a_err meta_crc(a_dim3 * grid_size, a_dim3 * block_size, void * dev_input, int pa
 
 //MPI functions need access to all top-level calls and types
 //MPI needs to be before timers, so that timers can output rank info - if available
+#ifdef WITH_MPI
 #ifndef METAMORPH_MPI_H
 #include "metamorph_mpi.h"
+#endif
 #endif
 
 //Event-based timers
 //WITH_TIMERS needs to be here, so the header passthrough can give it the
 // meta_preferred_mode enum
+#ifdef WITH_TIMERS
 #ifndef METAMORPH_TIMERS_H
 #include "metamorph_timers.h"
+#endif
 #endif
 
 //Fortran compatibility plugin needs access to all top-level calls

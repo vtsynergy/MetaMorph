@@ -200,6 +200,28 @@ a_err meta_reinitialize_modules(a_module_implements_backend module_type) {
 //Globally-set capability flag
 a_module_implements_backend core_capability = module_implements_general | module_implements_fortran;
 struct backend_handles backends = {NULL};
+struct cuda_dyn_ptrs {
+  a_err (* metaCUDAAlloc)(void**, size_t);
+  a_err (* metaCUDAFree)(void*);
+  a_err (* metaCUDAWrite)(void*, void*, size_t, a_bool, meta_callback*, meta_event *);
+  a_err (* metaCUDARead)(void*, void*, size_t, a_bool, meta_callback*, meta_event *);
+  a_err (* metaCUDADevCopy)(void*, void*, size_t, a_bool, meta_callback*, meta_event *);
+  a_err (* metaCUDAInitByID)(a_int);
+  a_err (* metaCUDACurrDev)(a_int*);
+  a_err (* metaCUDAMaxWorkSizes)(a_dim3*, a_dim3*);
+  a_err (* metaCUDAFlush)();
+  a_err (* metaCUDACreateEvent)(void**);
+  a_err (* metaCUDADestroyEvent)(void*);
+  a_err (* metaCUDARegisterCallback)(meta_callback);
+  a_err (* cuda_dotProd)(size_t (*)[3], size_t (*)[3], void *, void *, size_t (*)[3], size_t (*)[3], size_t (*)[3], void *, meta_type_id, int, meta_callback *, meta_event *);
+  a_err (* cuda_reduce)(size_t (*)[3], size_t (*)[3], void *, size_t (*)[3], size_t (*)[3], size_t (*)[3], void *, meta_type_id, int, meta_callback *, meta_event *);
+a_err (* cuda_transpose_face)(size_t (*)[3], size_t (*)[3], void *, void *, size_t (*)[3], size_t (*)[3], meta_type_id, int, meta_callback *, meta_event *);
+a_err (* cuda_pack_face)(size_t (*)[3], size_t (*)[3], void *, void *, meta_face *, int *, meta_type_id, int, meta_callback *, meta_event *, meta_event *, meta_event *, meta_event *);
+a_err (* cuda_unpack_face)(size_t (*)[3], size_t (*)[3], void *, void *, meta_face *, int *, meta_type_id, int, meta_callback *, meta_event *, meta_event *, meta_event *, meta_event *);
+a_err (* cuda_stencil_3d7p)(size_t (*)[3], size_t (*)[3], void *, void *, size_t (*)[3], size_t (*)[3], size_t (*)[3], meta_type_id, int, meta_callback *, meta_event *);
+  
+};
+struct cuda_dyn_ptrs cuda_symbols = {NULL};
 struct opencl_dyn_ptrs {
   void (* metaOpenCLFallback)(void);
   a_err (* metaOpenCLAlloc)(void**, size_t);
@@ -230,9 +252,30 @@ __attribute__((constructor(101))) void meta_init() {
   //do auto-discovery of each backend and plugin
   //FIXME Not sure if we need RTLD_DEEPBIND
   backends.cuda_be_handle = dlopen("libmm_cuda_backend.so", RTLD_NOW | RTLD_GLOBAL);
+  backends.cuda_lib_handle = dlopen("libcuda.so", RTLD_NOW | RTLD_GLOBAL);
   if (backends.cuda_be_handle == NULL) fprintf(stderr, "No CUDA backend detected\n");
+  else if (backends.cuda_lib_handle == NULL) fprintf(stderr, "No CUDA runtime detected\n");
   else {
     core_capability |= module_implements_cuda;
+    CHECKED_DLSYM("libmm_cuda_backend.so", backends.cuda_be_handle, "metaCUDAAlloc", cuda_symbols.metaCUDAAlloc);
+    CHECKED_DLSYM("libmm_cuda_backend.so", backends.cuda_be_handle, "metaCUDAFree", cuda_symbols.metaCUDAFree);
+    CHECKED_DLSYM("libmm_cuda_backend.so", backends.cuda_be_handle, "metaCUDAWrite", cuda_symbols.metaCUDAWrite);
+    CHECKED_DLSYM("libmm_cuda_backend.so", backends.cuda_be_handle, "metaCUDARead", cuda_symbols.metaCUDARead);
+    CHECKED_DLSYM("libmm_cuda_backend.so", backends.cuda_be_handle, "metaCUDADevCopy", cuda_symbols.metaCUDADevCopy);
+    CHECKED_DLSYM("libmm_cuda_backend.so", backends.cuda_be_handle, "metaCUDAInitByID", cuda_symbols.metaCUDAInitByID);
+    CHECKED_DLSYM("libmm_cuda_backend.so", backends.cuda_be_handle, "metaCUDACurrDev", cuda_symbols.metaCUDACurrDev);
+    CHECKED_DLSYM("libmm_cuda_backend.so", backends.cuda_be_handle, "metaCUDAMaxWorkSizes", cuda_symbols.metaCUDAMaxWorkSizes);
+    CHECKED_DLSYM("libmm_cuda_backend.so", backends.cuda_be_handle, "metaCUDAFlush", cuda_symbols.metaCUDAFlush);
+    CHECKED_DLSYM("libmm_cuda_backend.so", backends.cuda_be_handle, "metaCUDACreateEvent", cuda_symbols.metaCUDACreateEvent);
+    CHECKED_DLSYM("libmm_cuda_backend.so", backends.cuda_be_handle, "metaCUDADestroyEvent", cuda_symbols.metaCUDADestroyEvent);
+    CHECKED_DLSYM("libmm_cuda_backend.so", backends.cuda_be_handle, "metaCUDARegisterCallback", cuda_symbols.metaCUDARegisterCallback);
+    CHECKED_DLSYM("libmm_cuda_backend.so", backends.cuda_be_handle, "cuda_dotProd", cuda_symbols.cuda_dotProd);
+    CHECKED_DLSYM("libmm_cuda_backend.so", backends.cuda_be_handle, "cuda_reduce", cuda_symbols.cuda_reduce);
+    CHECKED_DLSYM("libmm_cuda_backend.so", backends.cuda_be_handle, "cuda_transpose_face", cuda_symbols.cuda_transpose_face);
+    CHECKED_DLSYM("libmm_cuda_backend.so", backends.cuda_be_handle, "cuda_pack_face", cuda_symbols.cuda_pack_face);
+    CHECKED_DLSYM("libmm_cuda_backend.so", backends.cuda_be_handle, "cuda_unpack_face", cuda_symbols.cuda_unpack_face);
+    CHECKED_DLSYM("libmm_cuda_backend.so", backends.cuda_be_handle, "cuda_stencil_3d7p", cuda_symbols.cuda_stencil_3d7p);
+
     fprintf(stderr, "CUDA backend found\n");
   }
   backends.opencl_be_handle = dlopen("libmm_opencl_backend.so", RTLD_NOW | RTLD_GLOBAL);
@@ -346,11 +389,16 @@ a_err meta_alloc(void ** ptr, size_t size) {
 		//TODO implement generic (runtime choice) allocation
 		break;
 
-#ifdef WITH_CUDA
 		case metaModePreferCUDA:
-		ret = cudaMalloc(ptr, size);
+		{
+		if (cuda_symbols.metaCUDAAlloc != NULL) ret = (*(cuda_symbols.metaCUDAAlloc))(ptr, size);
+		else {
+		  fprintf(stderr, "CUDA backend improperly loaded or missing symbol \"metaCUDAAlloc\"\n");
+		  //FIXME output a real error code
+		  ret = -1;
+	  	}
+		}
 		break;
-#endif
 
 		case metaModePreferOpenCL:
 		{
@@ -390,11 +438,16 @@ a_err meta_free(void * ptr) {
 		//TODO implement generic (runtime choice) free
 		break;
 
-#ifdef WITH_CUDA
 		case metaModePreferCUDA:
-		ret = cudaFree(ptr);
+		{
+		if (cuda_symbols.metaCUDAFree != NULL) ret = (*(cuda_symbols.metaCUDAFree))(ptr);
+		else {
+		  fprintf(stderr, "CUDA backend improperly loaded or missing symbol \"metaCUDAFree\"\n");
+		  //FIXME output a real error code
+		  ret = -1;
+	  	}
+		}
 		break;
-#endif
 
 		case metaModePreferOpenCL:
 		{
@@ -439,7 +492,7 @@ a_err meta_copy_h2d_cb(void * dst, void * src, size_t size, a_bool async,
 	a_err ret;
 #ifdef WITH_TIMERS
         metaTimerQueueFrame * frame;
-	if (run_mode != metaModePreferOpenCL) {
+	if (run_mode != metaModePreferOpenCL && run_mode != metaModePreferCUDA) {
 	frame = (metaTimerQueueFrame *)malloc (sizeof(metaTimerQueueFrame));
 	frame->mode = run_mode;
 	frame->size = size;
@@ -452,25 +505,16 @@ a_err meta_copy_h2d_cb(void * dst, void * src, size_t size, a_bool async,
 		//TODO implement generic (runtime choice) H2D copy
 		break;
 
-#ifdef WITH_CUDA
 		case metaModePreferCUDA:
-#ifdef WITH_TIMERS
-		cudaEventCreate(&(frame->event.cuda[0]));
-		cudaEventRecord(frame->event.cuda[0], 0);
-#endif
-		if (async) {
-			ret = cudaMemcpyAsync(dst, src, size, cudaMemcpyHostToDevice, 0);
-		} else {
-			ret = cudaMemcpy(dst, src, size, cudaMemcpyHostToDevice);
+		{
+		if (cuda_symbols.metaCUDAWrite != NULL) ret = (*(cuda_symbols.metaCUDAWrite))(dst, src, size, async, call, ret_event);
+		else {
+		  fprintf(stderr, "CUDA backend improperly loaded or missing symbol \"metaCUDAWrite\"\n");
+		  //FIXME output a real error code
+		  ret = -1;
+	  	}
 		}
-#ifdef WITH_TIMERS
-		cudaEventCreate(&(frame->event.cuda[1]));
-		cudaEventRecord(frame->event.cuda[1], 0);
-#endif
-		//If a callback is provided, register it immediately after the transfer
-		if ((void*)call != NULL && call_pl != NULL) cudaStreamAddCallback(0, call->cudaCallback, call_pl, 0);
 		break;
-#endif
 
 		case metaModePreferOpenCL:
 		{
@@ -509,7 +553,7 @@ clGetEventProfilingInfo(frame->event.opencl,CL_PROFILING_COMMAND_QUEUED,sizeof(c
 printf("check profiling event '%s' (MM side) %lu\n",frame->name,start_time);
 */
 #ifdef WITH_TIMERS
-	if (run_mode != metaModePreferOpenCL) {
+	if (run_mode != metaModePreferOpenCL && run_mode != metaModePreferCUDA) {
 	metaTimerEnqueue(frame, &(metaBuiltinQueues[c_H2D]));
 	}
 #endif
@@ -545,25 +589,16 @@ a_err meta_copy_d2h_cb(void * dst, void * src, size_t size, a_bool async,
 		//TODO implement generic (runtime choice) H2D copy
 		break;
 
-#ifdef WITH_CUDA
 		case metaModePreferCUDA:
-#ifdef WITH_TIMERS
-		cudaEventCreate(&(frame->event.cuda[0]));
-		cudaEventRecord(frame->event.cuda[0], 0);
-#endif
-		if (async) {
-			ret = cudaMemcpyAsync(dst, src, size, cudaMemcpyDeviceToHost, 0);
-		} else {
-			ret = cudaMemcpy(dst, src, size, cudaMemcpyDeviceToHost);
+		{
+		if (cuda_symbols.metaCUDARead != NULL) ret = (*(cuda_symbols.metaCUDARead))(dst, src, size, async, call, ret_event);
+		else {
+		  fprintf(stderr, "CUDA backend improperly loaded or missing symbol \"metaCUDARead\"\n");
+		  //FIXME output a real error code
+		  ret = -1;
+	  	}
 		}
-#ifdef WITH_TIMERS
-		cudaEventCreate(&(frame->event.cuda[1]));
-		cudaEventRecord(frame->event.cuda[1], 0);
-#endif
-		//If a callback is provided, register it immediately after the transfer
-		if ((void*)call != NULL && call_pl != NULL) cudaStreamAddCallback(0, call->cudaCallback, call_pl, 0);
 		break;
-#endif
 
 		case metaModePreferOpenCL:
 		{
@@ -631,25 +666,16 @@ a_err meta_copy_d2d_cb(void * dst, void * src, size_t size, a_bool async,
 		//TODO implement generic (runtime choice) H2D copy
 		break;
 
-#ifdef WITH_CUDA
 		case metaModePreferCUDA:
-#ifdef WITH_TIMERS
-		cudaEventCreate(&(frame->event.cuda[0]));
-		cudaEventRecord(frame->event.cuda[0], 0);
-#endif
-		if (async) {
-			ret = cudaMemcpyAsync(dst, src, size, cudaMemcpyDeviceToDevice, 0);
-		} else {
-			ret = cudaMemcpy(dst, src, size, cudaMemcpyDeviceToDevice);
+		{
+		if (cuda_symbols.metaCUDADevCopy != NULL) ret = (*(cuda_symbols.metaCUDADevCopy))(dst, src, size, async, call, ret_event);
+		else {
+		  fprintf(stderr, "CUDA backend improperly loaded or missing symbol \"metaCUDADevCopy\"\n");
+		  //FIXME output a real error code
+		  ret = -1;
+	  	}
 		}
-#ifdef WITH_TIMERS
-		cudaEventCreate(&(frame->event.cuda[1]));
-		cudaEventRecord(frame->event.cuda[1], 0);
-#endif
-		//If a callback is provided, register it immediately after the transfer
-		if ((void*)call != NULL && call_pl != NULL) cudaStreamAddCallback(0, call->cudaCallback, call_pl, 0);
 		break;
-#endif
 
 		case metaModePreferOpenCL:
 		{
@@ -703,9 +729,7 @@ a_err meta_set_acc(int accel, meta_preferred_mode mode) {
 		//TODO support generic (auto-config) runtime selection
 		//TODO support "METAMORPH_MODE" environment variable.
 		if (getenv("METAMORPH_MODE") != NULL) {
-#ifdef WITH_CUDA
 			if (strcmp(getenv("METAMORPH_MODE"), "CUDA") == 0) return meta_set_acc(accel, metaModePreferCUDA);
-#endif
 if (core_capability | module_implements_opencl) { 
 			if (strcmp(getenv("METAMORPH_MODE"), "OpenCL") == 0 || strcmp(getenv("METAMORPH_MODE"), "OpenCL_DEBUG") == 0) return meta_set_acc(accel, metaModePreferOpenCL);
 }
@@ -728,9 +752,7 @@ if (core_capability | module_implements_opencl) {
 		}
 		fprintf(stderr,
 				"Generic Mode only supported with \"METAMORPH_MODE\" environment variable set to one of:\n");
-#ifdef WITH_CUDA
-		fprintf(stderr, "\"CUDA\"\n");
-#endif
+		if (core_capability | module_implements_cuda) fprintf(stderr, "\"CUDA\"\n");
 		if (core_capability | module_implements_opencl) fprintf(stderr, "\"OpenCL\" (or \"OpenCL_DEBUG\")\n");
 #ifdef WITH_OPENMP
 		fprintf(stderr, "\"OpenMP\"\n");
@@ -742,13 +764,16 @@ if (core_capability | module_implements_opencl) {
 #endif
 		break;
 
-#ifdef WITH_CUDA
 		case metaModePreferCUDA:
-		ret = cudaSetDevice(accel);
-		printf("CUDA Mode selected with device: %d\n", accel);
-		//TODO add a statement printing the device's name
+		{
+		if (cuda_symbols.metaCUDAInitByID != NULL) ret = (*(cuda_symbols.metaCUDAInitByID))(accel);
+		else {
+		  fprintf(stderr, "CUDA backend improperly loaded or missing symbol \"metaCUDAInitByID\"\n");
+		  //FIXME output a real error code
+		  ret = -1;
+	  	}
+		}
 		break;
-#endif
 
 		case metaModePreferOpenCL:
 		{
@@ -782,12 +807,17 @@ a_err meta_get_acc(int * accel, meta_preferred_mode * mode) {
 		*mode = metaModePreferGeneric;
 		break;
 
-#ifdef WITH_CUDA
 		case metaModePreferCUDA:
-		ret = cudaGetDevice(accel);
+		{
 		*mode = metaModePreferCUDA;
+		if (cuda_symbols.metaCUDACurrDev != NULL) ret = (*(cuda_symbols.metaCUDACurrDev))(accel);
+		else {
+		  fprintf(stderr, "CUDA backend improperly loaded or missing symbol \"metaCUDACurrDev\"\n");
+		  //FIXME output a real error code
+		  ret = -1;
+	  	}
+		}
 		break;
-#endif
 
 		case metaModePreferOpenCL:
 		{
@@ -826,12 +856,10 @@ a_err meta_validate_worksize(a_dim3 * grid_size, a_dim3 * block_size) {
 		// Don't worry about doing anything until when/if we add that
 		break;
 
-#ifdef WITH_CUDA
 		case metaModePreferCUDA:
 		//TODO implement whatever bounds checking is needed by CUDA
 		return 0;
 		break;
-#endif
 
 		case metaModePreferOpenCL:
 		{
@@ -867,11 +895,16 @@ a_err ret = 0;
 		//TODO implement a generic flush?
 		break;
 
-#ifdef WITH_CUDA
 		case metaModePreferCUDA:
-		cudaThreadSynchronize();
+		{
+		if (cuda_symbols.metaCUDAFlush != NULL) ret = (*(cuda_symbols.metaCUDAFlush))();
+		else {
+		  fprintf(stderr, "CUDA backend improperly loaded or missing symbol \"metaCUDAFlush\"\n");
+		  //FIXME output a real error code
+		  ret = -1;
+	  	}
+		}
 		break;
-#endif
 
 		case metaModePreferOpenCL:
 		{
@@ -910,13 +943,11 @@ a_err meta_init_event(meta_event * event) {
     //TODO implement a generic mode
     break;
 
-#ifdef WITH_CUDA
     case metaModePreferCUDA: {
       //TODO: Do something once we update the CUDA backend to dynamically load
       //TODO Based on the old metaTimerEvent, we may allocate tow, both for start and end
     }
     break;
-#endif //WITH CUDA
 
     case metaModePreferOpenCL:
     {
@@ -1047,7 +1078,7 @@ a_err meta_dotProd_cb(a_dim3 * grid_size, a_dim3 * block_size, void * data1,
 
 #ifdef WITH_TIMERS
         metaTimerQueueFrame * frame;
-	if (run_mode != metaModePreferOpenCL) {
+	if (run_mode != metaModePreferOpenCL && run_mode != metaModePreferCUDA) {
 	frame = (metaTimerQueueFrame*)malloc (sizeof(metaTimerQueueFrame));
 	frame->mode = run_mode;
 	frame->size = (*array_size)[0]*(*array_size)[1]*(*array_size)[2]*get_atype_size(type);
@@ -1059,18 +1090,16 @@ a_err meta_dotProd_cb(a_dim3 * grid_size, a_dim3 * block_size, void * data1,
 		//TODO implement a generic reduce
 		break;
 
-#ifdef WITH_CUDA
-		case metaModePreferCUDA: {
-#ifdef WITH_TIMERS
-			ret = (a_err) cuda_dotProd(grid_size, block_size, data1, data2, array_size, array_start, array_end, reduction_var, type, async, &(frame->event.cuda));
-#else
-			ret = (a_err) cuda_dotProd(grid_size, block_size, data1, data2, array_size, array_start, array_end, reduction_var, type, async, NULL);
-#endif
-			//If a callback is provided, register it immediately after returning from enqueuing the kernel
-			if ((void*)call != NULL && call_pl != NULL) cudaStreamAddCallback(0, call->cudaCallback, call_pl, 0);
-			break;
+		case metaModePreferCUDA:
+		{
+		if (cuda_symbols.cuda_dotProd != NULL) ret = (*(cuda_symbols.cuda_dotProd))(grid_size, block_size, data1, data2, array_size, array_start, array_end, reduction_var, type, async, call, ret_event);
+		else {
+		  fprintf(stderr, "CUDA backend improperly loaded or missing symbol \"cuda_dotProd\"\n");
+		  //FIXME output a real error code
+		  ret = -1;
+	  	}
 		}
-#endif
+		break;
 
 		case metaModePreferOpenCL:
 		{
@@ -1204,7 +1233,7 @@ a_err meta_reduce_cb(a_dim3 * grid_size, a_dim3 * block_size, void * data,
 
 #ifdef WITH_TIMERS
         metaTimerQueueFrame * frame;
-	if (run_mode != metaModePreferOpenCL) {
+	if (run_mode != metaModePreferOpenCL && run_mode != metaModePreferCUDA) {
 	frame = (metaTimerQueueFrame*)malloc (sizeof(metaTimerQueueFrame));
 	frame->mode = run_mode;
 	frame->size = (*array_size)[0]*(*array_size)[1]*(*array_size)[2]*get_atype_size(type);
@@ -1216,18 +1245,16 @@ a_err meta_reduce_cb(a_dim3 * grid_size, a_dim3 * block_size, void * data,
 		//TODO implement a generic reduce
 		break;
 
-#ifdef WITH_CUDA
-		case metaModePreferCUDA: {
-#ifdef WITH_TIMERS
-			ret = (a_err) cuda_reduce(grid_size, block_size, data, array_size, array_start, array_end, reduction_var, type, async, &(frame->event.cuda));
-#else
-			ret = (a_err) cuda_reduce(grid_size, block_size, data, array_size, array_start, array_end, reduction_var, type, async, NULL);
-#endif
-			//If a callback is provided, register it immediately after returning from enqueuing the kernel
-			if ((void*)call != NULL && call_pl != NULL) cudaStreamAddCallback(0, call->cudaCallback, call_pl, 0);
-			break;
+		case metaModePreferCUDA:
+		{
+		if (cuda_symbols.cuda_reduce != NULL) ret = (*(cuda_symbols.cuda_reduce))(grid_size, block_size, data, array_size, array_start, array_end, reduction_var, type, async, call, ret_event);
+		else {
+		  fprintf(stderr, "CUDA backend improperly loaded or missing symbol \"cuda_reduce\"\n");
+		  //FIXME output a real error code
+		  ret = -1;
+	  	}
 		}
-#endif
+		break;
 
 		case metaModePreferOpenCL:
 		{
@@ -1258,7 +1285,7 @@ a_err meta_reduce_cb(a_dim3 * grid_size, a_dim3 * block_size, void * data,
 #endif
 	}
 #ifdef WITH_TIMERS
-	if (run_mode != metaModePreferOpenCL) {
+	if (run_mode != metaModePreferOpenCL && run_mode != metaModePreferCUDA) {
 	metaTimerEnqueue(frame, &(metaBuiltinQueues[k_reduce]));
 	}
 #endif
@@ -1360,7 +1387,7 @@ a_err meta_transpose_face_cb(a_dim3 * grid_size, a_dim3 * block_size,
 	}
 #ifdef WITH_TIMERS
         metaTimerQueueFrame * frame;
-	if (run_mode != metaModePreferOpenCL) {
+	if (run_mode != metaModePreferOpenCL && run_mode != metaModePreferCUDA) {
 	frame = (metaTimerQueueFrame*)malloc (sizeof(metaTimerQueueFrame));
 	frame->mode = run_mode;
 	frame->size = (*tran_dim_xy)[0]*(*tran_dim_xy)[1]*get_atype_size(type);
@@ -1372,18 +1399,16 @@ a_err meta_transpose_face_cb(a_dim3 * grid_size, a_dim3 * block_size,
 		//TODO implement a generic reduce
 		break;
 
-#ifdef WITH_CUDA
-		case metaModePreferCUDA: {
-#ifdef WITH_TIMERS
-			ret = (a_err) cuda_transpose_face(grid_size, block_size, indata, outdata, arr_dim_xy, tran_dim_xy, type, async, &(frame->event.cuda));
-#else
-			ret = (a_err) cuda_transpose_face(grid_size, block_size, indata, outdata, arr_dim_xy, tran_dim_xy, type, async, NULL);
-#endif
-			//If a callback is provided, register it immediately after returning from enqueuing the kernel
-			if ((void*)call != NULL && call_pl != NULL) cudaStreamAddCallback(0, call->cudaCallback, call_pl, 0);
-			break;
+		case metaModePreferCUDA:
+		{
+		if (cuda_symbols.cuda_transpose_face != NULL) ret = (*(cuda_symbols.cuda_transpose_face))(grid_size, block_size, indata, outdata, arr_dim_xy, tran_dim_xy, type, async, call, ret_event);
+		else {
+		  fprintf(stderr, "CUDA backend improperly loaded or missing symbol \"cuda_transpose_face\"\n");
+		  //FIXME output a real error code
+		  ret = -1;
+	  	}
 		}
-#endif
+		break;
 
 		case metaModePreferOpenCL:
 		{
@@ -1415,7 +1440,7 @@ a_err meta_transpose_face_cb(a_dim3 * grid_size, a_dim3 * block_size,
 #endif
 	}
 #ifdef WITH_TIMERS
-	if (run_mode != metaModePreferOpenCL) {
+	if (run_mode != metaModePreferOpenCL && run_mode != metaModePreferCUDA) {
 	metaTimerEnqueue(frame, &(metaBuiltinQueues[k_transpose_2d_face]));
 	}
 #endif
@@ -1448,7 +1473,7 @@ a_err meta_pack_face_cb(a_dim3 * grid_size, a_dim3 * block_size,
 	}
 #ifdef WITH_TIMERS
         metaTimerQueueFrame * frame_k1, * frame_c1, * frame_c2, * frame_c3;
-	if (run_mode != metaModePreferOpenCL) {
+	if (run_mode != metaModePreferOpenCL && run_mode != metaModePreferCUDA) {
 	//TODO: Add another queue for copies into constant memory
 	//TODO: Hoist copies into constant memory out of the cores to here
 	frame_k1 = (metaTimerQueueFrame*)malloc (sizeof(metaTimerQueueFrame));
@@ -1494,18 +1519,16 @@ a_err meta_pack_face_cb(a_dim3 * grid_size, a_dim3 * block_size,
 		//TODO implement a generic reduce
 		break;
 
-#ifdef WITH_CUDA
-		case metaModePreferCUDA: {
-#ifdef WITH_TIMERS
-			ret = (a_err) cuda_pack_face(grid_size, block_size, packed_buf, buf, face, remain_dim, type, async, &(frame_k1->event.cuda), &(frame_c1->event.cuda), &(frame_c2->event.cuda), &(frame_c3->event.cuda));
-#else
-			ret = (a_err) cuda_pack_face(grid_size, block_size, packed_buf, buf, face, remain_dim, type, async, NULL, NULL, NULL, NULL);
-#endif
-			//If a callback is provided, register it immediately after returning from enqueuing the kernel
-			if ((void*)call != NULL && call_pl != NULL) cudaStreamAddCallback(0, call->cudaCallback, call_pl, 0);
-			break;
+		case metaModePreferCUDA:
+		{
+		if (cuda_symbols.cuda_pack_face != NULL) ret = (*(cuda_symbols.cuda_pack_face))(grid_size, block_size, packed_buf, buf, face, remain_dim, type, async, call, ret_event_k1, ret_event_c1, ret_event_c2, ret_event_c3);
+		else {
+		  fprintf(stderr, "CUDA backend improperly loaded or missing symbol \"cuda_pack_face\"\n");
+		  //FIXME output a real error code
+		  ret = -1;
+	  	}
 		}
-#endif
+		break;
 
 		case metaModePreferOpenCL:
 		{
@@ -1542,7 +1565,7 @@ a_err meta_pack_face_cb(a_dim3 * grid_size, a_dim3 * block_size,
 #endif
 	}
 #ifdef WITH_TIMERS
-	if (run_mode != metaModePreferOpenCL) {
+	if (run_mode != metaModePreferOpenCL && run_mode != metaModePreferCUDA) {
 	//TODO Add queue c_H2Dc for copies into constant memory
 	metaTimerEnqueue(frame_k1, &(metaBuiltinQueues[k_pack_2d_face]));
 	metaTimerEnqueue(frame_c1, &(metaBuiltinQueues[c_H2Dc]));
@@ -1580,7 +1603,7 @@ a_err meta_unpack_face_cb(a_dim3 * grid_size, a_dim3 * block_size,
 	}
 #ifdef WITH_TIMERS
         metaTimerQueueFrame * frame_k1, * frame_c1, * frame_c2, * frame_c3;
-	if (run_mode != metaModePreferOpenCL) {
+	if (run_mode != metaModePreferOpenCL && run_mode != metaModePreferCUDA) {
 	//TODO: Add another queue for copies into constant memory
 	//TODO: Hoist copies into constant memory out of the cores to here
 	frame_k1 = (metaTimerQueueFrame*)malloc (sizeof(metaTimerQueueFrame));
@@ -1617,18 +1640,16 @@ a_err meta_unpack_face_cb(a_dim3 * grid_size, a_dim3 * block_size,
 		//TODO implement a generic reduce
 		break;
 
-#ifdef WITH_CUDA
-		case metaModePreferCUDA: {
-#ifdef WITH_TIMERS
-			ret = (a_err) cuda_unpack_face(grid_size, block_size, packed_buf, buf, face, remain_dim, type, async, &(frame_k1->event.cuda), &(frame_c1->event.cuda), &(frame_c2->event.cuda), &(frame_c3->event.cuda));
-#else
-			ret = (a_err) cuda_unpack_face(grid_size, block_size, packed_buf, buf, face, remain_dim, type, async, NULL, NULL, NULL, NULL);
-#endif
-			//If a callback is provided, register it immediately after returning from enqueuing the kernel
-			if ((void*)call != NULL && call_pl != NULL) cudaStreamAddCallback(0, call->cudaCallback, call_pl, 0);
-			break;
+		case metaModePreferCUDA:
+		{
+		if (cuda_symbols.cuda_unpack_face != NULL) ret = (*(cuda_symbols.cuda_unpack_face))(grid_size, block_size, packed_buf, buf, face, remain_dim, type, async, call, ret_event_k1, ret_event_c1, ret_event_c2, ret_event_c3);
+		else {
+		  fprintf(stderr, "CUDA backend improperly loaded or missing symbol \"cuda_unpack_face\"\n");
+		  //FIXME output a real error code
+		  ret = -1;
+	  	}
 		}
-#endif
+		break;
 
 		case metaModePreferOpenCL:
 		{
@@ -1665,7 +1686,7 @@ a_err meta_unpack_face_cb(a_dim3 * grid_size, a_dim3 * block_size,
 #endif
 	}
 #ifdef WITH_TIMERS
-	if (run_mode != metaModePreferOpenCL) {
+	if (run_mode != metaModePreferOpenCL && run_mode != metaModePreferCUDA) {
 	//TODO Add queue c_H2Dc for copies into constant memory
 	metaTimerEnqueue(frame_k1, &(metaBuiltinQueues[k_unpack_2d_face]));
 	metaTimerEnqueue(frame_c1, &(metaBuiltinQueues[c_H2Dc]));
@@ -1769,7 +1790,7 @@ a_err meta_stencil_3d7p_cb(a_dim3 * grid_size, a_dim3 * block_size,
 
 #ifdef WITH_TIMERS
         metaTimerQueueFrame * frame;
-	if (run_mode != metaModePreferOpenCL) {
+	if (run_mode != metaModePreferOpenCL && run_mode != metaModePreferCUDA) {
 	frame = (metaTimerQueueFrame*)malloc (sizeof(metaTimerQueueFrame));
 	frame->mode = run_mode;
 	frame->size = (*array_size)[0]*(*array_size)[1]*(*array_size)[2]*get_atype_size(type);
@@ -1781,18 +1802,16 @@ a_err meta_stencil_3d7p_cb(a_dim3 * grid_size, a_dim3 * block_size,
 		//TODO implement a generic reduce
 		break;
 
-#ifdef WITH_CUDA
-		case metaModePreferCUDA: {
-#ifdef WITH_TIMERS
-			ret = (a_err) cuda_stencil_3d7p(grid_size, block_size, indata, outdata, array_size, array_start, array_end, type, async, &(frame->event.cuda));
-#else
-			ret = (a_err) cuda_stencil_3d7p(grid_size, block_size, indata, outdata, array_size, array_start, array_end, type, async, NULL);
-#endif
-			//If a callback is provided, register it immediately after returning from enqueuing the kernel
-			if ((void*)call != NULL && call_pl != NULL) cudaStreamAddCallback(0, call->cudaCallback, call_pl, 0);
-			break;
+		case metaModePreferCUDA:
+		{
+		if (cuda_symbols.cuda_stencil_3d7p != NULL) ret = (*(cuda_symbols.cuda_stencil_3d7p))(grid_size, block_size, indata, outdata, array_size, array_start, array_end, type, async, call, ret_event);
+		else {
+		  fprintf(stderr, "CUDA backend improperly loaded or missing symbol \"cuda_stencil_3d7p\"\n");
+		  //FIXME output a real error code
+		  ret = -1;
+	  	}
 		}
-#endif
+		break;
 
 		case metaModePreferOpenCL:
 		{
@@ -1823,7 +1842,7 @@ a_err meta_stencil_3d7p_cb(a_dim3 * grid_size, a_dim3 * block_size,
 #endif
 	}
 #ifdef WITH_TIMERS
-	if (run_mode != metaModePreferOpenCL) {
+	if (run_mode != metaModePreferOpenCL && run_mode != metaModePreferCUDA) {
 	metaTimerEnqueue(frame, &(metaBuiltinQueues[k_stencil_3d7p]));
 	}
 #endif
@@ -1859,11 +1878,9 @@ a_err meta_csr_cb(a_dim3 * grid_size, a_dim3 * block_size, size_t global_size, v
 		//TODO implement a generic reduce
 		break;
 
-#ifdef WITH_CUDA
 		case metaModePreferCUDA:
 		fprintf(stderr, "CUDA CSR Not yet supported\n"); 
 		break;
-#endif
 
 		case metaModePreferOpenCL:
 		{
@@ -1920,11 +1937,9 @@ a_err meta_crc_cb(a_dim3 * grid_size, a_dim3 * block_size, void * dev_input, int
 		//TODO implement a generic reduce
 		break;
 
-#ifdef WITH_CUDA
 		case metaModePreferCUDA: 
 		fprintf(stderr, "CUDA CRC Not yet supported\n");
 		break;
-#endif
 
 		case metaModePreferOpenCL:
 		{

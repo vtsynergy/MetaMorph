@@ -67,7 +67,7 @@ CUDA_LIB_DIR=
 else
 #found
 CUDA_LIB_DIR=$(patsubst %/bin/nvcc,%,$(shell which nvcc))/$(if ARCH_64,lib64,lib)
-NVCC=nvcc
+NVCC="nvcc -ccbin gcc-4.9"
 endif
 else #User has provided one, check it exists
 ifeq ($(shell test -e $(CUDA_LIB_DIR)/libcudart.so && echo -n yes),yes) #Check if the CUDA libs exist where they told us
