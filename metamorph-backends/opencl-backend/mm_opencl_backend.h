@@ -30,16 +30,8 @@
 #define METAMORPH_OCL_KERNEL_PATH ""
 #endif
 
-#ifdef __OPENCLCC__
-#warning "__OPENCLCC__ defined"
-#endif
-#ifdef __cplusplus
-#warning "__cplusplus_ defined"
-#endif
-#if defined (__OPENCLCC__) || defined (__cplusplus)
+#if defined(__OPENCLCC__) || defined(__cplusplus)
 extern "C" {
-#else
-#error "Not using extern C"
 #endif
 
 //Declare global state variables, they should not be modified by the user

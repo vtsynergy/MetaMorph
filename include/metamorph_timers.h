@@ -30,9 +30,6 @@ typedef union metaTimerEvent {
 #ifdef WITH_CUDA
 	cudaEvent_t cuda[2];
 #endif
-#ifdef OLD_WITH_OPENCL
-	cl_event opencl;
-#endif
 #ifdef WITH_OPENMP
 	double openmp[2];
 #endif

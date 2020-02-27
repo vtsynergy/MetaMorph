@@ -27,6 +27,8 @@ extern "C" {
   a_err metaCUDAFlush();
 a_err metaCUDACreateEvent(void**);
 a_err metaCUDADestroyEvent(void*);
+a_err metaCUDAEventElapsedTime(float*, meta_event);
+void CUDART_CB  metaCUDACallbackHelper(cudaStream_t, cudaError_t, void *);
 a_err metaCUDAExpandCallback(meta_callback call, cudaStream_t * ret_stream, cudaError_t * ret_status, void** ret_data);
   a_err metaCUDARegisterCallback(meta_callback *);
   a_err cuda_dotProd(size_t (*)[3], size_t (*)[3], void *, void *, size_t (*)[3], size_t (*)[3], size_t (*)[3], void *, meta_type_id, int, meta_callback *, meta_event *);

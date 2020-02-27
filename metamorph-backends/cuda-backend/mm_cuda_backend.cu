@@ -760,7 +760,7 @@ a_err metaCUDAFree(void * ptr) {
 	//TODO if we do event copy, assign it back to the callbnack/ret_event here
   return ret;
 }
-  a_err metaCUDADevCopy(void*, void*, size_t, a_bool, meta_callback*, meta_event *) {
+  a_err metaCUDADevCopy(void * dst, void * src, size_t size, a_bool async, meta_callback * call, meta_event * ret_event) {
   a_err ret = cudaSuccess;
   cudaEvent_t * events = NULL;
   if (ret_event != NULL && ret_event->mode == metaModePreferCUDA && ret_event->event_pl != NULL) {
@@ -807,7 +807,7 @@ a_err metaCUDACurrDev(a_int * accel) {
   return cudaGetDevice(accel);
 }
 //FIXME Implement
-  a_err metaCUDAMaxWorkSizes(a_dim3*, a_dim3*) {
+a_err metaCUDAMaxWorkSizes(a_dim3*, a_dim3*) {
   a_err ret = cudaSuccess;
   fprintf(stderr, "metaCUDAMaxWorkSizes unimplemented\n");
   return -1;

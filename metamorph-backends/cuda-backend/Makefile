@@ -1,4 +1,4 @@
-mm_cuda_backend.o:
+mm_cuda_backend.o: mm_cuda_backend.cu
 	$(NVCC) mm_cuda_backend.cu $(OPT_LVL) -c -Xcompiler -fPIC $(INCLUDES) -o mm_cuda_backend.o -D __CUDACC__ -arch sm_20
 
 libmm_cuda_backend.so: mm_cuda_backend.o
