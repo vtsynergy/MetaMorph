@@ -368,25 +368,6 @@ a_err finish_mpi_requests() {
 	}
 }
 
-#ifdef WITH_CUDA
-void CUDART_CB cuda_sp_isend_cb(cudaStream_t stream, cudaError_t status, void *data) {
-	sp_callback_payload * call_pl = (sp_callback_payload *)data;
-	size_t type_size;
-	MPI_Datatype mpi_type = get_mpi_type(call_pl->type, &type_size);
-	MPI_Isend(call_pl->host_packed_buf, call_pl->buf_leng, mpi_type, call_pl->dst_rank, call_pl->tag, MPI_COMM_WORLD, call_pl->req);
-	//Assemble a request
-	request_record * rec = (request_record *) pool_alloc(sizeof(request_record), 0);
-	rec->sp_rec.req = call_pl->req;
-	rec->sp_rec.host_packed_buf = call_pl->host_packed_buf;
-	rec->sp_rec.buf_size = call_pl->buf_leng*type_size;
-	//and submit it
-	register_mpi_request(sp_rec, rec);
-	//once registered, all the params are copied, so the record can be freed
-	pool_free(rec, sizeof(request_record), 0);
-	//once the Isend is invoked and the request is submitted, we can remove the payload
-	pool_free(data, sizeof(sp_callback_payload), 0);
-}
-#endif //WITH_CUDA
 void sp_isend_cb(meta_callback * data) {
 	sp_callback_payload * call_pl = (sp_callback_payload *)(data->data_payload);
 	size_t type_size;
@@ -421,7 +402,6 @@ a_err meta_mpi_packed_face_send(int dst_rank, void *packed_buf, size_t buf_leng,
 	MPI_Datatype mpi_type = get_mpi_type(type, &type_size);
 	//If we have GPUDirect, simply copy the device buffer diectly
 #ifdef WITH_MPI_GPU_DIRECT
-#ifdef WITH_CUDA
 	if (run_mode == metaModePreferCUDA) {
 		//send directly
 		//FIXME: add other data types
@@ -434,7 +414,6 @@ a_err meta_mpi_packed_face_send(int dst_rank, void *packed_buf, size_t buf_leng,
 		}
 
 	} else
-#endif //WITH_CUDA
 	{
 #endif //WITH_MPI_GPU_DIRECT
 	//otherwise..
@@ -449,16 +428,6 @@ a_err meta_mpi_packed_face_send(int dst_rank, void *packed_buf, size_t buf_leng,
 				sizeof(meta_callback), 0);
 		call->callback_mode = run_mode;
 		call->callback_func = sp_isend_cb;
-		switch (run_mode) {
-#ifdef WITH_CUDA
-		case metaModePreferCUDA:
-		call->cudaCallback = cuda_sp_isend_cb;
-		break;
-#endif //WITH_CUDA
-		default:
-			//TODO: Do something
-			break;
-		}
 		//Assemble the callback's necessary data elements
 		sp_callback_payload * call_pl = (sp_callback_payload *) pool_alloc(
 				sizeof(sp_callback_payload), 0);
@@ -495,13 +464,6 @@ void free_host_cb(meta_callback * data) {
 	pool_free(call_pl, sizeof(rp_callback_payload), 0);
 	pool_free(data, sizeof(meta_callback), 0);
 }
-#ifdef WITH_CUDA
-void CUDART_CB cuda_free_host_cb(cudaStream_t stream, cudaError_t status, void *data) {
-	rp_callback_payload * call_pl = (rp_callback_payload *)data;
-	pool_free(call_pl->host_packed_buf, call_pl->buf_size, 1);
-	pool_free(data, sizeof(rp_callback_payload), 0);
-}
-#endif //WITH_CUDA
 
 void rp_helper(request_record * rp_request) {
 	//Paul, added this short circuit to prevent GPU-direct RPs from trying to do a H2D copy and free a host buffer
@@ -514,16 +476,6 @@ void rp_helper(request_record * rp_request) {
 			0);
 	call->callback_mode = run_mode; 
 	call->callback_func = free_host_cb;
-	switch (run_mode) {
-#ifdef WITH_CUDA
-	case metaModePreferCUDA:
-	call->cudaCallback = cuda_free_host_cb;
-	break;
-#endif //WITH_CUDA
-	default:
-		//TODO: Do something
-		break;
-	}
 	rp_callback_payload * call_pl = (rp_callback_payload *) pool_alloc(
 			sizeof(rp_callback_payload), 0);
 	call_pl->host_packed_buf = rp_request->rp_rec.host_packed_buf;
@@ -545,7 +497,6 @@ a_err meta_mpi_packed_face_recv(int src_rank, void *packed_buf, size_t buf_leng,
 
 	//If we have GPUDriect, simply receive directly to the device buffer
 #ifdef WITH_MPI_GPU_DIRECT
-#ifdef WITH_CUDA
 	if (run_mode == metaModePreferCUDA) {
 		//Do something
 		//FIXME: Support types other than double
@@ -569,7 +520,6 @@ a_err meta_mpi_packed_face_recv(int src_rank, void *packed_buf, size_t buf_leng,
 			MPI_Recv(packed_buf, buf_leng, mpi_type, src_rank, tag, MPI_COMM_WORLD, &status);
 		}
 	} else
-#endif //WITH_CUDA
 	{
 #endif //WITH_MPI_GPU_DIRECT
 	//otherwise..	
@@ -608,9 +558,8 @@ a_err meta_mpi_packed_face_recv(int src_rank, void *packed_buf, size_t buf_leng,
 #endif // WITH_MPI_GPU_DIRECT
 }
 
-#ifdef WITH_CUDA
-void CUDART_CB cuda_sap_isend_cb(cudaStream_t stream, cudaError_t status, void *data) {
-	sap_callback_payload * call_pl = (sap_callback_payload *)data;
+void sap_isend_cb(meta_callback * data) {
+	sap_callback_payload * call_pl = (sap_callback_payload *)(data->data_payload);
 	size_t type_size;
 	MPI_Datatype mpi_type = get_mpi_type(call_pl->type, &type_size);
 	if (call_pl->host_packed_buf != NULL) { //No GPUDirect
@@ -620,26 +569,6 @@ void CUDART_CB cuda_sap_isend_cb(cudaStream_t stream, cudaError_t status, void *
 		//GPUDirect send requires CUDA API calls, forbidden in callbacks
 		MPI_Isend(call_pl->dev_packed_buf, call_pl->buf_leng, mpi_type, call_pl->dst_rank, call_pl->tag, MPI_COMM_WORLD, call_pl->req);
 	}
-	//Assemble a request
-	request_record * rec = (request_record *) pool_alloc(sizeof(request_record), 0);
-	rec->sap_rec.req = call_pl->req;
-	rec->sap_rec.host_packed_buf = call_pl->host_packed_buf;
-	rec->sap_rec.dev_packed_buf = call_pl->dev_packed_buf;
-	rec->sap_rec.buf_size = type_size*call_pl->buf_leng;
-	//and submit it
-	register_mpi_request(sap_rec, rec);
-	//once registered, all the params are copied, so the record can be freed
-	pool_free(rec, sizeof(request_record), 0);
-	//once the Isend is invoked and the request is submitted, we can remove the payload
-	pool_free(call_pl, sizeof(sap_callback_payload), 0);
-	pool_free(data, sizeof(meta_callback), 0);
-}
-#endif //WITH_CUDA
-void sap_isend_cb(meta_callback * data) {
-	sap_callback_payload * call_pl = (sap_callback_payload *)(data->data_payload);
-	size_t type_size;
-	MPI_Datatype mpi_type = get_mpi_type(call_pl->type, &type_size);
-	MPI_Isend(call_pl->host_packed_buf, call_pl->buf_leng, mpi_type, call_pl->dst_rank, call_pl->tag, MPI_COMM_WORLD, call_pl->req);
 	//Assemble a request
 	request_record * rec = (request_record *) pool_alloc(sizeof(request_record), 0);
 	rec->sap_rec.req = call_pl->req;
@@ -689,14 +618,14 @@ a_err meta_mpi_pack_and_send_face(a_dim3 *grid_size, a_dim3 *block_size,
 
 	//do a send, if asynchronous, this should be a callback for when the async D2H copy finishes
 #ifdef WITH_MPI_GPU_DIRECT
-#ifdef WITH_CUDA
 	//GPUDirect version
 	if (run_mode == metaModePreferCUDA) {
 		//FIXME: add other data types
 		if(async) {
 			//TODO: Move this into a callback for meta_pack_face_cb
 			meta_callback * call = (meta_callback*) pool_alloc(sizeof(meta_callback), 0);
-			call->cudaCallback = cuda_sap_isend_cb;
+			call->callback_func = sap_isend_cb;
+			call->callback_mode = metaModePreferCUDA;
 			//Assemble the callback's necessary data elements
 			sap_callback_payload * call_pl = (sap_callback_payload *) pool_alloc(sizeof(sap_callback_payload), 0);
 			FIXME(GPUDirect PAS needs host buffer now);
@@ -719,7 +648,6 @@ a_err meta_mpi_pack_and_send_face(a_dim3 *grid_size, a_dim3 *block_size,
 			//meta_free(packed_buf);
 		}
 	} else
-#endif //WITH_CUDA
 	{
 #endif //WITH_MPI_GPU_DIRECT
 
@@ -732,16 +660,6 @@ a_err meta_mpi_pack_and_send_face(a_dim3 *grid_size, a_dim3 *block_size,
 				sizeof(meta_callback), 0);
 		call->callback_mode = run_mode;
 		call->callback_func = sap_isend_cb;
-		switch (run_mode) {
-#ifdef WITH_CUDA
-		case metaModePreferCUDA:
-		call->cudaCallback = cuda_sap_isend_cb;
-		break;
-#endif //WITH_CUDA
-		default:
-			//TODO: Do something
-			break;
-		}
 		//Assemble the callback's necessary data elements
 		sap_callback_payload * call_pl = (sap_callback_payload *) pool_alloc(
 				sizeof(sap_callback_payload), 0);
@@ -781,15 +699,6 @@ void rap_freebufs_cb(meta_callback * data) {
 	pool_free(call_pl, sizeof(rap_callback_payload), 0);
 	pool_free(data, sizeof(meta_callback), 0);
 }
-#ifdef WITH_CUDA
-void CUDART_CB cuda_rap_freebufs_cb(cudaStream_t stream, cudaError_t status, void *data) {
-	rap_callback_payload * call_pl = (rap_callback_payload *)data;
-	if (call_pl->host_packed_buf != NULL) pool_free(call_pl->host_packed_buf, call_pl->buf_size, 1);
-	//I'm not sure this should be removed, now that we rely on the user to provide staging buffs (to save reallocing)
-	//FIXME(free(call_pl->packed_buf););
-	pool_free(data, sizeof(rap_callback_payload), 0);
-}
-#endif //WITH_CUDA
 
 void rap_helper(request_record *rap_request) {
 	//printf("RAP_HELPER FIRED!\n");
@@ -799,16 +708,6 @@ void rap_helper(request_record *rap_request) {
 			0);
 	call->callback_mode = run_mode;
 	call->callback_func = rap_freebufs_cb;
-	switch (run_mode) {
-#ifdef WITH_CUDA
-	case metaModePreferCUDA:
-	call->cudaCallback = cuda_rap_freebufs_cb;
-	break;
-#endif //WITH_CUDA
-	default:
-		//TODO: Do something
-		break;
-	}
 	//and invoke the async copy with the callback specified and the host pointer as the payload
 	rap_callback_payload * call_pl = (rap_callback_payload *) pool_alloc(
 			sizeof(rap_callback_payload), 0);
@@ -884,7 +783,6 @@ a_err meta_mpi_recv_and_unpack_face(a_dim3 * grid_size, a_dim3 * block_size,
 	//a_err error = meta_alloc(&packed_buf, size*type_size);
 	MPI_Status status; //FIXME: Should this be a function param?
 #ifdef WITH_MPI_GPU_DIRECT
-#ifdef WITH_CUDA
 	//GPUDirect version
 	if (run_mode == metaModePreferCUDA) {
 		if(async) {
@@ -914,7 +812,6 @@ a_err meta_mpi_recv_and_unpack_face(a_dim3 * grid_size, a_dim3 * block_size,
 			MPI_Recv(packed_buf, size, mpi_type, src_rank, tag, MPI_COMM_WORLD, &status);
 		}
 	} else
-#endif //WITH_CUDA
 	{
 #endif //WITH_MPI_GPU_DIRECT
 

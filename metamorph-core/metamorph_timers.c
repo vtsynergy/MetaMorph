@@ -6,6 +6,10 @@ metaTimerQueue metaBuiltinQueues[queue_count];
 a_bool __meta_timers_initialized = false;
 extern struct backend_handles backends;
 
+struct cuda_dyn_ptrs_profiling {
+  a_err (* metaCUDAEventElapsedTime)(float *, meta_event);
+};
+struct cuda_dyn_ptrs_profiling cuda_timing_funcs = {NULL};
 struct opencl_dyn_ptrs_profiling {
   a_err (* metaOpenCLEventStartTime)(meta_event, unsigned long *);
   a_err (* metaOpenCLEventEndTime)(meta_event, unsigned long *);
@@ -271,6 +275,10 @@ __attribute__((constructor(104))) a_err metaTimersInit() {
 	metaBuiltinQueues[k_crc].head->mode = metaModeUnset;
 	metaBuiltinQueues[k_crc].head->next = NULL;
 	metaBuiltinQueues[k_crc].name = "crc kernel call";
+  if (backends.cuda_be_handle != NULL) {
+    CHECKED_DLSYM("libmm_cuda_backend.so", backends.cuda_be_handle, "metaCUDAEventElapsedTime", cuda_timing_funcs.metaCUDAEventElapsedTime);
+    fprintf(stderr, "CUDA timing functions found\n");
+  }
   if (backends.opencl_be_handle != NULL) {
     CHECKED_DLSYM("libmm_opencl_backend.so", backends.opencl_be_handle, "metaOpenCLEventStartTime", opencl_timing_funcs.metaOpenCLEventStartTime);
     CHECKED_DLSYM("libmm_opencl_backend.so", backends.opencl_be_handle, "metaOpenCLEventEndTime", opencl_timing_funcs.metaOpenCLEventEndTime);
@@ -315,7 +323,7 @@ void flushWorker(metaTimerQueue * queue, int level) {
 #ifdef WITH_CUDA
 			else if (frame->mode == metaModePreferCUDA) {
 				//TODO add a check to cudaEventQuery to make sure frame->event.cuda[1] is finished
-				cudaEventElapsedTime(&temp_t, frame->event.cuda[0], frame->event.cuda[1]);
+				if(cuda_timing_funcs.metaCUDAEventElapsedTime != NULL) ret = (*(cuda_timing_funcs.metaCUDAEventElapsedTime))(&temp_t, frame->event);
 			}
 #endif
 			else if (frame->mode == metaModePreferOpenCL) {

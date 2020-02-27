@@ -825,12 +825,23 @@ a_err metaCUDACreateEvent(void** ret_event) {
   else ret = cudaErrorInvalidValue;
   return ret;
 }
+
 a_err metaCUDADestroyEvent(void * event) {
   a_err ret = cudaSuccess;
   if (event != NULL) {
     ret = cudaEventDestroy(((cudaEvent_t*)event)[0]);
     ret |= cudaEventDestroy(((cudaEvent_t*)event)[1]);
     free(event);
+  }
+  else ret = cudaErrorInvalidValue;
+  return ret;
+}
+
+a_err metaCUDAEventElapsedTime(float * ret_ms, meta_event event) {
+  a_err ret = cudaSuccess;
+  if (ret_ms != NULL && event.event_pl != NULL) {
+    cudaEvent_t * events = (cudaEvent_t *)event.event_pl;
+    ret = cudaEventElapsedTime(ret_ms, events[0], events[1]);
   }
   else ret = cudaErrorInvalidValue;
   return ret;

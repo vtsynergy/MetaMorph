@@ -53,8 +53,6 @@
 #define POOL_MASK (META_MPI_POOL_SIZE - 1)
 
 //Any special concerns
-#ifdef WITH_CUDA
-#endif
 
 #ifdef WITH_OPENMP
 #endif
