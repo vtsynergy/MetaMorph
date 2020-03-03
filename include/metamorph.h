@@ -103,12 +103,6 @@ meta_face * make_slab_from_3d(int face, int ni, int nj, int nk, int thickness);
 // are selected, rather if none of their supported back-end are selected,
 // they should just define down to a NOOP.
 
-#ifdef WITH_OPENMP
-#ifndef METAMORPH_OPENMP_BACKEND_H
-#include "mm_openmp_backend.h"
-#endif
-#endif
-
 //TODO move all these typedefs, the generic types need to be runtime controlled
 //TODO should generic "accelerator" types be typedefs, unions, ...?
 //TODO implement generic accelerators types so an accelerator model
@@ -147,9 +141,7 @@ typedef enum {
 	metaModeUnset = -1,
 metaModePreferCUDA = 1,
 metaModePreferOpenCL = 2,
-#ifdef WITH_OPENMP
 metaModePreferOpenMP = 3,
-#endif
 	metaModePreferGeneric = 0
 } meta_preferred_mode;
 
@@ -185,6 +177,7 @@ typedef struct a_module_record {
 //A storage struct for dynamically loaded library handles, not meant for users but needs to be exposed to the plugins
 struct backend_handles {
   void * openmp_be_handle;
+  void * openmp_lib_handle;
   void * opencl_be_handle;
   void * opencl_lib_handle;
   void * cuda_be_handle;

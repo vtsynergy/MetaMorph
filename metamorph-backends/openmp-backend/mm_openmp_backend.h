@@ -2,6 +2,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <time.h>
 
 /** OpenMP Back-End **/
 #ifndef METAMORPH_OPENMP_BACKEND_H
@@ -11,32 +12,28 @@
 #include "metamorph.h"
 #endif
 
+typedef struct timeval openmpEvent;
+
 #ifdef __OPENMPCC__
 extern "C" {
 #endif
+a_err metaOpenMPAlloc(void **, size_t);
+a_err metaOpenMPFree(void * ptr);
+a_err metaOpenMPWrite(void *, void *, size_t, a_bool, meta_callback *, meta_event *);
+a_err metaOpenMPRead(void *, void *, size_t, a_bool, meta_callback *, meta_event *);
+a_err metaOpenMPDevCopy(void *, void *, size_t, a_bool, meta_callback *, meta_event *);
+a_err metaOpenMPFlush();
+a_err metaOpenMPCreateEvent(void**);
+a_err metaOpenMPDestroyEvent(void*);
+a_err metaOpenMPRegisterCallback(meta_callback *);
 
-int omp_dotProd(size_t (*grid_size)[3], size_t (*block_size)[3], void * data1,
-		void * data2, size_t (*array_size)[3], size_t (*arr_start)[3],
-		size_t (*arr_end)[3], void * reduction_var, meta_type_id type,
-		int async);
-int omp_reduce(size_t (*grid_size)[3], size_t (*block_size)[3], void * data,
-		size_t (*array_size)[3], size_t (*arr_start)[3], size_t (*arr_end)[3],
-		void * reduction_var, meta_type_id type, int async);
+  a_err openmp_dotProd(size_t (*)[3], size_t (*)[3], void *, void *, size_t (*)[3], size_t (*)[3], size_t (*)[3], void *, meta_type_id, int, meta_callback *, meta_event *);
+a_err openmp_reduce(size_t (*)[3], size_t (*)[3], void *, size_t (*)[3], size_t (*)[3], size_t (*)[3], void *, meta_type_id, int, meta_callback *, meta_event *);
+a_err openmp_transpose_face(size_t (*)[3], size_t (*)[3], void *, void *, size_t (*)[3], size_t (*)[3], meta_type_id, int, meta_callback *, meta_event *);
+a_err openmp_pack_face(size_t (*)[3], size_t (*)[3], void *, void *, meta_face *, int *, meta_type_id, int, meta_callback *, meta_event *, meta_event *, meta_event *, meta_event *);
+a_err openmp_unpack_face(size_t (*)[3], size_t (*)[3], void *, void *, meta_face *, int *, meta_type_id, int, meta_callback *, meta_event *, meta_event *, meta_event *, meta_event *);
 
-int omp_transpose_face(size_t (*grid_size)[3], size_t (*block_size)[3],
-		void * indata, void *outdata, size_t (*arr_dim_xy)[3],
-		size_t (*tran_dim_xy)[3], meta_type_id type, int async);
-int omp_pack_face(size_t (*grid_size)[3], size_t (*block_size)[3],
-		void *packed_buf, void *buf, meta_face *face,
-		int *remain_dim, meta_type_id type, int async);
-int omp_unpack_face(size_t (*grid_size)[3], size_t (*block_size)[3],
-		void *packed_buf, void *buf, meta_face *face,
-		int *remain_dim, meta_type_id type, int async);
-
-int omp_stencil_3d7p(size_t (*grid_size)[3], size_t (*block_size)[3],
-		void * indata, void * outdata, size_t (*array_size)[3],
-		size_t (*arr_start)[3], size_t (*arr_end)[3], meta_type_id type,
-		int async);
+a_err openmp_stencil_3d7p(size_t (*)[3], size_t (*)[3], void *, void *, size_t (*)[3], size_t (*)[3], size_t (*)[3], meta_type_id, int, meta_callback *, meta_event *);
 
 int omp_copy_d2d(void *dst, void *src, size_t size, int async);
 

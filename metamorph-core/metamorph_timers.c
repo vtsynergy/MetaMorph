@@ -15,6 +15,10 @@ struct opencl_dyn_ptrs_profiling {
   a_err (* metaOpenCLEventEndTime)(meta_event, unsigned long *);
 };
 struct opencl_dyn_ptrs_profiling opencl_timing_funcs = {NULL};
+struct openmp_dyn_ptrs_profiling {
+  a_err (* metaOpenMPEventElapsedTime)(float *, meta_event);
+};
+struct openmp_dyn_ptrs_profiling openmp_timing_funcs = {NULL};
 
 //TODO Paul:Understand and condense this function, if possible, consider renaming
 a_err cl_get_event_node(metaTimerQueue * queue, char * ename, metaTimerQueueFrame ** frame)
@@ -320,12 +324,10 @@ void flushWorker(metaTimerQueue * queue, int level) {
 			if (frame->mode == metaModePreferGeneric) {
 				//TODO add some generic stuff
 			}
-#ifdef WITH_CUDA
 			else if (frame->mode == metaModePreferCUDA) {
 				//TODO add a check to cudaEventQuery to make sure frame->event.cuda[1] is finished
 				if(cuda_timing_funcs.metaCUDAEventElapsedTime != NULL) ret = (*(cuda_timing_funcs.metaCUDAEventElapsedTime))(&temp_t, frame->event);
 			}
-#endif
 			else if (frame->mode == metaModePreferOpenCL) {
 				//TODO add a check via clGetEventInfo to make sure the event has completed
 		if (opencl_timing_funcs.metaOpenCLEventStartTime != NULL) ret = (*(opencl_timing_funcs.metaOpenCLEventStartTime))(frame->event, &start);
@@ -333,11 +335,9 @@ void flushWorker(metaTimerQueue * queue, int level) {
 				temp_t = (end-start)*0.000001;
 
 			}
-#ifdef WITH_OPENMP
 			else if (frame->mode == metaModePreferOpenMP) {
-				temp_t = (float) ((frame->event.openmp[1] - frame->event.openmp[0]) * 1000.0);
+		if (openmp_timing_funcs.metaOpenMPEventElapsedTime != NULL) ret = (*(openmp_timing_funcs.metaOpenMPEventElapsedTime))(&temp_t, frame->event);
 			}
-#endif
 			//Aggregate times/bandwidth across all 
 		}
 		if (level >= 2) {

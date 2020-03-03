@@ -245,6 +245,25 @@ a_err (* opencl_csr)(size_t (*)[3], size_t (*)[3], size_t, void *, void *, void 
 a_err (* opencl_crc)(void *, int, int, int, void *, meta_type_id, int, meta_callback *, meta_event *);
 };
 struct opencl_dyn_ptrs opencl_symbols = {NULL};
+struct openmp_dyn_ptrs {
+  a_err (* metaOpenMPAlloc)(void**, size_t);
+  a_err (* metaOpenMPFree)(void*);
+  a_err (* metaOpenMPWrite)(void*, void*, size_t, a_bool, meta_callback*, meta_event *);
+  a_err (* metaOpenMPRead)(void*, void*, size_t, a_bool, meta_callback*, meta_event *);
+  a_err (* metaOpenMPDevCopy)(void*, void*, size_t, a_bool, meta_callback*, meta_event *);
+  a_err (* metaOpenMPFlush)();
+  a_err (* metaOpenMPCreateEvent)(void**);
+  a_err (* metaOpenMPDestroyEvent)(void*);
+  a_err (* metaOpenMPRegisterCallback)(meta_callback *);
+  a_err (* openmp_dotProd)(size_t (*)[3], size_t (*)[3], void *, void *, size_t (*)[3], size_t (*)[3], size_t (*)[3], void *, meta_type_id, int, meta_callback *, meta_event *);
+  a_err (* openmp_reduce)(size_t (*)[3], size_t (*)[3], void *, size_t (*)[3], size_t (*)[3], size_t (*)[3], void *, meta_type_id, int, meta_callback *, meta_event *);
+a_err (* openmp_transpose_face)(size_t (*)[3], size_t (*)[3], void *, void *, size_t (*)[3], size_t (*)[3], meta_type_id, int, meta_callback *, meta_event *);
+a_err (* openmp_pack_face)(size_t (*)[3], size_t (*)[3], void *, void *, meta_face *, int *, meta_type_id, int, meta_callback *, meta_event *, meta_event *, meta_event *, meta_event *);
+a_err (* openmp_unpack_face)(size_t (*)[3], size_t (*)[3], void *, void *, meta_face *, int *, meta_type_id, int, meta_callback *, meta_event *, meta_event *, meta_event *, meta_event *);
+a_err (* openmp_stencil_3d7p)(size_t (*)[3], size_t (*)[3], void *, void *, size_t (*)[3], size_t (*)[3], size_t (*)[3], meta_type_id, int, meta_callback *, meta_event *);
+  
+};
+struct openmp_dyn_ptrs openmp_symbols = {NULL};
 
 //Constuctor initializr, should not typically need to be manually called
 //For now it just does the auto-discovery of installed backend .sos to enable capability at runtime based on what's installed
@@ -310,9 +329,27 @@ __attribute__((constructor(101))) void meta_init() {
   //If i understand the dynamic loader correctly, we should not need to explicitly load the runtime libs, they will be pulled in automatically be loading the backend
 //  dlopen("libOpenCL.so", RTLD_NOW | RTLD_GLOBAL);
   backends.openmp_be_handle = dlopen("libmm_openmp_backend.so", RTLD_NOW | RTLD_GLOBAL);
+  backends.openmp_lib_handle = dlopen("libomp.so", RTLD_NOW | RTLD_GLOBAL);
   if (backends.openmp_be_handle == NULL) fprintf(stderr, "No OpenMP backend detected\n");
+  else if (backends.openmp_lib_handle == NULL) fprintf(stderr, "No OpenMP runtime detected\n");
   else {
     core_capability |= module_implements_openmp;
+    CHECKED_DLSYM("libmm_openmp_backend.so", backends.openmp_be_handle, "metaOpenMPAlloc", openmp_symbols.metaOpenMPAlloc);
+    CHECKED_DLSYM("libmm_openmp_backend.so", backends.openmp_be_handle, "metaOpenMPFree", openmp_symbols.metaOpenMPFree);
+    CHECKED_DLSYM("libmm_openmp_backend.so", backends.openmp_be_handle, "metaOpenMPWrite", openmp_symbols.metaOpenMPWrite);
+    CHECKED_DLSYM("libmm_openmp_backend.so", backends.openmp_be_handle, "metaOpenMPRead", openmp_symbols.metaOpenMPRead);
+    CHECKED_DLSYM("libmm_openmp_backend.so", backends.openmp_be_handle, "metaOpenMPDevCopy", openmp_symbols.metaOpenMPDevCopy);
+    CHECKED_DLSYM("libmm_openmp_backend.so", backends.openmp_be_handle, "metaOpenMPFlush", openmp_symbols.metaOpenMPFlush);
+    CHECKED_DLSYM("libmm_openmp_backend.so", backends.openmp_be_handle, "metaOpenMPCreateEvent", openmp_symbols.metaOpenMPCreateEvent);
+    CHECKED_DLSYM("libmm_openmp_backend.so", backends.openmp_be_handle, "metaOpenMPDestroyEvent", openmp_symbols.metaOpenMPDestroyEvent);
+    CHECKED_DLSYM("libmm_openmp_backend.so", backends.openmp_be_handle, "metaOpenMPRegisterCallback", openmp_symbols.metaOpenMPRegisterCallback);
+    CHECKED_DLSYM("libmm_openmp_backend.so", backends.openmp_be_handle, "openmp_dotProd", openmp_symbols.openmp_dotProd);
+    CHECKED_DLSYM("libmm_openmp_backend.so", backends.openmp_be_handle, "openmp_reduce", openmp_symbols.openmp_reduce);
+    CHECKED_DLSYM("libmm_openmp_backend.so", backends.openmp_be_handle, "openmp_transpose_face", openmp_symbols.openmp_transpose_face);
+    CHECKED_DLSYM("libmm_openmp_backend.so", backends.openmp_be_handle, "openmp_pack_face", openmp_symbols.openmp_pack_face);
+    CHECKED_DLSYM("libmm_openmp_backend.so", backends.openmp_be_handle, "openmp_unpack_face", openmp_symbols.openmp_unpack_face);
+    CHECKED_DLSYM("libmm_openmp_backend.so", backends.openmp_be_handle, "openmp_stencil_3d7p", openmp_symbols.openmp_stencil_3d7p);
+
     fprintf(stderr, "OpenMP backend found\n");
   }
   backends.mpi_handle = dlopen("libmm_mpi.so", RTLD_NOW | RTLD_GLOBAL);
@@ -411,17 +448,16 @@ a_err meta_alloc(void ** ptr, size_t size) {
 		}
 		break;
 
-#ifdef WITH_OPENMP
 		case metaModePreferOpenMP:
-#ifdef ALIGNED_MEMORY
-		*ptr = (void *) _mm_malloc(size, ALIGNED_MEMORY_PAGE);
-#else
-		*ptr = (void *) malloc(size);
-#endif
-		if(*ptr != NULL)
-		ret = 0; // success
+		{
+		if (openmp_symbols.metaOpenMPAlloc != NULL) ret = (*(openmp_symbols.metaOpenMPAlloc))(ptr, size);
+		else {
+		  fprintf(stderr, "OpenCL backend improperly loaded or missing symbol \"metaOpenCLAlloc\"\n");
+		  //FIXME output a real error code
+		  ret = -1;
+	  	}
+		}
 		break;
-#endif
 	}
 	return (ret);
 }
@@ -460,15 +496,16 @@ a_err meta_free(void * ptr) {
 		}
 		break;
 
-#ifdef WITH_OPENMP
 		case metaModePreferOpenMP:
-#ifdef ALIGNED_MEMORY
-		_mm_free(ptr);
-#else
-		free(ptr);
-#endif
+		{
+		if (openmp_symbols.metaOpenMPFree != NULL) ret = (*(openmp_symbols.metaOpenMPFree))(ptr);
+		else {
+		  fprintf(stderr, "OpenMP backend improperly loaded or missing symbol \"metaOpenMPFree\"\n");
+		  //FIXME output a real error code
+		  ret = -1;
+	  	}
+		}
 		break;
-#endif
 	}
 	return (ret);
 }
@@ -490,15 +527,6 @@ a_err meta_copy_h2d_cb(void * dst, void * src, size_t size, a_bool async,
 		// char * event_name, cl_event * wait,
 		meta_callback *call, meta_event * ret_event) {
 	a_err ret;
-#ifdef WITH_TIMERS
-        metaTimerQueueFrame * frame;
-	if (run_mode != metaModePreferOpenCL && run_mode != metaModePreferCUDA) {
-	frame = (metaTimerQueueFrame *)malloc (sizeof(metaTimerQueueFrame));
-	frame->mode = run_mode;
-	frame->size = size;
-	//frame->name = event_name;
-	}
-#endif
 	switch (run_mode) {
 	default:
 	case metaModePreferGeneric:
@@ -527,23 +555,16 @@ a_err meta_copy_h2d_cb(void * dst, void * src, size_t size, a_bool async,
 		}
 		break;
 
-#ifdef WITH_OPENMP
 		case metaModePreferOpenMP:
-#ifdef WITH_TIMERS
-		{	struct timeval start, end;
-			gettimeofday(&start, NULL);
-			//		frame->event.openmp[0]= omp_get_wtime();
-#endif
-		memcpy(dst, src, size);
-		ret = 0;
-#ifdef WITH_TIMERS
-		gettimeofday(&end, NULL);
-		frame->event.openmp[0] = (start.tv_usec*0.000001)+start.tv_sec;
-		frame->event.openmp[1] = (end.tv_usec*0.000001)+end.tv_sec;}
-	//		frame->event.openmp[1]= omp_get_wtime();
-#endif
+		{
+		if (openmp_symbols.metaOpenMPWrite != NULL) ret = (*(openmp_symbols.metaOpenMPWrite))(dst, src, size, async, call, ret_event);
+		else {
+		  fprintf(stderr, "OpenMP backend improperly loaded or missing symbol \"metaOpenMPWrite\"\n");
+		  //FIXME output a real error code
+		  ret = -1;
+	  	}
+		}
 		break;
-#endif
 	}
 
 /*
@@ -552,11 +573,6 @@ size_t return_bytes;
 clGetEventProfilingInfo(frame->event.opencl,CL_PROFILING_COMMAND_QUEUED,sizeof(cl_ulong),&start_time,&return_bytes);
 printf("check profiling event '%s' (MM side) %lu\n",frame->name,start_time);
 */
-#ifdef WITH_TIMERS
-	if (run_mode != metaModePreferOpenCL && run_mode != metaModePreferCUDA) {
-	metaTimerEnqueue(frame, &(metaBuiltinQueues[c_H2D]));
-	}
-#endif
 	return (ret);
 }
 
@@ -574,15 +590,6 @@ a_err meta_copy_d2h_cb(void * dst, void * src, size_t size, a_bool async,
 		// char * event_name, cl_event * wait,
 		meta_callback *call, meta_event * ret_event) {
 	a_err ret;
-#ifdef WITH_TIMERS
-        metaTimerQueueFrame * frame;
-	if (run_mode != metaModePreferOpenCL) {
-	frame = (metaTimerQueueFrame*)malloc (sizeof(metaTimerQueueFrame));
-	frame->mode = run_mode;
-	frame->size = size;
-	//frame->name = event_name;
-	}
-#endif
 	switch (run_mode) {
 	default:
 	case metaModePreferGeneric:
@@ -611,29 +618,17 @@ a_err meta_copy_d2h_cb(void * dst, void * src, size_t size, a_bool async,
 		}
 		break;
 
-#ifdef WITH_OPENMP
 		case metaModePreferOpenMP:
-#ifdef WITH_TIMERS
-		{	struct timeval start, end;
-			gettimeofday(&start, NULL);
-			//		frame->event.openmp[0]= omp_get_wtime();
-#endif
-		memcpy(dst, src, size);
-		ret = 0;
-#ifdef WITH_TIMERS
-		gettimeofday(&end, NULL);
-		frame->event.openmp[0] = (start.tv_usec*0.000001)+start.tv_sec;
-		frame->event.openmp[1] = (end.tv_usec*0.000001)+end.tv_sec;}
-	//		frame->event.openmp[1]= omp_get_wtime();
-#endif
+		{
+		if (openmp_symbols.metaOpenMPRead != NULL) ret = (*(openmp_symbols.metaOpenMPRead))(dst, src, size, async, call, ret_event);
+		else {
+		  fprintf(stderr, "OpenMP backend improperly loaded or missing symbol \"metaOpenMPRead\"\n");
+		  //FIXME output a real error code
+		  ret = -1;
+	  	}
+		}
 		break;
-#endif
 	}
-#ifdef WITH_TIMERS
-	if (run_mode != metaModePreferOpenCL) {
-	metaTimerEnqueue(frame, &(metaBuiltinQueues[c_D2H]));
-	}
-#endif
 	return (ret);
 }
 
@@ -651,15 +646,6 @@ a_err meta_copy_d2d_cb(void * dst, void * src, size_t size, a_bool async,
 		// char * event_name, cl_event * wait,
 		meta_callback *call, meta_event * ret_event) {
 	a_err ret;
-#ifdef WITH_TIMERS
-        metaTimerQueueFrame * frame;
-	if (run_mode != metaModePreferOpenCL) {
-	frame = (metaTimerQueueFrame*)malloc (sizeof(metaTimerQueueFrame));
-	frame->mode = run_mode;
-	frame->size = size;
-	//frame->name = event_name;
-	}
-#endif
 	switch (run_mode) {
 	default:
 	case metaModePreferGeneric:
@@ -688,30 +674,17 @@ a_err meta_copy_d2d_cb(void * dst, void * src, size_t size, a_bool async,
 		}
 		break;
 
-#ifdef WITH_OPENMP
 		case metaModePreferOpenMP:
-#ifdef WITH_TIMERS
-		{	struct timeval start, end;
-			gettimeofday(&start, NULL);
-			//		frame->event.openmp[0]= omp_get_wtime();
-#endif
-			//memcpy(dst, src, size);
-			omp_copy_d2d(dst, src, size, async);
-			ret = 0;
-#ifdef WITH_TIMERS
-			gettimeofday(&end, NULL);
-			frame->event.openmp[0] = (start.tv_usec*0.000001)+start.tv_sec;
-			frame->event.openmp[1] = (end.tv_usec*0.000001)+end.tv_sec;}
-		//		frame->event.openmp[1]= omp_get_wtime();
-#endif
+		{
+		if (openmp_symbols.metaOpenMPDevCopy != NULL) ret = (*(openmp_symbols.metaOpenMPDevCopy))(dst, src, size, async, call, ret_event);
+		else {
+		  fprintf(stderr, "OpenMP backend improperly loaded or missing symbol \"metaOpenMPDevCopy\"\n");
+		  //FIXME output a real error code
+		  ret = -1;
+	  	}
+		}
 		break;
-#endif
 	}
-#ifdef WITH_TIMERS
-	if (run_mode != metaModePreferOpenCL) {
-	metaTimerEnqueue(frame, &(metaBuiltinQueues[c_D2D]));
-	}
-#endif
 	return (ret);
 }
 
@@ -734,9 +707,7 @@ if (core_capability | module_implements_opencl) {
 			if (strcmp(getenv("METAMORPH_MODE"), "OpenCL") == 0 || strcmp(getenv("METAMORPH_MODE"), "OpenCL_DEBUG") == 0) return meta_set_acc(accel, metaModePreferOpenCL);
 }
 
-#ifdef WITH_OPENMP
 			if (strcmp(getenv("METAMORPH_MODE"), "OpenMP") == 0) return meta_set_acc(accel, metaModePreferOpenMP);
-#endif
 
 #ifdef WITH_CORETSAR
 			if (strcmp(getenv("METAMORPH_MODE"), "CoreTsar") == 0) {
@@ -754,9 +725,7 @@ if (core_capability | module_implements_opencl) {
 				"Generic Mode only supported with \"METAMORPH_MODE\" environment variable set to one of:\n");
 		if (core_capability | module_implements_cuda) fprintf(stderr, "\"CUDA\"\n");
 		if (core_capability | module_implements_opencl) fprintf(stderr, "\"OpenCL\" (or \"OpenCL_DEBUG\")\n");
-#ifdef WITH_OPENMP
-		fprintf(stderr, "\"OpenMP\"\n");
-#endif
+		if (core_capability | module_implements_openmp) fprintf(stderr, "\"OpenMP\"\n");
 #ifdef WITH_CORETSAR
 		//TODO - Left as a stub to remind us that Generic Mode was intended to be used for
 		// CoreTsar auto configuration across devices/modes
@@ -786,11 +755,9 @@ if (core_capability | module_implements_opencl) {
 		}
 		break;
 
-#ifdef WITH_OPENMP
 		case metaModePreferOpenMP:
 		printf("OpenMP Mode selected\n");
 		break;
-#endif
 	}
 	return (ret);
 }
@@ -831,11 +798,9 @@ a_err meta_get_acc(int * accel, meta_preferred_mode * mode) {
 		}
 		break;
 
-#ifdef WITH_OPENMP
 		case metaModePreferOpenMP:
 		*mode = metaModePreferOpenMP;
 		break;
-#endif
 	}
 	return (ret);
 }
@@ -872,12 +837,10 @@ a_err meta_validate_worksize(a_dim3 * grid_size, a_dim3 * block_size) {
 		}
 		break;
 
-#ifdef WITH_OPENMP
 		case metaModePreferOpenMP:
 		//TODO implement any bounds checking OpenMP may need
 		return 0;
 		break;
-#endif
 	}
 	return (ret);
 }
@@ -917,12 +880,16 @@ a_err ret = 0;
 		}
 		break;
 
-#ifdef WITH_OPENMP
-		case metaModePreferOpenMP: {
-#pragma omp barrier // synchronize threads
-}
+		case metaModePreferOpenMP:
+		{
+		if (openmp_symbols.metaOpenMPFlush != NULL) ret = (*(openmp_symbols.metaOpenMPFlush))();
+		else {
+		  fprintf(stderr, "OpenMP backend improperly loaded or missing symbol \"metaOpenMPFlush\"\n");
+		  //FIXME output a real error code
+		  ret = -1;
+	  	}
+		}
 		break;
-#endif
 	}
 	//Flush all outstanding MPI work
 	// We do this after flushing the GPUs as any packing will be finished
@@ -943,9 +910,14 @@ a_err meta_init_event(meta_event * event) {
     //TODO implement a generic mode
     break;
 
-    case metaModePreferCUDA: {
-      //TODO: Do something once we update the CUDA backend to dynamically load
-      //TODO Based on the old metaTimerEvent, we may allocate tow, both for start and end
+    case metaModePreferCUDA:
+    {
+      if (cuda_symbols.metaCUDACreateEvent != NULL) ret = (*(cuda_symbols.metaCUDACreateEvent))(&(event->event_pl));
+      else {
+        fprintf(stderr, "CUDA backend improperly loaded or missing symbol \"metaCUDACreateEvent\"\n");
+        //FIXME output a real error code
+        ret = -1;
+      }
     }
     break;
 
@@ -957,17 +929,19 @@ a_err meta_init_event(meta_event * event) {
         //FIXME output a real error code
         ret = -1;
       }
-      //TODO: Implement the OpenCL event creator
     }
     break;
 
-#ifdef WITH_OPENMP
-    case metaModePreferOpenMP: {
-      //TODO: Do something once we update the OpenMP backend to dynamically load
-      //TODO Based on the old metaTimerEvent, we may allocate tow, both for start and end
+    case metaModePreferOpenMP:
+    {
+      if (openmp_symbols.metaOpenMPCreateEvent != NULL) ret = (*(openmp_symbols.metaOpenMPCreateEvent))(&(event->event_pl));
+      else {
+        fprintf(stderr, "OpenMP backend improperly loaded or missing symbol \"metaOpenMPCreateEvent\"\n");
+        //FIXME output a real error code
+        ret = -1;
+      }
     }
     break;
-#endif 
   }
   return ret;
 }
@@ -975,8 +949,34 @@ a_err meta_init_event(meta_event * event) {
 //Simple destructor that free's the backend-agnostic void* event payload
 a_err meta_destroy_event(meta_event event) {
   a_err ret = 0;
-  if (event.event_pl != NULL) free(event.event_pl);
-  else ret = -1; //TODO We will need our own set of return codes soon
+  switch (run_mode) {
+    default:
+    case metaModePreferGeneric:
+    //TODO implement a generic mode
+    break;
+
+    case metaModePreferCUDA:
+    {
+      if (cuda_symbols.metaCUDADestroyEvent != NULL) ret = (*(cuda_symbols.metaCUDADestroyEvent))(&(event.event_pl));
+      else {
+        fprintf(stderr, "CUDA backend improperly loaded or missing symbol \"metaCUDADestroyEvent\"\n");
+        //FIXME output a real error code
+        ret = -1;
+      }
+    }
+    break;
+
+    case metaModePreferOpenCL:
+    case metaModePreferOpenMP:
+    {
+      if (event.event_pl != NULL) {
+        free(event.event_pl);
+        //FIXME output a real error code
+        ret = -1;
+      }
+    }
+    break;
+  }
   return ret;
 }
 
@@ -1076,14 +1076,6 @@ a_err meta_dotProd_cb(a_dim3 * grid_size, a_dim3 * block_size, void * data1,
 		}
 	}
 
-#ifdef WITH_TIMERS
-        metaTimerQueueFrame * frame;
-	if (run_mode != metaModePreferOpenCL && run_mode != metaModePreferCUDA) {
-	frame = (metaTimerQueueFrame*)malloc (sizeof(metaTimerQueueFrame));
-	frame->mode = run_mode;
-	frame->size = (*array_size)[0]*(*array_size)[1]*(*array_size)[2]*get_atype_size(type);
-	}
-#endif
 	switch (run_mode) {
 	default:
 	case metaModePreferGeneric:
@@ -1112,28 +1104,17 @@ a_err meta_dotProd_cb(a_dim3 * grid_size, a_dim3 * block_size, void * data1,
 		}
 		break;
 
-#ifdef WITH_OPENMP
 		case metaModePreferOpenMP:
-#ifdef WITH_TIMERS
-		{	struct timeval start, end;
-			gettimeofday(&start, NULL);
-			//		frame->event.openmp[0]= omp_get_wtime();
-#endif
-			ret = omp_dotProd(grid_size, block_size, data1, data2, array_size, array_start, array_end, reduction_var, type, async);
-#ifdef WITH_TIMERS
-			gettimeofday(&end, NULL);
-			frame->event.openmp[0] = (start.tv_usec*0.000001)+start.tv_sec;
-			frame->event.openmp[1] = (end.tv_usec*0.000001)+end.tv_sec;}
-		//		frame->event.openmp[1]= omp_get_wtime();
-#endif
+		{
+		if (openmp_symbols.openmp_dotProd != NULL) ret = (*(openmp_symbols.openmp_dotProd))(grid_size, block_size, data1, data2, array_size, array_start, array_end, reduction_var, type, async, call, ret_event);
+		else {
+		  fprintf(stderr, "OpenMP backend improperly loaded or missing symbol \"openmp_dotProd\"\n");
+		  //FIXME output a real error code
+		  ret = -1;
+	  	}
+		}
 		break;
-#endif
 	}
-#ifdef WITH_TIMERS
-	if (run_mode != metaModePreferOpenCL) {
-	metaTimerEnqueue(frame, &(metaBuiltinQueues[k_dotProd]));
-	}
-#endif
 	return (ret);
 }
 
@@ -1231,14 +1212,6 @@ a_err meta_reduce_cb(a_dim3 * grid_size, a_dim3 * block_size, void * data,
 		}
 	}
 
-#ifdef WITH_TIMERS
-        metaTimerQueueFrame * frame;
-	if (run_mode != metaModePreferOpenCL && run_mode != metaModePreferCUDA) {
-	frame = (metaTimerQueueFrame*)malloc (sizeof(metaTimerQueueFrame));
-	frame->mode = run_mode;
-	frame->size = (*array_size)[0]*(*array_size)[1]*(*array_size)[2]*get_atype_size(type);
-	}
-#endif
 	switch (run_mode) {
 	default:
 	case metaModePreferGeneric:
@@ -1267,28 +1240,17 @@ a_err meta_reduce_cb(a_dim3 * grid_size, a_dim3 * block_size, void * data,
 		}
 		break;
 
-#ifdef WITH_OPENMP
 		case metaModePreferOpenMP:
-#ifdef WITH_TIMERS
-		{	struct timeval start, end;
-			gettimeofday(&start, NULL);
-			//		frame->event.openmp[0]= omp_get_wtime();
-#endif
-		ret = omp_reduce(grid_size, block_size, data, array_size, array_start, array_end, reduction_var, type, async);
-#ifdef WITH_TIMERS
-		gettimeofday(&end, NULL);
-		frame->event.openmp[0] = (start.tv_usec*0.000001)+start.tv_sec;
-		frame->event.openmp[1] = (end.tv_usec*0.000001)+end.tv_sec;}
-	//		frame->event.openmp[1]= omp_get_wtime();
-#endif
+		{
+		if (openmp_symbols.openmp_reduce != NULL) ret = (*(openmp_symbols.openmp_reduce))(grid_size, block_size, data, array_size, array_start, array_end, reduction_var, type, async, call, ret_event);
+		else {
+		  fprintf(stderr, "OpenMP backend improperly loaded or missing symbol \"openmp_reduce\"\n");
+		  //FIXME output a real error code
+		  ret = -1;
+	  	}
+		}
 		break;
-#endif
 	}
-#ifdef WITH_TIMERS
-	if (run_mode != metaModePreferOpenCL && run_mode != metaModePreferCUDA) {
-	metaTimerEnqueue(frame, &(metaBuiltinQueues[k_reduce]));
-	}
-#endif
 	return (ret);
 }
 
@@ -1385,14 +1347,6 @@ a_err meta_transpose_face_cb(a_dim3 * grid_size, a_dim3 * block_size,
 		}
 
 	}
-#ifdef WITH_TIMERS
-        metaTimerQueueFrame * frame;
-	if (run_mode != metaModePreferOpenCL && run_mode != metaModePreferCUDA) {
-	frame = (metaTimerQueueFrame*)malloc (sizeof(metaTimerQueueFrame));
-	frame->mode = run_mode;
-	frame->size = (*tran_dim_xy)[0]*(*tran_dim_xy)[1]*get_atype_size(type);
-	}
-#endif
 	switch (run_mode) {
 	default:
 	case metaModePreferGeneric:
@@ -1421,29 +1375,17 @@ a_err meta_transpose_face_cb(a_dim3 * grid_size, a_dim3 * block_size,
 		}
 		break;
 
-#ifdef WITH_OPENMP
 		case metaModePreferOpenMP:
-#ifdef WITH_TIMERS
-		{	struct timeval start, end;
-			gettimeofday(&start, NULL);
-			//		frame->event.openmp[0]= omp_get_wtime();
-#endif
-		ret = omp_transpose_face(grid_size, block_size, indata, outdata, arr_dim_xy, tran_dim_xy, type, async);
-#ifdef WITH_TIMERS
-		gettimeofday(&end, NULL);
-		frame->event.openmp[0] = (start.tv_usec*0.000001)+start.tv_sec;
-		frame->event.openmp[1] = (end.tv_usec*0.000001)+end.tv_sec;}
-	//		frame->event.openmp[1]= omp_get_wtime();
-#endif
+		{
+		if (openmp_symbols.openmp_transpose_face != NULL) ret = (*(openmp_symbols.openmp_transpose_face))(grid_size, block_size, indata, outdata, arr_dim_xy, tran_dim_xy, type, async, call, ret_event);
+		else {
+		  fprintf(stderr, "OpenMP backend improperly loaded or missing symbol \"openmp_transpose_face\"\n");
+		  //FIXME output a real error code
+		  ret = -1;
+	  	}
+		}
 		break;
-
-#endif
 	}
-#ifdef WITH_TIMERS
-	if (run_mode != metaModePreferOpenCL && run_mode != metaModePreferCUDA) {
-	metaTimerEnqueue(frame, &(metaBuiltinQueues[k_transpose_2d_face]));
-	}
-#endif
 	return (ret);
 }
 
@@ -1471,26 +1413,6 @@ a_err meta_pack_face_cb(a_dim3 * grid_size, a_dim3 * block_size,
 				face->size, face->stride);
 		return -1;
 	}
-#ifdef WITH_TIMERS
-        metaTimerQueueFrame * frame_k1, * frame_c1, * frame_c2, * frame_c3;
-	if (run_mode != metaModePreferOpenCL && run_mode != metaModePreferCUDA) {
-	//TODO: Add another queue for copies into constant memory
-	//TODO: Hoist copies into constant memory out of the cores to here
-	frame_k1 = (metaTimerQueueFrame*)malloc (sizeof(metaTimerQueueFrame));
-	frame_c1 = (metaTimerQueueFrame*)malloc (sizeof(metaTimerQueueFrame));
-	frame_c2 = (metaTimerQueueFrame*)malloc (sizeof(metaTimerQueueFrame));
-	frame_c3 = (metaTimerQueueFrame*)malloc (sizeof(metaTimerQueueFrame));
-	frame_k1->mode = run_mode;
-	frame_c1->mode = run_mode;
-	frame_c2->mode = run_mode;
-	frame_c3->mode = run_mode;
-	frame_k1->size = get_atype_size(type)*face->size[0]*face->size[1]*face->size[2];
-	frame_c1->size = get_atype_size(type)*3;
-	frame_c2->size = get_atype_size(type)*3;
-	frame_c3->size = get_atype_size(type)*3;
-//	frame->size = (*dim_xy)[0]*(*dim_xy)[1]*get_atype_size(type);
-	}
-#endif
 
 	//figure out what the aggregate size of all descendant branches are
 	int *remain_dim = (int *) malloc(sizeof(int) * face->count);
@@ -1541,38 +1463,17 @@ a_err meta_pack_face_cb(a_dim3 * grid_size, a_dim3 * block_size,
 		}
 		break;
 
-#ifdef WITH_OPENMP
 		case metaModePreferOpenMP:
-#ifdef WITH_TIMERS
-		{	struct timeval start, end;
-			gettimeofday(&start, NULL);
-			//		frame_k1->event.openmp[0]= omp_get_wtime();
-#endif
-		ret = omp_pack_face(grid_size, block_size, packed_buf, buf, face, remain_dim, type, async);
-#ifdef WITH_TIMERS
-		gettimeofday(&end, NULL);
-		frame_k1->event.openmp[0] = (start.tv_usec*0.000001)+start.tv_sec;
-		frame_k1->event.openmp[1] = (end.tv_usec*0.000001)+end.tv_sec;}
-	//		frame_k1->event.openmp[1]= omp_get_wtime();
-		frame_c1->event.openmp[0] = 0.0;
-		frame_c1->event.openmp[1] = 0.0;
-		frame_c2->event.openmp[0] = 0.0;
-		frame_c2->event.openmp[1] = 0.0;
-		frame_c3->event.openmp[0] = 0.0;
-		frame_c3->event.openmp[1] = 0.0;
-#endif
+		{
+		if (openmp_symbols.openmp_pack_face != NULL) ret = (*(openmp_symbols.openmp_pack_face))(grid_size, block_size, packed_buf, buf, face, remain_dim, type, async, call, ret_event_k1, ret_event_c1, ret_event_c2, ret_event_c3);
+		else {
+		  fprintf(stderr, "OpenMP backend improperly loaded or missing symbol \"openmp_pack_face\"\n");
+		  //FIXME output a real error code
+		  ret = -1;
+	  	}
+		}
 		break;
-#endif
 	}
-#ifdef WITH_TIMERS
-	if (run_mode != metaModePreferOpenCL && run_mode != metaModePreferCUDA) {
-	//TODO Add queue c_H2Dc for copies into constant memory
-	metaTimerEnqueue(frame_k1, &(metaBuiltinQueues[k_pack_2d_face]));
-	metaTimerEnqueue(frame_c1, &(metaBuiltinQueues[c_H2Dc]));
-	metaTimerEnqueue(frame_c2, &(metaBuiltinQueues[c_H2Dc]));
-	metaTimerEnqueue(frame_c3, &(metaBuiltinQueues[c_H2Dc]));
-	}
-#endif
 	return (ret);
 }
 
@@ -1601,27 +1502,6 @@ a_err meta_unpack_face_cb(a_dim3 * grid_size, a_dim3 * block_size,
 				face->size, face->stride);
 		return -1;
 	}
-#ifdef WITH_TIMERS
-        metaTimerQueueFrame * frame_k1, * frame_c1, * frame_c2, * frame_c3;
-	if (run_mode != metaModePreferOpenCL && run_mode != metaModePreferCUDA) {
-	//TODO: Add another queue for copies into constant memory
-	//TODO: Hoist copies into constant memory out of the cores to here
-	frame_k1 = (metaTimerQueueFrame*)malloc (sizeof(metaTimerQueueFrame));
-	frame_c1 = (metaTimerQueueFrame*)malloc (sizeof(metaTimerQueueFrame));
-	frame_c2 = (metaTimerQueueFrame*)malloc (sizeof(metaTimerQueueFrame));
-	frame_c3 = (metaTimerQueueFrame*)malloc (sizeof(metaTimerQueueFrame));
-	frame_k1->mode = run_mode;
-	frame_c1->mode = run_mode;
-	frame_c2->mode = run_mode;
-	frame_c3->mode = run_mode;
-	frame_k1->size = get_atype_size(type)*face->size[0]*face->size[1]*face->size[2];
-	frame_c1->size = get_atype_size(type)*3;
-	frame_c2->size = get_atype_size(type)*3;
-	frame_c3->size = get_atype_size(type)*3;
-//	frame->size = (*dim_xy)[0]*(*dim_xy)[1]*get_atype_size(type);
-	}
-#endif
-
 	//figure out what the aggregate size of all descendant branches are
 	int *remain_dim = (int *) malloc(sizeof(int) * face->count);
 	int i;
@@ -1662,38 +1542,17 @@ a_err meta_unpack_face_cb(a_dim3 * grid_size, a_dim3 * block_size,
 		}
 		break;
 
-#ifdef WITH_OPENMP
 		case metaModePreferOpenMP:
-#ifdef WITH_TIMERS
-		{	struct timeval start, end;
-			gettimeofday(&start, NULL);
-			//		frame_k1->event.openmp[0]= omp_get_wtime();
-#endif
-		ret = omp_unpack_face(grid_size, block_size, packed_buf, buf, face, remain_dim, type, async);
-#ifdef WITH_TIMERS
-		gettimeofday(&end, NULL);
-		frame_k1->event.openmp[0] = (start.tv_usec*0.000001)+start.tv_sec;
-		frame_k1->event.openmp[1] = (end.tv_usec*0.000001)+end.tv_sec;}
-	//		frame->event.openmp[1]= omp_get_wtime();
-		frame_c1->event.openmp[0] = 0.0;
-		frame_c1->event.openmp[1] = 0.0;
-		frame_c2->event.openmp[0] = 0.0;
-		frame_c2->event.openmp[1] = 0.0;
-		frame_c3->event.openmp[0] = 0.0;
-		frame_c3->event.openmp[1] = 0.0;
-#endif
+		{
+		if (openmp_symbols.openmp_unpack_face != NULL) ret = (*(openmp_symbols.openmp_unpack_face))(grid_size, block_size, packed_buf, buf, face, remain_dim, type, async, call, ret_event_k1, ret_event_c1, ret_event_c2, ret_event_c3);
+		else {
+		  fprintf(stderr, "OpenMP backend improperly loaded or missing symbol \"openmp_unpack_face\"\n");
+		  //FIXME output a real error code
+		  ret = -1;
+	  	}
+		}
 		break;
-#endif
 	}
-#ifdef WITH_TIMERS
-	if (run_mode != metaModePreferOpenCL && run_mode != metaModePreferCUDA) {
-	//TODO Add queue c_H2Dc for copies into constant memory
-	metaTimerEnqueue(frame_k1, &(metaBuiltinQueues[k_unpack_2d_face]));
-	metaTimerEnqueue(frame_c1, &(metaBuiltinQueues[c_H2Dc]));
-	metaTimerEnqueue(frame_c2, &(metaBuiltinQueues[c_H2Dc]));
-	metaTimerEnqueue(frame_c3, &(metaBuiltinQueues[c_H2Dc]));
-	}
-#endif
 	return (ret);
 }
 
@@ -1788,14 +1647,6 @@ a_err meta_stencil_3d7p_cb(a_dim3 * grid_size, a_dim3 * block_size,
 		}
 	}
 
-#ifdef WITH_TIMERS
-        metaTimerQueueFrame * frame;
-	if (run_mode != metaModePreferOpenCL && run_mode != metaModePreferCUDA) {
-	frame = (metaTimerQueueFrame*)malloc (sizeof(metaTimerQueueFrame));
-	frame->mode = run_mode;
-	frame->size = (*array_size)[0]*(*array_size)[1]*(*array_size)[2]*get_atype_size(type);
-	}
-#endif
 	switch (run_mode) {
 	default:
 	case metaModePreferGeneric:
@@ -1824,28 +1675,17 @@ a_err meta_stencil_3d7p_cb(a_dim3 * grid_size, a_dim3 * block_size,
 		}
 		break;
 
-#ifdef WITH_OPENMP
 		case metaModePreferOpenMP:
-#ifdef WITH_TIMERS
-		{	struct timeval start, end;
-			gettimeofday(&start, NULL);
-			//		frame->event.openmp[0]= omp_get_wtime();
-#endif
-			ret = omp_stencil_3d7p(grid_size, block_size, indata, outdata, array_size, array_start, array_end, type, async);
-#ifdef WITH_TIMERS
-			gettimeofday(&end, NULL);
-			frame->event.openmp[0] = (start.tv_usec*0.000001)+start.tv_sec;
-			frame->event.openmp[1] = (end.tv_usec*0.000001)+end.tv_sec;}
-		//		frame->event.openmp[1]= omp_get_wtime();
-#endif
+		{
+		if (openmp_symbols.openmp_stencil_3d7p != NULL) ret = (*(openmp_symbols.openmp_stencil_3d7p))(grid_size, block_size, indata, outdata, array_size, array_start, array_end, type, async, call, ret_event);
+		else {
+		  fprintf(stderr, "OpenMP backend improperly loaded or missing symbol \"openmp_stencil_3d7p\"\n");
+		  //FIXME output a real error code
+		  ret = -1;
+	  	}
+		}
 		break;
-#endif
 	}
-#ifdef WITH_TIMERS
-	if (run_mode != metaModePreferOpenCL && run_mode != metaModePreferCUDA) {
-	metaTimerEnqueue(frame, &(metaBuiltinQueues[k_stencil_3d7p]));
-	}
-#endif
 	return (ret);
 }
 ///////////////////////
@@ -1893,11 +1733,9 @@ a_err meta_csr_cb(a_dim3 * grid_size, a_dim3 * block_size, size_t global_size, v
 		}
 		break;
 
-#ifdef WITH_OPENMP
 		case metaModePreferOpenMP:
 		fprintf(stderr, "OpenMP CSR Not yet supported");
 		break;
-#endif
 	}
 #ifdef WITH_TIMERS
 	if (run_mode != metaModePreferOpenCL) {
@@ -1952,11 +1790,9 @@ a_err meta_crc_cb(a_dim3 * grid_size, a_dim3 * block_size, void * dev_input, int
 		}
 		break;
 
-#ifdef WITH_OPENMP
 		case metaModePreferOpenMP:
 		fprintf(stderr, "OpenMP CRC Not yet supported");
 		break;
-#endif
 	}
 #ifdef WITH_TIMERS
 	if (run_mode != metaModePreferOpenCL) {

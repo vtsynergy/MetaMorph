@@ -34,6 +34,173 @@ inline float hadd_ps(__m256 a) {
 
 #endif
 
+a_err metaOpenMPAlloc(void ** ptr, size_t size) {
+  a_err ret = 0;
+#ifdef ALIGNED_MEMORY
+  *ptr = (void *) _mm_malloc(size, ALIGNED_MEMORY_PAGE);
+#else
+  *ptr = (void *) malloc(size);
+#endif
+  if(*ptr == NULL) ret = -1;
+  return ret;
+}
+a_err  metaOpenMPFree(void * ptr) {
+#ifdef ALIGNED_MEMORY
+  _mm_free(ptr);
+#else
+  free(ptr);
+#endif
+  return 0;
+}
+a_err metaOpenMPWrite(void * dst, void * src, size_t size, a_bool async, meta_callback * call, meta_event * ret_event) {
+  a_err ret = 0;
+  openmpEvent * events = NULL;
+  if (ret_event != NULL && ret_event->mode == metaModePreferOpenMP && ret_event->event_pl != NULL) events = ((openmpEvent *)ret_event->event_pl);
+#ifdef WITH_TIMERS
+        metaTimerQueueFrame * frame;
+	frame = (metaTimerQueueFrame *)malloc (sizeof(metaTimerQueueFrame));
+	frame->mode = metaModePreferOpenMP;
+	frame->size = size;
+  if (events == NULL) {
+	frem->event.mode = metaModePreferOpenMP;
+	metaOpenMPCreateEvent(&(frame->event.event_pl));
+	events = ((openmpEvent *)frame->event.event_pl);
+  }
+  else {
+    frame->event = *ret_event;
+  }
+#endif
+  if (events != NULL) {
+    gettimeofday(&(events[0]), NULL);
+  }
+  //FIXME: Implement async
+  memcpy(dst, src, size);
+  //FIXME: Implement async "callback"
+  if (call != NULL) {
+    (call->callback_func)(call);
+  }
+  ret = 0;
+  if (events != NULL) {
+    gettimeofday(&(events[1]), NULL);
+  }
+#ifdef WITH_TIMERS
+	metaTimerEnqueue(frame, &(metaBuiltinQueues[c_H2D]));
+#endif
+  return ret;
+}
+a_err metaOpenMPRead(void * dst, void * src, size_t size, a_bool async, meta_callback * call, meta_event * ret_event) {
+  a_err ret = 0;
+  openmpEvent * events = NULL;
+  if (ret_event != NULL && ret_event->mode == metaModePreferOpenMP && ret_event->event_pl != NULL) events = ((openmpEvent *)ret_event->event_pl);
+#ifdef WITH_TIMERS
+        metaTimerQueueFrame * frame;
+	frame = (metaTimerQueueFrame *)malloc (sizeof(metaTimerQueueFrame));
+	frame->mode = metaModePreferOpenMP;
+	frame->size = size;
+  if (events == NULL) {
+	frem->event.mode = metaModePreferOpenMP;
+	metaOpenMPCreateEvent(&(frame->event.event_pl));
+	events = ((openmpEvent *)frame->event.event_pl);
+  }
+  else {
+    frame->event = *ret_event;
+  }
+#endif
+  if (events != NULL) {
+    gettimeofday(&(events[0]), NULL);
+  }
+  //FIXME: Implement async
+  memcpy(dst, src, size);
+  //FIXME: Implement async "callback"
+  if (call != NULL) {
+    (call->callback_func)(call);
+  }
+  ret = 0;
+  if (events != NULL) {
+    gettimeofday(&(events[1]), NULL);
+  }
+#ifdef WITH_TIMERS
+	metaTimerEnqueue(frame, &(metaBuiltinQueues[c_D2H]));
+#endif
+  return ret;
+}
+a_err metaOpenMPDevCopy(void * dst, void * src, size_t size, a_bool async, meta_callback * call, meta_event * ret_event) {
+  a_err ret = 0;
+  openmpEvent * events = NULL;
+  if (ret_event != NULL && ret_event->mode == metaModePreferOpenMP && ret_event->event_pl != NULL) events = ((openmpEvent *)ret_event->event_pl);
+#ifdef WITH_TIMERS
+        metaTimerQueueFrame * frame;
+	frame = (metaTimerQueueFrame *)malloc (sizeof(metaTimerQueueFrame));
+	frame->mode = metaModePreferOpenMP;
+	frame->size = size;
+  if (events == NULL) {
+	frem->event.mode = metaModePreferOpenMP;
+	metaOpenMPCreateEvent(&(frame->event.event_pl));
+	events = ((openmpEvent *)frame->event.event_pl);
+  }
+  else {
+    frame->event = *ret_event;
+  }
+#endif
+  if (events != NULL) {
+    gettimeofday(&(events[0]), NULL);
+  }
+  //FIXME: Implement async
+			//memcpy(dst, src, size);
+	int i;
+	//int num_t = omp_get _num_threads();
+	int num_b = size / sizeof(unsigned long);
+
+#pragma omp parallel for
+#pragma ivdep
+	//#pragma vector nontemporal (dst)
+	for (i = 0; i < num_b; i++) {
+		//memcpy((unsigned char *) dst+i, (unsigned char *) src+i, size);
+		*((unsigned long *) dst + i) = *((unsigned long *) src + i);
+	}
+  //FIXME: Implement async "callback"
+  if (call != NULL) {
+    (call->callback_func)(call);
+  }
+  ret = 0;
+  if (events != NULL) {
+    gettimeofday(&(events[1]), NULL);
+  }
+#ifdef WITH_TIMERS
+	metaTimerEnqueue(frame, &(metaBuiltinQueues[c_D2D]));
+#endif
+  return ret;
+}
+a_err metaOpenMPFlush() {
+  a_err ret = 0;
+//FIXME: When the OpenMP backend actually supports async (via futures or OpenMP 4.0, whatever, make this a proper flush like the other backends
+#pragma omp barrier
+  return ret;
+}
+a_err metaOpenMPCreateEvent(void ** ret_event) {
+  a_err ret = 0;
+  if (ret_event != NULL) {
+    *ret_event = calloc(2, sizeof(openmpEvent));
+  }
+  else ret = -1;
+  return ret;
+}
+a_err metaOpenMPDestroyEvent(void * event) {
+  a_err ret = 0;
+  if (event != NULL) {
+    free(event);
+  }
+  else ret = -1;
+  return ret;
+}
+
+a_err metaOpenMPRegisterCallback(meta_callback * call) {
+  //FIXME: Implement async "callback"
+  if (call != NULL) {
+    (call->callback_func)(call);
+  }
+}
+
 // Kernels
 static void omp_dotProd_kernel_db(double * __restrict__ data1,
 		double * __restrict__ data2, size_t (*array_size)[3],
@@ -1422,11 +1589,27 @@ void omp_stencil_3d7p_kernel_ui(unsigned int * indata, unsigned int * outdata,
 }
 
 //wrappers
-int omp_dotProd(size_t (*grid_size)[3], size_t (*block_size)[3], void * data1,
-		void * data2, size_t (*array_size)[3], size_t (*arr_start)[3],
-		size_t (*arr_end)[3], void * reduction_var, meta_type_id type,
-		int async) {
+a_err openmp_dotProd(size_t (* grid_size)[3], size_t (* block_size)[3], void * data1, void * data2, size_t (* array_size)[3], size_t (* arr_start)[3], size_t (* arr_end)[3], void * reduction_var, meta_type_id type, int async, meta_callback * call, meta_event * ret_event) {
 	int ret = 0; //Success
+openmpEvent * events;
+  if (ret_event != NULL && ret_event->mode == metaModePreferOpenMP && ret_event->event_pl != NULL) events = ((openmpEvent *)ret_event->event_pl);
+#ifdef WITH_TIMERS
+        metaTimerQueueFrame * frame;
+	frame = (metaTimerQueueFrame *)malloc (sizeof(metaTimerQueueFrame));
+	frame->mode = metaModePreferOpenMP;
+	frame->size = (*array_size)[0]*(*array_size)[1]*(*array_size)[2]*get_atype_size(type);
+  if (events == NULL) {
+	frem->event.mode = metaModePreferOpenMP;
+	metaOpenMPCreateEvent(&(frame->event.event_pl));
+	events = ((openmpEvent *)frame->event.event_pl);
+  }
+  else {
+    frame->event = *ret_event;
+  }
+#endif
+  if (events != NULL) {
+    gettimeofday(&(events[0]), NULL);
+  }
 
 	// ignore grid_size, block_size, async
 
@@ -1461,14 +1644,40 @@ int omp_dotProd(size_t (*grid_size)[3], size_t (*block_size)[3], void * data1,
 				"Error: Function 'omp_dotProd' not implemented for selected type!\n");
 		break;
 	}
-
+  if (events != NULL) {
+    gettimeofday(&(events[1]), NULL);
+  }
+  //FIXME: Implement async "callback"
+  if (call != NULL) {
+    (call->callback_func)(call);
+  }
+#ifdef WITH_TIMERS
+	metaTimerEnqueue(frame, &(metaBuiltinQueues[k_dotProd]));
+#endif
 	return (ret);
 }
 
-int omp_reduce(size_t (*grid_size)[3], size_t (*block_size)[3], void * data,
-		size_t (*array_size)[3], size_t (*arr_start)[3], size_t (*arr_end)[3],
-		void * reduction_var, meta_type_id type, int async) {
+a_err openmp_reduce(size_t (* grid_size)[3], size_t (* block_size)[3], void * data, size_t (* array_size)[3], size_t (* arr_start)[3], size_t (* arr_end)[3], void * reduction_var, meta_type_id type, int async, meta_callback * call, meta_event * ret_event) {
 	int ret = 0; //Success
+openmpEvent * events;
+  if (ret_event != NULL && ret_event->mode == metaModePreferOpenMP && ret_event->event_pl != NULL) events = ((openmpEvent *)ret_event->event_pl);
+#ifdef WITH_TIMERS
+        metaTimerQueueFrame * frame;
+	frame = (metaTimerQueueFrame *)malloc (sizeof(metaTimerQueueFrame));
+	frame->mode = metaModePreferOpenMP;
+	frame->size = (*array_size)[0]*(*array_size)[1]*(*array_size)[2]*get_atype_size(type);
+  if (events == NULL) {
+	frem->event.mode = metaModePreferOpenMP;
+	metaOpenMPCreateEvent(&(frame->event.event_pl));
+	events = ((openmpEvent *)frame->event.event_pl);
+  }
+  else {
+    frame->event = *ret_event;
+  }
+#endif
+  if (events != NULL) {
+    gettimeofday(&(events[0]), NULL);
+  }
 
 	// ignore grid_size, block_size, async
 
@@ -1504,13 +1713,40 @@ int omp_reduce(size_t (*grid_size)[3], size_t (*block_size)[3], void * data,
 		break;
 	}
 
+  if (events != NULL) {
+    gettimeofday(&(events[1]), NULL);
+  }
+  //FIXME: Implement async "callback"
+  if (call != NULL) {
+    (call->callback_func)(call);
+  }
+#ifdef WITH_TIMERS
+	metaTimerEnqueue(frame, &(metaBuiltinQueues[k_reduce]));
+#endif
 	return (ret);
 }
 
-int omp_transpose_face(size_t (*grid_size)[3], size_t (*block_size)[3],
-		void * indata, void *outdata, size_t (*arr_dim_xy)[3],
-		size_t (*tran_dim_xy)[3], meta_type_id type, int async) {
+a_err openmp_transpose_face(size_t (* grid_size)[3], size_t (* block_size)[3], void * indata, void * outdata, size_t (* arr_dim_xy)[3], size_t (* tran_dim_xy)[3], meta_type_id type, int async, meta_callback * call, meta_event * ret_event) {
 	int ret = 0; //Success
+openmpEvent * events;
+  if (ret_event != NULL && ret_event->mode == metaModePreferOpenMP && ret_event->event_pl != NULL) events = ((openmpEvent *)ret_event->event_pl);
+#ifdef WITH_TIMERS
+        metaTimerQueueFrame * frame;
+	frame = (metaTimerQueueFrame *)malloc (sizeof(metaTimerQueueFrame));
+	frame->mode = metaModePreferOpenMP;
+	frame->size = (*tran_dim_xy)[0]*(*tran_dim_xy)[1]*get_atype_size(type);
+  if (events == NULL) {
+	frem->event.mode = metaModePreferOpenMP;
+	metaOpenMPCreateEvent(&(frame->event.event_pl));
+	events = ((openmpEvent *)frame->event.event_pl);
+  }
+  else {
+    frame->event = *ret_event;
+  }
+#endif
+  if (events != NULL) {
+    gettimeofday(&(events[0]), NULL);
+  }
 
 	// ignore grid_size, block_size, async
 
@@ -1545,14 +1781,77 @@ int omp_transpose_face(size_t (*grid_size)[3], size_t (*block_size)[3],
 				"Error: Function 'omp_transpose_face' not implemented for selected type!\n");
 		break;
 	}
-
+  if (events != NULL) {
+    gettimeofday(&(events[1]), NULL);
+  }
+  //FIXME: Implement async "callback"
+  if (call != NULL) {
+    (call->callback_func)(call);
+  }
+#ifdef WITH_TIMERS
+	metaTimerEnqueue(frame, &(metaBuiltinQueues[k_transpose_2d_face]));
+#endif
 	return (ret);
 }
 
-int omp_pack_face(size_t (*grid_size)[3], size_t (*block_size)[3],
-		void *packed_buf, void *buf, meta_face *face,
-		int *remain_dim, meta_type_id type, int async) {
+a_err openmp_pack_face(size_t (* grid_size)[3], size_t (* block_size)[3], void * packed_buf, void * buf, meta_face * face, int * remain_dim, meta_type_id type, int async, meta_callback * call, meta_event * ret_event_k1, meta_event * ret_event_c1, meta_event * ret_event_c2, meta_event * ret_event_c3) {
 	int ret = 0; //Success
+openmpEvent * events_k1, * events_c1, * events_c2, * events_c3;
+  if (ret_event_k1 != NULL && ret_event_k1->mode == metaModePreferOpenMP && ret_event_k1->event_pl != NULL) events_k1 = ((openmpEvent *)ret_event_k1->event_pl);
+  if (ret_event_c1 != NULL && ret_event_c1->mode == metaModePreferOpenMP && ret_event_c1->event_pl != NULL) events_c1 = ((openmpEvent *)ret_event_c1->event_pl);
+  if (ret_event_c2 != NULL && ret_event_c2->mode == metaModePreferOpenMP && ret_event_c2->event_pl != NULL) events_c2 = ((openmpEvent *)ret_event_c2->event_pl);
+  if (ret_event_c3 != NULL && ret_event_c3->mode == metaModePreferOpenMP && ret_event_c3->event_pl != NULL) events_c3 = ((openmpEvent *)ret_event_c3->event_pl);
+#ifdef WITH_TIMERS
+        metaTimerQueueFrame * frame_k1, * frame_c1, * frame_c2, * frame_c3;
+	frame_k1 = (metaTimerQueueFrame*)malloc (sizeof(metaTimerQueueFrame));
+	frame_c1 = (metaTimerQueueFrame*)malloc (sizeof(metaTimerQueueFrame));
+	frame_c2 = (metaTimerQueueFrame*)malloc (sizeof(metaTimerQueueFrame));
+	frame_c3 = (metaTimerQueueFrame*)malloc (sizeof(metaTimerQueueFrame));
+	frame_k1->mode = metaModePreferOpenMP;
+	frame_c1->mode = metaModePreferOpenMP;
+	frame_c2->mode = metaModePreferOpenMP;
+	frame_c3->mode = metaModePreferOpenMP;
+	frame_k1->size = get_atype_size(type)*face->size[0]*face->size[1]*face->size[2];
+	frame_c1->size = get_atype_size(type)*3;
+	frame_c2->size = get_atype_size(type)*3;
+	frame_c3->size = get_atype_size(type)*3;
+  if (events == NULL) {
+	frame_k1->event.mode = metaModePreferOpenMP;
+	frame_c1->event.mode = metaModePreferOpenMP;
+	frame_c2->event.mode = metaModePreferOpenMP;
+	frame_c3->event.mode = metaModePreferOpenMP;
+	metaOpenMPCreateEvent(&(frame_k1->event.event_pl));
+	metaOpenMPCreateEvent(&(frame_c1->event.event_pl));
+	metaOpenMPCreateEvent(&(frame_c2->event.event_pl));
+	metaOpenMPCreateEvent(&(frame_c3->event.event_pl));
+	events_k1 = ((openmpEvent *)frame_k1->event.event_pl);
+	events_c1 = ((openmpEvent *)frame_c1->event.event_pl);
+	events_c2 = ((openmpEvent *)frame_c2->event.event_pl);
+	events_c3 = ((openmpEvent *)frame_c3->event.event_pl);
+  }
+  else {
+    frame_k1->event = *ret_event_k1;
+    frame_c1->event = *ret_event_c1;
+    frame_c2->event = *ret_event_c2;
+    frame_c3->event = *ret_event_c3;
+  }
+#endif
+  //The constant copies are treated as a zero-time event
+  if (events_c1 != NULL) {
+    gettimeofday(&(events_c1[0]), NULL);
+    events_c1[1] = events_c1[0];
+  }
+  if (events_c2 != NULL) {
+    gettimeofday(&(events_c2[0]), NULL);
+    events_c2[1] = events_c2[0];
+  }
+  if (events_c3 != NULL) {
+    gettimeofday(&(events_c3[0]), NULL);
+    events_c3[1] = events_c3[0];
+  }
+  if (events_k1 != NULL) {
+    gettimeofday(&(events_k1[0]), NULL);
+  }
 
 	// ignore grid_size, BLOCK_size, async
 
@@ -1587,15 +1886,81 @@ int omp_pack_face(size_t (*grid_size)[3], size_t (*block_size)[3],
 				"Error: Function 'omp_transpose_face' not implemented for selected type!\n");
 		break;
 	}
-
+  if (events_k1 != NULL) {
+    gettimeofday(&(events_k1[1]), NULL);
+  }
+  //FIXME: Implement async "callback"
+  if (call != NULL) {
+    (call->callback_func)(call);
+  }
+#ifdef WITH_TIMERS
+	metaTimerEnqueue(frame_k1, &(metaBuiltinQueues[k_pack_2d_face]));
+	metaTimerEnqueue(frame_c1, &(metaBuiltinQueues[c_H2Dc]));
+	metaTimerEnqueue(frame_c2, &(metaBuiltinQueues[c_H2Dc]));
+	metaTimerEnqueue(frame_c3, &(metaBuiltinQueues[c_H2Dc]));
+#endif
+  //FIXME: Implement sync point here
 	return (ret);
 }
 
-int omp_unpack_face(size_t (*grid_size)[3], size_t (*block_size)[3],
-		void *packed_buf, void *buf, meta_face *face,
-		int *remain_dim, meta_type_id type, int async) {
+a_err openmp_unpack_face(size_t (* grid_zie)[3], size_t (* block_size)[3], void * packed_buf, void * buf, meta_face * face, int * remain_dim, meta_type_id type, int async, meta_callback * call, meta_event * ret_event_k1, meta_event * ret_event_c1, meta_event * ret_event_c2, meta_event * ret_event_c3) {
 	int ret = 0; //Success
-
+openmpEvent * events_k1, * events_c1, * events_c2, * events_c3;
+  if (ret_event_k1 != NULL && ret_event_k1->mode == metaModePreferOpenMP && ret_event_k1->event_pl != NULL) events_k1 = ((openmpEvent *)ret_event_k1->event_pl);
+  if (ret_event_c1 != NULL && ret_event_c1->mode == metaModePreferOpenMP && ret_event_c1->event_pl != NULL) events_c1 = ((openmpEvent *)ret_event_c1->event_pl);
+  if (ret_event_c2 != NULL && ret_event_c2->mode == metaModePreferOpenMP && ret_event_c2->event_pl != NULL) events_c2 = ((openmpEvent *)ret_event_c2->event_pl);
+  if (ret_event_c3 != NULL && ret_event_c3->mode == metaModePreferOpenMP && ret_event_c3->event_pl != NULL) events_c3 = ((openmpEvent *)ret_event_c3->event_pl);
+#ifdef WITH_TIMERS
+        metaTimerQueueFrame * frame_k1, * frame_c1, * frame_c2, * frame_c3;
+	frame_k1 = (metaTimerQueueFrame*)malloc (sizeof(metaTimerQueueFrame));
+	frame_c1 = (metaTimerQueueFrame*)malloc (sizeof(metaTimerQueueFrame));
+	frame_c2 = (metaTimerQueueFrame*)malloc (sizeof(metaTimerQueueFrame));
+	frame_c3 = (metaTimerQueueFrame*)malloc (sizeof(metaTimerQueueFrame));
+	frame_k1->mode = metaModePreferOpenMP;
+	frame_c1->mode = metaModePreferOpenMP;
+	frame_c2->mode = metaModePreferOpenMP;
+	frame_c3->mode = metaModePreferOpenMP;
+	frame_k1->size = get_atype_size(type)*face->size[0]*face->size[1]*face->size[2];
+	frame_c1->size = get_atype_size(type)*3;
+	frame_c2->size = get_atype_size(type)*3;
+	frame_c3->size = get_atype_size(type)*3;
+  if (events == NULL) {
+	frame_k1->event.mode = metaModePreferOpenMP;
+	frame_c1->event.mode = metaModePreferOpenMP;
+	frame_c2->event.mode = metaModePreferOpenMP;
+	frame_c3->event.mode = metaModePreferOpenMP;
+	metaOpenMPCreateEvent(&(frame_k1->event.event_pl));
+	metaOpenMPCreateEvent(&(frame_c1->event.event_pl));
+	metaOpenMPCreateEvent(&(frame_c2->event.event_pl));
+	metaOpenMPCreateEvent(&(frame_c3->event.event_pl));
+	events_k1 = ((openmpEvent *)frame_k1->event.event_pl);
+	events_c1 = ((openmpEvent *)frame_c1->event.event_pl);
+	events_c2 = ((openmpEvent *)frame_c2->event.event_pl);
+	events_c3 = ((openmpEvent *)frame_c3->event.event_pl);
+  }
+  else {
+    frame_k1->event = *ret_event_k1;
+    frame_c1->event = *ret_event_c1;
+    frame_c2->event = *ret_event_c2;
+    frame_c3->event = *ret_event_c3;
+  }
+#endif
+  //The constant copies are treated as a zero-time event
+  if (events_c1 != NULL) {
+    gettimeofday(&(events_c1[0]), NULL);
+    events_c1[1] = events_c1[0];
+  }
+  if (events_c2 != NULL) {
+    gettimeofday(&(events_c2[0]), NULL);
+    events_c2[1] = events_c2[0];
+  }
+  if (events_c3 != NULL) {
+    gettimeofday(&(events_c3[0]), NULL);
+    events_c3[1] = events_c3[0];
+  }
+  if (events_k1 != NULL) {
+    gettimeofday(&(events_k1[0]), NULL);
+  }
 	// ignore grid_size, BLOCK_size, async
 
 	switch (type) {
@@ -1629,15 +1994,44 @@ int omp_unpack_face(size_t (*grid_size)[3], size_t (*block_size)[3],
 				"Error: Function 'omp_transpose_face' not implemented for selected type!\n");
 		break;
 	}
-
+  if (events_k1 != NULL) {
+    gettimeofday(&(events_k1[1]), NULL);
+  }
+  //FIXME: Implement async "callback"
+  if (call != NULL) {
+    (call->callback_func)(call);
+  }
+#ifdef WITH_TIMERS
+	metaTimerEnqueue(frame_k1, &(metaBuiltinQueues[k_unpack_2d_face]));
+	metaTimerEnqueue(frame_c1, &(metaBuiltinQueues[c_H2Dc]));
+	metaTimerEnqueue(frame_c2, &(metaBuiltinQueues[c_H2Dc]));
+	metaTimerEnqueue(frame_c3, &(metaBuiltinQueues[c_H2Dc]));
+#endif
+  //FIXME: Implement sync point here
 	return (ret);
 }
 
-int omp_stencil_3d7p(size_t (*grid_size)[3], size_t (*block_size)[3],
-		void * indata, void * outdata, size_t (*array_size)[3],
-		size_t (*arr_start)[3], size_t (*arr_end)[3], meta_type_id type,
-		int async) {
+a_err openmp_stencil_3d7p(size_t (* grid_size)[3], size_t (* block_size)[3], void * indata, void * outdata, size_t (* array_size)[3], size_t (* arr_start)[3], size_t (* arr_end)[3], meta_type_id type, int async, meta_callback * call, meta_event * ret_event) {
 	int ret = 0; //Success
+openmpEvent * events;
+  if (ret_event != NULL && ret_event->mode == metaModePreferOpenMP && ret_event->event_pl != NULL) events = ((openmpEvent *)ret_event->event_pl);
+#ifdef WITH_TIMERS
+        metaTimerQueueFrame * frame;
+	frame = (metaTimerQueueFrame *)malloc (sizeof(metaTimerQueueFrame));
+	frame->mode = metaModePreferOpenMP;
+	frame->size = (*array_size)[0]*(*array_size)[1]*(*array_size)[2]*get_atype_size(type);
+  if (events == NULL) {
+	frem->event.mode = metaModePreferOpenMP;
+	metaOpenMPCreateEvent(&(frame->event.event_pl));
+	events = ((openmpEvent *)frame->event.event_pl);
+  }
+  else {
+    frame->event = *ret_event;
+  }
+#endif
+  if (events != NULL) {
+    gettimeofday(&(events[0]), NULL);
+  }
 
 	// ignore grid_size, block_size, async
 
@@ -1672,22 +2066,16 @@ int omp_stencil_3d7p(size_t (*grid_size)[3], size_t (*block_size)[3],
 				"Error: Function 'omp_stencil_3d7p' not implemented for selected type!\n");
 		break;
 	}
-
+  if (events != NULL) {
+    gettimeofday(&(events[1]), NULL);
+  }
+  //FIXME: Implement async "callback"
+  if (call != NULL) {
+    (call->callback_func)(call);
+  }
+#ifdef WITH_TIMERS
+	metaTimerEnqueue(frame, &(metaBuiltinQueues[k_stencil_3d7p]));
+#endif
 	return (ret);
 
 }
-
-int omp_copy_d2d(void *dst, void *src, size_t size, int async) {
-	int i;
-	//int num_t = omp_get _num_threads();
-	int num_b = size / sizeof(unsigned long);
-
-#pragma omp parallel for
-#pragma ivdep
-	//#pragma vector nontemporal (dst)
-	for (i = 0; i < num_b; i++) {
-		//memcpy((unsigned char *) dst+i, (unsigned char *) src+i, size);
-		*((unsigned long *) dst + i) = *((unsigned long *) src + i);
-	}
-}
-
