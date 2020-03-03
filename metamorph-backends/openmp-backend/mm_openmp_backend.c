@@ -1,4 +1,5 @@
 /** OpenMP Back-End **/
+#include <sys/time.h>
 #include "../../metamorph-backends/openmp-backend/mm_openmp_backend.h"
 
 //#define	COLLAPSE

@@ -265,6 +265,9 @@ a_err (* openmp_stencil_3d7p)(size_t (*)[3], size_t (*)[3], void *, void *, size
 };
 struct openmp_dyn_ptrs openmp_symbols = {NULL};
 
+struct plugin_handles plugins = {NULL};
+struct profiling_dyn_ptrs profiling_symbols = {NULL};
+
 //Constuctor initializr, should not typically need to be manually called
 //For now it just does the auto-discovery of installed backend .sos to enable capability at runtime based on what's installed
 __attribute__((constructor(101))) void meta_init() {
@@ -352,16 +355,19 @@ __attribute__((constructor(101))) void meta_init() {
 
     fprintf(stderr, "OpenMP backend found\n");
   }
-  backends.mpi_handle = dlopen("libmm_mpi.so", RTLD_NOW | RTLD_GLOBAL);
-  if (backends.mpi_handle == NULL) fprintf(stderr, "No MPI plugin detected\n");
+  plugins.mpi_handle = dlopen("libmm_mpi.so", RTLD_NOW | RTLD_GLOBAL);
+  if (plugins.mpi_handle == NULL) fprintf(stderr, "No MPI plugin detected\n");
   else {
     core_capability |= module_implements_mpi;
     fprintf(stderr, "MPI plugin found\n");
   }
-  backends.profiling_handle = dlopen("libmm_profiling.so", RTLD_NOW | RTLD_GLOBAL);
-  if (backends.profiling_handle == NULL) fprintf(stderr, "No profiling plugin detected\n");
+  plugins.profiling_handle = dlopen("libmm_profiling.so", RTLD_NOW | RTLD_GLOBAL);
+  if (plugins.profiling_handle == NULL) fprintf(stderr, "No profiling plugin detected\n");
   else {
     core_capability |= module_implements_profiling;
+    CHECKED_DLSYM("libmm_profiling.so", plugins.profiling_handle, "metaProfilingCreateTimer", profiling_symbols.metaProfilingCreateTimer);
+    CHECKED_DLSYM("libmm_profiling.so", plugins.profiling_handle, "metaProfilingEnqueueTimer", profiling_symbols.metaProfilingEnqueueTimer);
+    CHECKED_DLSYM("libmm_profiling.so", plugins.profiling_handle, "metaProfilingDestroyTimer", profiling_symbols.metaProfilingDestroyTimer);
     fprintf(stderr, "Profiling plugin found\n");
   }
 }
@@ -377,10 +383,10 @@ __attribute__((destructor(101))) void meta_finalize() {
     dlclose(backends.openmp_be_handle);
   }
   if (core_capability & module_implements_mpi) {
-    dlclose(backends.mpi_handle);
+    dlclose(plugins.mpi_handle);
   }
   if (core_capability & module_implements_profiling) {
-    dlclose(backends.profiling_handle);
+    dlclose(plugins.profiling_handle);
   }
 }
 
@@ -1700,17 +1706,6 @@ a_err meta_csr_cb(a_dim3 * grid_size, a_dim3 * block_size, size_t global_size, v
 		// cl_event * wait,
 		meta_callback *call, meta_event * ret_event) {
 	a_err ret;
-#ifdef WITH_TIMERS
-	metaTimerQueueFrame * frame;
-        if (run_mode != metaModePreferOpenCL) {
-	frame = (metaTimerQueueFrame*)malloc (sizeof(metaTimerQueueFrame));
-	frame->mode = run_mode;
-	//FIXME: Need a backend-agnostic default block_size[0] to fall back on
-	if (block_size != NULL) frame->size = (*block_size)[0]*get_atype_size(type);
-	else frame->size = get_atype_size(type);
-	frame->name = (char const *)"CSR";
-	}
-#endif
 
 	switch (run_mode) {
 	default:
@@ -1737,11 +1732,6 @@ a_err meta_csr_cb(a_dim3 * grid_size, a_dim3 * block_size, size_t global_size, v
 		fprintf(stderr, "OpenMP CSR Not yet supported");
 		break;
 	}
-#ifdef WITH_TIMERS
-	if (run_mode != metaModePreferOpenCL) {
-	metaTimerEnqueue(frame, &(metaBuiltinQueues[k_csr]));
-	}
-#endif
 	return (ret);
 }
 
@@ -1759,15 +1749,6 @@ a_err meta_crc_cb(a_dim3 * grid_size, a_dim3 * block_size, void * dev_input, int
 		// cl_event * wait,
 		meta_callback *call, meta_event * ret_event) {
 	a_err ret;
-#ifdef WITH_TIMERS
-	metaTimerQueueFrame * frame;
-        if (run_mode != metaModePreferOpenCL) {
-	frame = (metaTimerQueueFrame*)malloc (sizeof(metaTimerQueueFrame));
-	frame->mode = run_mode;
-	frame->size = (*block_size)[0]*get_atype_size(type);
-	frame->name = "CRC";
-	}
-#endif
 
 	switch (run_mode) {
 	default:
@@ -1794,10 +1775,5 @@ a_err meta_crc_cb(a_dim3 * grid_size, a_dim3 * block_size, void * dev_input, int
 		fprintf(stderr, "OpenMP CRC Not yet supported");
 		break;
 	}
-#ifdef WITH_TIMERS
-	if (run_mode != metaModePreferOpenCL) {
-	metaTimerEnqueue(frame, &(metaBuiltinQueues[k_crc]));
-	}
-#endif
 	return (ret);
 }

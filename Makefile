@@ -242,8 +242,8 @@ CC := $(MPI_DIR)/bin/mpicc -cc=$(CC)
 endif
 #timer features
 ifeq ($(USE_TIMERS),TRUE)
-MM_COMPONENTS += -D WITH_TIMERS $(MM_CORE)/metamorph_timers.c
-MM_DEPS += $(MM_CORE)/metamorph_timers.c
+MM_COMPONENTS += -D WITH_TIMERS -lmm_profiling
+MM_DEPS += libmm_profiling.so
 endif
 
 #CUDA backend
@@ -356,6 +356,9 @@ all: libmetamorph.so
 #endif
 libmetamorph.so: $(MM_DEPS)
 	$(CC) $(MM_CORE)/metamorph.c $(MM_CORE)/metamorph_fortran_compat.c $(CC_FLAGS) $(INCLUDES) -L$(MM_LIB) $(MM_COMPONENTS) -o $(MM_LIB)/libmetamorph.so -shared -Wl,-soname,libmetamorph.so
+
+libmm_profiling.so: $(MM_CORE)/metamorph_timers.c
+	$(CC) $(MM_CORE)/metamorph_timers.c $(CC_FLAGS) $(INCLUDES) -o $(MM_LIB)/libmm_profiling.so -shared -Wl,-soname,libmm_profiling.so
 
 #these old single-backend targets are deprecated now that the above is modular
 libmetamorph_mp.so: libmm_openmp_backend.so

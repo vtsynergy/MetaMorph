@@ -20,6 +20,7 @@ struct openmp_dyn_ptrs_profiling {
 };
 struct openmp_dyn_ptrs_profiling openmp_timing_funcs = {NULL};
 
+#ifdef DEPRECATED
 //TODO Paul:Understand and condense this function, if possible, consider renaming
 a_err cl_get_event_node(metaTimerQueue * queue, char * ename, metaTimerQueueFrame ** frame)
 {
@@ -98,21 +99,38 @@ printf("POI profiling event '%s' (timer side) %lu\n",temp->name,start_time);
 	}
 	return 0; //success
 }
+#endif //DEPRECATED
 
+a_err metaProfilingCreateTimer(meta_timer ** ret_timer, meta_preferred_mode mode, size_t size) {
+  a_err ret = 0;
+  if (ret_timer != NULL) {
+    
+    meta_timer * timer = (meta_timer *) calloc(1, sizeof(meta_timer));
+    timer->mode = mode;
+    timer->size = size;
+    timer->event.mode = mode;
+    meta_init_event(&(timer->event));
+    *ret_timer = timer;
+  }
+  else ret = -1;
+  return ret;
+}
 //Take a copy of the frame and insert it on to the selected queue.
 // Do nothing else with the frame, the caller should handle releasing it.
-a_err metaTimerEnqueue(metaTimerQueueFrame * frame, metaTimerQueue * queue) {
+a_err metaProfilingEnqueueTimer(meta_timer timer, metaProfilingBuiltinQueueType type) {
+// a_err metaTimerEnqueue(metaTimerQueueFrame * frame, metaTimerQueue * queue) {
 	if (!__meta_timers_initialized) metaTimersInit();
 	//allocate a new node - still in the thread-private allocated state
 	metaTimerQueueNode * newnode = (metaTimerQueueNode*) malloc(
 			sizeof(metaTimerQueueNode));
 	//initialize the new node
+	newnode->timer = timer;
 	//printf("ENQUEUE %x\n", newnode);
-	newnode->name = frame->name;
-	newnode->event = frame->event;
-	newnode->mode = frame->mode;
-	newnode->size = frame->size;
 	newnode->next = NULL;
+	metaTimerQueue * queue = NULL;
+	if (type >= 0 && type < queue_count) {
+          queue = &(metaBuiltinQueues[type]);
+        } else return -1;
 	metaTimerQueueNode *t, *n;
 	while (1) {
 		t = queue->tail;
@@ -135,7 +153,7 @@ a_err metaTimerEnqueue(metaTimerQueueFrame * frame, metaTimerQueue * queue) {
 
 //Take the copy of the front frame on the queue, and then remove it from the queue
 // Do nothing else with the frame's copy, the caller should allocate and free it.
-a_err metaTimerDequeue(metaTimerQueueFrame ** frame, metaTimerQueue * queue) {
+a_err metaTimerDequeue(meta_timer * ret_timer, metaTimerQueue * queue) {
 	if (!__meta_timers_initialized) metaTimersInit();
 	//TODO add a check to make sure the caller actually allocated the frame
 	//TODO make this dequeue hazard-aware 
@@ -160,10 +178,7 @@ a_err metaTimerDequeue(metaTimerQueueFrame ** frame, metaTimerQueue * queue) {
 			continue;
 		}
 		//Copy the node's data to the caller-allocated frame
-		(*frame)->name = n->name;
-		(*frame)->event = n->event;
-		(*frame)->mode = n->mode;
-		(*frame)->size = n->size;
+		if (ret_timer != NULL) *ret_timer = n->timer;
 		if (__sync_bool_compare_and_swap(&(queue->head), h, n))
 			break;
 	}
@@ -180,11 +195,14 @@ __attribute__((constructor(104))) a_err metaTimersInit() {
 	//Each builtin queue needs one of these pairs
 	// try to use the enum ints/names to minimize changes if new members
 	// are added to the enum
+	//Create a timer with a special sentinel type that we can copy into each of the queue sentinels
+	meta_timer * sentinel;
+	metaProfilingCreateTimer(&sentinel, metaModeUnset, 0);
 
 	//Init the device-to-host copy queue
 	metaBuiltinQueues[c_D2H].head = metaBuiltinQueues[c_D2H].tail =
 			(metaTimerQueueNode*) malloc(sizeof(metaTimerQueueNode));
-	metaBuiltinQueues[c_D2H].head->mode = metaModeUnset;
+	metaBuiltinQueues[c_D2H].head->timer = *sentinel;
 	metaBuiltinQueues[c_D2H].head->next = NULL;
 	metaBuiltinQueues[c_D2H].name = "Device to Host transfer";
 
@@ -192,42 +210,42 @@ __attribute__((constructor(104))) a_err metaTimersInit() {
 	metaBuiltinQueues[c_H2D].head = metaBuiltinQueues[c_H2D].tail =
 			(metaTimerQueueNode*) malloc(sizeof(metaTimerQueueNode));
 
-	metaBuiltinQueues[c_H2D].head->mode = metaModeUnset;
+	metaBuiltinQueues[c_H2D].head->timer = *sentinel;
 	metaBuiltinQueues[c_H2D].head->next = NULL;
 	metaBuiltinQueues[c_H2D].name = "Host to Device transfer";
 
 	//Init the host-to-host copy queue
 	metaBuiltinQueues[c_H2H].head = metaBuiltinQueues[c_H2H].tail =
 			(metaTimerQueueNode*) malloc(sizeof(metaTimerQueueNode));
-	metaBuiltinQueues[c_H2H].head->mode = metaModeUnset;
+	metaBuiltinQueues[c_H2H].head->timer = *sentinel;
 	metaBuiltinQueues[c_H2H].head->next = NULL;
 	metaBuiltinQueues[c_H2H].name = "Host to Host transfer";
 
 	//Init the device-to-device copy queue
 	metaBuiltinQueues[c_D2D].head = metaBuiltinQueues[c_D2D].tail =
 			(metaTimerQueueNode*) malloc(sizeof(metaTimerQueueNode));
-	metaBuiltinQueues[c_D2D].head->mode = metaModeUnset;
+	metaBuiltinQueues[c_D2D].head->timer = *sentinel;
 	metaBuiltinQueues[c_D2D].head->next = NULL;
 	metaBuiltinQueues[c_D2D].name = "Device to Device transfer";
 
 	//Init the host-to-device (constant) copy queue
 	metaBuiltinQueues[c_H2Dc].head = metaBuiltinQueues[c_H2Dc].tail =
 			(metaTimerQueueNode*) malloc(sizeof(metaTimerQueueNode));
-	metaBuiltinQueues[c_H2Dc].head->mode = metaModeUnset;
+	metaBuiltinQueues[c_H2Dc].head->timer = *sentinel;
 	metaBuiltinQueues[c_H2Dc].head->next = NULL;
 	metaBuiltinQueues[c_H2Dc].name = "Host to Constant transfer";
 
 	//Init the Reduction kernel queue
 	metaBuiltinQueues[k_reduce].head = metaBuiltinQueues[k_reduce].tail =
 			(metaTimerQueueNode*) malloc(sizeof(metaTimerQueueNode));
-	metaBuiltinQueues[k_reduce].head->mode = metaModeUnset;
+	metaBuiltinQueues[k_reduce].head->timer = *sentinel;
 	metaBuiltinQueues[k_reduce].head->next = NULL;
 	metaBuiltinQueues[k_reduce].name = "Reduction Sum kernel call";
 
 	//Init the Dot Product kernel queue
 	metaBuiltinQueues[k_dotProd].head = metaBuiltinQueues[k_dotProd].tail =
 			(metaTimerQueueNode*) malloc(sizeof(metaTimerQueueNode));
-	metaBuiltinQueues[k_dotProd].head->mode = metaModeUnset;
+	metaBuiltinQueues[k_dotProd].head->timer = *sentinel;
 	metaBuiltinQueues[k_dotProd].head->next = NULL;
 	metaBuiltinQueues[k_dotProd].name = "Dot Product kernel call";
 
@@ -235,7 +253,7 @@ __attribute__((constructor(104))) a_err metaTimersInit() {
 	metaBuiltinQueues[k_transpose_2d_face].head =
 			metaBuiltinQueues[k_transpose_2d_face].tail =
 					(metaTimerQueueNode*) malloc(sizeof(metaTimerQueueNode));
-	metaBuiltinQueues[k_transpose_2d_face].head->mode = metaModeUnset;
+	metaBuiltinQueues[k_transpose_2d_face].head->timer = *sentinel;
 	metaBuiltinQueues[k_transpose_2d_face].head->next = NULL;
 	metaBuiltinQueues[k_transpose_2d_face].name =
 			"Transpose 2DFace kernel call";
@@ -244,7 +262,7 @@ __attribute__((constructor(104))) a_err metaTimersInit() {
 	metaBuiltinQueues[k_pack_2d_face].head =
 			metaBuiltinQueues[k_pack_2d_face].tail =
 					(metaTimerQueueNode*) malloc(sizeof(metaTimerQueueNode));
-	metaBuiltinQueues[k_pack_2d_face].head->mode = metaModeUnset;
+	metaBuiltinQueues[k_pack_2d_face].head->timer = *sentinel;
 	metaBuiltinQueues[k_pack_2d_face].head->next = NULL;
 	metaBuiltinQueues[k_pack_2d_face].name = "Pack 2DFace kernel call";
 
@@ -252,7 +270,7 @@ __attribute__((constructor(104))) a_err metaTimersInit() {
 	metaBuiltinQueues[k_unpack_2d_face].head =
 			metaBuiltinQueues[k_unpack_2d_face].tail =
 					(metaTimerQueueNode*) malloc(sizeof(metaTimerQueueNode));
-	metaBuiltinQueues[k_unpack_2d_face].head->mode = metaModeUnset;
+	metaBuiltinQueues[k_unpack_2d_face].head->timer = *sentinel;
 	metaBuiltinQueues[k_unpack_2d_face].head->next = NULL;
 	metaBuiltinQueues[k_unpack_2d_face].name = "Unpack 2DFace kernel call";
 
@@ -260,7 +278,7 @@ __attribute__((constructor(104))) a_err metaTimersInit() {
 	metaBuiltinQueues[k_stencil_3d7p].head =
 			metaBuiltinQueues[k_stencil_3d7p].tail =
 					(metaTimerQueueNode*) malloc(sizeof(metaTimerQueueNode));
-	metaBuiltinQueues[k_stencil_3d7p].head->mode = metaModeUnset;
+	metaBuiltinQueues[k_stencil_3d7p].head->timer = *sentinel;
 	metaBuiltinQueues[k_stencil_3d7p].head->next = NULL;
 	metaBuiltinQueues[k_stencil_3d7p].name = "stencil_3d7p kernel call";
 	
@@ -268,7 +286,7 @@ __attribute__((constructor(104))) a_err metaTimersInit() {
 	metaBuiltinQueues[k_csr].head =
 			metaBuiltinQueues[k_csr].tail =
 					(metaTimerQueueNode*) malloc(sizeof(metaTimerQueueNode));
-	metaBuiltinQueues[k_csr].head->mode = metaModeUnset;
+	metaBuiltinQueues[k_csr].head->timer = *sentinel;
 	metaBuiltinQueues[k_csr].head->next = NULL;
 	metaBuiltinQueues[k_csr].name = "csr kernel call";
 	
@@ -276,7 +294,7 @@ __attribute__((constructor(104))) a_err metaTimersInit() {
 	metaBuiltinQueues[k_crc].head =
 			metaBuiltinQueues[k_crc].tail =
 					(metaTimerQueueNode*) malloc(sizeof(metaTimerQueueNode));
-	metaBuiltinQueues[k_crc].head->mode = metaModeUnset;
+	metaBuiltinQueues[k_crc].head->timer = *sentinel;
 	metaBuiltinQueues[k_crc].head->next = NULL;
 	metaBuiltinQueues[k_crc].name = "crc kernel call";
   if (backends.cuda_be_handle != NULL) {
@@ -299,44 +317,45 @@ __attribute__((constructor(104))) a_err metaTimersInit() {
 //FIXME needs to handle bad return codes
 void flushWorker(metaTimerQueue * queue, int level) {
 	a_err ret;
-	metaTimerQueueFrame * frame = (metaTimerQueueFrame*) malloc(
-			sizeof(metaTimerQueueFrame));
+	meta_timer * timer = (meta_timer *) malloc(sizeof(meta_timer));
 	int val;
 	unsigned long start, end, count = 0;
 	size_t size = 0;
 	float time = 0.0f, temp_t = 0.0f;
-	while ((val = metaTimerDequeue(&frame, queue)) != -1) {
+	while ((val = metaTimerDequeue(timer, queue)) != -1) {
 		//use one loop to do everything
 //		printf("JUST CHECKING %d\n", val);
 
+		//FIXME why does only OpenCL have level 0 implementation?
+		//Zero should just be eating nodes
 		if(level == 0)
 		{
-			if (frame->mode == metaModePreferOpenCL)
+			if (timer->mode == metaModePreferOpenCL)
 			{
 				
-		if (opencl_timing_funcs.metaOpenCLEventStartTime != NULL) ret = (*(opencl_timing_funcs.metaOpenCLEventStartTime))(frame->event, &start);
-		if (opencl_timing_funcs.metaOpenCLEventEndTime != NULL) ret = (*(opencl_timing_funcs.metaOpenCLEventEndTime))(frame->event, &end);
+		if (opencl_timing_funcs.metaOpenCLEventStartTime != NULL) ret = (*(opencl_timing_funcs.metaOpenCLEventStartTime))(timer->event, &start);
+		if (opencl_timing_funcs.metaOpenCLEventEndTime != NULL) ret = (*(opencl_timing_funcs.metaOpenCLEventEndTime))(timer->event, &end);
 				temp_t = (end-start)*0.000001;
 			}
 		}
 
 		if (level >= 1) {
-			if (frame->mode == metaModePreferGeneric) {
+			if (timer->mode == metaModePreferGeneric) {
 				//TODO add some generic stuff
 			}
-			else if (frame->mode == metaModePreferCUDA) {
-				//TODO add a check to cudaEventQuery to make sure frame->event.cuda[1] is finished
-				if(cuda_timing_funcs.metaCUDAEventElapsedTime != NULL) ret = (*(cuda_timing_funcs.metaCUDAEventElapsedTime))(&temp_t, frame->event);
+			else if (timer->mode == metaModePreferCUDA) {
+				//TODO add a check to cudaEventQuery to make sure frame->event.cuda[1] is finished (PS: This should be done in the CUDA backend and an appropriate backend-agnostic error returned if it's not ready)
+				if(cuda_timing_funcs.metaCUDAEventElapsedTime != NULL) ret = (*(cuda_timing_funcs.metaCUDAEventElapsedTime))(&temp_t, timer->event);
 			}
-			else if (frame->mode == metaModePreferOpenCL) {
+			else if (timer->mode == metaModePreferOpenCL) {
 				//TODO add a check via clGetEventInfo to make sure the event has completed
-		if (opencl_timing_funcs.metaOpenCLEventStartTime != NULL) ret = (*(opencl_timing_funcs.metaOpenCLEventStartTime))(frame->event, &start);
-		if (opencl_timing_funcs.metaOpenCLEventEndTime != NULL) ret = (*(opencl_timing_funcs.metaOpenCLEventEndTime))(frame->event, &end);
+		if (opencl_timing_funcs.metaOpenCLEventStartTime != NULL) ret = (*(opencl_timing_funcs.metaOpenCLEventStartTime))(timer->event, &start);
+		if (opencl_timing_funcs.metaOpenCLEventEndTime != NULL) ret = (*(opencl_timing_funcs.metaOpenCLEventEndTime))(timer->event, &end);
 				temp_t = (end-start)*0.000001;
 
 			}
-			else if (frame->mode == metaModePreferOpenMP) {
-		if (openmp_timing_funcs.metaOpenMPEventElapsedTime != NULL) ret = (*(openmp_timing_funcs.metaOpenMPEventElapsedTime))(&temp_t, frame->event);
+			else if (timer->mode == metaModePreferOpenMP) {
+		if (openmp_timing_funcs.metaOpenMPEventElapsedTime != NULL) ret = (*(openmp_timing_funcs.metaOpenMPEventElapsedTime))(&temp_t, timer->event);
 			}
 			//Aggregate times/bandwidth across all 
 		}
@@ -346,13 +365,13 @@ void flushWorker(metaTimerQueue * queue, int level) {
 #ifdef WITH_MPI
 			int rank;
 			MPI_Comm_rank(MPI_COMM_WORLD, &rank);
-			fprintf(stderr, "\tRank[%d]: %s [%lu] on [%lu]bytes took [%f]ms, with [%f]MB/s approximate bandwidth.\n", rank, queue->name, count, frame->size, temp_t, (frame->size > 0 && temp_t > 0) ? frame->size*.001/temp_t : 0.0);
+			fprintf(stderr, "\tRank[%d]: %s [%lu] on [%lu]bytes took [%f]ms, with [%f]MB/s approximate bandwidth.\n", rank, queue->name, count, timer->size, temp_t, (timer->size > 0 && temp_t > 0) ? timer->size*.001/temp_t : 0.0);
 #else
 			fprintf(stderr,
 					"\t%s [%lu] on [%lu]bytes took [%f]ms, with [%f]MB/s approximate bandwidth.\n",
-					queue->name, count, frame->size, temp_t,
-					(frame->size > 0 && temp_t > 0) ?
-							frame->size * .001 / temp_t : 0.0);
+					queue->name, count, timer->size, temp_t,
+					(timer->size > 0 && temp_t > 0) ?
+							timer->size * .001 / temp_t : 0.0);
 #endif
 		}
 
@@ -360,7 +379,7 @@ void flushWorker(metaTimerQueue * queue, int level) {
 			//Really verbose stuff, like block/grid size
 		}
 		time += temp_t;
-		size += frame->size;
+		size += timer->size;
 		count++;
 		//Eating the node for level 0 is inherent in the while
 	}

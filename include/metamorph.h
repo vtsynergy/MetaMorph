@@ -182,6 +182,8 @@ struct backend_handles {
   void * opencl_lib_handle;
   void * cuda_be_handle;
   void * cuda_lib_handle;
+};
+struct plugin_handles {
   void * mpi_handle;
   void * profiling_handle;
 };
@@ -192,13 +194,14 @@ struct backend_handles {
     fprintf(stderr, "Could not dynamically load symbol \"%s\" in library \"%s\", error: \"%s\"\n", sym, lib, sym_err);\
     exit(1);\
   }\
-}\
+}
 //A simple abstract type to store the type of event and a payload pointer containing the actual backend-specific value
 //FIXME meta_events are currently allocated and freed by the client, but assumed to persist throughout. It would be safer to have our own copy the user cannot tamper with
 typedef struct meta_event {
   meta_preferred_mode mode;
   void * event_pl;
 } meta_event;
+
 
 //Not meant for users, lets MM components lookup sets of related modules
 int lookup_implementing_modules(a_module_record ** retRecords, size_t szRetRecords, a_module_implements_backend signature, a_bool matchAny);
@@ -310,20 +313,14 @@ a_err meta_crc(a_dim3 * grid_size, a_dim3 * block_size, void * dev_input, int pa
 #endif
 #endif
 
-//Event-based timers
-//WITH_TIMERS needs to be here, so the header passthrough can give it the
-// meta_preferred_mode enum
-#ifdef WITH_TIMERS
 #ifndef METAMORPH_TIMERS_H
 #include "metamorph_timers.h"
 #endif
-#endif
-
-//Fortran compatibility plugin needs access to all top-level calls
-// and data types.
-#ifndef METAMORPH_FORTRAN_COMPAT_H
-#include "metamorph_fortran_compat.h"
-#endif
+struct profiling_dyn_ptrs {
+a_err (* metaProfilingCreateTimer)(meta_timer **, meta_preferred_mode, size_t);
+a_err (* metaProfilingEnqueueTimer)(meta_timer, metaProfilingBuiltinQueueType);
+a_err (* metaProfilingDestroyTimer)(meta_timer *);
+};
 
 #ifdef __cplusplus
 }

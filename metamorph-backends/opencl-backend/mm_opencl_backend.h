@@ -433,10 +433,10 @@ a_int meta_get_state_OpenCL(cl_platform_id * platform, cl_device_id * device,
 a_int meta_set_state_OpenCL(cl_platform_id platform, cl_device_id device,
 		cl_context context, cl_command_queue queue);
 		
-#ifdef WITH_TIMERS
+#ifdef DEPRECATED
 //getting a pointer to specific event  
 a_err meta_get_event(char * qname, char * ename, cl_event ** e);
-#endif // WITH_TIMERS
+#endif // DEPRECATED
 
 /**
  * OpenCL wrapper to all dot product kernels
