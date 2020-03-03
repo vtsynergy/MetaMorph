@@ -12,7 +12,6 @@
 #include <stdlib.h>
 #include <stdio.h>
 #include <string.h>
-#include "../../include/metamorph_timers.h"
 #include "../../metamorph-backends/opencl-backend/mm_opencl_backend.h"
 
 #if defined(__OPENCLCC__) || defined(__cplusplus)

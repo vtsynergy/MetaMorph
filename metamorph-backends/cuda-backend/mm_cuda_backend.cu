@@ -6,6 +6,7 @@
 
 #include "mm_cuda_backend.cuh"
 
+extern struct profiling_dyn_ptrs profiling_symbols;
 /** non-specialized shared memory class template */
 template<typename T>
 class SharedMem {
@@ -686,20 +687,17 @@ a_err metaCUDAFree(void * ptr) {
   if (ret_event != NULL && ret_event->mode == metaModePreferCUDA && ret_event->event_pl != NULL) {
     events = ((cudaEvent_t *)ret_event->event_pl);
   }
-#ifdef WITH_TIMERS
-        metaTimerQueueFrame * frame;
-	frame = (metaTimerQueueFrame*)malloc (sizeof(metaTimerQueueFrame));
-	frame->mode = metaModePreferCUDA;
-	frame->size = size;
-  if (events == NULL) {
-    frame->event.mode = metaModePreferCUDA;
-    metaCUDACreateEvent(&(frame->event.event_pl));
-    events = ((cudaEvent_t *)frame->event.event_pl);
-	}
-  else {
-    frame->event = *ret_event;
+  meta_timer * timer = NULL;
+  if (profiling_symbols.metaProfilingCreateTimer != NULL) {
+    (*(profiling_symbols.metaProfilingCreateTimer))(&timer, metaModePreferCUDA, size);
+    if (events == NULL) {
+      events = ((cudaEvent_t *)timer->event.event_pl);
+    } else {
+      //FIXME: are we leaking a created cudaEvent_t here since the profiling function calls create?
+      //metaCUDADestroyEvent(frame->event.event_pl);
+      timer->event = *ret_event;
+    }
   }
-#endif
 	if (events != NULL) {
 		cudaEventRecord(events[0], 0);
 	}
@@ -714,9 +712,7 @@ a_err metaCUDAFree(void * ptr) {
 //FIXME CUDA needs to deal with its own callback setup
 			//If a callback is provided, register it immediately after returning from enqueuing the kernel
 			if ((void*)call != NULL) cudaStreamAddCallback(0, metaCUDACallbackHelper, call, 0);
-#ifdef WITH_TIMERS
-	metaTimerEnqueue(frame, &(metaBuiltinQueues[c_H2D]));
-#endif
+    if (profiling_symbols.metaProfilingEnqueueTimer != NULL) (*(profiling_symbols.metaProfilingEnqueueTimer))(*timer, c_H2D);
 	//TODO if we do event copy, assign it back to the callbnack/ret_event here
   return ret;
 }
@@ -726,20 +722,17 @@ a_err metaCUDAFree(void * ptr) {
   if (ret_event != NULL && ret_event->mode == metaModePreferCUDA && ret_event->event_pl != NULL) {
     events = ((cudaEvent_t *)ret_event->event_pl);
   }
-#ifdef WITH_TIMERS
-        metaTimerQueueFrame * frame;
-	frame = (metaTimerQueueFrame*)malloc (sizeof(metaTimerQueueFrame));
-	frame->mode = metaModePreferCUDA;
-	frame->size = size;
-  if (events == NULL) {
-    frame->event.mode = metaModePreferCUDA;
-    metaCUDACreateEvent(&(frame->event.event_pl));
-    events = ((cudaEvent_t *)frame->event.event_pl);
-	}
-  else {
-    frame->event = *ret_event;
+  meta_timer * timer = NULL;
+  if (profiling_symbols.metaProfilingCreateTimer != NULL) {
+    (*(profiling_symbols.metaProfilingCreateTimer))(&timer, metaModePreferCUDA, size);
+    if (events == NULL) {
+      events = ((cudaEvent_t *)timer->event.event_pl);
+    } else {
+      //FIXME: are we leaking a created cudaEvent_t here since the profiling function calls create?
+      //metaCUDADestroyEvent(frame->event.event_pl);
+      timer->event = *ret_event;
+    }
   }
-#endif
 	if (events != NULL) {
 		cudaEventRecord(events[0], 0);
 	}
@@ -754,9 +747,7 @@ a_err metaCUDAFree(void * ptr) {
 //FIXME CUDA needs to deal with its own callback setup
 			//If a callback is provided, register it immediately after returning from enqueuing the kernel
 			if ((void*)call != NULL) cudaStreamAddCallback(0, metaCUDACallbackHelper, call, 0);
-#ifdef WITH_TIMERS
-	metaTimerEnqueue(frame, &(metaBuiltinQueues[c_D2H]));
-#endif
+    if (profiling_symbols.metaProfilingEnqueueTimer != NULL) (*(profiling_symbols.metaProfilingEnqueueTimer))(*timer, c_D2H);
 	//TODO if we do event copy, assign it back to the callbnack/ret_event here
   return ret;
 }
@@ -766,20 +757,17 @@ a_err metaCUDAFree(void * ptr) {
   if (ret_event != NULL && ret_event->mode == metaModePreferCUDA && ret_event->event_pl != NULL) {
     events = ((cudaEvent_t *)ret_event->event_pl);
   }
-#ifdef WITH_TIMERS
-        metaTimerQueueFrame * frame;
-	frame = (metaTimerQueueFrame*)malloc (sizeof(metaTimerQueueFrame));
-	frame->mode = metaModePreferCUDA;
-	frame->size = size;
-  if (events == NULL) {
-    frame->event.mode = metaModePreferCUDA;
-    metaCUDACreateEvent(&(frame->event.event_pl));
-    events = ((cudaEvent_t *)frame->event.event_pl);
-	}
-  else {
-    frame->event = *ret_event;
+  meta_timer * timer = NULL;
+  if (profiling_symbols.metaProfilingCreateTimer != NULL) {
+    (*(profiling_symbols.metaProfilingCreateTimer))(&timer, metaModePreferCUDA, size);
+    if (events == NULL) {
+      events = ((cudaEvent_t *)timer->event.event_pl);
+    } else {
+      //FIXME: are we leaking a created cudaEvent_t here since the profiling function calls create?
+      //metaCUDADestroyEvent(frame->event.event_pl);
+      timer->event = *ret_event;
+    }
   }
-#endif
 	if (events != NULL) {
 		cudaEventRecord(events[0], 0);
 	}
@@ -794,9 +782,7 @@ a_err metaCUDAFree(void * ptr) {
 //FIXME CUDA needs to deal with its own callback setup
 			//If a callback is provided, register it immediately after returning from enqueuing the kernel
 			if ((void*)call != NULL) cudaStreamAddCallback(0, metaCUDACallbackHelper, call, 0);
-#ifdef WITH_TIMERS
-	metaTimerEnqueue(frame, &(metaBuiltinQueues[c_D2H]));
-#endif
+    if (profiling_symbols.metaProfilingEnqueueTimer != NULL) (*(profiling_symbols.metaProfilingEnqueueTimer))(*timer, c_D2D);
 	//TODO if we do event copy, assign it back to the callbnack/ret_event here
   return ret;
 }
@@ -807,7 +793,7 @@ a_err metaCUDACurrDev(a_int * accel) {
   return cudaGetDevice(accel);
 }
 //FIXME Implement
-a_err metaCUDAMaxWorkSizes(a_dim3*, a_dim3*) {
+a_err metaCUDAMaxWorkSizes(a_dim3 * grid, a_dim3 * block) {
   a_err ret = cudaSuccess;
   fprintf(stderr, "metaCUDAMaxWorkSizes unimplemented\n");
   return -1;
@@ -915,20 +901,17 @@ return ret;
   if (ret_event != NULL && ret_event->mode == metaModePreferCUDA && ret_event->event_pl != NULL) {
     events = ((cudaEvent_t *)ret_event->event_pl);
   }
-#ifdef WITH_TIMERS
-        metaTimerQueueFrame * frame;
-	frame = (metaTimerQueueFrame*)malloc (sizeof(metaTimerQueueFrame));
-	frame->mode = metaModePreferCUDA;
-	frame->size = (*array_size)[0]*(*array_size)[1]*(*array_size)[2]*get_atype_size(type);
-  if (events == NULL) {
-    frame->event.mode = metaModePreferCUDA;
-    metaCUDACreateEvent(&(frame->event.event_pl));
-    events = ((cudaEvent_t *)frame->event.event_pl);
-	}
-  else {
-    frame->event = *ret_event;
+  meta_timer * timer = NULL;
+  if (profiling_symbols.metaProfilingCreateTimer != NULL) {
+    (*(profiling_symbols.metaProfilingCreateTimer))(&timer, metaModePreferCUDA, (*array_size)[0]*(*array_size)[1]*(*array_size)[2]*get_atype_size(type));
+    if (events == NULL) {
+      events = ((cudaEvent_t *)timer->event.event_pl);
+    } else {
+      //FIXME: are we leaking a created cudaEvent_t here since the profiling function calls create?
+      //metaCUDADestroyEvent(frame->event.event_pl);
+      timer->event = *ret_event;
+    }
   }
-#endif
 	if (events != NULL) {
 		cudaEventRecord(events[0], 0);
 	}
@@ -964,9 +947,7 @@ return ret;
 //FIXME CUDA needs to deal with its own callback setup
 			//If a callback is provided, register it immediately after returning from enqueuing the kernel
 			if ((void*)call != NULL) cudaStreamAddCallback(0, metaCUDACallbackHelper, call, 0);
-#ifdef WITH_TIMERS
-	metaTimerEnqueue(timer_frame, &(metaBuiltinQueues[k_dotProd]));
-#endif
+    if (profiling_symbols.metaProfilingEnqueueTimer != NULL) (*(profiling_symbols.metaProfilingEnqueueTimer))(*timer, k_dotProd);
 	//TODO if we do event copy, assign it back to the callbnack/ret_event here
 	if (!async)
 		ret = cudaThreadSynchronize();
@@ -1009,20 +990,17 @@ return ret;
   if (ret_event != NULL && ret_event->mode == metaModePreferCUDA && ret_event->event_pl != NULL) {
     events = ((cudaEvent_t *)ret_event->event_pl);
   }
-#ifdef WITH_TIMERS
-        metaTimerQueueFrame * frame;
-	frame = (metaTimerQueueFrame*)malloc (sizeof(metaTimerQueueFrame));
-	frame->mode = metaModePreferCUDA;
-	frame->size = (*array_size)[0]*(*array_size)[1]*(*array_size)[2]*get_atype_size(type);
-  if (events == NULL) {
-    frame->event.mode = metaModePreferCUDA;
-    metaCUDACreateEvent(&(frame->event.event_pl));
-    events = ((cudaEvent_t *)frame->event.event_pl);
-	}
-  else {
-    frame->event = *ret_event;
+  meta_timer * timer = NULL;
+  if (profiling_symbols.metaProfilingCreateTimer != NULL) {
+    (*(profiling_symbols.metaProfilingCreateTimer))(&timer, metaModePreferCUDA, (*array_size)[0]*(*array_size)[1]*(*array_size)[2]*get_atype_size(type));
+    if (events == NULL) {
+      events = ((cudaEvent_t *)timer->event.event_pl);
+    } else {
+      //FIXME: are we leaking a created cudaEvent_t here since the profiling function calls create?
+      //metaCUDADestroyEvent(frame->event.event_pl);
+      timer->event = *ret_event;
+    }
   }
-#endif
 	if (events != NULL) {
 		cudaEventRecord(events[0], 0);
 	}
@@ -1060,9 +1038,7 @@ return ret;
 	}
 			//If a callback is provided, register it immediately after returning from enqueuing the kernel
 			if ((void*)call != NULL) cudaStreamAddCallback(0, metaCUDACallbackHelper, call, 0);
-#ifdef WITH_TIMERS
-	metaTimerEnqueue(timer_frame, &(metaBuiltinQueues[k_reduce]));
-#endif
+    if (profiling_symbols.metaProfilingEnqueueTimer != NULL) (*(profiling_symbols.metaProfilingEnqueueTimer))(*timer, k_reduce);
 	//TODO if we do event copy, assign it back to the callbnack/ret_event here
 	if (!async)
 		ret = cudaThreadSynchronize();
@@ -1104,20 +1080,17 @@ return ret;
   if (ret_event != NULL && ret_event->mode == metaModePreferCUDA && ret_event->event_pl != NULL) {
     events = ((cudaEvent_t *)ret_event->event_pl);
   }
-#ifdef WITH_TIMERS
-        metaTimerQueueFrame * frame;
-	frame = (metaTimerQueueFrame*)malloc (sizeof(metaTimerQueueFrame));
-	frame->mode = metaModePreferCUDA;
-	frame->size = (*tran_dim_xy)[0]*(*trans_dim_xy)[1]*get_atype_size(type);
-  if (events == NULL) {
-    frame->event.mode = metaModePreferCUDA;
-    metaCUDACreateEvent(&(frame->event.event_pl));
-    events = ((cudaEvent_t *)frame->event.event_pl);
-	}
-  else {
-    frame->event = *ret_event;
+  meta_timer * timer = NULL;
+  if (profiling_symbols.metaProfilingCreateTimer != NULL) {
+    (*(profiling_symbols.metaProfilingCreateTimer))(&timer, metaModePreferCUDA, (*tran_dim_xy)[0]*(*tran_dim_xy)[1]*get_atype_size(type));
+    if (events == NULL) {
+      events = ((cudaEvent_t *)timer->event.event_pl);
+    } else {
+      //FIXME: are we leaking a created cudaEvent_t here since the profiling function calls create?
+      //metaCUDADestroyEvent(frame->event.event_pl);
+      timer->event = *ret_event;
+    }
   }
-#endif
 	if (events != NULL) {
 		cudaEventRecord(events[0], 0);
 	}
@@ -1152,9 +1125,7 @@ return ret;
 	}
 			//If a callback is provided, register it immediately after returning from enqueuing the kernel
 			if ((void*)call != NULL) cudaStreamAddCallback(0, metaCUDACallbackHelper, call, 0);
-#ifdef WITH_TIMERS
-	metaTimerEnqueue(timer_frame, &(metaBuiltinQueues[k_transpose_2d_face]));
-#endif
+    if (profiling_symbols.metaProfilingEnqueueTimer != NULL) (*(profiling_symbols.metaProfilingEnqueueTimer))(*timer, k_transpose_2d_face);
 	//TODO if we do event copy, assign it back to the callbnack/ret_event here
 	if (!async)
 		ret = cudaThreadSynchronize();
@@ -1190,20 +1161,17 @@ return ret;
   if (ret_event_c1 != NULL && ret_event_c1->mode == metaModePreferCUDA && ret_event_c1->event_pl != NULL) {
     events_c1 = ((cudaEvent_t *)ret_event_c1->event_pl);
   }
-#ifdef WITH_TIMERS
-        metaTimerQueueFrame * frame_c1;
-	frame_c1 = (metaTimerQueueFrame*)malloc (sizeof(metaTimerQueueFrame));
-	frame_c1->mode = metaModePreferCUDA;
-	frame_c1->size = get_atype_size(type)*3;
-  if (events_c1 == NULL) {
-    frame_c1->event.mode = metaModePreferCUDA;
-    metaCUDACreateEvent(&(frame_c1->event.event_pl));
-    events_c1 = ((cudaEvent_t *)frame_c1->event.event_pl);
-	}
-  else {
-    frame_c1->event = *ret_event_c1;
+  meta_timer * timer_c1 = NULL;
+  if (profiling_symbols.metaProfilingCreateTimer != NULL) {
+    (*(profiling_symbols.metaProfilingCreateTimer))(&timer_c1, metaModePreferCUDA, get_atype_size(type)*3);
+    if (events_c1 == NULL) {
+      events_c1 = ((cudaEvent_t *)timer_c1->event.event_pl);
+    } else {
+      //FIXME: are we leaking a created cudaEvent_t here since the profiling function calls create?
+      //metaCUDADestroyEvent(frame->event.event_pl);
+      timer_c1->event = *ret_event_c1;
+    }
   }
-#endif
 	if (events_c1 != NULL) {
 		cudaEventRecord(events_c1[0], 0);
 	}
@@ -1216,20 +1184,17 @@ return ret;
   if (ret_event_c2 != NULL && ret_event_c2->mode == metaModePreferCUDA && ret_event_c2->event_pl != NULL) {
     events_c2 = ((cudaEvent_t *)ret_event_c2->event_pl);
   }
-#ifdef WITH_TIMERS
-        metaTimerQueueFrame * frame_c2;
-	frame_c2 = (metaTimerQueueFrame*)malloc (sizeof(metaTimerQueueFrame));
-	frame_c2->mode = metaModePreferCUDA;
-	frame_c2->size = get_atype_size(type)*3;
-  if (events_c2 == NULL) {
-    frame_c2->event.mode = metaModePreferCUDA;
-    metaCUDACreateEvent(&(frame_c2->event.event_pl));
-    events_c2 = ((cudaEvent_t *)frame_c2->event.event_pl);
-	}
-  else {
-    frame_c2->event = *ret_event_k1;
+  meta_timer * timer_c2 = NULL;
+  if (profiling_symbols.metaProfilingCreateTimer != NULL) {
+    (*(profiling_symbols.metaProfilingCreateTimer))(&timer_c2, metaModePreferCUDA, get_atype_size(type)*3);
+    if (events_c2 == NULL) {
+      events_c2 = ((cudaEvent_t *)timer_c2->event.event_pl);
+    } else {
+      //FIXME: are we leaking a created cudaEvent_t here since the profiling function calls create?
+      //metaCUDADestroyEvent(frame->event.event_pl);
+      timer_c2->event = *ret_event_c2;
+    }
   }
-#endif
 	if (events_c2 != NULL) {
 		cudaEventRecord(events_c2[0], 0);
 	}
@@ -1242,20 +1207,17 @@ return ret;
   if (ret_event_c3 != NULL && ret_event_c3->mode == metaModePreferCUDA && ret_event_c3->event_pl != NULL) {
     events_c3 = ((cudaEvent_t *)ret_event_c3->event_pl);
   }
-#ifdef WITH_TIMERS
-        metaTimerQueueFrame * frame_c3;
-	frame_c3 = (metaTimerQueueFrame*)malloc (sizeof(metaTimerQueueFrame));
-	frame_c3->mode = metaModePreferCUDA;
-	frame_c3->size = get_atype_size(type)*3;
-  if (events_c3 == NULL) {
-    frame_c3->event.mode = metaModePreferCUDA;
-    metaCUDACreateEvent(&(frame_c3->event.event_pl));
-    events_c3 = ((cudaEvent_t *)frame_c3->event.event_pl);
-	}
-  else {
-    frame_c3->event = *ret_event_c3;
+  meta_timer * timer_c3 = NULL;
+  if (profiling_symbols.metaProfilingCreateTimer != NULL) {
+    (*(profiling_symbols.metaProfilingCreateTimer))(&timer_c3, metaModePreferCUDA, get_atype_size(type)*3);
+    if (events_c3 == NULL) {
+      events_c3 = ((cudaEvent_t *)timer_c3->event.event_pl);
+    } else {
+      //FIXME: are we leaking a created cudaEvent_t here since the profiling function calls create?
+      //metaCUDADestroyEvent(frame->event.event_pl);
+      timer_c3->event = *ret_event_c3;
+    }
   }
-#endif
 	if (events_c3 != NULL) {
 		cudaEventRecord(events_c3[0], 0);
 	}
@@ -1286,20 +1248,17 @@ return ret;
   if (ret_event_k1 != NULL && ret_event_k1->mode == metaModePreferCUDA && ret_event_k1->event_pl != NULL) {
     events_k1 = ((cudaEvent_t *)ret_event_k1->event_pl);
   }
-#ifdef WITH_TIMERS
-        metaTimerQueueFrame * frame_k1;
-	frame_k1 = (metaTimerQueueFrame*)malloc (sizeof(metaTimerQueueFrame));
-	frame_k1->mode = metaModePreferCUDA;
-	frame_k1->size = get_atype_size(type)*face->size[0]*face->size[1]*face->size[2];
-  if (events_k1 == NULL) {
-    frame_k1->event.mode = metaModePreferCUDA;
-    metaCUDACreateEvent(&(frame_k1->event.event_pl));
-    events_k1 = ((cudaEvent_t *)frame_k1->event.event_pl);
-	}
-  else {
-    frame_k1->event = *ret_event_k1;
+  meta_timer * timer_k1 = NULL;
+  if (profiling_symbols.metaProfilingCreateTimer != NULL) {
+    (*(profiling_symbols.metaProfilingCreateTimer))(&timer_k1, metaModePreferCUDA, get_atype_size(type)*face->size[0]*face->size[1]*face->size[2]);
+    if (events_k1 == NULL) {
+      events_k1 = ((cudaEvent_t *)timer_k1->event.event_pl);
+    } else {
+      //FIXME: are we leaking a created cudaEvent_t here since the profiling function calls create?
+      //metaCUDADestroyEvent(frame->event.event_pl);
+      timer_k1->event = *ret_event_k1;
+    }
   }
-#endif
 	if (events_k1 != NULL) {
 		cudaEventRecord(events_k1[0], 0);
 	}
@@ -1334,12 +1293,10 @@ return ret;
 	}
 			//If a callback is provided, register it immediately after returning from enqueuing the kernel
 			if ((void*)call != NULL) cudaStreamAddCallback(0, metaCUDACallbackHelper, call, 0);
-#ifdef WITH_TIMERS
-	metaTimerEnqueue(frame_k1, &(metaBuiltinQueues[k_pack_2d_face]));
-	metaTimerEnqueue(frame_c1, &(metaBuiltinQueues[c_H2Dc]));
-	metaTimerEnqueue(frame_c2, &(metaBuiltinQueues[c_H2Dc]));
-	metaTimerEnqueue(frame_c3, &(metaBuiltinQueues[c_H2Dc]));
-#endif
+    if (profiling_symbols.metaProfilingEnqueueTimer != NULL) (*(profiling_symbols.metaProfilingEnqueueTimer))(*timer_k1, k_pack_2d_face);
+    if (profiling_symbols.metaProfilingEnqueueTimer != NULL) (*(profiling_symbols.metaProfilingEnqueueTimer))(*timer_c1, c_H2Dc);
+    if (profiling_symbols.metaProfilingEnqueueTimer != NULL) (*(profiling_symbols.metaProfilingEnqueueTimer))(*timer_c2, c_H2Dc);
+    if (profiling_symbols.metaProfilingEnqueueTimer != NULL) (*(profiling_symbols.metaProfilingEnqueueTimer))(*timer_c3, c_H2Dc);
 	//TODO if we do event copy, assign it back to the callbnack/ret_event here
 	if (!async)
 		ret = cudaThreadSynchronize();
@@ -1362,20 +1319,17 @@ return ret;
   if (ret_event_c1 != NULL && ret_event_c1->mode == metaModePreferCUDA && ret_event_c1->event_pl != NULL) {
     events_c1 = ((cudaEvent_t *)ret_event_c1->event_pl);
   }
-#ifdef WITH_TIMERS
-        metaTimerQueueFrame * frame_c1;
-	frame_c1 = (metaTimerQueueFrame*)malloc (sizeof(metaTimerQueueFrame));
-	frame_c1->mode = metaModePreferCUDA;
-	frame_c1->size = get_atype_size(type)*3;
-  if (events_c1 == NULL) {
-    frame_c1->event.mode = metaModePreferCUDA;
-    metaCUDACreateEvent(&(frame_c1->event.event_pl));
-    events_c1 = ((cudaEvent_t *)frame_c1->event.event_pl);
-	}
-  else {
-    frame_c1->event = *ret_event_c1;
+  meta_timer * timer_c1 = NULL;
+  if (profiling_symbols.metaProfilingCreateTimer != NULL) {
+    (*(profiling_symbols.metaProfilingCreateTimer))(&timer_c1, metaModePreferCUDA, get_atype_size(type)*3);
+    if (events_c1 == NULL) {
+      events_c1 = ((cudaEvent_t *)timer_c1->event.event_pl);
+    } else {
+      //FIXME: are we leaking a created cudaEvent_t here since the profiling function calls create?
+      //metaCUDADestroyEvent(frame->event.event_pl);
+      timer_c1->event = *ret_event_c1;
+    }
   }
-#endif
 	if (events_c1 != NULL) {
 		cudaEventRecord(events_c1[0], 0);
 	}
@@ -1388,20 +1342,17 @@ return ret;
   if (ret_event_c2 != NULL && ret_event_c2->mode == metaModePreferCUDA && ret_event_c2->event_pl != NULL) {
     events_c2 = ((cudaEvent_t *)ret_event_c2->event_pl);
   }
-#ifdef WITH_TIMERS
-        metaTimerQueueFrame * frame_c2;
-	frame_c2 = (metaTimerQueueFrame*)malloc (sizeof(metaTimerQueueFrame));
-	frame_c2->mode = metaModePreferCUDA;
-	frame_c2->size = get_atype_size(type)*3;
-  if (events_c2 == NULL) {
-    frame_c2->event.mode = metaModePreferCUDA;
-    metaCUDACreateEvent(&(frame_c2->event.event_pl));
-    events_c2 = ((cudaEvent_t *)frame_c2->event.event_pl);
-	}
-  else {
-    frame_c2->event = *ret_event_k1;
+  meta_timer * timer_c2 = NULL;
+  if (profiling_symbols.metaProfilingCreateTimer != NULL) {
+    (*(profiling_symbols.metaProfilingCreateTimer))(&timer_c2, metaModePreferCUDA, get_atype_size(type)*3);
+    if (events_c2 == NULL) {
+      events_c2 = ((cudaEvent_t *)timer_c2->event.event_pl);
+    } else {
+      //FIXME: are we leaking a created cudaEvent_t here since the profiling function calls create?
+      //metaCUDADestroyEvent(frame->event.event_pl);
+      timer_c2->event = *ret_event_c2;
+    }
   }
-#endif
 	if (events_c2 != NULL) {
 		cudaEventRecord(events_c2[0], 0);
 	}
@@ -1414,20 +1365,17 @@ return ret;
   if (ret_event_c3 != NULL && ret_event_c3->mode == metaModePreferCUDA && ret_event_c3->event_pl != NULL) {
     events_c3 = ((cudaEvent_t *)ret_event_c3->event_pl);
   }
-#ifdef WITH_TIMERS
-        metaTimerQueueFrame * frame_c3;
-	frame_c3 = (metaTimerQueueFrame*)malloc (sizeof(metaTimerQueueFrame));
-	frame_c3->mode = metaModePreferCUDA;
-	frame_c3->size = get_atype_size(type)*3;
-  if (events_c3 == NULL) {
-    frame_c3->event.mode = metaModePreferCUDA;
-    metaCUDACreateEvent(&(frame_c3->event.event_pl));
-    events_c3 = ((cudaEvent_t *)frame_c3->event.event_pl);
-	}
-  else {
-    frame_c3->event = *ret_event_c3;
+  meta_timer * timer_c3 = NULL;
+  if (profiling_symbols.metaProfilingCreateTimer != NULL) {
+    (*(profiling_symbols.metaProfilingCreateTimer))(&timer_c3, metaModePreferCUDA, get_atype_size(type)*3);
+    if (events_c3 == NULL) {
+      events_c3 = ((cudaEvent_t *)timer_c3->event.event_pl);
+    } else {
+      //FIXME: are we leaking a created cudaEvent_t here since the profiling function calls create?
+      //metaCUDADestroyEvent(frame->event.event_pl);
+      timer_c3->event = *ret_event_c3;
+    }
   }
-#endif
 	if (events_c3 != NULL) {
 		cudaEventRecord(events_c3[0], 0);
 	}
@@ -1459,20 +1407,17 @@ return ret;
   if (ret_event_k1 != NULL && ret_event_k1->mode == metaModePreferCUDA && ret_event_k1->event_pl != NULL) {
     events_k1 = ((cudaEvent_t *)ret_event_k1->event_pl);
   }
-#ifdef WITH_TIMERS
-        metaTimerQueueFrame * frame_k1;
-	frame_k1 = (metaTimerQueueFrame*)malloc (sizeof(metaTimerQueueFrame));
-	frame_k1->mode = metaModePreferCUDA;
-	frame_k1->size = get_atype_size(type)*face->size[0]*face->size[1]*face->size[2];
-  if (events_k1 == NULL) {
-    frame_k1->event.mode = metaModePreferCUDA;
-    metaCUDACreateEvent(&(frame_k1->event.event_pl));
-    events_k1 = ((cudaEvent_t *)frame_k1->event.event_pl);
-	}
-  else {
-    frame_k1->event = *ret_event_k1;
+  meta_timer * timer_k1 = NULL;
+  if (profiling_symbols.metaProfilingCreateTimer != NULL) {
+    (*(profiling_symbols.metaProfilingCreateTimer))(&timer_k1, metaModePreferCUDA, get_atype_size(type)*face->size[0]*face->size[1]*face->size[2]);
+    if (events_k1 == NULL) {
+      events_k1 = ((cudaEvent_t *)timer_k1->event.event_pl);
+    } else {
+      //FIXME: are we leaking a created cudaEvent_t here since the profiling function calls create?
+      //metaCUDADestroyEvent(frame->event.event_pl);
+      timer_k1->event = *ret_event_k1;
+    }
   }
-#endif
 	if (events_k1 != NULL) {
 		cudaEventRecord(events_k1[0], 0);
 	}
@@ -1507,12 +1452,10 @@ return ret;
 	}
 			//If a callback is provided, register it immediately after returning from enqueuing the kernel
 			if ((void*)call != NULL) cudaStreamAddCallback(0, metaCUDACallbackHelper, call, 0);
-#ifdef WITH_TIMERS
-	metaTimerEnqueue(frame_k1, &(metaBuiltinQueues[k_unpack_2d_face]));
-	metaTimerEnqueue(frame_c1, &(metaBuiltinQueues[c_H2Dc]));
-	metaTimerEnqueue(frame_c2, &(metaBuiltinQueues[c_H2Dc]));
-	metaTimerEnqueue(frame_c3, &(metaBuiltinQueues[c_H2Dc]));
-#endif
+    if (profiling_symbols.metaProfilingEnqueueTimer != NULL) (*(profiling_symbols.metaProfilingEnqueueTimer))(*timer_k1, k_unpack_2d_face);
+    if (profiling_symbols.metaProfilingEnqueueTimer != NULL) (*(profiling_symbols.metaProfilingEnqueueTimer))(*timer_c1, c_H2Dc);
+    if (profiling_symbols.metaProfilingEnqueueTimer != NULL) (*(profiling_symbols.metaProfilingEnqueueTimer))(*timer_c2, c_H2Dc);
+    if (profiling_symbols.metaProfilingEnqueueTimer != NULL) (*(profiling_symbols.metaProfilingEnqueueTimer))(*timer_c3, c_H2Dc);
 	//TODO if we do event copy, assign it back to the callbnack/ret_event here
 	if (!async)
 		ret = cudaThreadSynchronize();
@@ -1545,20 +1488,17 @@ return ret;
   if (ret_event != NULL && ret_event->mode == metaModePreferCUDA && ret_event->event_pl != NULL) {
     events = ((cudaEvent_t *)ret_event->event_pl);
   }
-#ifdef WITH_TIMERS
-        metaTimerQueueFrame * frame;
-	frame = (metaTimerQueueFrame*)malloc (sizeof(metaTimerQueueFrame));
-	frame->mode = metaModePreferCUDA;
-	frame->size = (*array_size)[0]*(*array_size)[1]*(*array_size)[2]*get_atype_size(type);
-  if (events == NULL) {
-    frame->event.mode = metaModePreferCUDA;
-    metaCUDACreateEvent(&(frame->event.event_pl));
-    events = ((cudaEvent_t *)frame->event.event_pl);
-	}
-  else {
-    frame->event = *ret_event;
+  meta_timer * timer = NULL;
+  if (profiling_symbols.metaProfilingCreateTimer != NULL) {
+    (*(profiling_symbols.metaProfilingCreateTimer))(&timer, metaModePreferCUDA, (*array_size)[0]*(*array_size)[1]*(*array_size)[2]*get_atype_size(type));
+    if (events == NULL) {
+      events = ((cudaEvent_t *)timer->event.event_pl);
+    } else {
+      //FIXME: are we leaking a created cudaEvent_t here since the profiling function calls create?
+      //metaCUDADestroyEvent(frame->event.event_pl);
+      timer->event = *ret_event;
+    }
   }
-#endif
 	if (events != NULL) {
 		cudaEventRecord(events[0], 0);
 	}
@@ -1593,9 +1533,7 @@ return ret;
 	}
 			//If a callback is provided, register it immediately after returning from enqueuing the kernel
 			if ((void*)call != NULL) cudaStreamAddCallback(0, metaCUDACallbackHelper, call, 0);
-#ifdef WITH_TIMERS
-	metaTimerEnqueue(timer_frame, &(metaBuiltinQueues[k_stencil_3d7p]));
-#endif
+    if (profiling_symbols.metaProfilingEnqueueTimer != NULL) (*(profiling_symbols.metaProfilingEnqueueTimer))(*timer, k_stencil_3d7p);
 	//TODO if we do event copy, assign it back to the callbnack/ret_event here
 	if (!async)
 		ret = cudaThreadSynchronize();

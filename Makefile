@@ -244,6 +244,7 @@ endif
 ifeq ($(USE_TIMERS),TRUE)
 MM_COMPONENTS += -D WITH_TIMERS -lmm_profiling
 MM_DEPS += libmm_profiling.so
+INCLUDES += -D WITH_TIMERS
 endif
 
 #CUDA backend
