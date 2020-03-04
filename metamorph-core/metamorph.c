@@ -267,7 +267,10 @@ struct openmp_dyn_ptrs openmp_symbols = {NULL};
 
 struct plugin_handles plugins = {NULL};
 struct profiling_dyn_ptrs profiling_symbols = {NULL};
-
+struct mpi_dyn_ptrs {
+  a_err (* finish_mpi_requests)();
+};
+struct mpi_dyn_ptrs mpi_symbols = {NULL};
 //Constuctor initializr, should not typically need to be manually called
 //For now it just does the auto-discovery of installed backend .sos to enable capability at runtime based on what's installed
 __attribute__((constructor(101))) void meta_init() {
@@ -359,6 +362,7 @@ __attribute__((constructor(101))) void meta_init() {
   if (plugins.mpi_handle == NULL) fprintf(stderr, "No MPI plugin detected\n");
   else {
     core_capability |= module_implements_mpi;
+    CHECKED_DLSYM("libmm_mpi.so", plugins.mpi_handle, "finish_mpi_requests", mpi_symbols.finish_mpi_requests);
     fprintf(stderr, "MPI plugin found\n");
   }
   plugins.profiling_handle = dlopen("libmm_profiling.so", RTLD_NOW | RTLD_GLOBAL);
@@ -899,9 +903,7 @@ a_err ret = 0;
 	}
 	//Flush all outstanding MPI work
 	// We do this after flushing the GPUs as any packing will be finished
-#ifdef WITH_MPI
-	finish_mpi_requests();
-#endif
+	if (mpi_symbols.finish_mpi_requests != NULL) (*(mpi_symbols.finish_mpi_requests))();
 return ret;
 }
 

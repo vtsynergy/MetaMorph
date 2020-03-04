@@ -5,6 +5,7 @@
 metaTimerQueue metaBuiltinQueues[queue_count];
 a_bool __meta_timers_initialized = false;
 extern struct backend_handles backends;
+extern struct plugin_handles plugins;
 
 struct cuda_dyn_ptrs_profiling {
   a_err (* metaCUDAEventElapsedTime)(float *, meta_event);
@@ -19,6 +20,11 @@ struct openmp_dyn_ptrs_profiling {
   a_err (* metaOpenMPEventElapsedTime)(float *, meta_event);
 };
 struct openmp_dyn_ptrs_profiling openmp_timing_funcs = {NULL};
+
+struct mpi_dyn_ptrs_profiling {
+  a_err (* metaMPIRank)(int *);
+};
+struct mpi_dyn_ptrs_profiling mpi_timing_funcs = {NULL};
 
 #ifdef DEPRECATED
 //TODO Paul:Understand and condense this function, if possible, consider renaming
@@ -306,7 +312,14 @@ __attribute__((constructor(104))) a_err metaTimersInit() {
     CHECKED_DLSYM("libmm_opencl_backend.so", backends.opencl_be_handle, "metaOpenCLEventEndTime", opencl_timing_funcs.metaOpenCLEventEndTime);
     fprintf(stderr, "OpenCL timing functions found\n");
   }
-
+  if (backends.openmp_be_handle != NULL) {
+    CHECKED_DLSYM("libmm_openmp_backend.so", backends.openmp_be_handle, "metaOpenMPEventElapsedTime", openmp_timing_funcs.metaOpenMPEventElapsedTime);
+    fprintf(stderr, "OpenMP timing functions found\n");
+  }
+  if (plugins.mpi_handle != NULL) {
+    CHECKED_DLSYM("libmm_mpi.so", plugins.mpi_handle, "metaMPIRank", mpi_timing_funcs.metaMPIRank);
+    fprintf(stderr, "MPI timing functions found\n");
+  }
 	__meta_timers_initialized = true;
 }
 
@@ -362,17 +375,17 @@ void flushWorker(metaTimerQueue * queue, int level) {
 		if (level >= 2) {
 			//Individual call times/bandwidths
 			//TODO come up with a reasonable, generic bandwidth calculation.
-#ifdef WITH_MPI
-			int rank;
-			MPI_Comm_rank(MPI_COMM_WORLD, &rank);
-			fprintf(stderr, "\tRank[%d]: %s [%lu] on [%lu]bytes took [%f]ms, with [%f]MB/s approximate bandwidth.\n", rank, queue->name, count, timer->size, temp_t, (timer->size > 0 && temp_t > 0) ? timer->size*.001/temp_t : 0.0);
-#else
+			fprintf(stderr,"\t");
+			int rank = -1;
+			if (mpi_timing_funcs.metaMPIRank != NULL) {
+				(*(mpi_timing_funcs.metaMPIRank))(&rank);
+				if (rank != -1) fprintf(stderr, "Rank[%d]: ", rank);
+			}
 			fprintf(stderr,
-					"\t%s [%lu] on [%lu]bytes took [%f]ms, with [%f]MB/s approximate bandwidth.\n",
+					"%s [%lu] on [%lu]bytes took [%f]ms, with [%f]MB/s approximate bandwidth.\n",
 					queue->name, count, timer->size, temp_t,
 					(timer->size > 0 && temp_t > 0) ?
 							timer->size * .001 / temp_t : 0.0);
-#endif
 		}
 
 		if (level == 3) {
@@ -384,16 +397,15 @@ void flushWorker(metaTimerQueue * queue, int level) {
 		//Eating the node for level 0 is inherent in the while
 	}
 	if (level > 0 && time > 0) {
-#ifdef WITH_MPI
-		int rank;
-		MPI_Comm_rank(MPI_COMM_WORLD, &rank);
-		fprintf(stderr, "Rank[%d]: All %ss took [%f]ms, with [%f]MB/s approximate average bandwidth.\n", rank, queue->name, time, (size > 0 && time > 0) ? size*.001/time : 0.0);
-#else
+		int rank = -1;
+		if (mpi_timing_funcs.metaMPIRank != NULL) {
+			(*(mpi_timing_funcs.metaMPIRank))(&rank);
+			if (rank != -1) fprintf(stderr, "Rank[%d]: ", rank);
+		}
 		fprintf(stderr,
 				"All %ss took [%f]ms, with [%f]MB/s approximate average bandwidth.\n",
 				queue->name, time,
 				(size > 0 && time > 0) ? size * .001 / time : 0.0);
-#endif
 	}
 printf("Profiling event time for %s = %f\n",queue->name, time);
 }
@@ -472,3 +484,8 @@ __attribute__((destructor(104))) a_err metaTimersFinish() {
 //TODO expose a way for users to generate their own timer queues
 // Will likely require overloaded function headers for each call which
 // take a queue list/count struct..
+
+//Since fortran is now part of core, it makes sense for the Fortran timing wrappers to also be part of the profiling plugin's core
+int meta_timers_init_c_() {return (int) metaTimersInit();}
+int meta_timers_flush_c_() {return (int) metaTimersFlush();}
+int meta_timers_finish_c_() {return (int) metaTimersFinish();}

@@ -794,7 +794,6 @@ a_err metaCUDACurrDev(a_int * accel) {
 }
 //FIXME Implement
 a_err metaCUDAMaxWorkSizes(a_dim3 * grid, a_dim3 * block) {
-  a_err ret = cudaSuccess;
   fprintf(stderr, "metaCUDAMaxWorkSizes unimplemented\n");
   return -1;
 }

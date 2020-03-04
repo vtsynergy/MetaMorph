@@ -47,9 +47,4 @@ int meta_copy_h2d_c_(void * dst, void * src, size_t * size, int * async);
 int meta_copy_d2h_c_(void * dst, void * src, size_t * size, int * async);
 int meta_copy_d2d_c_(void * dst, void * src, size_t * size, int * async);
 
-#ifdef WITH_TIMERS
-int meta_timers_init_c_();
-int meta_timers_flush_c_();
-int meta_timers_finish_c_();
-#endif
 #endif //METAMORPH_FORTRAN_COMPAT_H

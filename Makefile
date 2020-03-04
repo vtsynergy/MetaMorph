@@ -236,15 +236,14 @@ MM_DEPS= $(MM_CORE)/metamorph.c
 MM_COMPONENTS=
 #MPI features
 ifeq ($(USE_MPI),TRUE)
-MM_COMPONENTS += -D WITH_MPI $(MM_CORE)/metamorph_mpi.c -I$(MPI_DIR)/include -L$(MPI_DIR)/lib
-MM_DEPS += $(MM_CORE)/metamorph_mpi.c
-CC := $(MPI_DIR)/bin/mpicc -cc=$(CC)
+#MM_COMPONENTS += -lmm_mpi
+MM_DEPS += libmm_mpi.so
+MPICC := $(MPI_DIR)/bin/mpicc -cc=$(CC)
 endif
 #timer features
 ifeq ($(USE_TIMERS),TRUE)
-MM_COMPONENTS += -D WITH_TIMERS -lmm_profiling
+#MM_COMPONENTS += -lmm_profiling
 MM_DEPS += libmm_profiling.so
-INCLUDES += -D WITH_TIMERS
 endif
 
 #CUDA backend
@@ -283,15 +282,14 @@ ifeq ($(USE_OPENCL),TRUE)
    export AOC_DEF= -v --board bdw_fpga_v1.0
   endif
 
-  #-D WITH_TIMERS
   #There is no reason this mechanic has to be specific to FPGA
   ifeq ($(OPENCL_SINGLE_KERNEL_PROGS),TRUE)
    export FPGA_DEF=-D WITH_OPENCL -D WITH_INTELFPGA -D OPENCL_SINGLE_KERNEL_PROGS
   else
    #TODO These FPGA options should not be hardcoded, and in fact should be subsumed by the OPENCL_SINGLE_KERNEL_PROGS option
-   export FPGA_DEF=-D WITH_OPENCL -D WITH_INTELFPGA -D WITH_TIMERS -D KERNEL_CRC -D FPGA_UNSIGNED_INTEGER
+   export FPGA_DEF=-D WITH_OPENCL -D WITH_INTELFPGA -D KERNEL_CRC -D FPGA_UNSIGNED_INTEGER
   endif
-  #export FPGA_DEF=-D WITH_OPENCL -D WITH_TIMERS -D WITH_INTELFPGA -D KERNEL_STENCIL -D FPGA_DOUBLE
+  #export FPGA_DEF=-D WITH_OPENCL -D WITH_INTELFPGA -D KERNEL_STENCIL -D FPGA_DOUBLE
   #export FPGA_LIB=/home/jehandad/rte/opt/altera/aocl-rte/host/linux64/lib/
   #TODO Remove hardcode and expose as INTELFPGA_LIB_DIR
   export FPGA_LIB=-L /media/hdd/jehandad/altera_pro/16.0/hld/host/linux64/lib -L $(AALSDK)/lib
@@ -320,7 +318,7 @@ INCLUDES += -I$(MM_MP)
 ifeq ($(USE_MIC),TRUE)
 
 ifeq ($(USE_MPI),TRUE)
-CC = $(MPI_DIR)/bin/mpicc -cc=$(ICC_BIN)
+MPICC = $(MPI_DIR)/bin/mpicc -cc=$(ICC_BIN)
 else
 CC = $(ICC_BIN)
 endif
@@ -342,7 +340,7 @@ endif
 
 export INCLUDES
 
-MFLAGS := USE_CUDA=$(USE_CUDA) CUDA_LIB_DIR=$(CUDA_LIB_DIR) USE_OPENCL=$(USE_OPENCL) OPENCL_LIB_DIR=$(OPENCL_LIB_DIR) OPENCL_INCL_DIR=$(OPENCL_INCL_DIR) OPENCL_SINGLE_KERNEL_PROGS=$(OPENCL_SINGLE_KERNEL_PROGS) USE_OPENMP=$(USE_OPENMP) USE_MIC=$(USE_MIC) ICC_BIN=$(ICC_BIN) USE_TIMERS=$(USE_TIMERS) USE_MPI=$(USE_MPI) MPI_DIR=$(MPI_DIR) USE_FPGA=$(USE_FPGA) CC="$(CC)" NVCC=$(NVCC) $(MFLAGS)
+MFLAGS := USE_CUDA=$(USE_CUDA) CUDA_LIB_DIR=$(CUDA_LIB_DIR) USE_OPENCL=$(USE_OPENCL) OPENCL_LIB_DIR=$(OPENCL_LIB_DIR) OPENCL_INCL_DIR=$(OPENCL_INCL_DIR) OPENCL_SINGLE_KERNEL_PROGS=$(OPENCL_SINGLE_KERNEL_PROGS) USE_OPENMP=$(USE_OPENMP) USE_MIC=$(USE_MIC) ICC_BIN=$(ICC_BIN) USE_TIMERS=$(USE_TIMERS) USE_MPI=$(USE_MPI) MPI_DIR=$(MPI_DIR) USE_FPGA=$(USE_FPGA) CC="$(CC)" NVCC=$(NVCC) MPICC="$(MPICC)" $(MFLAGS)
 
 #.PHONY: metamorph_all examples
 .PHONY: libmetamorph.so examples
@@ -351,9 +349,9 @@ all: libmetamorph.so
 
 #libmetamorph.so: libmm_openmp_backend.so libmm_cuda_backend.so libmm_opencl_backend.so
 #ifeq ($(USE_MPI),TRUE)
-#	mpicc $(MM_CORE)/metamorph.c $(MM_CORE)/metamorph_timers.c $(MM_CORE)/metamorph_mpi.c $(CC_FLAGS) $(INCLUDES) -L $(MM_LIB) -D WITH_OPENMP -D WITH_OPENCL -D WITH_CUDA -D WITH_TIMERS -D WITH_MPI -I $(MPICH_DIR)/include -L $(MPICH_DIR)/lib -L /usr/local/cuda/lib64 -lmm_openmp_backend  -lmm_cuda_backend -lmm_opencl_backend -lOpenCL -lcudart -o $(MM_LIB)/libmetamorph.so
+#	mpicc $(MM_CORE)/metamorph.c $(MM_CORE)/metamorph_timers.c $(MM_CORE)/metamorph_mpi.c $(CC_FLAGS) $(INCLUDES) -L $(MM_LIB) -D WITH_OPENMP -D WITH_OPENCL -D WITH_CUDA -I $(MPICH_DIR)/include -L $(MPICH_DIR)/lib -L /usr/local/cuda/lib64 -lmm_openmp_backend  -lmm_cuda_backend -lmm_opencl_backend -lOpenCL -lcudart -o $(MM_LIB)/libmetamorph.so
 #else
-#	$(CC) $(MM_CORE)/metamorph.c $(MM_CORE)/metamorph_timers.c $(CC_FLAGS) $(INCLUDES) -L $(MM_LIB) -D WITH_OPENMP -D WITH_OPENCL -D WITH_CUDA -D WITH_TIMERS -L /usr/local/cuda/lib64 -lmm_openmp_backend  -lmm_cuda_backend -lmm_opencl_backend -lOpenCL -lcudart -o $(MM_LIB)/libmetamorph.so
+#	$(CC) $(MM_CORE)/metamorph.c $(MM_CORE)/metamorph_timers.c $(CC_FLAGS) $(INCLUDES) -L $(MM_LIB) -D WITH_OPENMP -D WITH_OPENCL -D WITH_CUDA -L /usr/local/cuda/lib64 -lmm_openmp_backend  -lmm_cuda_backend -lmm_opencl_backend -lOpenCL -lcudart -o $(MM_LIB)/libmetamorph.so
 #endif
 libmetamorph.so: $(MM_DEPS)
 	$(CC) $(MM_CORE)/metamorph.c $(MM_CORE)/metamorph_fortran_compat.c $(CC_FLAGS) $(INCLUDES) -L$(MM_LIB) $(MM_COMPONENTS) -o $(MM_LIB)/libmetamorph.so -shared -Wl,-soname,libmetamorph.so
@@ -361,33 +359,36 @@ libmetamorph.so: $(MM_DEPS)
 libmm_profiling.so: $(MM_CORE)/metamorph_timers.c
 	$(CC) $(MM_CORE)/metamorph_timers.c $(CC_FLAGS) $(INCLUDES) -o $(MM_LIB)/libmm_profiling.so -shared -Wl,-soname,libmm_profiling.so
 
+libmm_mpi.so: $(MM_CORE)/metamorph_mpi.c
+	$(MPICC) $(MM_CORE)/metamorph_mpi.c $(CC_FLAGS) $(INCLUDES) -I$(MPI_DIR)/include -L$(MPI_DIR)/lib -o $(MM_LIB)/libmm_mpi.so -shared -Wl,-soname,libmm_mpi.so
+
 #these old single-backend targets are deprecated now that the above is modular
 libmetamorph_mp.so: libmm_openmp_backend.so
 ifeq ($(USE_MPI),TRUE)
-	mpicc -cc=$(CC) $(MM_CORE)/metamorph.c $(MM_CORE)/metamorph_timers.c $(MM_CORE)/metamorph_mpi.c $(CC_FLAGS) $(INCLUDES) -I $(MPICH_DIR)/include -L $(MM_LIB) -L $(MPICH_DIR)/lib -D WITH_OPENMP -D WITH_TIMERS -D WITH_MPI  -lmm_openmp_backend -o $(MM_LIB)/libmetamorph_mp.so
+	mpicc -cc=$(CC) $(MM_CORE)/metamorph.c $(MM_CORE)/metamorph_timers.c $(MM_CORE)/metamorph_mpi.c $(CC_FLAGS) $(INCLUDES) -I $(MPICH_DIR)/include -L $(MM_LIB) -L $(MPICH_DIR)/lib -D WITH_OPENMP -lmm_openmp_backend -o $(MM_LIB)/libmetamorph_mp.so
 else
-	$(CC) $(MM_CORE)/metamorph.c $(MM_CORE)/metamorph_timers.c $(CC_FLAGS) $(INCLUDES) -L $(MM_LIB) -D WITH_OPENMP -D WITH_TIMERS -lmm_openmp_backend -o $(MM_LIB)/libmetamorph_mp.so
+	$(CC) $(MM_CORE)/metamorph.c $(MM_CORE)/metamorph_timers.c $(CC_FLAGS) $(INCLUDES) -L $(MM_LIB) -D WITH_OPENMP -lmm_openmp_backend -o $(MM_LIB)/libmetamorph_mp.so
 endif
 
 libmetamorph_mic.so: libmm_openmp_mic_backend.so
 ifeq ($(USE_MPI),TRUE)
-	mpicc -cc=icc $(MM_CORE)/metamorph.c $(MM_CORE)/metamorph_timers.c $(MM_CORE)/metamorph_mpi.c $(CC_FLAGS) -openmp -mmic $(INCLUDES) -L $(MM_LIB) -D WITH_OPENMP -D WITH_TIMERS -D WITH_MPI -lmm_openmp_mic_backend -I $(MPICH_DIR)-mic/include -L $(MPICH_DIR)-mic/lib -o $(MM_LIB)/libmetamorph_mic.so
+	mpicc -cc=icc $(MM_CORE)/metamorph.c $(MM_CORE)/metamorph_timers.c $(MM_CORE)/metamorph_mpi.c $(CC_FLAGS) -openmp -mmic $(INCLUDES) -L $(MM_LIB) -D WITH_OPENMP -lmm_openmp_mic_backend -I $(MPICH_DIR)-mic/include -L $(MPICH_DIR)-mic/lib -o $(MM_LIB)/libmetamorph_mic.so
 else
-	icc $(MM_CORE)/metamorph.c $(MM_CORE)/metamorph_timers.c $(CC_FLAGS) -openmp -mmic $(INCLUDES) -L $(MM_LIB) -D WITH_OPENMP -D WITH_TIMERS -lmm_openmp_mic_backend -o $(MM_LIB)/libmetamorph_mic.so
+	icc $(MM_CORE)/metamorph.c $(MM_CORE)/metamorph_timers.c $(CC_FLAGS) -openmp -mmic $(INCLUDES) -L $(MM_LIB) -D WITH_OPENMP -lmm_openmp_mic_backend -o $(MM_LIB)/libmetamorph_mic.so
 endif
 
 libmetamorph_cu.so: libmm_cuda_backend.so
 ifeq ($(USE_MPI),TRUE)
-	$(CC) $(MM_CORE)/metamorph.c $(MM_CORE)/metamorph_timers.c $(MM_CORE)/metamorph_mpi.c $(CC_FLAGS) $(INCLUDES) -L $(MM_LIB) -D WITH_CUDA -D WITH_TIMERS -D WITH_MPI -I $(MPICH_DIR)/include -L $(MPICH_DIR)/lib -L /usr/local/cuda/lib64 -lmm_cuda_backend -lcudart -o $(MM_LIB)/libmetamorph_cu.so
+	$(CC) $(MM_CORE)/metamorph.c $(MM_CORE)/metamorph_timers.c $(MM_CORE)/metamorph_mpi.c $(CC_FLAGS) $(INCLUDES) -L $(MM_LIB) -D WITH_CUDA -I $(MPICH_DIR)/include -L $(MPICH_DIR)/lib -L /usr/local/cuda/lib64 -lmm_cuda_backend -lcudart -o $(MM_LIB)/libmetamorph_cu.so
 else
-	$(CC) $(MM_CORE)/metamorph.c $(MM_CORE)/metamorph_timers.c $(CC_FLAGS) $(INCLUDES) -L $(MM_LIB) -D WITH_CUDA -D WITH_TIMERS -L /usr/local/cuda/lib64 -lmm_cuda_backend -lcudart -o $(MM_LIB)/libmetamorph_cu.so
+	$(CC) $(MM_CORE)/metamorph.c $(MM_CORE)/metamorph_timers.c $(CC_FLAGS) $(INCLUDES) -L $(MM_LIB) -D WITH_CUDA -L /usr/local/cuda/lib64 -lmm_cuda_backend -lcudart -o $(MM_LIB)/libmetamorph_cu.so
 endif
 	
 libmetamorph_cl.so: libmm_opencl_backend.so
 ifeq ($(USE_MPI),TRUE)
-	$(CC) $(MM_CORE)/metamorph.c $(MM_CORE)/metamorph_timers.c $(MM_CORE)/metamorph_mpi.c $(CC_FLAGS) $(INCLUDES) -L $(MM_LIB) -D WITH_OPENCL -D WITH_TIMERS -D WITH_MPI -I $(MPICH_DIR)/include -L $(MPICH_DIR)/lib -lmm_opencl_backend -lOpenCL -o $(MM_LIB)/libmetamorph_cl.so
+	$(CC) $(MM_CORE)/metamorph.c $(MM_CORE)/metamorph_timers.c $(MM_CORE)/metamorph_mpi.c $(CC_FLAGS) $(INCLUDES) -L $(MM_LIB) -D WITH_OPENCL -I $(MPICH_DIR)/include -L $(MPICH_DIR)/lib -lmm_opencl_backend -lOpenCL -o $(MM_LIB)/libmetamorph_cl.so
 else
-	$(CC) $(MM_CORE)/metamorph.c $(MM_CORE)/metamorph_timers.c $(CC_FLAGS) $(AOCL_COMPILE_CONFIG) $(INCLUDES) -L $(MM_LIB) $(FPGA_LIB) -D WITH_OPENCL -D WITH_TIMERS -lmm_opencl_backend -lOpenCL -o $(MM_LIB)/libmetamorph_cl.so
+	$(CC) $(MM_CORE)/metamorph.c $(MM_CORE)/metamorph_timers.c $(CC_FLAGS) $(AOCL_COMPILE_CONFIG) $(INCLUDES) -L $(MM_LIB) $(FPGA_LIB) -D WITH_OPENCL -lmm_opencl_backend -lOpenCL -o $(MM_LIB)/libmetamorph_cl.so
 endif
 
 #/media/hdd/jehandad/altera_pro/16.0/hld/host/linux64/lib 

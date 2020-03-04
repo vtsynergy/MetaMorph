@@ -19,6 +19,14 @@ unsigned long internal_pool_token = 0;
 double internal_time = 0.0;
 #endif
 
+//We provide a wrapper so that we both don't have to care which MPI library the backend is built against for dlopen and don't have to know/care what communicator the MPI plugin is using (if it changes in the future)
+a_err metaMPIRank(int * rank) {
+  a_err ret = 0;
+  if (rank != NULL) {
+    ret = MPI_Comm_rank(MPI_COMM_WORLD, rank);
+  } else ret = -1;
+  return ret;
+}
 //Alloc never moves the token, this lets the ring queue "ratchet" forward,
 // which has the beneficial property of releasing anything that's been sitting
 // in the pool for META_MPI_POOL_SIZE frees back to the OS.

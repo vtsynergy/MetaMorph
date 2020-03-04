@@ -923,7 +923,7 @@ printf("check profiling event is correct (MM side) %lu\n",start_time);
 //	(*e) =&(frame->event.opencl);
 	return(ret);
 }
-#endif // WITH_TIMERS
+#endif // DEPRECATED
 
 cl_int metaOpenCLInitStackFrame(metaOpenCLStackFrame ** frame, cl_int device) {
 	int zero = 0;

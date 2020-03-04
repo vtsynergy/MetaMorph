@@ -307,11 +307,6 @@ a_err meta_crc(a_dim3 * grid_size, a_dim3 * block_size, void * dev_input, int pa
 
 //MPI functions need access to all top-level calls and types
 //MPI needs to be before timers, so that timers can output rank info - if available
-#ifdef WITH_MPI
-#ifndef METAMORPH_MPI_H
-#include "metamorph_mpi.h"
-#endif
-#endif
 
 #ifndef METAMORPH_TIMERS_H
 #include "metamorph_timers.h"

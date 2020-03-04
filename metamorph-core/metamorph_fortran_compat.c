@@ -83,8 +83,3 @@ int meta_copy_d2d_c_(void * dst, void * src, size_t * size, int * async) {
 	return (int) meta_copy_d2d(dst, src, *size, (a_bool) *async, NULL);
 }
 
-#ifdef WITH_TIMERS
-int meta_timers_init_c_() {return (int) metaTimersInit();}
-int meta_timers_flush_c_() {return (int) metaTimersFlush();}
-int meta_timers_finish_c_() {return (int) metaTimersFinish();}
-#endif

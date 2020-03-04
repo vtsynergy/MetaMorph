@@ -1,7 +1,6 @@
 /*
  * Exclusively for the core mechanics of timer implementations
- * None of this file should be active at all if WITH_TIMERS is not defined
- * i.e. it should only be #included in a conditional-compile block
+ * Don't need to expose too many things to direct users of the profiing API
  */
 
 //TODO Now that we have moved to an expliit enqueue call, design an API for a timer to reside on multiple queues, including *user* queues
@@ -77,4 +76,8 @@ a_err metaTimersFlush();
 __attribute__((destructor(104))) a_err metaTimersFinish();
 
 extern metaTimerQueue metaBuiltinQueues[];
+//Expose fortran versions now that fortran is in core capability
+int meta_timers_init_c_();
+int meta_timers_flush_c_();
+int meta_timers_finish_c_();
 #endif //METAMORPH_TIMERS_H
