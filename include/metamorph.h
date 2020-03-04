@@ -174,27 +174,6 @@ typedef struct a_module_record {
   char initialized;// = 0;
 } a_module_record;
 
-//A storage struct for dynamically loaded library handles, not meant for users but needs to be exposed to the plugins
-struct backend_handles {
-  void * openmp_be_handle;
-  void * openmp_lib_handle;
-  void * opencl_be_handle;
-  void * opencl_lib_handle;
-  void * cuda_be_handle;
-  void * cuda_lib_handle;
-};
-struct plugin_handles {
-  void * mpi_handle;
-  void * profiling_handle;
-};
-#define CHECKED_DLSYM(lib, handle, sym, sym_ptr) {\
-  sym_ptr = dlsym(handle, sym);\
-  char *sym_err; \
-  if ((sym_err = dlerror()) != NULL) {\
-    fprintf(stderr, "Could not dynamically load symbol \"%s\" in library \"%s\", error: \"%s\"\n", sym, lib, sym_err);\
-    exit(1);\
-  }\
-}
 //A simple abstract type to store the type of event and a payload pointer containing the actual backend-specific value
 //FIXME meta_events are currently allocated and freed by the client, but assumed to persist throughout. It would be safer to have our own copy the user cannot tamper with
 typedef struct meta_event {
@@ -305,17 +284,6 @@ a_err meta_csr(a_dim3 * grid_size, a_dim3 * block_size, size_t global_size, void
 a_err meta_crc(a_dim3 * grid_size, a_dim3 * block_size, void * dev_input, int page_size, int num_words, int numpages, void * dev_output, 
 	meta_type_id type, a_bool async, meta_event * ret_event);//, cl_event * wait);
 
-//MPI functions need access to all top-level calls and types
-//MPI needs to be before timers, so that timers can output rank info - if available
-
-#ifndef METAMORPH_TIMERS_H
-#include "metamorph_timers.h"
-#endif
-struct profiling_dyn_ptrs {
-a_err (* metaProfilingCreateTimer)(meta_timer **, meta_preferred_mode, size_t);
-a_err (* metaProfilingEnqueueTimer)(meta_timer, metaProfilingBuiltinQueueType);
-a_err (* metaProfilingDestroyTimer)(meta_timer *);
-};
 
 #ifdef __cplusplus
 }

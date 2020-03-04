@@ -12,7 +12,8 @@
 #include <stdlib.h>
 #include <stdio.h>
 #include <string.h>
-#include "../../metamorph-backends/opencl-backend/mm_opencl_backend.h"
+#include "mm_opencl_backend.h"
+#include "metamorph_dynamic_symbols.h"
 
 #if defined(__OPENCLCC__) || defined(__cplusplus)
 extern "C" {

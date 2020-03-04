@@ -1,6 +1,7 @@
 /** OpenMP Back-End **/
 #include <sys/time.h>
-#include "../../metamorph-backends/openmp-backend/mm_openmp_backend.h"
+#include "mm_openmp_backend.h"
+#include "metamorph_dynamic_symbols.h"
 
 extern struct profiling_dyn_ptrs profiling_symbols;
 //#define	COLLAPSE

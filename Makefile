@@ -234,7 +234,7 @@ INCLUDES  = -I $(MM_DIR)/include
 
 
 #Configure compilation to the machine's availability
-MM_DEPS= $(MM_CORE)/metamorph.c $(MM_CORE)/metamorph_fortran_compat.c
+MM_DEPS= $(MM_CORE)/metamorph.c $(MM_CORE)/metamorph_fortran_compat.c $(MM_CORE)/metamorph_dynamic_symbols.c
 
 #MPI features
 ifeq ($(USE_MPI),TRUE)
@@ -334,7 +334,7 @@ MFLAGS := USE_CUDA=$(USE_CUDA) CUDA_LIB_DIR=$(CUDA_LIB_DIR) USE_OPENCL=$(USE_OPE
 all: $(BUILD_LIBS)
 
 libmetamorph.so: $(MM_DEPS)
-	$(CC) $(MM_CORE)/metamorph.c $(MM_CORE)/metamorph_fortran_compat.c $(CC_FLAGS) $(INCLUDES) -L$(MM_LIB) $(MM_COMPONENTS) -o $(MM_LIB)/libmetamorph.so -shared -Wl,-soname,libmetamorph.so
+	$(CC) $(MM_DEPS) $(CC_FLAGS) $(INCLUDES) -L$(MM_LIB) $(MM_COMPONENTS) -o $(MM_LIB)/libmetamorph.so -shared -Wl,-soname,libmetamorph.so
 
 libmm_profiling.so: $(MM_CORE)/metamorph_timers.c
 	$(CC) $(MM_CORE)/metamorph_timers.c $(CC_FLAGS) $(INCLUDES) -o $(MM_LIB)/libmm_profiling.so -shared -Wl,-soname,libmm_profiling.so

@@ -5,6 +5,7 @@
 #include <stdio.h>
 
 #include "mm_cuda_backend.cuh"
+#include "metamorph_dynamic_symbols.h"
 
 extern struct profiling_dyn_ptrs profiling_symbols;
 /** non-specialized shared memory class template */

@@ -1,8 +1,9 @@
 /**
  * A template showing what is required by a new module if a user wants to hand-create it
  *
+ * Modules are allowed to either hardcode or dynamically discover backend/plugin dependencies, as long as the module fills out the registration accurately
  *
- *
+ * The use of WITH_<BACKEND/PLUGIN> preprocessor macros is deprecated but they are used here to differentiate between hardcoded (header and link) dependencies and dynamic (dlopened) dependencies
 */
 
 //The module must include metamorph.h for data types and function calls
@@ -11,10 +12,14 @@
 #ifdef WITH_OPENCL
 #include "mm_opencl_backend.h"
 //If the plugin provides OpenCL, these global variables exposed in the OpenCL header provide access to the current OpenCL state and should be used for initialization
-//extern cl_context meta_context;
-//extern cl_command_queue meta_queue;
-//extern cl_device_id meta_device;
+extern cl_context meta_context;
+extern cl_command_queue meta_queue;
+extern cl_device_id meta_device;
 #endif
+
+//If you want to dynamically detect available components, you'll want this header and the function handles
+#include "metamorph_dynamic_symbols.h"
+extern
 
 //The module must keep a copy of its own registration(s), and it should always be initialized to NULL, and only updated by calls to the registration function itself
 //It does not necessarily have to be a single global variable as long as the registration function itself handles things predictably
@@ -40,8 +45,9 @@ void my_module_init() {
   //TODO if all backends are supported (module_implements_all) do any special initialization for that case
   
   #ifdef WITH_CUDA
-  //TODO if CUDA backend is supported (module_implements_cuda) do any special initialization
+  //TODO if CUDA backend is a hard dependency, do any special initialization
   #endif
+  if 
   #ifdef WITH_OPENCL
   //OpenCL modules should always confirm that an OpenCL state exists, and if it doesn't create it
   if (meta_context == NULL) metaOpenCLFallBack();

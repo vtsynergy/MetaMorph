@@ -1,4 +1,5 @@
 #include <string.h>
+#include <stdlib.h>
 #include "metamorph_mpi.h"
 
 //This pool manages host staging buffers
