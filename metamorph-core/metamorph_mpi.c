@@ -22,7 +22,9 @@ double internal_time = 0.0;
 //We provide a wrapper so that we both don't have to care which MPI library the backend is built against for dlopen and don't have to know/care what communicator the MPI plugin is using (if it changes in the future)
 a_err metaMPIRank(int * rank) {
   a_err ret = 0;
-  if (rank != NULL) {
+  int status; //MPI logical true = 1, false = 0
+  MPI_Initialized(&status);
+  if (rank != NULL && status == 1) {
     ret = MPI_Comm_rank(MPI_COMM_WORLD, rank);
   } else ret = -1;
   return ret;

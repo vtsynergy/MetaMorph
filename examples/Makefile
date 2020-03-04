@@ -26,6 +26,8 @@ ifeq ($(USE_MPI),TRUE)
 BUILD_FLAGS += -D WITH_MPI -L$(MPI_DIR)/lib -I$(MPI_DIR)/include
 endif
 
+all: torus_reduce_test csr_alt crc_alt
+
 .PHONY: torus_reduce_test torus_reduce_test_mp torus_reduce_test_mic torus_reduce_test_cu torus_reduce_test_cl
 torus_reduce_test: torus_reduce_meta.c $(DEPS)
 ifneq ($(USE_TIMERS),TRUE)

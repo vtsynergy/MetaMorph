@@ -66,7 +66,7 @@ typedef struct metaTimerQueue {
 
 a_err metaProfilingCreateTimer(meta_timer **, meta_preferred_mode, size_t);
 a_err metaProfilingEnqueueTimer(meta_timer, metaProfilingBuiltinQueueType);
-a_err metaProfilingDestroyTimer(meta_timer *);
+//a_err metaProfilingDestroyTimer(meta_timer *);
 
 #ifdef DEPRECATED
 a_err cl_get_event_node(metaTimerQueue * queue, char * ename,  metaTimerQueueFrame ** frame);

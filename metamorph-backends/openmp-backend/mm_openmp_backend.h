@@ -25,6 +25,7 @@ a_err metaOpenMPDevCopy(void *, void *, size_t, a_bool, meta_callback *, meta_ev
 a_err metaOpenMPFlush();
 a_err metaOpenMPCreateEvent(void**);
 a_err metaOpenMPDestroyEvent(void*);
+a_err metaOpenMPEventElapsedTime(float *, meta_event);
 a_err metaOpenMPRegisterCallback(meta_callback *);
 
   a_err openmp_dotProd(size_t (*)[3], size_t (*)[3], void *, void *, size_t (*)[3], size_t (*)[3], size_t (*)[3], void *, meta_type_id, int, meta_callback *, meta_event *);

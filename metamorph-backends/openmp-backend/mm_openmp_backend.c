@@ -180,6 +180,15 @@ a_err metaOpenMPDestroyEvent(void * event) {
   else ret = -1;
   return ret;
 }
+a_err metaOpenMPEventElapsedTime(float * ret_ms, meta_event event) {
+  a_err ret = 0;
+  if (ret_ms != NULL && event.event_pl != NULL) {
+    openmpEvent * events = (openmpEvent *)event.event_pl;
+    *ret_ms = ((events[1].tv_sec - events[0].tv_sec)*1000.0)+((events[1].tv_usec - events[0].tv_usec)*0.001);
+  }
+  else ret = 1;
+  return ret;
+}
 
 a_err metaOpenMPRegisterCallback(meta_callback * call) {
   //FIXME: Implement async "callback"

@@ -863,9 +863,6 @@ int populateOutputFiles() {
       *out_c << "#else\n";
       *out_c << "#include <CL/opencl.h>\n";
       *out_c << "#endif\n";
-      *out_c << "#ifndef WITH_OPENCL\n";
-      *out_c << "#define WITH_OPENCL\n";
-      *out_c << "#endif\n";
       *out_c << "#include \"metamorph.h\"\n";
       *out_c << "#include \"mm_opencl_backend.h\"\n";
       *out_c << "#include \"" + outFileName + ".h\"\n";

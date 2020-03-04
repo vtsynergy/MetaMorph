@@ -426,7 +426,6 @@ a_err metaTimersFlush() {
 	char * level = NULL;
 	//if  ((level = (char*)((long int) getenv("METAMORPH_TIMER_LEVEL"))) != NULL) {
 	if ((level = getenv("METAMORPH_TIMER_LEVEL")) != NULL) {
-		printf("My level pointer is %x\n", level);
 		if (strcmp(level, "0") == 0) {
 			for (i = 0; i < queue_count; i++)
 				flushWorker(&metaBuiltinQueues[i], 0);

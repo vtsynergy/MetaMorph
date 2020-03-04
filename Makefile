@@ -1,7 +1,7 @@
 #Most build options are just an explicit TRUE/FALSE
-#Options that default on: USE_OPENMP
+#Options that default on: USE_OPENMP, USE_TIMERS
 #Options that attempt to autodetect: USE_CUDA, USE_OPENCL
-#Options that must be explicitly enabled: USE_TIMERS, USE_MPI, USE_FPGA, USE_MIC 
+#Options that must be explicitly enabled: USE_MPI, USE_FPGA, USE_MIC 
 
 #Configure root directories (usually just wherever you pulled MetaMorph and run the makefile from)
 ifndef MM_DIR
@@ -25,9 +25,9 @@ else
 ARCH_64 =
 endif
 
-#Timers default to off
+#Timers default to on
 ifndef USE_TIMERS
-USE_TIMERS=FALSE
+USE_TIMERS=TRUE
 else
 USE_TIMERS := $(shell echo $(USE_TIMERS) | tr '[:lower:]' '[:upper:]')
 endif
@@ -212,9 +212,16 @@ $(error cannot compile for Intel MIC without ICC \(ICC_BIN=$(ICC_BIN)\))
 endif
 endif
 
+ifndef FPGA_USE_EMULATOR
+FPGA_USE_EMULATOR=FALSE
+else
+FPGA_USE_EMULATOR := $(shell echo $(FPGA_USE_EMULATOR) | tr '[:lower:]' '[:upper:]')
+endif
+
+#Paul above here is the discovery stuff, below here is the configuration stuff
 
 
-
+BUILD_LIBS = libmetamorph.so
 export G_TYPE = DOUBLE
 #export OPT_LVL = -g -DDEBUG
 export OPT_LVL = -O3
@@ -225,41 +232,31 @@ CC=gcc
 CC_FLAGS = $(OPT_LVL) $(L_FLAGS)
 INCLUDES  = -I $(MM_DIR)/include
 
-ifndef FPGA_USE_EMULATOR
-FPGA_USE_EMULATOR=FALSE
-else
-FPGA_USE_EMULATOR := $(shell echo $(FPGA_USE_EMULATOR) | tr '[:lower:]' '[:upper:]')
-endif
 
 #Configure compilation to the machine's availability
-MM_DEPS= $(MM_CORE)/metamorph.c
-MM_COMPONENTS=
+MM_DEPS= $(MM_CORE)/metamorph.c $(MM_CORE)/metamorph_fortran_compat.c
+
 #MPI features
 ifeq ($(USE_MPI),TRUE)
-#MM_COMPONENTS += -lmm_mpi
-MM_DEPS += libmm_mpi.so
+BUILD_LIBS += libmm_mpi.so
 MPICC := $(MPI_DIR)/bin/mpicc -cc=$(CC)
 endif
+
 #timer features
 ifeq ($(USE_TIMERS),TRUE)
-#MM_COMPONENTS += -lmm_profiling
-MM_DEPS += libmm_profiling.so
+BUILD_LIBS += libmm_profiling.so
 endif
 
 #CUDA backend
 ifeq ($(USE_CUDA),TRUE)
-MM_COMPONENTS += -D WITH_CUDA -lmm_cuda_backend -L$(CUDA_LIB_DIR) -lcudart
-MM_DEPS += libmm_cuda_backend.so
-INCLUDES += -I$(MM_CU)
+BUILD_LIBS += libmm_cuda_backend.so
 endif
 
 #OpenCL backend
 ifeq ($(USE_OPENCL),TRUE)
- MM_COMPONENTS += -D WITH_OPENCL
- INCLUDES += -I$(MM_CL)
  ifeq ($(USE_FPGA),INTEL)
-  MM_COMPONENTS += -D WITH_INTELFPGA -lmm_opencl_intelfpga_backend
-  MM_DEPS += libmm_opencl_intelfpga_backend.so
+  OPENCL_FLAGS += -D WITH_INTELFPGA
+  BUILD_LIBS += libmm_opencl_intelfpga_backend.so
   ####################### FPGA ##################################
   # Where is the Intel(R) FPGA SDK for OpenCL(TM) software?
   #TODO clean up this lookup
@@ -284,75 +281,58 @@ ifeq ($(USE_OPENCL),TRUE)
 
   #There is no reason this mechanic has to be specific to FPGA
   ifeq ($(OPENCL_SINGLE_KERNEL_PROGS),TRUE)
-   export FPGA_DEF=-D WITH_OPENCL -D WITH_INTELFPGA -D OPENCL_SINGLE_KERNEL_PROGS
+   export FPGA_DEF=-D WITH_INTELFPGA -D OPENCL_SINGLE_KERNEL_PROGS
   else
    #TODO These FPGA options should not be hardcoded, and in fact should be subsumed by the OPENCL_SINGLE_KERNEL_PROGS option
-   export FPGA_DEF=-D WITH_OPENCL -D WITH_INTELFPGA -D KERNEL_CRC -D FPGA_UNSIGNED_INTEGER
+   export FPGA_DEF=-D WITH_INTELFPGA -D KERNEL_CRC -D FPGA_UNSIGNED_INTEGER
   endif
-  #export FPGA_DEF=-D WITH_OPENCL -D WITH_INTELFPGA -D KERNEL_STENCIL -D FPGA_DOUBLE
-  #export FPGA_LIB=/home/jehandad/rte/opt/altera/aocl-rte/host/linux64/lib/
   #TODO Remove hardcode and expose as INTELFPGA_LIB_DIR
   export FPGA_LIB=-L /media/hdd/jehandad/altera_pro/16.0/hld/host/linux64/lib -L $(AALSDK)/lib
 
 
  else ifeq ($(USE_FPGA),XILINX)
-  MM_COMPONENTS += -D WITH_XILINXFPGA -lmm_opencl_xilinx_backend
-  MM_DEPS += libmm_opencl_xilinx_backend.so
+  OPENCL_FLAGS += -D WITH_XILINXFPGA
+  BUILD_LIBS += libmm_opencl_xilinx_backend.so
   $(error XILINX not yet supported)
  else ifeq ($(USE_FPGA),) #The non-FPGA implementation has an empty string
-  MM_COMPONENTS += -lmm_opencl_backend
-  MM_DEPS += libmm_opencl_backend.so
+  BUILD_LIBS += libmm_opencl_backend.so
  else #They asked for an FPGA backend that is not explicitly supported
   $(error USE_FPGA=$(USE_FPGA) is not supported)
  endif
- MM_COMPONENTS += -I$(OPENCL_INCL_DIR) -L$(OPENCL_LIB_DIR) -lOpenCL
 endif
 
 
 
 
 ifeq ($(USE_OPENMP),TRUE)
-MM_COMPONENTS += -D WITH_OPENMP
-INCLUDES += -I$(MM_MP)
+ ifeq ($(USE_MIC),TRUE)
+  ifeq ($(USE_MPI),TRUE)
+   MPICC = $(MPI_DIR)/bin/mpicc -cc=$(ICC_BIN)
+  else
+   CC = $(ICC_BIN)
+  endif
 
-ifeq ($(USE_MIC),TRUE)
+  CC_FLAGS += -mmic
+  BUILD_LIBS += libmm_openmp_mic_backend.so
+ else
+  BUILD_LIBS += libmm_openmp_backend.so
+ endif
 
-ifeq ($(USE_MPI),TRUE)
-MPICC = $(MPI_DIR)/bin/mpicc -cc=$(ICC_BIN)
-else
-CC = $(ICC_BIN)
-endif
-
-CC_FLAGS += -mmic
-MM_COMPONENTS += -lmm_openmp_backend_mic
-MM_DEPS += libmm_openmp_mic_backend.so
-else
-MM_COMPONENTS += -lmm_openmp_backend
-MM_DEPS += libmm_openmp_backend.so
-endif
-
-ifeq ($(CC),gcc)
-CC_FLAGS += -fopenmp
-else
-CC_FLAGS += -openmp
-endif
+ ifeq ($(CC),gcc)
+  OPENMP_FLAGS += -fopenmp
+ else
+  OPENMP_FLAGS += -openmp
+ endif
 endif
 
 export INCLUDES
 
-MFLAGS := USE_CUDA=$(USE_CUDA) CUDA_LIB_DIR=$(CUDA_LIB_DIR) USE_OPENCL=$(USE_OPENCL) OPENCL_LIB_DIR=$(OPENCL_LIB_DIR) OPENCL_INCL_DIR=$(OPENCL_INCL_DIR) OPENCL_SINGLE_KERNEL_PROGS=$(OPENCL_SINGLE_KERNEL_PROGS) USE_OPENMP=$(USE_OPENMP) USE_MIC=$(USE_MIC) ICC_BIN=$(ICC_BIN) USE_TIMERS=$(USE_TIMERS) USE_MPI=$(USE_MPI) MPI_DIR=$(MPI_DIR) USE_FPGA=$(USE_FPGA) CC="$(CC)" NVCC=$(NVCC) MPICC="$(MPICC)" $(MFLAGS)
+MFLAGS := USE_CUDA=$(USE_CUDA) CUDA_LIB_DIR=$(CUDA_LIB_DIR) USE_OPENCL=$(USE_OPENCL) OPENCL_LIB_DIR=$(OPENCL_LIB_DIR) OPENCL_INCL_DIR=$(OPENCL_INCL_DIR) OPENCL_SINGLE_KERNEL_PROGS=$(OPENCL_SINGLE_KERNEL_PROGS) USE_OPENMP=$(USE_OPENMP) USE_MIC=$(USE_MIC) ICC_BIN=$(ICC_BIN) USE_TIMERS=$(USE_TIMERS) USE_MPI=$(USE_MPI) MPI_DIR=$(MPI_DIR) USE_FPGA=$(USE_FPGA) CC="$(CC)" NVCC=$(NVCC) MPICC="$(MPICC)" OPENMP_FLAGS="$(OPENMP_FLAGS)" OPENCL_FLAGS="$(OPENCL_FLAGS)" $(MFLAGS)
 
 #.PHONY: metamorph_all examples
 .PHONY: libmetamorph.so examples
-all: libmetamorph.so
-#metamorph_all: libmetamorph.so libmetamorph_mp.so libmetamorph_mic.so libmetamorph_cl.so libmetamorph_cu.so
+all: $(BUILD_LIBS)
 
-#libmetamorph.so: libmm_openmp_backend.so libmm_cuda_backend.so libmm_opencl_backend.so
-#ifeq ($(USE_MPI),TRUE)
-#	mpicc $(MM_CORE)/metamorph.c $(MM_CORE)/metamorph_timers.c $(MM_CORE)/metamorph_mpi.c $(CC_FLAGS) $(INCLUDES) -L $(MM_LIB) -D WITH_OPENMP -D WITH_OPENCL -D WITH_CUDA -I $(MPICH_DIR)/include -L $(MPICH_DIR)/lib -L /usr/local/cuda/lib64 -lmm_openmp_backend  -lmm_cuda_backend -lmm_opencl_backend -lOpenCL -lcudart -o $(MM_LIB)/libmetamorph.so
-#else
-#	$(CC) $(MM_CORE)/metamorph.c $(MM_CORE)/metamorph_timers.c $(CC_FLAGS) $(INCLUDES) -L $(MM_LIB) -D WITH_OPENMP -D WITH_OPENCL -D WITH_CUDA -L /usr/local/cuda/lib64 -lmm_openmp_backend  -lmm_cuda_backend -lmm_opencl_backend -lOpenCL -lcudart -o $(MM_LIB)/libmetamorph.so
-#endif
 libmetamorph.so: $(MM_DEPS)
 	$(CC) $(MM_CORE)/metamorph.c $(MM_CORE)/metamorph_fortran_compat.c $(CC_FLAGS) $(INCLUDES) -L$(MM_LIB) $(MM_COMPONENTS) -o $(MM_LIB)/libmetamorph.so -shared -Wl,-soname,libmetamorph.so
 
@@ -362,39 +342,10 @@ libmm_profiling.so: $(MM_CORE)/metamorph_timers.c
 libmm_mpi.so: $(MM_CORE)/metamorph_mpi.c
 	$(MPICC) $(MM_CORE)/metamorph_mpi.c $(CC_FLAGS) $(INCLUDES) -I$(MPI_DIR)/include -L$(MPI_DIR)/lib -o $(MM_LIB)/libmm_mpi.so -shared -Wl,-soname,libmm_mpi.so
 
-#these old single-backend targets are deprecated now that the above is modular
-libmetamorph_mp.so: libmm_openmp_backend.so
-ifeq ($(USE_MPI),TRUE)
-	mpicc -cc=$(CC) $(MM_CORE)/metamorph.c $(MM_CORE)/metamorph_timers.c $(MM_CORE)/metamorph_mpi.c $(CC_FLAGS) $(INCLUDES) -I $(MPICH_DIR)/include -L $(MM_LIB) -L $(MPICH_DIR)/lib -D WITH_OPENMP -lmm_openmp_backend -o $(MM_LIB)/libmetamorph_mp.so
-else
-	$(CC) $(MM_CORE)/metamorph.c $(MM_CORE)/metamorph_timers.c $(CC_FLAGS) $(INCLUDES) -L $(MM_LIB) -D WITH_OPENMP -lmm_openmp_backend -o $(MM_LIB)/libmetamorph_mp.so
-endif
-
-libmetamorph_mic.so: libmm_openmp_mic_backend.so
-ifeq ($(USE_MPI),TRUE)
-	mpicc -cc=icc $(MM_CORE)/metamorph.c $(MM_CORE)/metamorph_timers.c $(MM_CORE)/metamorph_mpi.c $(CC_FLAGS) -openmp -mmic $(INCLUDES) -L $(MM_LIB) -D WITH_OPENMP -lmm_openmp_mic_backend -I $(MPICH_DIR)-mic/include -L $(MPICH_DIR)-mic/lib -o $(MM_LIB)/libmetamorph_mic.so
-else
-	icc $(MM_CORE)/metamorph.c $(MM_CORE)/metamorph_timers.c $(CC_FLAGS) -openmp -mmic $(INCLUDES) -L $(MM_LIB) -D WITH_OPENMP -lmm_openmp_mic_backend -o $(MM_LIB)/libmetamorph_mic.so
-endif
-
-libmetamorph_cu.so: libmm_cuda_backend.so
-ifeq ($(USE_MPI),TRUE)
-	$(CC) $(MM_CORE)/metamorph.c $(MM_CORE)/metamorph_timers.c $(MM_CORE)/metamorph_mpi.c $(CC_FLAGS) $(INCLUDES) -L $(MM_LIB) -D WITH_CUDA -I $(MPICH_DIR)/include -L $(MPICH_DIR)/lib -L /usr/local/cuda/lib64 -lmm_cuda_backend -lcudart -o $(MM_LIB)/libmetamorph_cu.so
-else
-	$(CC) $(MM_CORE)/metamorph.c $(MM_CORE)/metamorph_timers.c $(CC_FLAGS) $(INCLUDES) -L $(MM_LIB) -D WITH_CUDA -L /usr/local/cuda/lib64 -lmm_cuda_backend -lcudart -o $(MM_LIB)/libmetamorph_cu.so
-endif
-	
-libmetamorph_cl.so: libmm_opencl_backend.so
-ifeq ($(USE_MPI),TRUE)
-	$(CC) $(MM_CORE)/metamorph.c $(MM_CORE)/metamorph_timers.c $(MM_CORE)/metamorph_mpi.c $(CC_FLAGS) $(INCLUDES) -L $(MM_LIB) -D WITH_OPENCL -I $(MPICH_DIR)/include -L $(MPICH_DIR)/lib -lmm_opencl_backend -lOpenCL -o $(MM_LIB)/libmetamorph_cl.so
-else
-	$(CC) $(MM_CORE)/metamorph.c $(MM_CORE)/metamorph_timers.c $(CC_FLAGS) $(AOCL_COMPILE_CONFIG) $(INCLUDES) -L $(MM_LIB) $(FPGA_LIB) -D WITH_OPENCL -lmm_opencl_backend -lOpenCL -o $(MM_LIB)/libmetamorph_cl.so
-endif
-
-#/media/hdd/jehandad/altera_pro/16.0/hld/host/linux64/lib 
 libmm_openmp_backend.so:	
 	cd $(MM_MP) && $(MFLAGS) $(MAKE) libmm_openmp_backend.so
-	
+
+#TODO Make this happen transparently to this file, create a symlink in the backend's makefile	
 libmm_openmp_mic_backend.so:
 	cd $(MM_MP) && $(MFLAGS) $(MAKE) libmm_openmp_backend_mic.so
 
@@ -404,6 +355,7 @@ libmm_cuda_backend.so:
 libmm_opencl_backend.so:
 	cd $(MM_CL) && $(MFLAGS) $(MAKE) libmm_opencl_backend.so
 
+#TODO Make this happen transparently to this file, create a symlink in the backend's makefile	
 libmm_opencl_intelfpga_backend.so:
 	cd $(MM_CL) && $(MFLAGS) $(MAKE) libmm_opencl_intelfpga_backend.so
 
@@ -412,15 +364,14 @@ generators: metaCL
 metaCL:
 	cd $(MM_GEN_CL) && $(MAKE) metaCL
 	
-examples: torus_ex csr_ex crc_ex
+examples: 
+	cd $(MM_EX) && $(MFLAGS) $(MAKE) all
 
 torus_ex:
 	cd $(MM_EX) && $(MFLAGS) $(MAKE) torus_reduce_test
-#	cd $(MM_EX) && $(MAKE) torus_reduce_test_mp torus_reduce_test_mic torus_reduce_test_cu torus_reduce_test_cl $(MFLAGS)
 
 csr_ex:
 	cd $(MM_EX) && $(MFLAGS) $(MAKE) csr_alt
-#	cd $(MM_EX) && $(MAKE) torus_reduce_test_mp torus_reduce_test_mic torus_reduce_test_cu torus_reduce_test_cl $(MFLAGS)
 
 crc_ex:
 	cd $(MM_EX) && $(MFLAGS) $(MAKE) crc_alt

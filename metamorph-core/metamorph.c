@@ -371,7 +371,7 @@ __attribute__((constructor(101))) void meta_init() {
     core_capability |= module_implements_profiling;
     CHECKED_DLSYM("libmm_profiling.so", plugins.profiling_handle, "metaProfilingCreateTimer", profiling_symbols.metaProfilingCreateTimer);
     CHECKED_DLSYM("libmm_profiling.so", plugins.profiling_handle, "metaProfilingEnqueueTimer", profiling_symbols.metaProfilingEnqueueTimer);
-    CHECKED_DLSYM("libmm_profiling.so", plugins.profiling_handle, "metaProfilingDestroyTimer", profiling_symbols.metaProfilingDestroyTimer);
+//    CHECKED_DLSYM("libmm_profiling.so", plugins.profiling_handle, "metaProfilingDestroyTimer", profiling_symbols.metaProfilingDestroyTimer);
     fprintf(stderr, "Profiling plugin found\n");
   }
 }

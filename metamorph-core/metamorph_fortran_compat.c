@@ -1,7 +1,7 @@
 /*
  * Implementation of the Fortran-compatible variants of all
  * top-level C library functions. Currently implemented as
- * an opt-in plugin with the -D WITH_FORTRAN compiler define.
+ * part of core.
  *
  * These functions should be as efficient as possible, but the
  * C interface always takes priority w.r.t. performance. It is

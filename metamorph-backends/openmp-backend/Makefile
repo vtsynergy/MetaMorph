@@ -12,7 +12,7 @@ SIMD_MIC_FLAGS= -mmic -fp-model fast # -vec-report3
 endif
 
 libmm_openmp_backend.so:
-	$(CC) mm_openmp_backend.c $(OPT_LVL) $(CC_FLAGS) $(SIMD_CPU_FLAGS) $(L_FLAGS) $(INCLUDES) -o $(MM_LIB)/libmm_openmp_backend.so -shared -Wl,-soname,libmm_openmp_backend.so
+	$(CC) mm_openmp_backend.c $(OPT_LVL) $(CC_FLAGS) $(OPENMP_FLAGS) $(SIMD_CPU_FLAGS) $(L_FLAGS) $(INCLUDES) -o $(MM_LIB)/libmm_openmp_backend.so -shared -Wl,-soname,libmm_openmp_backend.so
 	
 libmm_openmp_mic_backend.so:
-	icc mm_openmp_backend_mic.c $(OPT_LVL) $(CC_FLAGS) $(SIMD_MIC_FLAGS) $(L_FLAGS) $(INCLUDES) -o $(MM_LIB)/libmm_openmp_mic_backend.so -shared -Wl,-soname,libmm_openmp_mic_backend.so
+	icc mm_openmp_backend_mic.c $(OPT_LVL) $(CC_FLAGS) $(OPENMP_FLAGS) $(SIMD_MIC_FLAGS) $(L_FLAGS) $(INCLUDES) -o $(MM_LIB)/libmm_openmp_mic_backend.so -shared -Wl,-soname,libmm_openmp_mic_backend.so
