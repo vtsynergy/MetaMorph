@@ -2,6 +2,7 @@
 #include <sys/time.h>
 #include "../../metamorph-backends/openmp-backend/mm_openmp_backend.h"
 
+extern struct profiling_dyn_ptrs profiling_symbols;
 //#define	COLLAPSE
 //#define USE_AVX
 
@@ -57,92 +58,79 @@ a_err metaOpenMPWrite(void * dst, void * src, size_t size, a_bool async, meta_ca
   a_err ret = 0;
   openmpEvent * events = NULL;
   if (ret_event != NULL && ret_event->mode == metaModePreferOpenMP && ret_event->event_pl != NULL) events = ((openmpEvent *)ret_event->event_pl);
-#ifdef WITH_TIMERS
-        metaTimerQueueFrame * frame;
-	frame = (metaTimerQueueFrame *)malloc (sizeof(metaTimerQueueFrame));
-	frame->mode = metaModePreferOpenMP;
-	frame->size = size;
-  if (events == NULL) {
-	frem->event.mode = metaModePreferOpenMP;
-	metaOpenMPCreateEvent(&(frame->event.event_pl));
-	events = ((openmpEvent *)frame->event.event_pl);
+  meta_timer * timer = NULL;
+  if (profiling_symbols.metaProfilingCreateTimer != NULL) {
+    (*(profiling_symbols.metaProfilingCreateTimer))(&timer, metaModePreferOpenMP, size);
+    if (events == NULL) {
+      events = ((openmpEvent *)timer->event.event_pl);
+    } else {
+      //FIXME: are we leaking a created openmpEvent here since the profiling function calls create?
+      //metaOpenMPDestroyEvent(frame->event.event_pl);
+      timer->event = *ret_event;
+    }
   }
-  else {
-    frame->event = *ret_event;
-  }
-#endif
   if (events != NULL) {
     gettimeofday(&(events[0]), NULL);
   }
   //FIXME: Implement async
   memcpy(dst, src, size);
+  if (events != NULL) {
+    gettimeofday(&(events[1]), NULL);
+  }
   //FIXME: Implement async "callback"
   if (call != NULL) {
     (call->callback_func)(call);
   }
   ret = 0;
-  if (events != NULL) {
-    gettimeofday(&(events[1]), NULL);
-  }
-#ifdef WITH_TIMERS
-	metaTimerEnqueue(frame, &(metaBuiltinQueues[c_H2D]));
-#endif
+    if (profiling_symbols.metaProfilingEnqueueTimer != NULL) (*(profiling_symbols.metaProfilingEnqueueTimer))(*timer, c_H2D);
   return ret;
 }
 a_err metaOpenMPRead(void * dst, void * src, size_t size, a_bool async, meta_callback * call, meta_event * ret_event) {
   a_err ret = 0;
   openmpEvent * events = NULL;
   if (ret_event != NULL && ret_event->mode == metaModePreferOpenMP && ret_event->event_pl != NULL) events = ((openmpEvent *)ret_event->event_pl);
-#ifdef WITH_TIMERS
-        metaTimerQueueFrame * frame;
-	frame = (metaTimerQueueFrame *)malloc (sizeof(metaTimerQueueFrame));
-	frame->mode = metaModePreferOpenMP;
-	frame->size = size;
-  if (events == NULL) {
-	frem->event.mode = metaModePreferOpenMP;
-	metaOpenMPCreateEvent(&(frame->event.event_pl));
-	events = ((openmpEvent *)frame->event.event_pl);
+  meta_timer * timer = NULL;
+  if (profiling_symbols.metaProfilingCreateTimer != NULL) {
+    (*(profiling_symbols.metaProfilingCreateTimer))(&timer, metaModePreferOpenMP, size);
+    if (events == NULL) {
+      events = ((openmpEvent *)timer->event.event_pl);
+    } else {
+      //FIXME: are we leaking a created openmpEvent here since the profiling function calls create?
+      //metaOpenMPDestroyEvent(frame->event.event_pl);
+      timer->event = *ret_event;
+    }
   }
-  else {
-    frame->event = *ret_event;
-  }
-#endif
   if (events != NULL) {
     gettimeofday(&(events[0]), NULL);
   }
   //FIXME: Implement async
   memcpy(dst, src, size);
   //FIXME: Implement async "callback"
+  if (events != NULL) {
+    gettimeofday(&(events[1]), NULL);
+  }
   if (call != NULL) {
     (call->callback_func)(call);
   }
   ret = 0;
-  if (events != NULL) {
-    gettimeofday(&(events[1]), NULL);
-  }
-#ifdef WITH_TIMERS
-	metaTimerEnqueue(frame, &(metaBuiltinQueues[c_D2H]));
-#endif
+    if (profiling_symbols.metaProfilingEnqueueTimer != NULL) (*(profiling_symbols.metaProfilingEnqueueTimer))(*timer, c_D2H);
   return ret;
 }
 a_err metaOpenMPDevCopy(void * dst, void * src, size_t size, a_bool async, meta_callback * call, meta_event * ret_event) {
   a_err ret = 0;
   openmpEvent * events = NULL;
   if (ret_event != NULL && ret_event->mode == metaModePreferOpenMP && ret_event->event_pl != NULL) events = ((openmpEvent *)ret_event->event_pl);
-#ifdef WITH_TIMERS
-        metaTimerQueueFrame * frame;
-	frame = (metaTimerQueueFrame *)malloc (sizeof(metaTimerQueueFrame));
-	frame->mode = metaModePreferOpenMP;
-	frame->size = size;
-  if (events == NULL) {
-	frem->event.mode = metaModePreferOpenMP;
-	metaOpenMPCreateEvent(&(frame->event.event_pl));
-	events = ((openmpEvent *)frame->event.event_pl);
+  meta_timer * timer = NULL;
+  if (profiling_symbols.metaProfilingCreateTimer != NULL) {
+    (*(profiling_symbols.metaProfilingCreateTimer))(&timer, metaModePreferOpenMP, size);
+    if (events == NULL) {
+      events = ((openmpEvent *)timer->event.event_pl);
+    } else {
+      //FIXME: are we leaking a created openmpEvent here since the profiling function calls create?
+      //metaOpenMPDestroyEvent(frame->event.event_pl);
+      timer->event = *ret_event;
+    }
   }
-  else {
-    frame->event = *ret_event;
-  }
-#endif
   if (events != NULL) {
     gettimeofday(&(events[0]), NULL);
   }
@@ -160,16 +148,14 @@ a_err metaOpenMPDevCopy(void * dst, void * src, size_t size, a_bool async, meta_
 		*((unsigned long *) dst + i) = *((unsigned long *) src + i);
 	}
   //FIXME: Implement async "callback"
+  if (events != NULL) {
+    gettimeofday(&(events[1]), NULL);
+  }
   if (call != NULL) {
     (call->callback_func)(call);
   }
   ret = 0;
-  if (events != NULL) {
-    gettimeofday(&(events[1]), NULL);
-  }
-#ifdef WITH_TIMERS
-	metaTimerEnqueue(frame, &(metaBuiltinQueues[c_D2D]));
-#endif
+    if (profiling_symbols.metaProfilingEnqueueTimer != NULL) (*(profiling_symbols.metaProfilingEnqueueTimer))(*timer, c_D2D);
   return ret;
 }
 a_err metaOpenMPFlush() {
@@ -1594,20 +1580,17 @@ a_err openmp_dotProd(size_t (* grid_size)[3], size_t (* block_size)[3], void * d
 	int ret = 0; //Success
 openmpEvent * events;
   if (ret_event != NULL && ret_event->mode == metaModePreferOpenMP && ret_event->event_pl != NULL) events = ((openmpEvent *)ret_event->event_pl);
-#ifdef WITH_TIMERS
-        metaTimerQueueFrame * frame;
-	frame = (metaTimerQueueFrame *)malloc (sizeof(metaTimerQueueFrame));
-	frame->mode = metaModePreferOpenMP;
-	frame->size = (*array_size)[0]*(*array_size)[1]*(*array_size)[2]*get_atype_size(type);
-  if (events == NULL) {
-	frem->event.mode = metaModePreferOpenMP;
-	metaOpenMPCreateEvent(&(frame->event.event_pl));
-	events = ((openmpEvent *)frame->event.event_pl);
+  meta_timer * timer = NULL;
+  if (profiling_symbols.metaProfilingCreateTimer != NULL) {
+    (*(profiling_symbols.metaProfilingCreateTimer))(&timer, metaModePreferOpenMP, (*array_size)[0]*(*array_size)[1]*(*array_size)[2]*get_atype_size(type));
+    if (events == NULL) {
+      events = ((openmpEvent *)timer->event.event_pl);
+    } else {
+      //FIXME: are we leaking a created openmpEvent here since the profiling function calls create?
+      //metaOpenMPDestroyEvent(frame->event.event_pl);
+      timer->event = *ret_event;
+    }
   }
-  else {
-    frame->event = *ret_event;
-  }
-#endif
   if (events != NULL) {
     gettimeofday(&(events[0]), NULL);
   }
@@ -1652,9 +1635,7 @@ openmpEvent * events;
   if (call != NULL) {
     (call->callback_func)(call);
   }
-#ifdef WITH_TIMERS
-	metaTimerEnqueue(frame, &(metaBuiltinQueues[k_dotProd]));
-#endif
+    if (profiling_symbols.metaProfilingEnqueueTimer != NULL) (*(profiling_symbols.metaProfilingEnqueueTimer))(*timer, k_dotProd);
 	return (ret);
 }
 
@@ -1662,20 +1643,17 @@ a_err openmp_reduce(size_t (* grid_size)[3], size_t (* block_size)[3], void * da
 	int ret = 0; //Success
 openmpEvent * events;
   if (ret_event != NULL && ret_event->mode == metaModePreferOpenMP && ret_event->event_pl != NULL) events = ((openmpEvent *)ret_event->event_pl);
-#ifdef WITH_TIMERS
-        metaTimerQueueFrame * frame;
-	frame = (metaTimerQueueFrame *)malloc (sizeof(metaTimerQueueFrame));
-	frame->mode = metaModePreferOpenMP;
-	frame->size = (*array_size)[0]*(*array_size)[1]*(*array_size)[2]*get_atype_size(type);
-  if (events == NULL) {
-	frem->event.mode = metaModePreferOpenMP;
-	metaOpenMPCreateEvent(&(frame->event.event_pl));
-	events = ((openmpEvent *)frame->event.event_pl);
+  meta_timer * timer = NULL;
+  if (profiling_symbols.metaProfilingCreateTimer != NULL) {
+    (*(profiling_symbols.metaProfilingCreateTimer))(&timer, metaModePreferOpenMP, (*array_size)[0]*(*array_size)[1]*(*array_size)[2]*get_atype_size(type));
+    if (events == NULL) {
+      events = ((openmpEvent *)timer->event.event_pl);
+    } else {
+      //FIXME: are we leaking a created openmpEvent here since the profiling function calls create?
+      //metaOpenMPDestroyEvent(frame->event.event_pl);
+      timer->event = *ret_event;
+    }
   }
-  else {
-    frame->event = *ret_event;
-  }
-#endif
   if (events != NULL) {
     gettimeofday(&(events[0]), NULL);
   }
@@ -1721,9 +1699,7 @@ openmpEvent * events;
   if (call != NULL) {
     (call->callback_func)(call);
   }
-#ifdef WITH_TIMERS
-	metaTimerEnqueue(frame, &(metaBuiltinQueues[k_reduce]));
-#endif
+    if (profiling_symbols.metaProfilingEnqueueTimer != NULL) (*(profiling_symbols.metaProfilingEnqueueTimer))(*timer, k_reduce);
 	return (ret);
 }
 
@@ -1731,20 +1707,17 @@ a_err openmp_transpose_face(size_t (* grid_size)[3], size_t (* block_size)[3], v
 	int ret = 0; //Success
 openmpEvent * events;
   if (ret_event != NULL && ret_event->mode == metaModePreferOpenMP && ret_event->event_pl != NULL) events = ((openmpEvent *)ret_event->event_pl);
-#ifdef WITH_TIMERS
-        metaTimerQueueFrame * frame;
-	frame = (metaTimerQueueFrame *)malloc (sizeof(metaTimerQueueFrame));
-	frame->mode = metaModePreferOpenMP;
-	frame->size = (*tran_dim_xy)[0]*(*tran_dim_xy)[1]*get_atype_size(type);
-  if (events == NULL) {
-	frem->event.mode = metaModePreferOpenMP;
-	metaOpenMPCreateEvent(&(frame->event.event_pl));
-	events = ((openmpEvent *)frame->event.event_pl);
+  meta_timer * timer = NULL;
+  if (profiling_symbols.metaProfilingCreateTimer != NULL) {
+    (*(profiling_symbols.metaProfilingCreateTimer))(&timer, metaModePreferOpenMP, (*tran_dim_xy)[0]*(*tran_dim_xy)[1]*get_atype_size(type));
+    if (events == NULL) {
+      events = ((openmpEvent *)timer->event.event_pl);
+    } else {
+      //FIXME: are we leaking a created openmpEvent here since the profiling function calls create?
+      //metaOpenMPDestroyEvent(frame->event.event_pl);
+      timer->event = *ret_event;
+    }
   }
-  else {
-    frame->event = *ret_event;
-  }
-#endif
   if (events != NULL) {
     gettimeofday(&(events[0]), NULL);
   }
@@ -1789,9 +1762,7 @@ openmpEvent * events;
   if (call != NULL) {
     (call->callback_func)(call);
   }
-#ifdef WITH_TIMERS
-	metaTimerEnqueue(frame, &(metaBuiltinQueues[k_transpose_2d_face]));
-#endif
+    if (profiling_symbols.metaProfilingEnqueueTimer != NULL) (*(profiling_symbols.metaProfilingEnqueueTimer))(*timer, k_transpose_2d_face);
 	return (ret);
 }
 
@@ -1802,41 +1773,41 @@ openmpEvent * events_k1, * events_c1, * events_c2, * events_c3;
   if (ret_event_c1 != NULL && ret_event_c1->mode == metaModePreferOpenMP && ret_event_c1->event_pl != NULL) events_c1 = ((openmpEvent *)ret_event_c1->event_pl);
   if (ret_event_c2 != NULL && ret_event_c2->mode == metaModePreferOpenMP && ret_event_c2->event_pl != NULL) events_c2 = ((openmpEvent *)ret_event_c2->event_pl);
   if (ret_event_c3 != NULL && ret_event_c3->mode == metaModePreferOpenMP && ret_event_c3->event_pl != NULL) events_c3 = ((openmpEvent *)ret_event_c3->event_pl);
-#ifdef WITH_TIMERS
-        metaTimerQueueFrame * frame_k1, * frame_c1, * frame_c2, * frame_c3;
-	frame_k1 = (metaTimerQueueFrame*)malloc (sizeof(metaTimerQueueFrame));
-	frame_c1 = (metaTimerQueueFrame*)malloc (sizeof(metaTimerQueueFrame));
-	frame_c2 = (metaTimerQueueFrame*)malloc (sizeof(metaTimerQueueFrame));
-	frame_c3 = (metaTimerQueueFrame*)malloc (sizeof(metaTimerQueueFrame));
-	frame_k1->mode = metaModePreferOpenMP;
-	frame_c1->mode = metaModePreferOpenMP;
-	frame_c2->mode = metaModePreferOpenMP;
-	frame_c3->mode = metaModePreferOpenMP;
-	frame_k1->size = get_atype_size(type)*face->size[0]*face->size[1]*face->size[2];
-	frame_c1->size = get_atype_size(type)*3;
-	frame_c2->size = get_atype_size(type)*3;
-	frame_c3->size = get_atype_size(type)*3;
-  if (events == NULL) {
-	frame_k1->event.mode = metaModePreferOpenMP;
-	frame_c1->event.mode = metaModePreferOpenMP;
-	frame_c2->event.mode = metaModePreferOpenMP;
-	frame_c3->event.mode = metaModePreferOpenMP;
-	metaOpenMPCreateEvent(&(frame_k1->event.event_pl));
-	metaOpenMPCreateEvent(&(frame_c1->event.event_pl));
-	metaOpenMPCreateEvent(&(frame_c2->event.event_pl));
-	metaOpenMPCreateEvent(&(frame_c3->event.event_pl));
-	events_k1 = ((openmpEvent *)frame_k1->event.event_pl);
-	events_c1 = ((openmpEvent *)frame_c1->event.event_pl);
-	events_c2 = ((openmpEvent *)frame_c2->event.event_pl);
-	events_c3 = ((openmpEvent *)frame_c3->event.event_pl);
+  meta_timer * timer_k1 = NULL, * timer_c1 = NULL, * timer_c2 = NULL, * timer_c3 = NULL;
+  if (profiling_symbols.metaProfilingCreateTimer != NULL) {
+    (*(profiling_symbols.metaProfilingCreateTimer))(&timer_k1, metaModePreferOpenMP, get_atype_size(type)*face->size[0]*face->size[1]*face->size[2]);
+    (*(profiling_symbols.metaProfilingCreateTimer))(&timer_c1, metaModePreferOpenMP, get_atype_size(type)*3);
+    (*(profiling_symbols.metaProfilingCreateTimer))(&timer_c2, metaModePreferOpenMP, get_atype_size(type)*3);
+    (*(profiling_symbols.metaProfilingCreateTimer))(&timer_c3, metaModePreferOpenMP, get_atype_size(type)*3);
+    if (events_k1 == NULL) {
+      events_k1 = ((openmpEvent *)timer_k1->event.event_pl);
+    } else {
+      //FIXME: are we leaking a created openmpEvent here since the profiling function calls create?
+      //metaOpenMPDestroyEvent(frame->event.event_pl);
+      timer_k1->event = *ret_event_k1;
+    }
+    if (events_c1 == NULL) {
+      events_c1 = ((openmpEvent *)timer_c1->event.event_pl);
+    } else {
+      //FIXME: are we leaking a created openmpEvent here since the profiling function calls create?
+      //metaOpenMPDestroyEvent(frame->event.event_pl);
+      timer_c1->event = *ret_event_c1;
+    }
+    if (events_c2 == NULL) {
+      events_c2 = ((openmpEvent *)timer_c2->event.event_pl);
+    } else {
+      //FIXME: are we leaking a created openmpEvent here since the profiling function calls create?
+      //metaOpenMPDestroyEvent(frame->event.event_pl);
+      timer_c2->event = *ret_event_c2;
+    }
+    if (events_c3 == NULL) {
+      events_c3 = ((openmpEvent *)timer_c3->event.event_pl);
+    } else {
+      //FIXME: are we leaking a created openmpEvent here since the profiling function calls create?
+      //metaOpenMPDestroyEvent(frame->event.event_pl);
+      timer_c3->event = *ret_event_c3;
+    }
   }
-  else {
-    frame_k1->event = *ret_event_k1;
-    frame_c1->event = *ret_event_c1;
-    frame_c2->event = *ret_event_c2;
-    frame_c3->event = *ret_event_c3;
-  }
-#endif
   //The constant copies are treated as a zero-time event
   if (events_c1 != NULL) {
     gettimeofday(&(events_c1[0]), NULL);
@@ -1894,12 +1865,12 @@ openmpEvent * events_k1, * events_c1, * events_c2, * events_c3;
   if (call != NULL) {
     (call->callback_func)(call);
   }
-#ifdef WITH_TIMERS
-	metaTimerEnqueue(frame_k1, &(metaBuiltinQueues[k_pack_2d_face]));
-	metaTimerEnqueue(frame_c1, &(metaBuiltinQueues[c_H2Dc]));
-	metaTimerEnqueue(frame_c2, &(metaBuiltinQueues[c_H2Dc]));
-	metaTimerEnqueue(frame_c3, &(metaBuiltinQueues[c_H2Dc]));
-#endif
+    if (profiling_symbols.metaProfilingEnqueueTimer != NULL) {
+  (*(profiling_symbols.metaProfilingEnqueueTimer))(*timer_k1, k_pack_2d_face);
+  (*(profiling_symbols.metaProfilingEnqueueTimer))(*timer_c1, c_H2Dc);
+  (*(profiling_symbols.metaProfilingEnqueueTimer))(*timer_c2, c_H2Dc);
+  (*(profiling_symbols.metaProfilingEnqueueTimer))(*timer_c3, c_H2Dc);
+}
   //FIXME: Implement sync point here
 	return (ret);
 }
@@ -1911,41 +1882,41 @@ openmpEvent * events_k1, * events_c1, * events_c2, * events_c3;
   if (ret_event_c1 != NULL && ret_event_c1->mode == metaModePreferOpenMP && ret_event_c1->event_pl != NULL) events_c1 = ((openmpEvent *)ret_event_c1->event_pl);
   if (ret_event_c2 != NULL && ret_event_c2->mode == metaModePreferOpenMP && ret_event_c2->event_pl != NULL) events_c2 = ((openmpEvent *)ret_event_c2->event_pl);
   if (ret_event_c3 != NULL && ret_event_c3->mode == metaModePreferOpenMP && ret_event_c3->event_pl != NULL) events_c3 = ((openmpEvent *)ret_event_c3->event_pl);
-#ifdef WITH_TIMERS
-        metaTimerQueueFrame * frame_k1, * frame_c1, * frame_c2, * frame_c3;
-	frame_k1 = (metaTimerQueueFrame*)malloc (sizeof(metaTimerQueueFrame));
-	frame_c1 = (metaTimerQueueFrame*)malloc (sizeof(metaTimerQueueFrame));
-	frame_c2 = (metaTimerQueueFrame*)malloc (sizeof(metaTimerQueueFrame));
-	frame_c3 = (metaTimerQueueFrame*)malloc (sizeof(metaTimerQueueFrame));
-	frame_k1->mode = metaModePreferOpenMP;
-	frame_c1->mode = metaModePreferOpenMP;
-	frame_c2->mode = metaModePreferOpenMP;
-	frame_c3->mode = metaModePreferOpenMP;
-	frame_k1->size = get_atype_size(type)*face->size[0]*face->size[1]*face->size[2];
-	frame_c1->size = get_atype_size(type)*3;
-	frame_c2->size = get_atype_size(type)*3;
-	frame_c3->size = get_atype_size(type)*3;
-  if (events == NULL) {
-	frame_k1->event.mode = metaModePreferOpenMP;
-	frame_c1->event.mode = metaModePreferOpenMP;
-	frame_c2->event.mode = metaModePreferOpenMP;
-	frame_c3->event.mode = metaModePreferOpenMP;
-	metaOpenMPCreateEvent(&(frame_k1->event.event_pl));
-	metaOpenMPCreateEvent(&(frame_c1->event.event_pl));
-	metaOpenMPCreateEvent(&(frame_c2->event.event_pl));
-	metaOpenMPCreateEvent(&(frame_c3->event.event_pl));
-	events_k1 = ((openmpEvent *)frame_k1->event.event_pl);
-	events_c1 = ((openmpEvent *)frame_c1->event.event_pl);
-	events_c2 = ((openmpEvent *)frame_c2->event.event_pl);
-	events_c3 = ((openmpEvent *)frame_c3->event.event_pl);
+  meta_timer * timer_k1 = NULL, * timer_c1 = NULL, * timer_c2 = NULL, * timer_c3 = NULL;
+  if (profiling_symbols.metaProfilingCreateTimer != NULL) {
+    (*(profiling_symbols.metaProfilingCreateTimer))(&timer_k1, metaModePreferOpenMP, get_atype_size(type)*face->size[0]*face->size[1]*face->size[2]);
+    (*(profiling_symbols.metaProfilingCreateTimer))(&timer_c1, metaModePreferOpenMP, get_atype_size(type)*3);
+    (*(profiling_symbols.metaProfilingCreateTimer))(&timer_c2, metaModePreferOpenMP, get_atype_size(type)*3);
+    (*(profiling_symbols.metaProfilingCreateTimer))(&timer_c3, metaModePreferOpenMP, get_atype_size(type)*3);
+    if (events_k1 == NULL) {
+      events_k1 = ((openmpEvent *)timer_k1->event.event_pl);
+    } else {
+      //FIXME: are we leaking a created openmpEvent here since the profiling function calls create?
+      //metaOpenMPDestroyEvent(frame->event.event_pl);
+      timer_k1->event = *ret_event_k1;
+    }
+    if (events_c1 == NULL) {
+      events_c1 = ((openmpEvent *)timer_c1->event.event_pl);
+    } else {
+      //FIXME: are we leaking a created openmpEvent here since the profiling function calls create?
+      //metaOpenMPDestroyEvent(frame->event.event_pl);
+      timer_c1->event = *ret_event_c1;
+    }
+    if (events_c2 == NULL) {
+      events_c2 = ((openmpEvent *)timer_c2->event.event_pl);
+    } else {
+      //FIXME: are we leaking a created openmpEvent here since the profiling function calls create?
+      //metaOpenMPDestroyEvent(frame->event.event_pl);
+      timer_c2->event = *ret_event_c2;
+    }
+    if (events_c3 == NULL) {
+      events_c3 = ((openmpEvent *)timer_c3->event.event_pl);
+    } else {
+      //FIXME: are we leaking a created openmpEvent here since the profiling function calls create?
+      //metaOpenMPDestroyEvent(frame->event.event_pl);
+      timer_c3->event = *ret_event_c3;
+    }
   }
-  else {
-    frame_k1->event = *ret_event_k1;
-    frame_c1->event = *ret_event_c1;
-    frame_c2->event = *ret_event_c2;
-    frame_c3->event = *ret_event_c3;
-  }
-#endif
   //The constant copies are treated as a zero-time event
   if (events_c1 != NULL) {
     gettimeofday(&(events_c1[0]), NULL);
@@ -2002,12 +1973,12 @@ openmpEvent * events_k1, * events_c1, * events_c2, * events_c3;
   if (call != NULL) {
     (call->callback_func)(call);
   }
-#ifdef WITH_TIMERS
-	metaTimerEnqueue(frame_k1, &(metaBuiltinQueues[k_unpack_2d_face]));
-	metaTimerEnqueue(frame_c1, &(metaBuiltinQueues[c_H2Dc]));
-	metaTimerEnqueue(frame_c2, &(metaBuiltinQueues[c_H2Dc]));
-	metaTimerEnqueue(frame_c3, &(metaBuiltinQueues[c_H2Dc]));
-#endif
+    if (profiling_symbols.metaProfilingEnqueueTimer != NULL) {
+  (*(profiling_symbols.metaProfilingEnqueueTimer))(*timer_k1, k_unpack_2d_face);
+  (*(profiling_symbols.metaProfilingEnqueueTimer))(*timer_c1, c_H2Dc);
+  (*(profiling_symbols.metaProfilingEnqueueTimer))(*timer_c2, c_H2Dc);
+  (*(profiling_symbols.metaProfilingEnqueueTimer))(*timer_c3, c_H2Dc);
+}
   //FIXME: Implement sync point here
 	return (ret);
 }
@@ -2016,20 +1987,17 @@ a_err openmp_stencil_3d7p(size_t (* grid_size)[3], size_t (* block_size)[3], voi
 	int ret = 0; //Success
 openmpEvent * events;
   if (ret_event != NULL && ret_event->mode == metaModePreferOpenMP && ret_event->event_pl != NULL) events = ((openmpEvent *)ret_event->event_pl);
-#ifdef WITH_TIMERS
-        metaTimerQueueFrame * frame;
-	frame = (metaTimerQueueFrame *)malloc (sizeof(metaTimerQueueFrame));
-	frame->mode = metaModePreferOpenMP;
-	frame->size = (*array_size)[0]*(*array_size)[1]*(*array_size)[2]*get_atype_size(type);
-  if (events == NULL) {
-	frem->event.mode = metaModePreferOpenMP;
-	metaOpenMPCreateEvent(&(frame->event.event_pl));
-	events = ((openmpEvent *)frame->event.event_pl);
+  meta_timer * timer = NULL;
+  if (profiling_symbols.metaProfilingCreateTimer != NULL) {
+    (*(profiling_symbols.metaProfilingCreateTimer))(&timer, metaModePreferOpenMP, (*array_size)[0]*(*array_size)[1]*(*array_size)[2]*get_atype_size(type));
+    if (events == NULL) {
+      events = ((openmpEvent *)timer->event.event_pl);
+    } else {
+      //FIXME: are we leaking a created openmpEvent here since the profiling function calls create?
+      //metaOpenMPDestroyEvent(frame->event.event_pl);
+      timer->event = *ret_event;
+    }
   }
-  else {
-    frame->event = *ret_event;
-  }
-#endif
   if (events != NULL) {
     gettimeofday(&(events[0]), NULL);
   }
@@ -2074,9 +2042,7 @@ openmpEvent * events;
   if (call != NULL) {
     (call->callback_func)(call);
   }
-#ifdef WITH_TIMERS
-	metaTimerEnqueue(frame, &(metaBuiltinQueues[k_stencil_3d7p]));
-#endif
+    if (profiling_symbols.metaProfilingEnqueueTimer != NULL) (*(profiling_symbols.metaProfilingEnqueueTimer))(*timer, k_stencil_3d7p);
 	return (ret);
 
 }
