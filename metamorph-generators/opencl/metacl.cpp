@@ -977,7 +977,7 @@ int populateOutputFiles() {
       *out_c << "    return;\n";
       *out_c << "  }\n";
       //Ensure a MetaMorph OpenCL state exists
-      *out_c << "  if (meta_context == NULL) metaOpenCLFallBack();\n";
+      *out_c << "  if (meta_context == NULL) metaOpenCLFallback();\n";
       //Ensure a program/kernel storage frame is initialized
       *out_c << "  struct __metacl_" << outFileName << "_frame * new_frame = (struct __metacl_" << outFileName << "_frame *) calloc(1, sizeof(struct __metacl_" << outFileName << "_frame));\n";
       *out_c << "  new_frame->next_frame = __metacl_" << outFileName << "_current_frame;\n";
