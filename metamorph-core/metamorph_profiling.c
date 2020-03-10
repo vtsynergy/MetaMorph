@@ -1,4 +1,4 @@
-#include "metamorph_timers.h"
+#include "metamorph_profiling.h"
 #include "metamorph_dynamic_symbols.h"
 #include <dlfcn.h>
 #include <string.h>

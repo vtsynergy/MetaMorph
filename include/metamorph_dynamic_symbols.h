@@ -91,8 +91,8 @@ a_err (* openmp_stencil_3d7p)(size_t (*)[3], size_t (*)[3], void *, void *, size
   
 };
 
-#ifndef METAMORPH_TIMERS_H
-#include "metamorph_timers.h"
+#ifndef METAMORPH_PROFILING_H
+#include "metamorph_profiling.h"
 #endif
 struct profiling_dyn_ptrs {
 a_err (* metaProfilingCreateTimer)(meta_timer **, meta_preferred_mode, size_t);

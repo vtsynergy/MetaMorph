@@ -67,7 +67,7 @@ CUDA_LIB_DIR=
 else
 #found
 CUDA_LIB_DIR=$(patsubst %/bin/nvcc,%,$(shell which nvcc))/$(if ARCH_64,lib64,lib)
-NVCC="nvcc -ccbin gcc-4.9"
+NVCC=nvcc -ccbin gcc-4.9
 endif
 else #User has provided one, check it exists
 ifeq ($(shell test -e $(CUDA_LIB_DIR)/libcudart.so && echo -n yes),yes) #Check if the CUDA libs exist where they told us
@@ -327,7 +327,7 @@ endif
 
 export INCLUDES
 
-MFLAGS := USE_CUDA=$(USE_CUDA) CUDA_LIB_DIR=$(CUDA_LIB_DIR) USE_OPENCL=$(USE_OPENCL) OPENCL_LIB_DIR=$(OPENCL_LIB_DIR) OPENCL_INCL_DIR=$(OPENCL_INCL_DIR) OPENCL_SINGLE_KERNEL_PROGS=$(OPENCL_SINGLE_KERNEL_PROGS) USE_OPENMP=$(USE_OPENMP) USE_MIC=$(USE_MIC) ICC_BIN=$(ICC_BIN) USE_TIMERS=$(USE_TIMERS) USE_MPI=$(USE_MPI) MPI_DIR=$(MPI_DIR) USE_FPGA=$(USE_FPGA) CC="$(CC)" NVCC=$(NVCC) MPICC="$(MPICC)" OPENMP_FLAGS="$(OPENMP_FLAGS)" OPENCL_FLAGS="$(OPENCL_FLAGS)" $(MFLAGS)
+MFLAGS := USE_CUDA=$(USE_CUDA) CUDA_LIB_DIR=$(CUDA_LIB_DIR) USE_OPENCL=$(USE_OPENCL) OPENCL_LIB_DIR=$(OPENCL_LIB_DIR) OPENCL_INCL_DIR=$(OPENCL_INCL_DIR) OPENCL_SINGLE_KERNEL_PROGS=$(OPENCL_SINGLE_KERNEL_PROGS) USE_OPENMP=$(USE_OPENMP) USE_MIC=$(USE_MIC) ICC_BIN=$(ICC_BIN) USE_TIMERS=$(USE_TIMERS) USE_MPI=$(USE_MPI) MPI_DIR=$(MPI_DIR) USE_FPGA=$(USE_FPGA) CC="$(CC)" NVCC="$(NVCC)" MPICC="$(MPICC)" OPENMP_FLAGS="$(OPENMP_FLAGS)" OPENCL_FLAGS="$(OPENCL_FLAGS)" $(MFLAGS)
 
 #.PHONY: metamorph_all examples
 .PHONY: libmetamorph.so examples
@@ -336,8 +336,8 @@ all: $(BUILD_LIBS)
 libmetamorph.so: $(MM_DEPS)
 	$(CC) $(MM_DEPS) $(CC_FLAGS) $(INCLUDES) -L$(MM_LIB) $(MM_COMPONENTS) -o $(MM_LIB)/libmetamorph.so -shared -Wl,-soname,libmetamorph.so
 
-libmm_profiling.so: $(MM_CORE)/metamorph_timers.c
-	$(CC) $(MM_CORE)/metamorph_timers.c $(CC_FLAGS) $(INCLUDES) -o $(MM_LIB)/libmm_profiling.so -shared -Wl,-soname,libmm_profiling.so
+libmm_profiling.so: $(MM_CORE)/metamorph_profiling.c
+	$(CC) $(MM_CORE)/metamorph_profiling.c $(CC_FLAGS) $(INCLUDES) -o $(MM_LIB)/libmm_profiling.so -shared -Wl,-soname,libmm_profiling.so
 
 libmm_mpi.so: $(MM_CORE)/metamorph_mpi.c
 	$(MPICC) $(MM_CORE)/metamorph_mpi.c $(CC_FLAGS) $(INCLUDES) -I$(MPI_DIR)/include -L$(MPI_DIR)/lib -o $(MM_LIB)/libmm_mpi.so -shared -Wl,-soname,libmm_mpi.so
@@ -364,17 +364,19 @@ generators: metaCL
 metaCL:
 	cd $(MM_GEN_CL) && $(MAKE) metaCL
 	
-examples: 
-	cd $(MM_EX) && $(MFLAGS) $(MAKE) all
+examples: torus_ex
 
 torus_ex:
 	cd $(MM_EX) && $(MFLAGS) $(MAKE) torus_reduce_test
 
-csr_ex:
-	cd $(MM_EX) && $(MFLAGS) $(MAKE) csr_alt
+#Dependency never added to repo
+#csr_ex:
+#	cd $(MM_EX) && $(MFLAGS) $(MAKE) csr_alt
+#	cd $(MM_EX) && $(MAKE) torus_reduce_test_mp torus_reduce_test_mic torus_reduce_test_cu torus_reduce_test_cl $(MFLAGS)
 
-crc_ex:
-	cd $(MM_EX) && $(MFLAGS) $(MAKE) crc_alt
+#dependency never added to repo
+#crc_ex:
+#	cd $(MM_EX) && $(MFLAGS) $(MAKE) crc_alt
 clean:
 	rm $(MM_LIB)/libmetamorph*.so $(MM_LIB)/libmm*.so $(MM_CU)/mm_cuda_backend.o
 

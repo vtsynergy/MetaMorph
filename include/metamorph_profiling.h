@@ -6,8 +6,8 @@
 //TODO Now that we have moved to an expliit enqueue call, design an API for a timer to reside on multiple queues, including *user* queues
 
 /** The top-level user APIs **/
-#ifndef METAMORPH_TIMERS_H
-#define METAMORPH_TIMERS_H
+#ifndef METAMORPH_PROFILING_H
+#define METAMORPH_PROFILING_H
 
 //Until the dyn pointers are declared in their own header (last) these have to be declared before definition so that the metamorph.h and metamorph_timers.h headers work whichever order they show up in
 struct meta_timer;
@@ -80,4 +80,4 @@ extern metaTimerQueue metaBuiltinQueues[];
 int meta_timers_init_c_();
 int meta_timers_flush_c_();
 int meta_timers_finish_c_();
-#endif //METAMORPH_TIMERS_H
+#endif //METAMORPH_PROFILING_H
