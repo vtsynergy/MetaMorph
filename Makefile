@@ -67,7 +67,7 @@ CUDA_LIB_DIR=
 else
 #found
 CUDA_LIB_DIR=$(patsubst %/bin/nvcc,%,$(shell which nvcc))/$(if ARCH_64,lib64,lib)
-NVCC=nvcc
+NVCC=nvcc -ccbin gcc-4.9
 endif
 else #User has provided one, check it exists
 ifeq ($(shell test -e $(CUDA_LIB_DIR)/libcudart.so && echo -n yes),yes) #Check if the CUDA libs exist where they told us
@@ -341,7 +341,7 @@ endif
 
 export INCLUDES
 
-MFLAGS := USE_CUDA=$(USE_CUDA) CUDA_LIB_DIR=$(CUDA_LIB_DIR) USE_OPENCL=$(USE_OPENCL) OPENCL_LIB_DIR=$(OPENCL_LIB_DIR) OPENCL_INCL_DIR=$(OPENCL_INCL_DIR) OPENCL_SINGLE_KERNEL_PROGS=$(OPENCL_SINGLE_KERNEL_PROGS) USE_OPENMP=$(USE_OPENMP) USE_MIC=$(USE_MIC) ICC_BIN=$(ICC_BIN) USE_TIMERS=$(USE_TIMERS) USE_MPI=$(USE_MPI) MPI_DIR=$(MPI_DIR) USE_FPGA=$(USE_FPGA) CC="$(CC)" NVCC=$(NVCC) $(MFLAGS)
+MFLAGS := USE_CUDA=$(USE_CUDA) CUDA_LIB_DIR=$(CUDA_LIB_DIR) USE_OPENCL=$(USE_OPENCL) OPENCL_LIB_DIR=$(OPENCL_LIB_DIR) OPENCL_INCL_DIR=$(OPENCL_INCL_DIR) OPENCL_SINGLE_KERNEL_PROGS=$(OPENCL_SINGLE_KERNEL_PROGS) USE_OPENMP=$(USE_OPENMP) USE_MIC=$(USE_MIC) ICC_BIN=$(ICC_BIN) USE_TIMERS=$(USE_TIMERS) USE_MPI=$(USE_MPI) MPI_DIR=$(MPI_DIR) USE_FPGA=$(USE_FPGA) CC="$(CC)" NVCC="$(NVCC)" $(MFLAGS)
 
 #.PHONY: metamorph_all examples
 .PHONY: libmetamorph.so examples
@@ -407,18 +407,21 @@ generators: metaCL
 metaCL:
 	cd $(MM_GEN_CL) && $(MAKE) metaCL
 	
-examples: torus_ex csr_ex crc_ex
+examples: torus_ex
 
 torus_ex:
 	cd $(MM_EX) && $(MFLAGS) $(MAKE) torus_reduce_test
 #	cd $(MM_EX) && $(MAKE) torus_reduce_test_mp torus_reduce_test_mic torus_reduce_test_cu torus_reduce_test_cl $(MFLAGS)
 
-csr_ex:
-	cd $(MM_EX) && $(MFLAGS) $(MAKE) csr_alt
+
+#Dependency never added to repo
+#csr_ex:
+#	cd $(MM_EX) && $(MFLAGS) $(MAKE) csr_alt
 #	cd $(MM_EX) && $(MAKE) torus_reduce_test_mp torus_reduce_test_mic torus_reduce_test_cu torus_reduce_test_cl $(MFLAGS)
 
-crc_ex:
-	cd $(MM_EX) && $(MFLAGS) $(MAKE) crc_alt
+#dependency never added to repo
+#crc_ex:
+#	cd $(MM_EX) && $(MFLAGS) $(MAKE) crc_alt
 clean:
 	rm $(MM_LIB)/libmetamorph*.so $(MM_LIB)/libmm*.so $(MM_CU)/mm_cuda_backend.o
 

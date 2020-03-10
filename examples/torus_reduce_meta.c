@@ -9,21 +9,33 @@
 #ifdef DOUBLE 
 #define G_TYPE double
 #define CL_G_TYPE cl_double
+#define M_TYPE a_db
+#define MPI_TYPE MPI_DOUBLE
 #elif defined(FLOAT)
 #define G_TYPE float
 #define CL_G_TYPE cl_float
+#define M_TYPE a_fl
+#define MPI_TYPE MPI_FLOAT
 #elif defined(UNSIGNED_LONG)
 #define G_TYPE unsigned long
 #define CL_G_TYPE cl_ulong
+#define M_TYPE a_ul
+#define MPI_TYPE MPI_UNSIGNED_LONG
 #elif defined(INTEGER)
 #define G_TYPE int
 #define CL_G_TYPE cl_int
+#define M_TYPE a_in
+#define MPI_TYPE MPI_INT
 #elif defined(UNISGNED_INTEGER)
 #define G_TYPE unsigned int
 #define CL_G_TYPE cl_uint
+#define M_TYPE a_ui
+#define MPI_TYPE MPI_UNSIGNED
 #else
 #define G_TYPE double
 #define CL_G_TYPE cl_double
+#define M_TYPE a_db
+#define MPI_TYPE MPI_DOUBLE
 #endif
 
 //Sum of a region when all cells are filled by i+j+k (i=0:ni-1, j=0:nj-1, k=0:nk-1)
@@ -145,7 +157,7 @@ void print_grid(G_TYPE * grid) {
 int main(int argc, char **argv) {
 	int rank = 0;
 	int comm_sz = 1;
-#ifdef USE_MPI
+#ifdef WITH_MPI
 	MPI_Request request;
 
 	meta_mpi_init(&argc, &argv); //MM
@@ -214,38 +226,21 @@ int main(int argc, char **argv) {
 	gettimeofday(&start, NULL);
 	for (ct = niters - 1; ct > -1; ct--) {
 		//MM: data marshaling
-#ifdef USE_MPI
-#if defined(DOUBLE)
+#ifdef WITH_MPI
 		//set up async recv and unpack
-		err = meta_mpi_recv_and_unpack_face(autoconfig ? NULL : &grid, autoconfig ? NULL : &block, (rank+comm_sz-1)%comm_sz, recv_face, d_domain, d_recvbuf, ct, &request, a_db, 1);
+		err = meta_mpi_recv_and_unpack_face(autoconfig ? NULL : &grid, autoconfig ? NULL : &block, (rank+comm_sz-1)%comm_sz, recv_face, d_domain, d_recvbuf, ct, &request, M_TYPE, 1);
 		//pack and send
-		err = meta_mpi_pack_and_send_face(autoconfig ? NULL : &grid, autoconfig ? NULL : &block, (rank+1)%comm_sz, send_face, d_domain, d_sendbuf, ct, &request, a_db, 0);
-#elif defined(FLOAT)
-		//set up async recv and unpack
-		err = meta_mpi_recv_and_unpack_face(autoconfig ? NULL : &grid, autoconfig ? NULL : &block, (rank+comm_sz-1)%comm_sz, recv_face, d_domain, d_recvbuf, ct, &request, a_fl, 1);
-		//pack and send
-		err = meta_mpi_pack_and_send_face(autoconfig ? NULL : &grid, autoconfig ? NULL : &block, (rank+1)%comm_sz, send_face, d_domain, d_sendbuf, ct, &request, a_fl, 0);
-#elif defined(UNSIGNED_LONG)
-		//set up async recv and unpack
-		err = meta_mpi_recv_and_unpack_face(autoconfig ? NULL : &grid, autoconfig ? NULL : &block, (rank+comm_sz-1)%comm_sz, recv_face, d_domain, d_recvbuf, ct, &request, a_ul, 1);
-		//pack and send
-		err = meta_mpi_pack_and_send_face(autoconfig ? NULL : &grid, autoconfig ? NULL : &block, (rank+1)%comm_sz, send_face, d_domain, d_sendbuf, ct, &request, a_ul, 0);
-#elif defined(INTEGER)
-		//set up async recv and unpack
-		err = meta_mpi_recv_and_unpack_face(autoconfig ? NULL : &grid, autoconfig ? NULL : &block, (rank+comm_sz-1)%comm_sz, recv_face, d_domain, d_recvbuf, ct, &request, a_in, 1);
-		//pack and send
-		err = meta_mpi_pack_and_send_face(autoconfig ? NULL : &grid, autoconfig ? NULL : &block, (rank+1)%comm_sz, send_face, d_domain, d_sendbuf, ct, &request, a_in, 0);
-#elif defined(UNSIGNED_INT)
-		//set up async recv and unpack
-		err = meta_mpi_recv_and_unpack_face(autoconfig ? NULL : &grid, autoconfig ? NULL : &block, (rank+comm_sz-1)%comm_sz, recv_face, d_domain, d_recvbuf, ct, &request, a_ui, 1);
-		//pack and send
-		err = meta_mpi_pack_and_send_face(autoconfig ? NULL : &grid, autoconfig ? NULL : &block, (rank+1)%comm_sz, send_face, d_domain, d_sendbuf, ct, &request, a_ui, 0);
+		err = meta_mpi_pack_and_send_face(autoconfig ? NULL : &grid, autoconfig ? NULL : &block, (rank+1)%comm_sz, send_face, d_domain, d_sendbuf, ct, &request, M_TYPE, 0);
 #else
-#error Unsupported G_TYPE
+		//Non-MPI still needs to exchange the face with itself
+		err = meta_pack_face(autoconfig ? NULL : &grid, autoconfig ? NULL : &block, d_sendbuf, d_domain, send_face, M_TYPE, 0);
+		size_t selfCopySize = sizeof(G_TYPE);
+		for (int i = 0; i < send_face->count; i++) selfCopySize *= send_face->size[i];
+		err = meta_copy_d2d(d_recvbuf, d_sendbuf, selfCopySize, 0);
+		err = meta_unpack_face(autoconfig ? NULL: &grid, autoconfig ? NULL : &block, d_recvbuf, d_domain, recv_face, M_TYPE, 0);
 #endif
 		//MM flush
 		meta_flush();
-#endif
 #ifdef DEBUG
 		printf("Pre-reduce domain");
 		if (err = meta_alloc(&result, sizeof(G_TYPE))) fprintf(stderr, "ERROR allocating result: [%d]\n", err);
@@ -257,35 +252,11 @@ int main(int argc, char **argv) {
 
 		//MM: global dot Product
 		meta_copy_h2d(result, &zero, sizeof(G_TYPE), true);
-#if defined(DOUBLE)
-		meta_dotProd(autoconfig ? NULL: &grid, autoconfig ? NULL : &block, d_domain, d_domain2, &array, &a_start, &a_end, result, a_db, true);
-#ifdef USE_MPI
-		MPI_Reduce(&r_val, &global_sum, 1, MPI_DOUBLE, MPI_SUM, 0, MPI_COMM_WORLD);
-#endif
-#elif defined(FLOAT)
-		meta_dotProd(autoconfig ? NULL: &grid, autoconfig ? NULL : &block, d_domain, d_domain2, &array, &a_start, &a_end, result, a_fl, true);
-#ifdef USE_MPI
-		MPI_Reduce(&r_val, &global_sum, 1, MPI_FLOAT, MPI_SUM, 0, MPI_COMM_WORLD);
-#endif
-#elif defined(UNSIGNED_LONG)
-		meta_dotProd(autoconfig ? NULL: &grid, autoconfig ? NULL : &block, d_domain, d_domain2, &array, &a_start, &a_end, result, a_ul, true);
-#ifdef USE_MPI
-		MPI_Reduce(&r_val, &global_sum, 1, MPI_UNSIGNED_LONG, MPI_SUM, 0, MPI_COMM_WORLD);
-#endif
-#elif defined(INTEGER)
-		meta_dotProd(autoconfig ? NULL: &grid, autoconfig ? NULL : &block, d_domain, d_domain2, &array, &a_start, &a_end, result, a_in, true);
-#ifdef USE_MPI
-		MPI_Reduce(&r_val, &global_sum, 1, MPI_INT, MPI_SUM, 0, MPI_COMM_WORLD);
-#endif
-#elif defined(UNSIGNED_INT)
-		meta_dotProd(autoconfig ? NULL: &grid, autoconfig ? NULL : &block, d_domain, d_domain2, &array, &a_start, &a_end, result, a_ui, true);
-#ifdef USE_MPI
-		MPI_Reduce(&r_val, &global_sum, 1, MPI_UNSIGNED, MPI_SUM, 0, MPI_COMM_WORLD);
-#endif
-#else
-#error Unsupported G_TYPE
-#endif
+		meta_dotProd(autoconfig ? NULL: &grid, autoconfig ? NULL : &block, d_domain, d_domain2, &array, &a_start, &a_end, result, M_TYPE, true);
 		meta_copy_d2h(&r_val, result, sizeof(G_TYPE), false);
+#ifdef WITH_MPI
+		MPI_Reduce(&r_val, &global_sum, 1, MPI_TYPE, MPI_SUM, 0, MPI_COMM_WORLD);
+#endif //WITH_MPI
 	}
 	gettimeofday(&end, NULL);
 	double time = (end.tv_sec - start.tv_sec) * 1000000.0
@@ -303,7 +274,7 @@ int main(int argc, char **argv) {
 
 	metaTimersFinish();
 
-#ifdef USE_MPI
+#ifdef WITH_MPI
 	meta_mpi_finalize();
 #endif
 	return 0;
