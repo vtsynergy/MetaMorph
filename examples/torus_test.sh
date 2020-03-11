@@ -17,6 +17,7 @@ do
 			#MPI loop
 			for mpi in "TRUE" "FALSE"
 			do
+			make clean || true
 			USE_TIMERS=TRUE USE_MPI=$mpi USE_FORTRAN=TRUE USE_CUDA=$cuda USE_OPENCL=$opencl USE_OPENMP=$openmp make all examples &> $OUT_DIR/build.openmp"$openmp".cuda"$cuda".opencl"$opencl".mpi"$mpi".log
 			RUN_MODES=
 			if [ "$cuda" == "TRUE" ]; then RUN_MODES="$RUN_MODES CUDA"; fi
