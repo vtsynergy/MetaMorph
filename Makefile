@@ -24,6 +24,12 @@ ARCH_64 = x86_64
 else
 ARCH_64 =
 endif
+#Debug default to off
+ifndef DEBUG
+DEBUG=FALSE
+else
+DEBUG := $(shell echo $(DEBUG) | tr '[:lower:]' '[:upper:]')
+endif
 
 #Timers default to off
 ifndef USE_TIMERS
@@ -216,8 +222,11 @@ endif
 
 
 export G_TYPE = DOUBLE
-#export OPT_LVL = -g -DDEBUG
+ifeq ($(DEBUG),TRUE)
+export OPT_LVL = -g -DDEBUG
+else
 export OPT_LVL = -O3
+endif
 export L_FLAGS= -fPIC -shared
 
 CC=gcc
