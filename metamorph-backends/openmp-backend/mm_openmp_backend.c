@@ -1588,7 +1588,7 @@ void omp_stencil_3d7p_kernel_ui(unsigned int * indata, unsigned int * outdata,
 //wrappers
 a_err openmp_dotProd(size_t (* grid_size)[3], size_t (* block_size)[3], void * data1, void * data2, size_t (* array_size)[3], size_t (* arr_start)[3], size_t (* arr_end)[3], void * reduction_var, meta_type_id type, int async, meta_callback * call, meta_event * ret_event) {
 	int ret = 0; //Success
-openmpEvent * events;
+openmpEvent * events = NULL;
   if (ret_event != NULL && ret_event->mode == metaModePreferOpenMP && ret_event->event_pl != NULL) events = ((openmpEvent *)ret_event->event_pl);
   meta_timer * timer = NULL;
   if (profiling_symbols.metaProfilingCreateTimer != NULL) {
@@ -1651,7 +1651,7 @@ openmpEvent * events;
 
 a_err openmp_reduce(size_t (* grid_size)[3], size_t (* block_size)[3], void * data, size_t (* array_size)[3], size_t (* arr_start)[3], size_t (* arr_end)[3], void * reduction_var, meta_type_id type, int async, meta_callback * call, meta_event * ret_event) {
 	int ret = 0; //Success
-openmpEvent * events;
+openmpEvent * events = NULL;
   if (ret_event != NULL && ret_event->mode == metaModePreferOpenMP && ret_event->event_pl != NULL) events = ((openmpEvent *)ret_event->event_pl);
   meta_timer * timer = NULL;
   if (profiling_symbols.metaProfilingCreateTimer != NULL) {
@@ -1715,7 +1715,7 @@ openmpEvent * events;
 
 a_err openmp_transpose_face(size_t (* grid_size)[3], size_t (* block_size)[3], void * indata, void * outdata, size_t (* arr_dim_xy)[3], size_t (* tran_dim_xy)[3], meta_type_id type, int async, meta_callback * call, meta_event * ret_event) {
 	int ret = 0; //Success
-openmpEvent * events;
+openmpEvent * events = NULL;
   if (ret_event != NULL && ret_event->mode == metaModePreferOpenMP && ret_event->event_pl != NULL) events = ((openmpEvent *)ret_event->event_pl);
   meta_timer * timer = NULL;
   if (profiling_symbols.metaProfilingCreateTimer != NULL) {
@@ -1778,7 +1778,7 @@ openmpEvent * events;
 
 a_err openmp_pack_face(size_t (* grid_size)[3], size_t (* block_size)[3], void * packed_buf, void * buf, meta_face * face, int * remain_dim, meta_type_id type, int async, meta_callback * call, meta_event * ret_event_k1, meta_event * ret_event_c1, meta_event * ret_event_c2, meta_event * ret_event_c3) {
 	int ret = 0; //Success
-openmpEvent * events_k1, * events_c1, * events_c2, * events_c3;
+openmpEvent * events_k1 = NULL, * events_c1 = NULL, * events_c2 = NULL, * events_c3 = NULL;
   if (ret_event_k1 != NULL && ret_event_k1->mode == metaModePreferOpenMP && ret_event_k1->event_pl != NULL) events_k1 = ((openmpEvent *)ret_event_k1->event_pl);
   if (ret_event_c1 != NULL && ret_event_c1->mode == metaModePreferOpenMP && ret_event_c1->event_pl != NULL) events_c1 = ((openmpEvent *)ret_event_c1->event_pl);
   if (ret_event_c2 != NULL && ret_event_c2->mode == metaModePreferOpenMP && ret_event_c2->event_pl != NULL) events_c2 = ((openmpEvent *)ret_event_c2->event_pl);
@@ -1887,7 +1887,7 @@ openmpEvent * events_k1, * events_c1, * events_c2, * events_c3;
 
 a_err openmp_unpack_face(size_t (* grid_zie)[3], size_t (* block_size)[3], void * packed_buf, void * buf, meta_face * face, int * remain_dim, meta_type_id type, int async, meta_callback * call, meta_event * ret_event_k1, meta_event * ret_event_c1, meta_event * ret_event_c2, meta_event * ret_event_c3) {
 	int ret = 0; //Success
-openmpEvent * events_k1, * events_c1, * events_c2, * events_c3;
+openmpEvent * events_k1 = NULL, * events_c1 = NULL, * events_c2 = NULL, * events_c3 = NULL;
   if (ret_event_k1 != NULL && ret_event_k1->mode == metaModePreferOpenMP && ret_event_k1->event_pl != NULL) events_k1 = ((openmpEvent *)ret_event_k1->event_pl);
   if (ret_event_c1 != NULL && ret_event_c1->mode == metaModePreferOpenMP && ret_event_c1->event_pl != NULL) events_c1 = ((openmpEvent *)ret_event_c1->event_pl);
   if (ret_event_c2 != NULL && ret_event_c2->mode == metaModePreferOpenMP && ret_event_c2->event_pl != NULL) events_c2 = ((openmpEvent *)ret_event_c2->event_pl);
@@ -1995,7 +1995,7 @@ openmpEvent * events_k1, * events_c1, * events_c2, * events_c3;
 
 a_err openmp_stencil_3d7p(size_t (* grid_size)[3], size_t (* block_size)[3], void * indata, void * outdata, size_t (* array_size)[3], size_t (* arr_start)[3], size_t (* arr_end)[3], meta_type_id type, int async, meta_callback * call, meta_event * ret_event) {
 	int ret = 0; //Success
-openmpEvent * events;
+openmpEvent * events = NULL;
   if (ret_event != NULL && ret_event->mode == metaModePreferOpenMP && ret_event->event_pl != NULL) events = ((openmpEvent *)ret_event->event_pl);
   meta_timer * timer = NULL;
   if (profiling_symbols.metaProfilingCreateTimer != NULL) {
