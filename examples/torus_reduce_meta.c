@@ -256,6 +256,8 @@ int main(int argc, char **argv) {
 		meta_copy_d2h(&r_val, result, sizeof(G_TYPE), false);
 #ifdef WITH_MPI
 		MPI_Reduce(&r_val, &global_sum, 1, MPI_TYPE, MPI_SUM, 0, MPI_COMM_WORLD);
+#else
+		global_sum = r_val;
 #endif //WITH_MPI
 	}
 	gettimeofday(&end, NULL);
@@ -265,7 +267,7 @@ int main(int argc, char **argv) {
 	if (rank == 0 && abs(global_sum - check) > 0.000001)
 		fprintf(stderr,
 				"Error, computed dot-product invalid!\n\tExpect: [%f]\tReturn: [%f]\n",
-				check, r_val);
+				check, global_sum);
 	printf(
 			"[%d] Tests completed on rank[%d] with matrices of size[%d][%d][%d]\n\t[%f] Total time (us)\n\t[%f] Average time/iteration (us)\n\t[%f] Average time/element (us)\n",
 			niters, rank, ni, nj, nk, time, time / niters,
