@@ -148,6 +148,7 @@ metaModePreferOpenMP = 3,
 //Module Management
 //TODO need a bitfield to store the type of backend
 typedef enum {
+  module_uninitialized = -1,
   module_implements_none = 0,
   module_implements_cuda = 1,
   module_implements_opencl = 2,

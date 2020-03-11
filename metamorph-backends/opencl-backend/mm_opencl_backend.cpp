@@ -19,6 +19,8 @@
 extern "C" {
 #endif
 
+//Make sure we know what the core supports
+extern a_module_implements_backend core_capability;
 extern struct profiling_dyn_ptrs profiling_symbols;
 /** The globally-exposed cl_context for the most recently initialized OpenCL frame */
 cl_context meta_context;

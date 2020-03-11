@@ -7,6 +7,8 @@ metaTimerQueue metaBuiltinQueues[queue_count];
 a_bool __meta_timers_initialized = false;
 extern struct backend_handles backends;
 extern struct plugin_handles plugins;
+//Make sure we know what the core supports
+extern a_module_implements_backend core_capability;
 
 struct cuda_dyn_ptrs_profiling {
   a_err (* metaCUDAEventElapsedTime)(float *, meta_event);
@@ -197,7 +199,8 @@ a_err metaTimerDequeue(meta_timer * ret_timer, metaTimerQueue * queue) {
 //Prepare the environment for timing, should be called by the first METAMORPH Runtime
 // Library Call, and should never be called again. If called a second time before
 // metaTimersFinish is called, will be a silent NOOP.
-__attribute__((constructor(104))) a_err metaTimersInit() {
+__attribute__((constructor(104)))  a_err metaTimersInit() {
+  if (core_capability == module_uninitialized) meta_init();
 	if (__meta_timers_initialized) return -1;
 	//Each builtin queue needs one of these pairs
 	// try to use the enum ints/names to minimize changes if new members

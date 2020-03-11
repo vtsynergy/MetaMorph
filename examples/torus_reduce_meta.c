@@ -186,7 +186,7 @@ int main(int argc, char **argv) {
 
 	//Initialization
 	init(rank);
-	metaTimersInit();
+	//metaTimersInit();
 	data_allocate();
 	data_initialize(rank);
 
@@ -278,7 +278,7 @@ int main(int argc, char **argv) {
 			time / niters / (ni * nj * nk));
 	deallocate();
 
-	metaTimersFinish();
+	//metaTimersFinish();
 
 #ifdef WITH_MPI
 	meta_mpi_finalize();

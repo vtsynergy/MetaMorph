@@ -2,6 +2,8 @@
 #include <stdlib.h>
 #include "metamorph_mpi.h"
 
+//Make sure we know what the core supports
+extern a_module_implements_backend core_capability;
 //This pool manages host staging buffers
 //These arrays are kept in sync to store the pointer and size of each buffer
 void * host_buf_pool[META_MPI_POOL_SIZE];
@@ -225,6 +227,7 @@ void meta_mpi_finalize() {
 
 //Helper functions for asynchronous transfers
 __attribute__((constructor(103))) void init_record_queue() {
+  if (core_capability == module_uninitialized) meta_init();
 	record_queue.type = sentinel;
 	//No need to set the record, it won't be looked at
 	record_queue.next = NULL;

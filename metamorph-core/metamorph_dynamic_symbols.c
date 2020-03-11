@@ -8,9 +8,11 @@ struct plugin_handles plugins = {NULL};
 struct profiling_dyn_ptrs profiling_symbols = {NULL};
 struct mpi_dyn_ptrs mpi_symbols = {NULL};
 //Globally-set capability flag
-a_module_implements_backend core_capability = module_implements_general | module_implements_fortran;
+a_module_implements_backend core_capability = module_uninitialized;
 
 void meta_load_libs() {
+  if (core_capability != module_uninitialized) return;
+  core_capability = module_implements_general | module_implements_fortran; 
   //do auto-discovery of each backend and plugin
   //FIXME Not sure if we need RTLD_DEEPBIND
   backends.cuda_be_handle = dlopen("libmm_cuda_backend.so", RTLD_NOW | RTLD_GLOBAL);
@@ -114,20 +116,26 @@ void meta_load_libs() {
 }
 
 void meta_close_libs() {
+  if (core_capability == module_uninitialized) return;
   if (core_capability & module_implements_cuda) {
     dlclose(backends.cuda_be_handle);
+    core_capability &= (~module_implements_cuda);
   }
   if (core_capability & module_implements_opencl) {
     dlclose(backends.opencl_be_handle);
+    core_capability &= (~module_implements_opencl);
   }
   if (core_capability & module_implements_openmp) {
     dlclose(backends.openmp_be_handle);
+    core_capability &= (~module_implements_openmp);
   }
   if (core_capability & module_implements_mpi) {
     dlclose(plugins.mpi_handle);
+    core_capability &= (~module_implements_mpi);
   }
   if (core_capability & module_implements_profiling) {
     dlclose(plugins.profiling_handle);
+    core_capability &= (~module_implements_profiling);
   }
-
+  core_capability = module_uninitialized;
 };

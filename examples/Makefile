@@ -19,7 +19,7 @@ BUILD_FLAGS += -lmm_openmp_backend
 endif
 endif
 ifeq ($(USE_TIMERS),TRUE)
-BUILD_FLAGS += -D WITH_TIMERS -lmm_profiling
+BUILD_FLAGS += -D WITH_TIMERS
 endif
 ifeq ($(USE_MPI),TRUE)
 BUILD_FLAGS += -D WITH_MPI -lmm_mpi -L$(MPI_DIR)/lib -I$(MPI_DIR)/include
@@ -33,7 +33,7 @@ torus_reduce_test: torus_reduce_meta.c $(DEPS)
 ifneq ($(USE_TIMERS),TRUE)
 $(error torus_reduce_test requires Timers)
 else
-	$(CC) torus_reduce_meta.c $(OPT_LVL) $(INCLUDES) -L $(MM_LIB) -D $(G_TYPE) -lmetamorph $(BUILD_FLAGS) -o torus_reduce_test
+	$(CC) torus_reduce_meta.c $(OPT_LVL) $(INCLUDES) -L $(MM_LIB) -D $(G_TYPE) -lmetamorph -lmm_profiling $(BUILD_FLAGS) -o torus_reduce_test
 endif
 #torus_reduce_test: torus_reduce_meta.c
 #ifeq ($(USE_MPI),TRUE)
