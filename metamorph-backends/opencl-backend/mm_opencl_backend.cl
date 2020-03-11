@@ -16,7 +16,7 @@
 #define KERNEL_DOT_PROD
 #define KERNEL_TRANSPOSE
 #define KERNEL_PACK
-#define KERNEL_UPACK
+#define KERNEL_UNPACK
 #define KERNEL_STENCIL
 #define KERNEL_CSR
 #define KERNEL_CRC

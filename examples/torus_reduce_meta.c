@@ -200,7 +200,7 @@ int main(int argc, char **argv) {
 	int ct;
 	struct timeval start, end;
 	G_TYPE zero = 0.0;
-	grid[0] = ni / 4, grid[1] = nj / 4, grid[2] = nk / 2; //Assume powers of 2, for simplicity
+	grid[0] = (ni < 4) ? 1 : (ni / 4), grid[1] = (nj < 4) ? 1 : (nj / 4), grid[2] = (nk - 2) ? 1 : nk / 2; //Assume powers of 2, for simplicity
 	block[0] = 4, block[1] = 4, block[2] = 2;
 	array[0] = ni + 1, array[1] = nj, array[2] = nk;
 	a_start[0] = a_start[1] = a_start[2] = 0;
@@ -260,16 +260,18 @@ int main(int argc, char **argv) {
 		meta_copy_d2h(&r_val, result, sizeof(G_TYPE), false, NULL);
 #ifdef WITH_MPI
 		MPI_Reduce(&r_val, &global_sum, 1, MPI_TYPE, MPI_SUM, 0, MPI_COMM_WORLD);
+#else
+		global_sum = r_val;
 #endif //WITH_MPI
 	}
 	gettimeofday(&end, NULL);
 	double time = (end.tv_sec - start.tv_sec) * 1000000.0
 			+ (end.tv_usec - start.tv_usec);
 	printf("Local partial sum on rank[%d]: [%f]\n", rank, r_val);
-	if (rank == 0 && global_sum != check)
+	if (rank == 0 && abs(global_sum - check) > 0.000001)
 		fprintf(stderr,
 				"Error, computed dot-product invalid!\n\tExpect: [%f]\tReturn: [%f]\n",
-				check, r_val);
+				check, global_sum);
 	printf(
 			"[%d] Tests completed on rank[%d] with matrices of size[%d][%d][%d]\n\t[%f] Total time (us)\n\t[%f] Average time/iteration (us)\n\t[%f] Average time/element (us)\n",
 			niters, rank, ni, nj, nk, time, time / niters,

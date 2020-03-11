@@ -1335,9 +1335,9 @@ cl_int metaOpenCLInitStackFrameDefault(metaOpenCLStackFrame ** frame) {
 }
 
 cl_int metaOpenCLInitCoreKernels() {
-	metaOpenCLStackFrame * frame = metaOpenCLTopStackFrame();
+	metaOpenCLStackFrame * frame = metaOpenCLPopStackFrame();
 	cl_int ret_code = metaOpenCLBuildProgram(frame);
-	frame->kernels_init = 1;
+	metaOpenCLPushStackFrame(frame);
 	return ret_code;
 }
 
@@ -1489,7 +1489,11 @@ a_err opencl_dotProd(size_t (*grid_size)[3], size_t (*block_size)[3],
 	//Make sure some context exists..
 	if (meta_context == NULL) metaOpenCLFallback();
 	metaOpenCLStackFrame * frame = metaOpenCLTopStackFrame();
-	if (frame->kernels_init != 1) metaOpenCLBuildProgram(frame);
+	if (frame->kernels_init != 1) {
+		frame = metaOpenCLPopStackFrame();
+		metaOpenCLBuildProgram(frame);
+		metaOpenCLPushStackFrame(frame);
+	}
 
 	switch (type) {
 	case a_db:
@@ -1624,7 +1628,11 @@ a_err opencl_reduce(size_t (*grid_size)[3], size_t (*block_size)[3],
 	//Make sure some context exists..
 	if (meta_context == NULL) metaOpenCLFallback();
 	metaOpenCLStackFrame * frame = metaOpenCLTopStackFrame();
-	if (frame->kernels_init != 1) metaOpenCLBuildProgram(frame);
+	if (frame->kernels_init != 1) {
+		frame = metaOpenCLPopStackFrame();
+		metaOpenCLBuildProgram(frame);
+		metaOpenCLPushStackFrame(frame);
+	}
 
 	switch (type) {
 	case a_db:
@@ -1759,7 +1767,11 @@ cl_int opencl_transpose_face(size_t (*grid_size)[3], size_t (*block_size)[3],
 	//Make sure some context exists..
 	if (meta_context == NULL) metaOpenCLFallback();
 	metaOpenCLStackFrame * frame = metaOpenCLTopStackFrame();
-	if (frame->kernels_init != 1) metaOpenCLBuildProgram(frame);
+	if (frame->kernels_init != 1) {
+		frame = metaOpenCLPopStackFrame();
+		metaOpenCLBuildProgram(frame);
+		metaOpenCLPushStackFrame(frame);
+	}
 
 	switch (type) {
 	case a_db:
@@ -1858,7 +1870,11 @@ cl_int opencl_pack_face(size_t (*grid_size)[3], size_t (*block_size)[3],
 	//Make sure some context exists..
 	if (meta_context == NULL) metaOpenCLFallback();
 	metaOpenCLStackFrame * frame = metaOpenCLTopStackFrame();
-	if (frame->kernels_init != 1) metaOpenCLBuildProgram(frame);
+	if (frame->kernels_init != 1) {
+		frame = metaOpenCLPopStackFrame();
+		metaOpenCLBuildProgram(frame);
+		metaOpenCLPushStackFrame(frame);
+	}
 
 	//copy required pieces of the face struct into constant memory
   cl_event event_c1;
@@ -2001,7 +2017,11 @@ cl_int opencl_unpack_face(size_t (*grid_size)[3], size_t (*block_size)[3],
 	//Make sure some context exists..
 	if (meta_context == NULL) metaOpenCLFallback();
 	metaOpenCLStackFrame * frame = metaOpenCLTopStackFrame();
-	if (frame->kernels_init != 1) metaOpenCLBuildProgram(frame);
+	if (frame->kernels_init != 1) {
+		frame = metaOpenCLPopStackFrame();
+		metaOpenCLBuildProgram(frame);
+		metaOpenCLPushStackFrame(frame);
+	}
 
 	//copy required pieces of the face struct into constant memory
   cl_event event_c1;
@@ -2171,7 +2191,11 @@ cl_int opencl_stencil_3d7p(size_t (*grid_size)[3], size_t (*block_size)[3],
 	//Make sure some context exists..
 	if (meta_context == NULL) metaOpenCLFallback();
 	metaOpenCLStackFrame * frame = metaOpenCLTopStackFrame();
-	if (frame->kernels_init != 1) metaOpenCLBuildProgram(frame);
+	if (frame->kernels_init != 1) {
+		frame = metaOpenCLPopStackFrame();
+		metaOpenCLBuildProgram(frame);
+		metaOpenCLPushStackFrame(frame);
+	}
 
 	switch (type) {
 	case a_db:
@@ -2285,7 +2309,11 @@ cl_int opencl_csr(size_t (*grid_size)[3], size_t (*block_size)[3], size_t global
 	//Make sure some context exists..
 	if (meta_context == NULL) metaOpenCLFallback();
 	metaOpenCLStackFrame * frame = metaOpenCLTopStackFrame();
-	if (frame->kernels_init != 1) metaOpenCLBuildProgram(frame);
+	if (frame->kernels_init != 1) {
+		frame = metaOpenCLPopStackFrame();
+		metaOpenCLBuildProgram(frame);
+		metaOpenCLPushStackFrame(frame);
+	}
 	switch (type) {
 	case a_db:
 		kern = frame->kernel_csr_db;
@@ -2352,7 +2380,11 @@ cl_int opencl_crc(void * dev_input, int page_size, int num_words, int numpages, 
 	//Make sure some context exists..
 	if (meta_context == NULL) metaOpenCLFallback();
 	metaOpenCLStackFrame * frame = metaOpenCLTopStackFrame();
-	if (frame->kernels_init != 1) metaOpenCLBuildProgram(frame);
+	if (frame->kernels_init != 1) {
+		frame = metaOpenCLPopStackFrame();
+		metaOpenCLBuildProgram(frame);
+		metaOpenCLPushStackFrame(frame);
+	}
 	switch (type) {
 	case a_db:
 		kern = frame->kernel_crc_ui;
