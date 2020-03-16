@@ -17,9 +17,7 @@ void meta_load_libs() {
   //FIXME Not sure if we need RTLD_DEEPBIND
   backends.cuda_be_handle = dlopen("libmm_cuda_backend.so", RTLD_NOW | RTLD_GLOBAL);
   backends.cuda_lib_handle = dlopen("libcuda.so", RTLD_NOW | RTLD_GLOBAL);
-  if (backends.cuda_be_handle == NULL) fprintf(stderr, "No CUDA backend detected\n");
-  else if (backends.cuda_lib_handle == NULL) fprintf(stderr, "No CUDA runtime detected\n");
-  else {
+  if (backends.cuda_be_handle != NULL && backends.cuda_lib_handle != NULL) {
     core_capability |= module_implements_cuda;
     CHECKED_DLSYM("libmm_cuda_backend.so", backends.cuda_be_handle, "metaCUDAAlloc", cuda_symbols.metaCUDAAlloc);
     CHECKED_DLSYM("libmm_cuda_backend.so", backends.cuda_be_handle, "metaCUDAFree", cuda_symbols.metaCUDAFree);
@@ -39,14 +37,10 @@ void meta_load_libs() {
     CHECKED_DLSYM("libmm_cuda_backend.so", backends.cuda_be_handle, "cuda_pack_face", cuda_symbols.cuda_pack_face);
     CHECKED_DLSYM("libmm_cuda_backend.so", backends.cuda_be_handle, "cuda_unpack_face", cuda_symbols.cuda_unpack_face);
     CHECKED_DLSYM("libmm_cuda_backend.so", backends.cuda_be_handle, "cuda_stencil_3d7p", cuda_symbols.cuda_stencil_3d7p);
-
-    fprintf(stderr, "CUDA backend found\n");
   }
   backends.opencl_be_handle = dlopen("libmm_opencl_backend.so", RTLD_NOW | RTLD_GLOBAL);
   backends.opencl_lib_handle = dlopen("libOpenCL.so", RTLD_NOW | RTLD_GLOBAL);
-  if (backends.opencl_be_handle == NULL) fprintf(stderr, "No OpenCL backend detected\n");
-  else if (backends.opencl_lib_handle == NULL) fprintf(stderr, "No OpenCL runtime detected\n");
-  else {
+  if (backends.opencl_be_handle != NULL && backends.opencl_lib_handle != NULL) {
     core_capability |= module_implements_opencl;
     CHECKED_DLSYM("libmm_opencl_backend.so", backends.opencl_be_handle, "metaOpenCLFallback", opencl_symbols.metaOpenCLFallback);
     CHECKED_DLSYM("libmm_opencl_backend.so", backends.opencl_be_handle, "metaOpenCLAlloc", opencl_symbols.metaOpenCLAlloc);
@@ -68,16 +62,12 @@ void meta_load_libs() {
     CHECKED_DLSYM("libmm_opencl_backend.so", backends.opencl_be_handle, "opencl_stencil_3d7p", opencl_symbols.opencl_stencil_3d7p);
     CHECKED_DLSYM("libmm_opencl_backend.so", backends.opencl_be_handle, "opencl_csr", opencl_symbols.opencl_csr);
     CHECKED_DLSYM("libmm_opencl_backend.so", backends.opencl_be_handle, "opencl_crc", opencl_symbols.opencl_crc);
-
-    fprintf(stderr, "OpenCL backend found\n");
   }
   //If i understand the dynamic loader correctly, we should not need to explicitly load the runtime libs, they will be pulled in automatically be loading the backend
 //  dlopen("libOpenCL.so", RTLD_NOW | RTLD_GLOBAL);
   backends.openmp_be_handle = dlopen("libmm_openmp_backend.so", RTLD_NOW | RTLD_GLOBAL);
   backends.openmp_lib_handle = dlopen("libomp.so", RTLD_NOW | RTLD_GLOBAL);
-  if (backends.openmp_be_handle == NULL) fprintf(stderr, "No OpenMP backend detected\n");
-//  else if (backends.openmp_lib_handle == NULL) fprintf(stderr, "No OpenMP runtime detected\n");
-  else {
+  if (backends.openmp_be_handle != NULL) {
     core_capability |= module_implements_openmp;
     CHECKED_DLSYM("libmm_openmp_backend.so", backends.openmp_be_handle, "metaOpenMPAlloc", openmp_symbols.metaOpenMPAlloc);
     CHECKED_DLSYM("libmm_openmp_backend.so", backends.openmp_be_handle, "metaOpenMPFree", openmp_symbols.metaOpenMPFree);
@@ -94,56 +84,46 @@ void meta_load_libs() {
     CHECKED_DLSYM("libmm_openmp_backend.so", backends.openmp_be_handle, "openmp_pack_face", openmp_symbols.openmp_pack_face);
     CHECKED_DLSYM("libmm_openmp_backend.so", backends.openmp_be_handle, "openmp_unpack_face", openmp_symbols.openmp_unpack_face);
     CHECKED_DLSYM("libmm_openmp_backend.so", backends.openmp_be_handle, "openmp_stencil_3d7p", openmp_symbols.openmp_stencil_3d7p);
-
-    fprintf(stderr, "OpenMP backend found\n");
   }
   plugins.mpi_handle = dlopen("libmm_mpi.so", RTLD_NOW | RTLD_GLOBAL);
-  if (plugins.mpi_handle == NULL) fprintf(stderr, "No MPI plugin detected\n");
-  else {
+  if (plugins.mpi_handle != NULL){
     core_capability |= module_implements_mpi;
     CHECKED_DLSYM("libmm_mpi.so", plugins.mpi_handle, "meta_mpi_finalize", mpi_symbols.meta_mpi_finalize);
     CHECKED_DLSYM("libmm_mpi.so", plugins.mpi_handle, "finish_mpi_requests", mpi_symbols.finish_mpi_requests);
-    fprintf(stderr, "MPI plugin found\n");
   }
   plugins.profiling_handle = dlopen("libmm_profiling.so", RTLD_NOW | RTLD_GLOBAL);
-  if (plugins.profiling_handle == NULL) fprintf(stderr, "No profiling plugin detected\n");
-  else {
+  if (plugins.profiling_handle != NULL) {
     core_capability |= module_implements_profiling;
     CHECKED_DLSYM("libmm_profiling.so", plugins.profiling_handle, "metaTimersFinish", profiling_symbols.metaTimersFinish);
     CHECKED_DLSYM("libmm_profiling.so", plugins.profiling_handle, "metaProfilingCreateTimer", profiling_symbols.metaProfilingCreateTimer);
     CHECKED_DLSYM("libmm_profiling.so", plugins.profiling_handle, "metaProfilingEnqueueTimer", profiling_symbols.metaProfilingEnqueueTimer);
-//    CHECKED_DLSYM("libmm_profiling.so", plugins.profiling_handle, "metaProfilingDestroyTimer", profiling_symbols.metaProfilingDestroyTimer);
-    fprintf(stderr, "Profiling plugin found\n");
   }
+  //Register destructor manually
   atexit(meta_finalize);
 }
 
 void meta_close_libs() {
   if (core_capability == module_uninitialized) return;
   if (core_capability & module_implements_profiling) {
-    fprintf(stderr, "Profiling shutting down");
     if (profiling_symbols.metaTimersFinish != NULL) (*(profiling_symbols.metaTimersFinish))();
     dlclose(plugins.profiling_handle);
     core_capability &= (~module_implements_profiling);
   }
   if (core_capability & module_implements_mpi) {
-    fprintf(stderr, "MPI shutting down");
     if (mpi_symbols.meta_mpi_finalize != NULL) (*(mpi_symbols.meta_mpi_finalize))();
     dlclose(plugins.mpi_handle);
     core_capability &= (~module_implements_mpi);
   }
   if (core_capability & module_implements_openmp) {
-    fprintf(stderr, "OpenMP shutting down");
     dlclose(backends.openmp_be_handle);
     core_capability &= (~module_implements_openmp);
   }
   if (core_capability & module_implements_opencl) {
-    fprintf(stderr, "OpenCL shutting down");
+    if (opencl_symbols.meta_destroy_OpenCL != NULL) (*(opencl_symbols.meta_destroy_OpenCL))();
     dlclose(backends.opencl_be_handle);
     core_capability &= (~module_implements_opencl);
   }
   if (core_capability & module_implements_cuda) {
-    fprintf(stderr, "CUDA shutting down");
     dlclose(backends.cuda_be_handle);
     core_capability &= (~module_implements_cuda);
   }

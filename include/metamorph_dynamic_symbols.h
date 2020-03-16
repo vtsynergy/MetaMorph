@@ -51,6 +51,7 @@ struct cuda_dyn_ptrs {
 
 struct opencl_dyn_ptrs {
   void (* metaOpenCLFallback)(void);
+  a_int (* meta_destroy_OpenCL)();
   a_err (* metaOpenCLAlloc)(void**, size_t);
   a_err (* metaOpenCLFree)(void*);
   a_err (* metaOpenCLWrite)(void*, void*, size_t, a_bool, meta_callback*, meta_event *);

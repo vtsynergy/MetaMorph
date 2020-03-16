@@ -309,20 +309,16 @@ __attribute__((constructor(104)))  a_err metaTimersInit() {
 	metaBuiltinQueues[k_crc].name = "crc kernel call";
   if (backends.cuda_be_handle != NULL) {
     CHECKED_DLSYM("libmm_cuda_backend.so", backends.cuda_be_handle, "metaCUDAEventElapsedTime", cuda_timing_funcs.metaCUDAEventElapsedTime);
-    fprintf(stderr, "CUDA timing functions found\n");
   }
   if (backends.opencl_be_handle != NULL) {
     CHECKED_DLSYM("libmm_opencl_backend.so", backends.opencl_be_handle, "metaOpenCLEventStartTime", opencl_timing_funcs.metaOpenCLEventStartTime);
     CHECKED_DLSYM("libmm_opencl_backend.so", backends.opencl_be_handle, "metaOpenCLEventEndTime", opencl_timing_funcs.metaOpenCLEventEndTime);
-    fprintf(stderr, "OpenCL timing functions found\n");
   }
   if (backends.openmp_be_handle != NULL) {
     CHECKED_DLSYM("libmm_openmp_backend.so", backends.openmp_be_handle, "metaOpenMPEventElapsedTime", openmp_timing_funcs.metaOpenMPEventElapsedTime);
-    fprintf(stderr, "OpenMP timing functions found\n");
   }
   if (plugins.mpi_handle != NULL) {
     CHECKED_DLSYM("libmm_mpi.so", plugins.mpi_handle, "metaMPIRank", mpi_timing_funcs.metaMPIRank);
-    fprintf(stderr, "MPI timing functions found\n");
   }
 	__meta_timers_initialized = true;
 }

@@ -810,7 +810,7 @@ void metaOpenCLFallback() {
 }
 
 //Not meant to be called by users
-__attribute__((destructor(102))) a_int meta_destroy_OpenCL() {
+a_int meta_destroy_OpenCL() {
 	//Deregister all modules that ONLY implement OpenCL
 	int numOCLModules, retModCount;
 	//TODO If we ever make this threadsafe, the deregister function will protect us from re-deregistration
@@ -828,6 +828,9 @@ __attribute__((destructor(102))) a_int meta_destroy_OpenCL() {
 		metaOpenCLDestroyStackFrame(frame);
 		frame = metaOpenCLPopStackFrame();
 	}
+	meta_context = NULL;
+	meta_device = NULL;
+	meta_queue = NULL;
 	return 0; //TODO real return code
 }
 
