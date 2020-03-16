@@ -788,7 +788,10 @@ a_err metaCUDAFree(void * ptr) {
   return ret;
 }
 a_err metaCUDAInitByID(a_int accel) {
-  return cudaSetDevice(accel);
+  a_err ret = cudaSetDevice(accel);
+  //Because of how CUDA destructs stuff automatically, we need to force MM to destruct before them (for profiling, any other forced flushes), which requires registering it with atexit *after* CUDA does, and cudaSetDevice is known to register destructor functions, so here we are re-registering our global destructor /shrug
+  atexit(meta_finalize);
+  return ret;
 }
 a_err metaCUDACurrDev(a_int * accel) {
   return cudaGetDevice(accel);

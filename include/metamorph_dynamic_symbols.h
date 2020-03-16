@@ -95,12 +95,13 @@ a_err (* openmp_stencil_3d7p)(size_t (*)[3], size_t (*)[3], void *, void *, size
 #include "metamorph_profiling.h"
 #endif
 struct profiling_dyn_ptrs {
+a_err (* metaTimersFinish)();
 a_err (* metaProfilingCreateTimer)(meta_timer **, meta_preferred_mode, size_t);
 a_err (* metaProfilingEnqueueTimer)(meta_timer, metaProfilingBuiltinQueueType);
-a_err (* metaProfilingDestroyTimer)(meta_timer *);
 };
 
 struct mpi_dyn_ptrs {
+  a_err (* meta_mpi_finalize)();
   a_err (* finish_mpi_requests)();
 };
 

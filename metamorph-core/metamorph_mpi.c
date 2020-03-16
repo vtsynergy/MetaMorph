@@ -3,6 +3,7 @@
 #include "metamorph_mpi.h"
 
 //Make sure we know what the core supports
+a_bool __meta_mpi_initialized = false;
 extern a_module_implements_backend core_capability;
 //This pool manages host staging buffers
 //These arrays are kept in sync to store the pointer and size of each buffer
@@ -199,15 +200,19 @@ recordQueueNode record_queue = { uninit, { NULL, NULL }, NULL };
 recordQueueNode *record_queue_tail;
 
 void meta_mpi_init(int * argc, char *** argv) {
+  if (core_capability == module_uninitialized) meta_init();
+  if(__meta_mpi_initialized) return;
 	MPI_Init(argc, argv);
 	host_pool_token = 0;
 	internal_pool_token = 0;
 	init_record_queue();
 	memset(host_buf_pool_size, 0, sizeof(unsigned long) * META_MPI_POOL_SIZE);
 	memset(internal_pool_size, 0, sizeof(unsigned long) * META_MPI_POOL_SIZE);
+	__meta_mpi_initialized = true;
 }
 
 void meta_mpi_finalize() {
+  if(!__meta_mpi_initialized) return;
 	//finish up any outstanding requests
 	finish_mpi_requests();
 	//clean up anything left in the ring buffer
@@ -224,6 +229,7 @@ void meta_mpi_finalize() {
 	fprintf(stderr, "MPI Pool Internal time rank[%d]: [%f] Host time: [%f]\n", rank, internal_time, host_time);
 #endif
 	MPI_Finalize();
+	__meta_mpi_initialized = false;
 }
 
 //Helper functions for asynchronous transfers

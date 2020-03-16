@@ -474,11 +474,11 @@ a_err metaTimersFlush() {
 }
 
 //Safely flush timer stats to the output stream
-__attribute__((destructor(104))) a_err metaTimersFinish() {
+a_err metaTimersFinish() {
 
 	//first, make sure everything is flushed.
-	metaTimersFlush();
-
+	if (__meta_timers_initialized) metaTimersFlush();
+	__meta_timers_initialized = false;
 	//then remove all reference points to these timers
 	// (so that another thread can potentially spin up a separate new set..)
 	//TODO timer cleanup

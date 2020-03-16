@@ -182,6 +182,9 @@ typedef struct meta_event {
   void * event_pl;
 } meta_event;
 
+//ctor/dtor
+void meta_finalize();
+void meta_init();
 
 //Not meant for users, lets MM components lookup sets of related modules
 int lookup_implementing_modules(a_module_record ** retRecords, size_t szRetRecords, a_module_implements_backend signature, a_bool matchAny);

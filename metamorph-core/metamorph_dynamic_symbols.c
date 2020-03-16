@@ -101,6 +101,7 @@ void meta_load_libs() {
   if (plugins.mpi_handle == NULL) fprintf(stderr, "No MPI plugin detected\n");
   else {
     core_capability |= module_implements_mpi;
+    CHECKED_DLSYM("libmm_mpi.so", plugins.mpi_handle, "meta_mpi_finalize", mpi_symbols.meta_mpi_finalize);
     CHECKED_DLSYM("libmm_mpi.so", plugins.mpi_handle, "finish_mpi_requests", mpi_symbols.finish_mpi_requests);
     fprintf(stderr, "MPI plugin found\n");
   }
@@ -108,34 +109,43 @@ void meta_load_libs() {
   if (plugins.profiling_handle == NULL) fprintf(stderr, "No profiling plugin detected\n");
   else {
     core_capability |= module_implements_profiling;
+    CHECKED_DLSYM("libmm_profiling.so", plugins.profiling_handle, "metaTimersFinish", profiling_symbols.metaTimersFinish);
     CHECKED_DLSYM("libmm_profiling.so", plugins.profiling_handle, "metaProfilingCreateTimer", profiling_symbols.metaProfilingCreateTimer);
     CHECKED_DLSYM("libmm_profiling.so", plugins.profiling_handle, "metaProfilingEnqueueTimer", profiling_symbols.metaProfilingEnqueueTimer);
 //    CHECKED_DLSYM("libmm_profiling.so", plugins.profiling_handle, "metaProfilingDestroyTimer", profiling_symbols.metaProfilingDestroyTimer);
     fprintf(stderr, "Profiling plugin found\n");
   }
+  atexit(meta_finalize);
 }
 
 void meta_close_libs() {
   if (core_capability == module_uninitialized) return;
-  if (core_capability & module_implements_cuda) {
-    dlclose(backends.cuda_be_handle);
-    core_capability &= (~module_implements_cuda);
-  }
-  if (core_capability & module_implements_opencl) {
-    dlclose(backends.opencl_be_handle);
-    core_capability &= (~module_implements_opencl);
-  }
-  if (core_capability & module_implements_openmp) {
-    dlclose(backends.openmp_be_handle);
-    core_capability &= (~module_implements_openmp);
+  if (core_capability & module_implements_profiling) {
+    fprintf(stderr, "Profiling shutting down");
+    if (profiling_symbols.metaTimersFinish != NULL) (*(profiling_symbols.metaTimersFinish))();
+    dlclose(plugins.profiling_handle);
+    core_capability &= (~module_implements_profiling);
   }
   if (core_capability & module_implements_mpi) {
+    fprintf(stderr, "MPI shutting down");
+    if (mpi_symbols.meta_mpi_finalize != NULL) (*(mpi_symbols.meta_mpi_finalize))();
     dlclose(plugins.mpi_handle);
     core_capability &= (~module_implements_mpi);
   }
-  if (core_capability & module_implements_profiling) {
-    dlclose(plugins.profiling_handle);
-    core_capability &= (~module_implements_profiling);
+  if (core_capability & module_implements_openmp) {
+    fprintf(stderr, "OpenMP shutting down");
+    dlclose(backends.openmp_be_handle);
+    core_capability &= (~module_implements_openmp);
+  }
+  if (core_capability & module_implements_opencl) {
+    fprintf(stderr, "OpenCL shutting down");
+    dlclose(backends.opencl_be_handle);
+    core_capability &= (~module_implements_opencl);
+  }
+  if (core_capability & module_implements_cuda) {
+    fprintf(stderr, "CUDA shutting down");
+    dlclose(backends.cuda_be_handle);
+    core_capability &= (~module_implements_cuda);
   }
   core_capability = module_uninitialized;
 };

@@ -208,13 +208,14 @@ extern struct profiling_dyn_ptrs profiling_symbols;
 extern struct mpi_dyn_ptrs mpi_symbols;
 //Constuctor initializr, should not typically need to be manually called
 //For now it just does the auto-discovery of installed backend .sos to enable capability at runtime based on what's installed
+void meta_finalize() {
+  meta_close_libs();
+}
 __attribute__((constructor(101))) void meta_init() {
+//  atexit(meta_finalize);
   meta_load_libs();
 }
 
-__attribute__((destructor(101))) void meta_finalize() {
-  meta_close_libs();
-}
 
 //convenience function to get the byte width of a selected type
 size_t get_atype_size(meta_type_id type) {
