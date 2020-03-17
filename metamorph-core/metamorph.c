@@ -285,7 +285,7 @@ a_err meta_alloc(void ** ptr, size_t size) {
 		{
 		if (openmp_symbols.metaOpenMPAlloc != NULL) ret = (*(openmp_symbols.metaOpenMPAlloc))(ptr, size);
 		else {
-		  fprintf(stderr, "OpenCL backend improperly loaded or missing symbol \"metaOpenCLAlloc\"\n");
+		  fprintf(stderr, "OpenMP backend improperly loaded or missing symbol \"metaOpenMPAlloc\"\n");
 		  //FIXME output a real error code
 		  ret = -1;
 	  	}

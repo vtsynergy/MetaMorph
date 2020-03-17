@@ -74,36 +74,30 @@ void metaOpenCLQueryDevices() {
 	num_platforms = 0, num_devices = 0;
 	cl_uint temp_uint, temp_uint2;
 	if (clGetPlatformIDs(0, NULL, &num_platforms) != CL_SUCCESS)
-		printf("Failed to query platform count!\n");
-	printf("Number of OpenCL Platforms: %d\n", num_platforms);
+		printf("MetaMorph failed to query OpenCL platform count!\n");
+	printf("MetaMorph: Number of OpenCL Platforms: %d\n", num_platforms);
 
 	__meta_platforms_array = (cl_platform_id *) malloc(
 			sizeof(cl_platform_id) * (num_platforms + 1));
 
 	if (clGetPlatformIDs(num_platforms, &__meta_platforms_array[0], NULL) != CL_SUCCESS)
-		printf("Failed to get platform IDs\n");
+		printf("MetaMorph failed to get OpenCL platform IDs\n");
 
 	for (i = 0; i < num_platforms; i++) {
 		temp_uint = 0;
-		fprintf(stderr,
-				"OCL DEBUG: clGetDeviceIDs Count query on platform[%d] has address[%x]!\n",
-				i, &temp_uint);
 		if (clGetDeviceIDs(__meta_platforms_array[i], CL_DEVICE_TYPE_ALL, 0, NULL,
 				&temp_uint) != CL_SUCCESS)
-			printf("Failed to query device count on platform %d!\n", i);
+			printf("MetaMorph failed to query OpenCL device count on platform %d!\n", i);
 		num_devices += temp_uint;
 	}
-	printf("Number of Devices: %d\n", num_devices);
+	printf("MetaMorph: Number of OpenCLDevices: %d\n", num_devices);
 
 	__meta_devices_array = (cl_device_id *) malloc(sizeof(cl_device_id) * (num_devices + 1));
 	temp_uint = 0;
 	for (i = 0; i < num_platforms; i++) {
-		fprintf(stderr,
-				"OCL DEBUG: clGetDeviceIDs IDs query on platform[%d] has addresses[%x][%x]!\n",
-				i, &__meta_devices_array[temp_uint], &temp_uint2);
 		if (clGetDeviceIDs(__meta_platforms_array[i], CL_DEVICE_TYPE_ALL, num_devices,
 				&__meta_devices_array[temp_uint], &temp_uint2) != CL_SUCCESS)
-			printf("Failed to query device IDs on platform %d!\n", i);
+			printf("MetaMorph failed to query OpenCL device IDs on platform %d!\n", i);
 		temp_uint += temp_uint2;
 		temp_uint2 = 0;
 	}
@@ -142,7 +136,7 @@ size_t metaOpenCLLoadProgramSource(const char *filename, const char **progSrc) {
 	}
 	//TODO if none is found, how to handle? Don't need to crash the program, we can just not allow the kernel(s) in this file to run
 	if (f == NULL) {
-		fprintf(stderr, "MetaMorph could not find kernel file \"%s\",subsequent kernel launches will return CL_INVALID_PROGRAM (%d)\n", filename, CL_INVALID_PROGRAM);
+		fprintf(stderr, "MetaMorph could not find OpenCL kernel file \"%s\",subsequent kernel launches will return CL_INVALID_PROGRAM (%d)\n", filename, CL_INVALID_PROGRAM);
 		return -1;
 	}
 
@@ -205,7 +199,7 @@ cl_int metaOpenCLBuildSingleKernelProgram(metaOpenCLStackFrame * frame, cl_progr
 			NULL, NULL);
 	//Let us know if there's any errors in the build process
 	if (ret != CL_SUCCESS) {
-		fprintf(stderr, "Error in clBuildProgram: %d!\n", ret);
+		fprintf(stderr, "MetaMorph: Error in clBuildProgram: %d!\n", ret);
 		ret = CL_SUCCESS;
 	}
 	//Stub to get build log
@@ -215,7 +209,7 @@ cl_int metaOpenCLBuildSingleKernelProgram(metaOpenCLStackFrame * frame, cl_progr
 	char * log = (char *) malloc(sizeof(char) * (logsize + 1));
 	clGetProgramBuildInfo(*prog, frame->device,
 			CL_PROGRAM_BUILD_LOG, logsize, log, NULL);
-	if (logsize > 2) fprintf(stderr, "CL_PROGRAM_BUILD_LOG:\n%s", log);
+	if (logsize > 2) fprintf(stderr, "MetaMorph: CL_PROGRAM_BUILD_LOG:\n%s", log);
 	free(log);
 	return ret;
 }
@@ -497,165 +491,8 @@ void copyStackNodeToFrame(metaOpenCLStackNode * t,
 		metaOpenCLStackFrame ** frame) {
 
 	//From here out, we have hazards
-	//Copy all the parameters - REALLY HAZARDOUS
-
+	//Copy all the parameters - REALLY HAZARDOUS, how does the compiler break down the struct copy?
 	*(*frame) = t->frame;
-
-	//Top-level context info
-/*
-	(*frame)->platform = t->frame.platform;
-	(*frame)->device = t->frame.device;
-	(*frame)->context = t->frame.context;
-	(*frame)->queue = t->frame.queue;
-#if !defined(OPENCL_SINGLE_KERNEL_PROGS) || !defined(WITH_INTELFPGA)
-	//copy just the regular buffer and length
-	(*frame)->metaCLProgSrc = t->frame.metaCLProgSrc;
-	(*frame)->metaCLProgLen = t->frame.metaCLProgLen;
-#else
-	//TODO copy all the buffers and lengths
-	(*frame)->metaCLProgSrc = t->frame.metaCLProgSrc;
-	(*frame)->metaCLProgLen = t->frame.metaCLProgLen;
-	(*frame)->metaCLProgSrc = t->frame.metaCLProgSrc;
-	(*frame)->metaCLProgLen = t->frame.metaCLProgLen;
-	(*frame)->metaCLProgSrc = t->frame.metaCLProgSrc;
-	(*frame)->metaCLProgLen = t->frame.metaCLProgLen;
-	(*frame)->metaCLProgSrc = t->frame.metaCLProgSrc;
-	(*frame)->metaCLProgLen = t->frame.metaCLProgLen;
-	(*frame)->metaCLProgSrc = t->frame.metaCLProgSrc;
-	(*frame)->metaCLProgLen = t->frame.metaCLProgLen;
-	(*frame)->metaCLProgSrc = t->frame.metaCLProgSrc;
-	(*frame)->metaCLProgLen = t->frame.metaCLProgLen;
-	(*frame)->metaCLProgSrc = t->frame.metaCLProgSrc;
-	(*frame)->metaCLProgLen = t->frame.metaCLProgLen;
-	(*frame)->metaCLProgSrc = t->frame.metaCLProgSrc;
-	(*frame)->metaCLProgLen = t->frame.metaCLProgLen;
-	(*frame)->metaCLProgSrc = t->frame.metaCLProgSrc;
-	(*frame)->metaCLProgLen = t->frame.metaCLProgLen;
-	(*frame)->metaCLProgSrc = t->frame.metaCLProgSrc;
-	(*frame)->metaCLProgLen = t->frame.metaCLProgLen;
-	(*frame)->metaCLProgSrc = t->frame.metaCLProgSrc;
-	(*frame)->metaCLProgLen = t->frame.metaCLProgLen;
-	(*frame)->metaCLProgSrc = t->frame.metaCLProgSrc;
-	(*frame)->metaCLProgLen = t->frame.metaCLProgLen;
-	(*frame)->metaCLProgSrc = t->frame.metaCLProgSrc;
-	(*frame)->metaCLProgLen = t->frame.metaCLProgLen;
-	(*frame)->metaCLProgSrc = t->frame.metaCLProgSrc;
-	(*frame)->metaCLProgLen = t->frame.metaCLProgLen;
-	(*frame)->metaCLProgSrc = t->frame.metaCLProgSrc;
-	(*frame)->metaCLProgLen = t->frame.metaCLProgLen;
-	(*frame)->metaCLProgSrc = t->frame.metaCLProgSrc;
-	(*frame)->metaCLProgLen = t->frame.metaCLProgLen;
-	(*frame)->metaCLProgSrc = t->frame.metaCLProgSrc;
-	(*frame)->metaCLProgLen = t->frame.metaCLProgLen;
-	(*frame)->metaCLProgSrc = t->frame.metaCLProgSrc;
-	(*frame)->metaCLProgLen = t->frame.metaCLProgLen;
-	(*frame)->metaCLProgSrc = t->frame.metaCLProgSrc;
-	(*frame)->metaCLProgLen = t->frame.metaCLProgLen;
-	(*frame)->metaCLProgSrc = t->frame.metaCLProgSrc;
-	(*frame)->metaCLProgLen = t->frame.metaCLProgLen;
-	(*frame)->metaCLProgSrc = t->frame.metaCLProgSrc;
-	(*frame)->metaCLProgLen = t->frame.metaCLProgLen;
-	(*frame)->metaCLProgSrc = t->frame.metaCLProgSrc;
-	(*frame)->metaCLProgLen = t->frame.metaCLProgLen;
-	(*frame)->metaCLProgSrc = t->frame.metaCLProgSrc;
-	(*frame)->metaCLProgLen = t->frame.metaCLProgLen;
-	(*frame)->metaCLProgSrc = t->frame.metaCLProgSrc;
-	(*frame)->metaCLProgLen = t->frame.metaCLProgLen;
-	(*frame)->metaCLProgSrc = t->frame.metaCLProgSrc;
-	(*frame)->metaCLProgLen = t->frame.metaCLProgLen;
-	(*frame)->metaCLProgSrc = t->frame.metaCLProgSrc;
-	(*frame)->metaCLProgLen = t->frame.metaCLProgLen;
-	(*frame)->metaCLProgSrc = t->frame.metaCLProgSrc;
-	(*frame)->metaCLProgLen = t->frame.metaCLProgLen;
-	(*frame)->metaCLProgSrc = t->frame.metaCLProgSrc;
-	(*frame)->metaCLProgLen = t->frame.metaCLProgLen;
-	(*frame)->metaCLProgSrc = t->frame.metaCLProgSrc;
-	(*frame)->metaCLProgLen = t->frame.metaCLProgLen;
-	(*frame)->metaCLProgSrc = t->frame.metaCLProgSrc;
-	(*frame)->metaCLProgLen = t->frame.metaCLProgLen;
-	(*frame)->metaCLProgSrc = t->frame.metaCLProgSrc;
-	(*frame)->metaCLProgLen = t->frame.metaCLProgLen;
-	(*frame)->metaCLProgSrc = t->frame.metaCLProgSrc;
-	(*frame)->metaCLProgLen = t->frame.metaCLProgLen;
-	(*frame)->metaCLProgSrc = t->frame.metaCLProgSrc;
-	(*frame)->metaCLProgLen = t->frame.metaCLProgLen;
-	(*frame)->metaCLProgSrc = t->frame.metaCLProgSrc;
-	(*frame)->metaCLProgLen = t->frame.metaCLProgLen;
-	(*frame)->metaCLProgSrc = t->frame.metaCLProgSrc;
-	(*frame)->metaCLProgLen = t->frame.metaCLProgLen;
-	(*frame)->metaCLProgSrc = t->frame.metaCLProgSrc;
-	(*frame)->metaCLProgLen = t->frame.metaCLProgLen;
-	(*frame)->metaCLProgSrc = t->frame.metaCLProgSrc;
-	(*frame)->metaCLProgLen = t->frame.metaCLProgLen;
-	(*frame)->metaCLProgSrc = t->frame.metaCLProgSrc;
-	(*frame)->metaCLProgLen = t->frame.metaCLProgLen;
-	(*frame)->metaCLProgSrc = t->frame.metaCLProgSrc;
-	(*frame)->metaCLProgLen = t->frame.metaCLProgLen;
-	(*frame)->metaCLProgSrc = t->frame.metaCLProgSrc;
-	(*frame)->metaCLProgLen = t->frame.metaCLProgLen;
-#endif
-#ifdef (OPENCL_SINGLE_KERNEL_PROGS)
-	(*frame)->program_opencl_core = t->frame.program_opencl_core;
-	//TODO copy just the regular buffer and length
-#else
-//TODO copy extra cl_programs
-#endif
-
-//TODO this should be acheivable with a memcpy
-	//Kernels
-	(*frame)->kernel_reduce_db = t->frame.kernel_reduce_db;
-	(*frame)->kernel_reduce_fl = t->frame.kernel_reduce_fl;
-	(*frame)->kernel_reduce_ul = t->frame.kernel_reduce_ul;
-	(*frame)->kernel_reduce_in = t->frame.kernel_reduce_in;
-	(*frame)->kernel_reduce_ui = t->frame.kernel_reduce_ui;
-	(*frame)->kernel_dotProd_db = t->frame.kernel_dotProd_db;
-	(*frame)->kernel_dotProd_fl = t->frame.kernel_dotProd_fl;
-	(*frame)->kernel_dotProd_ul = t->frame.kernel_dotProd_ul;
-	(*frame)->kernel_dotProd_in = t->frame.kernel_dotProd_in;
-	(*frame)->kernel_dotProd_ui = t->frame.kernel_dotProd_ui;
-	(*frame)->kernel_transpose_2d_face_db =
-			t->frame.kernel_transpose_2d_face_db;
-	(*frame)->kernel_transpose_2d_face_fl =
-			t->frame.kernel_transpose_2d_face_fl;
-	(*frame)->kernel_transpose_2d_face_ul =
-			t->frame.kernel_transpose_2d_face_ul;
-	(*frame)->kernel_transpose_2d_face_in =
-			t->frame.kernel_transpose_2d_face_in;
-	(*frame)->kernel_transpose_2d_face_ui =
-			t->frame.kernel_transpose_2d_face_ui;
-	(*frame)->kernel_pack_2d_face_db = t->frame.kernel_pack_2d_face_db;
-	(*frame)->kernel_pack_2d_face_fl = t->frame.kernel_pack_2d_face_fl;
-	(*frame)->kernel_pack_2d_face_ul = t->frame.kernel_pack_2d_face_ul;
-	(*frame)->kernel_pack_2d_face_in = t->frame.kernel_pack_2d_face_in;
-	(*frame)->kernel_pack_2d_face_ui = t->frame.kernel_pack_2d_face_ui;
-	(*frame)->kernel_unpack_2d_face_db = t->frame.kernel_unpack_2d_face_db;
-	(*frame)->kernel_unpack_2d_face_fl = t->frame.kernel_unpack_2d_face_fl;
-	(*frame)->kernel_unpack_2d_face_ul = t->frame.kernel_unpack_2d_face_ul;
-	(*frame)->kernel_unpack_2d_face_in = t->frame.kernel_unpack_2d_face_in;
-	(*frame)->kernel_unpack_2d_face_ui = t->frame.kernel_unpack_2d_face_ui;
-	(*frame)->kernel_stencil_3d7p_db = t->frame.kernel_stencil_3d7p_db;
-	(*frame)->kernel_stencil_3d7p_fl = t->frame.kernel_stencil_3d7p_fl;
-	(*frame)->kernel_stencil_3d7p_ul = t->frame.kernel_stencil_3d7p_ul;
-	(*frame)->kernel_stencil_3d7p_in = t->frame.kernel_stencil_3d7p_in;
-	(*frame)->kernel_stencil_3d7p_ui = t->frame.kernel_stencil_3d7p_ui;
-	(*frame)->kernel_csr_db = t->frame.kernel_csr_db;
-	(*frame)->kernel_csr_fl = t->frame.kernel_csr_fl;
-	(*frame)->kernel_csr_ul = t->frame.kernel_csr_ul;
-	(*frame)->kernel_csr_in = t->frame.kernel_csr_in;
-	(*frame)->kernel_csr_ui = t->frame.kernel_csr_ui;
-	(*frame)->kernel_crc_db = t->frame.kernel_crc_db;
-	(*frame)->kernel_crc_fl = t->frame.kernel_crc_fl;
-	(*frame)->kernel_crc_ul = t->frame.kernel_crc_ul;
-	(*frame)->kernel_crc_in = t->frame.kernel_crc_in;
-	(*frame)->kernel_crc_ui = t->frame.kernel_crc_ui;
-
-	//Internal buffers
-	(*frame)->constant_face_size = t->frame.constant_face_size;
-	(*frame)->constant_face_stride = t->frame.constant_face_stride;
-	(*frame)->constant_face_child_size = t->frame.constant_face_child_size;
-	(*frame)->red_loc = t->frame.red_loc;
-	//This should be the end of the hazards;
-*/
 }
 
 //ASSUME HAZARD POINTERS ARE ALREADY SET FOR node BY THE CALLING METHOD
@@ -663,64 +500,6 @@ void copyStackFrameToNode(metaOpenCLStackFrame * f,
 		metaOpenCLStackNode ** node) {
 
 	(*node)->frame = (*f);
-	//Top-level context info
-/*
-	(*node)->frame.platform = f->platform;
-	(*node)->frame.device = f->device;
-	(*node)->frame.context = f->context;
-	(*node)->frame.queue = f->queue;
-//TODO Support OPENCL_SINGLE_KERNEL_PROGS
-	(*node)->frame.program_opencl_core = f->program_opencl_core;
-
-//TODO use a memcpy for the rest
-	//Kernels
-	(*node)->frame.kernel_reduce_db = f->kernel_reduce_db;
-	(*node)->frame.kernel_reduce_fl = f->kernel_reduce_fl;
-	(*node)->frame.kernel_reduce_ul = f->kernel_reduce_ul;
-	(*node)->frame.kernel_reduce_in = f->kernel_reduce_in;
-	(*node)->frame.kernel_reduce_ui = f->kernel_reduce_ui;
-	(*node)->frame.kernel_dotProd_db = f->kernel_dotProd_db;
-	(*node)->frame.kernel_dotProd_fl = f->kernel_dotProd_fl;
-	(*node)->frame.kernel_dotProd_ul = f->kernel_dotProd_ul;
-	(*node)->frame.kernel_dotProd_in = f->kernel_dotProd_in;
-	(*node)->frame.kernel_dotProd_ui = f->kernel_dotProd_ui;
-	(*node)->frame.kernel_transpose_2d_face_db = f->kernel_transpose_2d_face_db;
-	(*node)->frame.kernel_transpose_2d_face_fl = f->kernel_transpose_2d_face_fl;
-	(*node)->frame.kernel_transpose_2d_face_ul = f->kernel_transpose_2d_face_ul;
-	(*node)->frame.kernel_transpose_2d_face_in = f->kernel_transpose_2d_face_in;
-	(*node)->frame.kernel_transpose_2d_face_ui = f->kernel_transpose_2d_face_ui;
-	(*node)->frame.kernel_pack_2d_face_db = f->kernel_pack_2d_face_db;
-	(*node)->frame.kernel_pack_2d_face_fl = f->kernel_pack_2d_face_fl;
-	(*node)->frame.kernel_pack_2d_face_ul = f->kernel_pack_2d_face_ul;
-	(*node)->frame.kernel_pack_2d_face_in = f->kernel_pack_2d_face_in;
-	(*node)->frame.kernel_pack_2d_face_ui = f->kernel_pack_2d_face_ui;
-	(*node)->frame.kernel_unpack_2d_face_db = f->kernel_unpack_2d_face_db;
-	(*node)->frame.kernel_unpack_2d_face_fl = f->kernel_unpack_2d_face_fl;
-	(*node)->frame.kernel_unpack_2d_face_ul = f->kernel_unpack_2d_face_ul;
-	(*node)->frame.kernel_unpack_2d_face_in = f->kernel_unpack_2d_face_in;
-	(*node)->frame.kernel_unpack_2d_face_ui = f->kernel_unpack_2d_face_ui;
-	(*node)->frame.kernel_stencil_3d7p_db = f->kernel_stencil_3d7p_db;
-	(*node)->frame.kernel_stencil_3d7p_fl = f->kernel_stencil_3d7p_fl;
-	(*node)->frame.kernel_stencil_3d7p_ul = f->kernel_stencil_3d7p_ul;
-	(*node)->frame.kernel_stencil_3d7p_in = f->kernel_stencil_3d7p_in;
-	(*node)->frame.kernel_stencil_3d7p_ui = f->kernel_stencil_3d7p_ui;
-	(*node)->frame.kernel_csr_db = f->kernel_csr_db;
-	(*node)->frame.kernel_csr_fl = f->kernel_csr_fl;
-	(*node)->frame.kernel_csr_ul = f->kernel_csr_ul;
-	(*node)->frame.kernel_csr_in = f->kernel_csr_in;
-	(*node)->frame.kernel_csr_ui = f->kernel_csr_ui;
-	(*node)->frame.kernel_crc_db = f->kernel_crc_db;
-	(*node)->frame.kernel_crc_fl = f->kernel_crc_fl;
-	(*node)->frame.kernel_crc_ul = f->kernel_crc_ul;
-	(*node)->frame.kernel_crc_in = f->kernel_crc_in;
-	(*node)->frame.kernel_crc_ui = f->kernel_crc_ui;
-
-	//Internal Buffers
-	(*node)->frame.constant_face_size = f->constant_face_size;
-	(*node)->frame.constant_face_stride = f->constant_face_stride;
-	(*node)->frame.constant_face_child_size = f->constant_face_child_size;
-	(*node)->frame.red_loc = f->red_loc;
-*/
 }
 
 /// \internal For this push to be both exposed and safe from hazards, it must make a copy of the frame

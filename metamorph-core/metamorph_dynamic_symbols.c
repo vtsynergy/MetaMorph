@@ -43,6 +43,7 @@ void meta_load_libs() {
   if (backends.opencl_be_handle != NULL && backends.opencl_lib_handle != NULL) {
     core_capability |= module_implements_opencl;
     CHECKED_DLSYM("libmm_opencl_backend.so", backends.opencl_be_handle, "metaOpenCLFallback", opencl_symbols.metaOpenCLFallback);
+    CHECKED_DLSYM("libmm_opencl_backend.so", backends.opencl_be_handle, "meta_destroy_OpenCL", opencl_symbols.meta_destroy_OpenCL);
     CHECKED_DLSYM("libmm_opencl_backend.so", backends.opencl_be_handle, "metaOpenCLAlloc", opencl_symbols.metaOpenCLAlloc);
     CHECKED_DLSYM("libmm_opencl_backend.so", backends.opencl_be_handle, "metaOpenCLFree", opencl_symbols.metaOpenCLFree);
     CHECKED_DLSYM("libmm_opencl_backend.so", backends.opencl_be_handle, "metaOpenCLWrite", opencl_symbols.metaOpenCLWrite);

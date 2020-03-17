@@ -1,10 +1,12 @@
 #include <string.h>
 #include <stdlib.h>
 #include "metamorph_mpi.h"
+#include "metamorph_dynamic_symbols.h"
 
 //Make sure we know what the core supports
 a_bool __meta_mpi_initialized = false;
 extern a_module_implements_backend core_capability;
+extern struct profiling_dyn_ptrs profiling_symbols;
 //This pool manages host staging buffers
 //These arrays are kept in sync to store the pointer and size of each buffer
 void * host_buf_pool[META_MPI_POOL_SIZE];
@@ -228,6 +230,7 @@ void meta_mpi_finalize() {
 	MPI_Comm_rank(MPI_COMM_WORLD, &rank);
 	fprintf(stderr, "MPI Pool Internal time rank[%d]: [%f] Host time: [%f]\n", rank, internal_time, host_time);
 #endif
+	if (profiling_symbols.metaTimersFinish != NULL) (*(profiling_symbols.metaTimersFinish))();	
 	MPI_Finalize();
 	__meta_mpi_initialized = false;
 }
