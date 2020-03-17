@@ -39,8 +39,9 @@ static llvm::cl::OptionCategory MetaCLCategory("MetaCL Options");
 llvm::cl::opt<std::string, false> UnifiedOutputFile(
   "unified-output-file", /// < The option's name
   llvm::cl::desc("If a filename is provided, all kernel files will generate a single set of host wrappers, instead of one per file."), /// < The option's help text
-  llvm::cl::value_desc("<\"filename\">"), /// < The option's value description
-  llvm::cl::init("") /// < The option defaults to an empty string (which is treated as non-unified mode)
+  llvm::cl::value_desc("\"filename\""), /// < The option's value description
+  llvm::cl::init(""), /// < The option defaults to an empty string (which is treated as non-unified mode)
+  llvm::cl::cat(MetaCLCategory)
 );
 /**
  * A command line option to additionally generate separate argument assignment and enqueue functions. Useful if no arguments need to be reset in iterative invocations or if subsets of arguments are assigned at different times. Defaults to false
@@ -49,8 +50,9 @@ llvm::cl::opt<std::string, false> UnifiedOutputFile(
 llvm::cl::opt<bool, false> SplitWrappers(
   "split-wrappers", /// < The name of the option
    llvm::cl::desc("In addition to combined args+launch wrapper, generate separate argument assignment and enqueue wrappers."), /// The option's help text
-  llvm::cl::value_desc("<true/false>"), /// < Description of the option as a boolean
-  llvm::cl::init(false) /// < The option defaults to true
+  llvm::cl::value_desc("true/false"), /// < Description of the option as a boolean
+  llvm::cl::init(false), /// < The option defaults to true
+  llvm::cl::cat(MetaCLCategory)
 );
 /**
  * A command line option to control whether enqueue sizes are in OpenCL global/local worksize model (default) or CUDA grid/block model
@@ -59,8 +61,9 @@ llvm::cl::opt<bool, false> SplitWrappers(
 llvm::cl::opt<bool, false> GridBlockSizes(
   "cuda-grid-block", /// < The name of the option
    llvm::cl::desc("Use CUDA Grid/Block model for kernel launch parameters"), /// The option's help text
-  llvm::cl::value_desc("<true/false>"), /// < Description of the option as a boolean
-  llvm::cl::init(false) /// < The option defaults to true
+  llvm::cl::value_desc("true/false"), /// < Description of the option as a boolean
+  llvm::cl::init(false), /// < The option defaults to true
+  llvm::cl::cat(MetaCLCategory)
 );
 /**
  * A command line option to control generation of error checks on all OpenCL Runtime calls. Disabling may slightly reduce runtime overhead for already-validated codes. Not recommended for development codes. Defaults to true 
@@ -69,8 +72,9 @@ llvm::cl::opt<bool, false> GridBlockSizes(
 llvm::cl::opt<bool, false> InlineErrorCheck(
   "inline-error-check", /// < The name of the option
    llvm::cl::desc("Generate an immediate error check after every OpenCL runtime call."), /// The option's help text
-  llvm::cl::value_desc("<true/false>"), /// < Description of the option as a boolean
-  llvm::cl::init(true) /// < The option defaults to true
+  llvm::cl::value_desc("true/false"), /// < Description of the option as a boolean
+  llvm::cl::init(true), /// < The option defaults to true
+  llvm::cl::cat(MetaCLCategory)
 );
 /** A command line option to instruct MetaCL it is safe to overwrite existing files with the same name as those that would be generated. If False, will attempt to only replace generated code in same-named outputs.
  * \return An Option that can be queried for whether MetaCL should just overwrite existing files with the same name as its output(s), or should instead try to just replace generated code within identically-named files
@@ -78,9 +82,10 @@ llvm::cl::opt<bool, false> InlineErrorCheck(
  */
 llvm::cl::opt<bool, false> OverwriteFiles(
   "overwrite-files", /// < The option's name
-  llvm::cl::desc("Instead of trying to replace only MetaCL-generated code in existing output files, simply overwrite them in entirety."), /// < The option's help text
-  llvm::cl::value_desc("<true/false>"), /// < The option's value description
-  llvm::cl::init(false) /// < Once implemeted the option will default to false (try to replace a generated region of a file, rather than the whole file)
+  llvm::cl::desc("WIP NOOP: Instead of trying to replace only MetaCL-generated code in existing output files, simply overwrite them in entirety."), /// < The option's help text
+  llvm::cl::value_desc("true/false"), /// < The option's value description
+  llvm::cl::init(false), /// < Once implemeted the option will default to false (try to replace a generated region of a file, rather than the whole file)
+  llvm::cl::cat(MetaCLCategory)
 );
 
 /** The unified-output .c file's buffer */
