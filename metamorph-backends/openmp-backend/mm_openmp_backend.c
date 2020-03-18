@@ -71,12 +71,12 @@ a_err metaOpenMPWrite(void * dst, void * src, size_t size, a_bool async, meta_ca
     }
   }
   if (events != NULL) {
-    gettimeofday(&(events[0]), NULL);
+    clock_gettime(CLOCK_REALTIME, &(events[0]));
   }
   //FIXME: Implement async
   memcpy(dst, src, size);
   if (events != NULL) {
-    gettimeofday(&(events[1]), NULL);
+    clock_gettime(CLOCK_REALTIME, &(events[1]));
   }
   //FIXME: Implement async "callback"
   if (call != NULL) {
@@ -102,13 +102,13 @@ a_err metaOpenMPRead(void * dst, void * src, size_t size, a_bool async, meta_cal
     }
   }
   if (events != NULL) {
-    gettimeofday(&(events[0]), NULL);
+    clock_gettime(CLOCK_REALTIME, &(events[0]));
   }
   //FIXME: Implement async
   memcpy(dst, src, size);
   //FIXME: Implement async "callback"
   if (events != NULL) {
-    gettimeofday(&(events[1]), NULL);
+    clock_gettime(CLOCK_REALTIME, &(events[1]));
   }
   if (call != NULL) {
     (call->callback_func)(call);
@@ -133,7 +133,7 @@ a_err metaOpenMPDevCopy(void * dst, void * src, size_t size, a_bool async, meta_
     }
   }
   if (events != NULL) {
-    gettimeofday(&(events[0]), NULL);
+    clock_gettime(CLOCK_REALTIME, &(events[0]));
   }
   //FIXME: Implement async
 			//memcpy(dst, src, size);
@@ -150,7 +150,7 @@ a_err metaOpenMPDevCopy(void * dst, void * src, size_t size, a_bool async, meta_
 	}
   //FIXME: Implement async "callback"
   if (events != NULL) {
-    gettimeofday(&(events[1]), NULL);
+    clock_gettime(CLOCK_REALTIME, &(events[1]));
   }
   if (call != NULL) {
     (call->callback_func)(call);
@@ -185,7 +185,7 @@ a_err metaOpenMPEventElapsedTime(float * ret_ms, meta_event event) {
   a_err ret = 0;
   if (ret_ms != NULL && event.event_pl != NULL) {
     openmpEvent * events = (openmpEvent *)event.event_pl;
-    *ret_ms = ((events[1].tv_sec - events[0].tv_sec)*1000.0)+((events[1].tv_usec - events[0].tv_usec)*0.001);
+    *ret_ms = ((events[1].tv_sec - events[0].tv_sec)*1000.0)+((events[1].tv_nsec - events[0].tv_nsec)*0.000001);
   }
   else ret = 1;
   return ret;
@@ -1602,7 +1602,7 @@ openmpEvent * events = NULL;
     }
   }
   if (events != NULL) {
-    gettimeofday(&(events[0]), NULL);
+    clock_gettime(CLOCK_REALTIME, &(events[0]));
   }
 
 	// ignore grid_size, block_size, async
@@ -1639,7 +1639,7 @@ openmpEvent * events = NULL;
 		break;
 	}
   if (events != NULL) {
-    gettimeofday(&(events[1]), NULL);
+    clock_gettime(CLOCK_REALTIME, &(events[1]));
   }
   //FIXME: Implement async "callback"
   if (call != NULL) {
@@ -1665,7 +1665,7 @@ openmpEvent * events = NULL;
     }
   }
   if (events != NULL) {
-    gettimeofday(&(events[0]), NULL);
+    clock_gettime(CLOCK_REALTIME, &(events[0]));
   }
 
 	// ignore grid_size, block_size, async
@@ -1703,7 +1703,7 @@ openmpEvent * events = NULL;
 	}
 
   if (events != NULL) {
-    gettimeofday(&(events[1]), NULL);
+    clock_gettime(CLOCK_REALTIME, &(events[1]));
   }
   //FIXME: Implement async "callback"
   if (call != NULL) {
@@ -1729,7 +1729,7 @@ openmpEvent * events = NULL;
     }
   }
   if (events != NULL) {
-    gettimeofday(&(events[0]), NULL);
+    clock_gettime(CLOCK_REALTIME, &(events[0]));
   }
 
 	// ignore grid_size, block_size, async
@@ -1766,7 +1766,7 @@ openmpEvent * events = NULL;
 		break;
 	}
   if (events != NULL) {
-    gettimeofday(&(events[1]), NULL);
+    clock_gettime(CLOCK_REALTIME, &(events[1]));
   }
   //FIXME: Implement async "callback"
   if (call != NULL) {
@@ -1820,19 +1820,19 @@ openmpEvent * events_k1 = NULL, * events_c1 = NULL, * events_c2 = NULL, * events
   }
   //The constant copies are treated as a zero-time event
   if (events_c1 != NULL) {
-    gettimeofday(&(events_c1[0]), NULL);
+    clock_gettime(CLOCK_REALTIME, &(events_c1[0]));
     events_c1[1] = events_c1[0];
   }
   if (events_c2 != NULL) {
-    gettimeofday(&(events_c2[0]), NULL);
+    clock_gettime(CLOCK_REALTIME, &(events_c2[0]));
     events_c2[1] = events_c2[0];
   }
   if (events_c3 != NULL) {
-    gettimeofday(&(events_c3[0]), NULL);
+    clock_gettime(CLOCK_REALTIME, &(events_c3[0]));
     events_c3[1] = events_c3[0];
   }
   if (events_k1 != NULL) {
-    gettimeofday(&(events_k1[0]), NULL);
+    clock_gettime(CLOCK_REALTIME, &(events_k1[0]));
   }
 
 	// ignore grid_size, BLOCK_size, async
@@ -1869,7 +1869,7 @@ openmpEvent * events_k1 = NULL, * events_c1 = NULL, * events_c2 = NULL, * events
 		break;
 	}
   if (events_k1 != NULL) {
-    gettimeofday(&(events_k1[1]), NULL);
+    clock_gettime(CLOCK_REALTIME, &(events_k1[1]));
   }
   //FIXME: Implement async "callback"
   if (call != NULL) {
@@ -1929,19 +1929,19 @@ openmpEvent * events_k1 = NULL, * events_c1 = NULL, * events_c2 = NULL, * events
   }
   //The constant copies are treated as a zero-time event
   if (events_c1 != NULL) {
-    gettimeofday(&(events_c1[0]), NULL);
+    clock_gettime(CLOCK_REALTIME, &(events_c1[0]));
     events_c1[1] = events_c1[0];
   }
   if (events_c2 != NULL) {
-    gettimeofday(&(events_c2[0]), NULL);
+    clock_gettime(CLOCK_REALTIME, &(events_c2[0]));
     events_c2[1] = events_c2[0];
   }
   if (events_c3 != NULL) {
-    gettimeofday(&(events_c3[0]), NULL);
+    clock_gettime(CLOCK_REALTIME, &(events_c3[0]));
     events_c3[1] = events_c3[0];
   }
   if (events_k1 != NULL) {
-    gettimeofday(&(events_k1[0]), NULL);
+    clock_gettime(CLOCK_REALTIME, &(events_k1[0]));
   }
 	// ignore grid_size, BLOCK_size, async
 
@@ -1977,7 +1977,7 @@ openmpEvent * events_k1 = NULL, * events_c1 = NULL, * events_c2 = NULL, * events
 		break;
 	}
   if (events_k1 != NULL) {
-    gettimeofday(&(events_k1[1]), NULL);
+    clock_gettime(CLOCK_REALTIME, &(events_k1[1]));
   }
   //FIXME: Implement async "callback"
   if (call != NULL) {
@@ -2009,7 +2009,7 @@ openmpEvent * events = NULL;
     }
   }
   if (events != NULL) {
-    gettimeofday(&(events[0]), NULL);
+    clock_gettime(CLOCK_REALTIME, &(events[0]));
   }
 
 	// ignore grid_size, block_size, async
@@ -2046,7 +2046,7 @@ openmpEvent * events = NULL;
 		break;
 	}
   if (events != NULL) {
-    gettimeofday(&(events[1]), NULL);
+    clock_gettime(CLOCK_REALTIME, &(events[1]));
   }
   //FIXME: Implement async "callback"
   if (call != NULL) {

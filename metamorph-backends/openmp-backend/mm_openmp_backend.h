@@ -12,7 +12,7 @@
 #include "metamorph.h"
 #endif
 
-typedef struct timeval openmpEvent;
+typedef struct timespec openmpEvent;
 
 #ifdef __OPENMPCC__
 extern "C" {
