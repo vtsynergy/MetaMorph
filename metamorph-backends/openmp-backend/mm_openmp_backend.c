@@ -43,12 +43,6 @@ inline float hadd_ps(__m256 a) {
 
 #endif
 
-/**
- * A simple wrapper around malloc or _mm_malloc to create an OpenMP buffer and pass it back up to the backend-agnostic layer
- * \param ptr The address in which to return allocated buffer
- * \param size The number of bytes to allocate
- * \return -1 if the allocation failed, 0 if it succeeded
- */
 a_err metaOpenMPAlloc(void ** ptr, size_t size) {
   a_err ret = 0;
 #ifdef ALIGNED_MEMORY
@@ -59,11 +53,6 @@ a_err metaOpenMPAlloc(void ** ptr, size_t size) {
   if(*ptr == NULL) ret = -1;
   return ret;
 }
-/**
- * Wrapper function around free/_mm_free to release a MetaMorph-allocated OpenMP buffer
- * \param ptr The buffer to release
- * \return always returns 0 (success)
- */
 a_err  metaOpenMPFree(void * ptr) {
 #ifdef ALIGNED_MEMORY
   _mm_free(ptr);
@@ -72,17 +61,6 @@ a_err  metaOpenMPFree(void * ptr) {
 #endif
   return 0;
 }
-/**
- * A wrapper for a OpenMP host-to-device copy
- * \param dst The destination buffer, a buffer allocated in MetaMorph's currently-running OpenMP context
- * \param src The source buffer, a host memory region
- * \param size The number of bytes to copy from the host to the device
- * \param async whether the write should be asynchronous or blocking (currently ignored, all transfers are synchronous)
- * \param call A callback to run when the transfer finishes, or NULL if none
- * \param ret_event The address of a meta_event with initialized openmpEvent[2] payload in which to copy the events corresponding to the write back to
- * \return 0 on success
- * \todo FIXME implement OpenMP error codes
- */
 a_err metaOpenMPWrite(void * dst, void * src, size_t size, a_bool async, meta_callback * call, meta_event * ret_event) {
   a_err ret = 0;
   openmpEvent * events = NULL;
@@ -114,17 +92,6 @@ a_err metaOpenMPWrite(void * dst, void * src, size_t size, a_bool async, meta_ca
     if (profiling_symbols.metaProfilingEnqueueTimer != NULL) (*(profiling_symbols.metaProfilingEnqueueTimer))(*timer, c_H2D);
   return ret;
 }
-/**
- * A wrapper for a OpenMP device-to-host copy
- * \param dst The destination buffer, a host memory region
- * \param src The source buffer, a buffer allocated in MetaMorph's currently-running OpenMP context
- * \param size The number of bytes to copy from the device to the host
- * \param async whether the read should be asynchronous or blocking (currently ignored, all transfers are synchronous)
- * \param call A callback to run when the transfer finishes, or NULL if none
- * \param ret_event The address of a meta_event with initialized openmpEvent[2] payload in which to copy the events corresponding to the write back to
- * \return 0 on success
- * \todo FIXME implement OpenMP error codes
- */
 a_err metaOpenMPRead(void * dst, void * src, size_t size, a_bool async, meta_callback * call, meta_event * ret_event) {
   a_err ret = 0;
   openmpEvent * events = NULL;
@@ -156,17 +123,6 @@ a_err metaOpenMPRead(void * dst, void * src, size_t size, a_bool async, meta_cal
     if (profiling_symbols.metaProfilingEnqueueTimer != NULL) (*(profiling_symbols.metaProfilingEnqueueTimer))(*timer, c_D2H);
   return ret;
 }
-/**
- * A wrapper for a OpenMP device-to-device copy
- * \param dst The destination buffer, a buffer allocated in MetaMorph's currently-running OpenMP context
- * \param src The source buffer, a buffer allocated in MetaMorph's currently-running OpenMP context
- * \param size The number of bytes to copy
- * \param async whether the copy should be asynchronous or blocking (currently ignored, all transfers are synchronous)
- * \param call A callback to run when the transfer finishes, or NULL if none
- * \param ret_event The address of a meta_event with initialized openmpEvent[2] payload in which to copy the events corresponding to the write back to
- * \return 0 on success
- * \todo FIXME implement OpenMP error codes
- */
 a_err metaOpenMPDevCopy(void * dst, void * src, size_t size, a_bool async, meta_callback * call, meta_event * ret_event) {
   a_err ret = 0;
   openmpEvent * events = NULL;
@@ -209,23 +165,12 @@ a_err metaOpenMPDevCopy(void * dst, void * src, size_t size, a_bool async, meta_
     if (profiling_symbols.metaProfilingEnqueueTimer != NULL) (*(profiling_symbols.metaProfilingEnqueueTimer))(*timer, c_D2D);
   return ret;
 }
-/**
- * Finish all outstanding OpenMP operations
- * \bug currently just an OpenMP barrier, all work is currently performed synchronously
- * \return 0 on success
- */
 a_err metaOpenMPFlush() {
   a_err ret = 0;
 //FIXME: When the OpenMP backend actually supports async (via futures or OpenMP 4.0, whatever, make this a proper flush like the other backends
 #pragma omp barrier
   return ret;
 }
-/**
- * Just a small wrapper around an openmpEvent allocator to keep the real datatype exclusively inside the OpenMP backend
- * \param ret_event The address in which to save the pointer to the newly-allocated openmpEvent[2]
- * \return 0 on success, -1 if the pointer is NULL
- * \todo FIXME Implement OpenMP error codes
- */
 a_err metaOpenMPCreateEvent(void ** ret_event) {
   a_err ret = 0;
   if (ret_event != NULL) {
@@ -234,11 +179,6 @@ a_err metaOpenMPCreateEvent(void ** ret_event) {
   else ret = -1;
   return ret;
 }
-/**
- * Just a small wrapper around a openmpEvent destructor to keep the real datatype exclusively inside the OpenMP backend
- * \param event The address of the openmpEvent[2] to destroy
- * \return 0 on success, -1 if the pointer is already NULL
- */
 a_err metaOpenMPDestroyEvent(void * event) {
   a_err ret = 0;
   if (event != NULL) {
@@ -247,12 +187,6 @@ a_err metaOpenMPDestroyEvent(void * event) {
   else ret = -1;
   return ret;
 }
-/**
- * A simple wrapper to get the elapsed time of a meta_event containing two openmpEvents
- * \param ret_ms The address to save the elapsed time in milliseconds
- * \param event The meta_event (bearing a dynamically-allocated openmpEvent[2] as its payload) to query
- * \return 0 on success, -1 of either the return pointer or the event payload is NULL
- */
 a_err metaOpenMPEventElapsedTime(float * ret_ms, meta_event event) {
   a_err ret = 0;
   if (ret_ms != NULL && event.event_pl != NULL) {
@@ -263,12 +197,6 @@ a_err metaOpenMPEventElapsedTime(float * ret_ms, meta_event event) {
   return ret;
 }
 
-/**
- * Internal function to register a meta_callback with the OpenMP backend
- * \param call the meta_callback payload that should be invoked and filled when triggered
- * \return 0 after returning from call
- * \bug \todo FIXME right now this doesn't register, it directly runs the function since callbacks are registered after running the kernel and all OpenMP kernels currently run synchronously 
- */
 a_err metaOpenMPRegisterCallback(meta_callback * call) {
   //FIXME: Implement async "callback"
   if (call != NULL) {
