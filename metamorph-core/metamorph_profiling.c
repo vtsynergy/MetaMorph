@@ -1,3 +1,7 @@
+/** \file
+ * Implementation of MetaMorph's event-based profiling plugin
+ */
+
 #include "metamorph_profiling.h"
 #include "metamorph_dynamic_symbols.h"
 #include <dlfcn.h>
@@ -10,18 +14,34 @@ extern struct plugin_handles plugins;
 //Make sure we know what the core supports
 extern a_module_implements_backend core_capability;
 
+/**
+ * Struct to hold CUDA wrapper function pointers that are only relevant to profiling
+ */
 struct cuda_dyn_ptrs_profiling {
+  /** Dynamically-loaded pointer to the function to read the elapsed time of a meta_event that contains two cudaEvent_ts */
   a_err (* metaCUDAEventElapsedTime)(float *, meta_event);
 };
+/** A global storage struct for profiling-specific functions from the CUDA backend, if it is loaded */
 struct cuda_dyn_ptrs_profiling cuda_timing_funcs = {NULL};
+/**
+ * Struct to hold OpenCL wrapper function pointers that are only relevant to profiling
+ */
 struct opencl_dyn_ptrs_profiling {
+  /** Dynamically-loaded pointer to the function to read the start time of a meta_event containing a cl_event */
   a_err (* metaOpenCLEventStartTime)(meta_event, unsigned long *);
+  /** Dynamically-loaded pointer to the function to read the end time of a meta_event containing a cl_event */
   a_err (* metaOpenCLEventEndTime)(meta_event, unsigned long *);
 };
+/** A global storage struct for profiling-specific functions from the OpenCL backend, if it is loaded */
 struct opencl_dyn_ptrs_profiling opencl_timing_funcs = {NULL};
+/**
+ * Struct to hold OpenMP wrapper function pointers that are only relevant to profiling
+ */
 struct openmp_dyn_ptrs_profiling {
+  /** Dynamically-loaded pointer to the function to read the elapsed time of a meta_event that contains two openmpEvents */
   a_err (* metaOpenMPEventElapsedTime)(float *, meta_event);
 };
+/** A global storage struct for profiling-specific functions from the OpenMP backend, if it is loaded */
 struct openmp_dyn_ptrs_profiling openmp_timing_funcs = {NULL};
 
 struct mpi_dyn_ptrs_profiling {

@@ -1,4 +1,4 @@
-/*
+/** \file
  * The workhorse pass-through of the library. This file implements
  *  control over which modes are compiled in, and generic wrappers
  *  for all functions which must be passed through to a specific
@@ -199,12 +199,19 @@ a_err meta_reinitialize_modules(a_module_implements_backend module_type) {
 
 //Make sure we can reference any dynamically-loaded capabilities
 extern a_module_implements_backend core_capability;
+/** A global storage struct for handles for all the available backends and their corresponding runtime libraries */
 extern struct backend_handles backends;
+/** A global storage struct for all the CUDA backend's function pointers, if they are loaded */
 extern struct cuda_dyn_ptrs cuda_symbols;
+/** A global storage struct for all the OpenCL backend's function pointers, if they are loaded */
 extern struct opencl_dyn_ptrs opencl_symbols;
+/** A global storage struct for all the OpenMP backend's function pointers, if they are loaded */
 extern struct openmp_dyn_ptrs openmp_symbols;
+/** A global storage struct for handles for all the available plugins and their corresponding runtime libraries */
 extern struct plugin_handles plugins;
+/** A global storage struct for the profiling plugin's function pointers, if it is loaded */
 extern struct profiling_dyn_ptrs profiling_symbols;
+/** A global storage struct for the MPI plugin's function pointers, if it is loaded */
 extern struct mpi_dyn_ptrs mpi_symbols;
 //Constuctor initializr, should not typically need to be manually called
 //For now it just does the auto-discovery of installed backend .sos to enable capability at runtime based on what's installed

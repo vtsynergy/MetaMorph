@@ -1,3 +1,5 @@
+!> @ file
+!! Fortran wrappers around MetaMorph's Event-based profiling plugin
       module metamorph_profiling_c
       use ISO_C_BINDING
 

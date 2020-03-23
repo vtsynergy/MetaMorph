@@ -1,3 +1,6 @@
+/** \file
+ * Internal implementation of dynamically-loaded backends and plugins
+ */
 #include <dlfcn.h>
 #include "metamorph_dynamic_symbols.h"
 struct backend_handles backends = {NULL};

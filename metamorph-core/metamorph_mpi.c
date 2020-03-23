@@ -1,3 +1,6 @@
+/** \file
+ * Implementation of MetaMorph's MPI interoperability plugin
+ */
 #include <string.h>
 #include <stdlib.h>
 #include "metamorph_mpi.h"

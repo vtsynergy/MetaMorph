@@ -1,4 +1,4 @@
-/*
+/** \file
  * The core library header for the METAMORPH Accelerated CFD Library
  *
  * Created as part of the Air Force Office of Scientific Research

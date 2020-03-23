@@ -1,4 +1,4 @@
-/*
+/** \file
  * Implementation of the Fortran-compatible variants of some
  * top-level C library functions. Currently implemented as
  * an opt-in plugin with the -D WITH_FORTRAN compiler define.

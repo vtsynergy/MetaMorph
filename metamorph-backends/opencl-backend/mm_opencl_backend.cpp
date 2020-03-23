@@ -19,8 +19,9 @@
 extern "C" {
 #endif
 
-//Make sure we know what the core supports
+/** Make sure we know what backends and plugins the MetaMorph core supports */
 extern a_module_implements_backend core_capability;
+/** Reuse the function pointers from the profiling plugin if it's found */
 extern struct profiling_dyn_ptrs profiling_symbols;
 /** The globally-exposed cl_context for the most recently initialized OpenCL frame */
 cl_context meta_context;
@@ -31,18 +32,26 @@ cl_device_id meta_device;
 
 //Warning, none of these variables are threadsafe, so only one thread should ever
 // perform the one-time scan!!
-cl_uint num_platforms, num_devices;
+/** The number of platforms identified in the syetem */
+cl_uint num_platforms;
+/** The number of devices identified across all platforms in the syetem */
+cl_uint num_devices;
+/** An internal array of all the cl_platform_ids in the system */
 cl_platform_id * __meta_platforms_array = NULL;
+/** An internal array of all the OpenCL devices from all the OpenCL platforms in the system */
 cl_device_id * __meta_devices_array = NULL;
 
 /**
  * Simple data structure to separate the user-exposed concept of OpenCL frames from their storage implementation
  */
 typedef struct metaOpenCLStackNode {
-	metaOpenCLStackFrame frame; /** The frame to store */
-	struct metaOpenCLStackNode * next; /** pointer to the previously-initialized frame */
+	/** The frame to store */
+	metaOpenCLStackFrame frame;
+	/** pointer to the previously-initialized frame */
+	struct metaOpenCLStackNode * next;
 } metaOpenCLStackNode;
 
+/** The internal stack of OpenCL states MetaMorph knows about (including one shared to/from external tools) */
 metaOpenCLStackNode * CLStack = NULL;
 
 /**
@@ -495,7 +504,13 @@ void copyStackNodeToFrame(metaOpenCLStackNode * t,
 	*(*frame) = t->frame;
 }
 
-//ASSUME HAZARD POINTERS ARE ALREADY SET FOR node BY THE CALLING METHOD
+/**
+ * Old workhorse to internally copy an OpenCL Frame to a stack node without placing it on the stack
+ * May be deprecated in future release
+ * \param f The frame to copy to the stack
+ * \param node The address of a node pointer which has already been allocated to fill the frame information into
+ * ASSUME HAZARD POINTERS ARE ALREADY SET FOR node BY THE CALLING METHOD
+ */ 
 void copyStackFrameToNode(metaOpenCLStackFrame * f,
 		metaOpenCLStackNode ** node) {
 
@@ -575,8 +590,10 @@ metaOpenCLStackFrame * metaOpenCLPopStackFrame() {
 	return (frame);
 }
 
-//All this does is wrap calling metaOpenCLInitStackFrameDefault
-// and setting meta_context and meta_queue appropriately
+/**
+ * All this does is wrap calling metaOpenCLInitStackFrameDefault
+ * and setting global OpenCL state variables appropriately
+ */
 void metaOpenCLFallback() {
 	metaOpenCLStackFrame * frame;
 	metaOpenCLInitStackFrameDefault(&frame);
@@ -588,7 +605,12 @@ void metaOpenCLFallback() {
 				 // the bottom of the stack
 }
 
-//Not meant to be called by users
+/**
+ * Tear down all known OpenCL state frames
+ * Effectively the destructor for this backend
+ * Not meant to be called by users
+ * \return The status of the teardown (FIXME: currently always succeeds with zero)
+ */
 a_int meta_destroy_OpenCL() {
 	//Deregister all modules that ONLY implement OpenCL
 	int numOCLModules, retModCount;
@@ -613,6 +635,15 @@ a_int meta_destroy_OpenCL() {
 	return 0; //TODO real return code
 }
 
+/**
+ * Receive a copy of the current OpenCL state MetaMorph is using for use with external OpenCL components
+ * If returned objects were initialized by MetaMorph, then MetaMorph is responsible for releasing them
+ * \param platform Address in which the current cl_platform should be returned
+ * \param device Address in which the current cl_device_id should be returned
+ * \param context Address in which the current cl_context should be returned
+ * \param queue Address in which the current cl_command_queue should be returned
+ * \return the OpenCL error state for any necessary query operations (FIXME: Currently fixed at CL_SUCCESS)
+ */
 a_int meta_get_state_OpenCL(cl_platform_id * platform, cl_device_id * device,
 		cl_context * context, cl_command_queue * queue) {
 	metaOpenCLStackFrame * frame = metaOpenCLTopStackFrame();
@@ -627,6 +658,14 @@ a_int meta_get_state_OpenCL(cl_platform_id * platform, cl_device_id * device,
 	return 0; //TODO real return code
 }
 
+/**
+ * Provide MetaMorph information about an OpenCL state that was set up externally, and switch to using it
+ * \param platform The platform that the OpenCL state utilizes (FIXME: Currenlt only one cl_platform_id is supported.)
+ * \param device The device within platform that the OpenCL state utilizes (FIXME: Currently only supports using a single cl_device_id at once.)
+ * \param context The OpenCL context created for device which MetaMorph should utilize for buffers and kernels
+ * \param queue The OpenCL command queue within context to which kernel, buffer, and synchronization operations should be dispatched (FIXME: Currently only supports having a single active command queue, though a multiple can be "known" on the stack)
+ * \return the OpenCL error state for any necessary query operations (FIXME: Currently fixed at CL_SUCCESS)
+ */
 a_int meta_set_state_OpenCL(cl_platform_id platform, cl_device_id device,
 		cl_context context, cl_command_queue queue) {
 	if (platform == NULL || device == NULL || context == NULL
@@ -758,6 +797,11 @@ cl_int metaOpenCLInitStackFrame(metaOpenCLStackFrame ** frame, cl_int device) {
 	return ret;
 }
 
+/**
+ * Initialize The n-th enumerated OpenCL device across all platforms for use with MetaMorph, and switch to using it
+ * \param id Which device (after enumerating all platforms' devices sequentially) to use
+ * \return the OpenCL error status of the underlying initialization API calls
+ */
 a_err metaOpenCLInitByID(a_int id) {
   a_err ret = CL_SUCCESS;
   metaOpenCLStackFrame * frame;
@@ -772,6 +816,11 @@ a_err metaOpenCLInitByID(a_int id) {
   return ret;
 }
 
+/**
+ * Get the index (among all platforms' devices) of the currently-utilized OpenCL device
+ * \param id The address in which to return the numerical ID
+ * \return the OpenCL error status of any underlying OpenCL API calls
+ */
 a_err metaOpenCLCurrDev(a_int * id) {
   //Make sure some context exists..
   if (meta_context == NULL) metaOpenCLFallback();
@@ -783,6 +832,12 @@ a_err metaOpenCLCurrDev(a_int * id) {
   return (*id == -1 ? -1 : CL_SUCCESS);
 }
 
+/**
+ * Check whether the requested work sizes will fit on the current OpenCL device
+ * \param work_groups The requested number of work groups in each dimension
+ * \param work_items The requested number of work items within each workgroup in each dimension
+ * \return the OpenCL error status of any underlying OpenCL API calls.
+ */
 a_err metaOpenCLMaxWorkSizes(a_dim3 * work_groups, a_dim3 * work_items) {
   a_err ret = CL_SUCCESS;
 		//Make sure some context exists..
@@ -799,15 +854,23 @@ a_err metaOpenCLMaxWorkSizes(a_dim3 * work_groups, a_dim3 * work_items) {
 		return ret;
 }
 
+/**
+ * Finish all outstanding OpenCL operations in the current queue
+ * \return The result of clFinish
+ */
 a_err metaOpenCLFlush() {
   a_err ret = CL_SUCCESS;
 		//Make sure some context exists..
 		if (meta_context == NULL) metaOpenCLFallback();
-		clFinish(meta_queue);
+		ret = clFinish(meta_queue);
   return ret;
 }
 
-//Just a small wrapper around a cl_event allocator to keep the real datatype exclusively inside the OpenCL backend.
+/**
+ * Just a small wrapper around a cl_event allocator to keep the real datatype exclusively inside the OpenCL backend.
+ * \param ret_event The address in which to save the pointer to the newly-allocated cl_event
+ * \return CL_SUCCESS if the allocation succeeded, CL_INVALID_EVENT otherwise
+ */
 a_err metaOpenCLCreateEvent(void ** ret_event) {
   a_err ret = CL_SUCCESS;
   if (ret_event != NULL) *ret_event = malloc(sizeof(cl_event));
@@ -815,7 +878,12 @@ a_err metaOpenCLCreateEvent(void ** ret_event) {
   return ret;
 }
 
-//A simple wrapper to get the start time of a meta_event that contains a cl_event
+/**
+ * A simple wrapper to get the start time of a meta_event that contains a cl_event
+ * \param event The meta_event (bearing a dynamically-allocated cl_event as its payload) to query
+ * \param ret_time The address to save the OpenCL operation's CL_PROFILING_COMMAND_START time
+ * \return the OpenCL error status reust of clGetEventProfilingInfo
+ */
 a_err metaOpenCLEventStartTime(meta_event event, unsigned long * ret_time) {
   a_err ret = CL_SUCCESS;
   if (event.mode == metaModePreferOpenCL && event.event_pl != NULL && ret_time != NULL) ret = clGetEventProfilingInfo(*((cl_event *)event.event_pl), CL_PROFILING_COMMAND_START, sizeof(unsigned long), ret_time, NULL);
@@ -823,7 +891,12 @@ a_err metaOpenCLEventStartTime(meta_event event, unsigned long * ret_time) {
   return ret;
 }
 
-//A simple wrapper to get the end time of a meta_event that contains a cl_event
+/**
+ * A simple wrapper to get the end time of a meta_event that contains a cl_event
+ * \param event The meta_event (bearing a dynamically-allocated cl_event as its payload) to query
+ * \param ret_time The address to save the OpenCL operation's CL_PROFILING_COMMAND_END time
+ * \return the OpenCL error status reust of clGetEventProfilingInfo
+ */
 a_err metaOpenCLEventEndTime(meta_event event, unsigned long * ret_time) {
   a_err ret = CL_SUCCESS;
   if (event.mode == metaModePreferOpenCL && event.event_pl != NULL && ret_time != NULL) ret = clGetEventProfilingInfo(*((cl_event *)event.event_pl), CL_PROFILING_COMMAND_END, sizeof(unsigned long), ret_time, NULL);
@@ -831,11 +904,24 @@ a_err metaOpenCLEventEndTime(meta_event event, unsigned long * ret_time) {
   return ret;
 }
 
+/**
+ * This struct just allows the status and event values returned by the OpenCL callback to be passed through
+ * the meta_callback payload back up to the user
+ */
 struct opencl_callback_data {
+  /** The returned status from a CL_CALLBACK */
   cl_int status;
+  /** The event status from a CL_CALLBACK */
   cl_event event;
 };
 
+/**
+ * An internal function that can generically be generically registered as an OpenCL callback which in turn triggers the data payload's meta_callback
+ * This is just a pass-though to send the callback back up to the backend-agnostic layer
+ * \param event The OpenCL event which triggered the callback
+ * \param status The status of the triggering event
+ * \param data The meta_callback payload which should be triggered
+ */
 void CL_CALLBACK metaOpenCLCallbackHelper(cl_event event, cl_int status, void * data) {
   if (data == NULL) return;
   meta_callback * payload = (meta_callback *) data;
@@ -846,6 +932,14 @@ void CL_CALLBACK metaOpenCLCallbackHelper(cl_event event, cl_int status, void * 
   (payload->callback_func)((meta_callback *)data);
 }
 
+/**
+ * Since metaOpenCLCallbackHelper doesn't directly face the user, provide a way for them to unpack the information it would receive from the OpenCL API for use in their application
+ * \param call The (already-triggered) callback to get the status of
+ * \param ret_event The address in which to copy the callback's triggering event
+ * \param ret_status The address in which to copy the callback's triggering event's status
+ * \param ret_data The address into which to copy the pointer to the triggering callback's data payload (necessarily a meta_callback)
+ * \return CL_SUCCESS if the payload was successfully unpacked, CL_INVALID_VALUE if the status or data pointers are NULL, and CL_INVALID_EVENT if the event pointer is NULL
+ */
 a_err metaOpenCLExpandCallback(meta_callback call, cl_event* ret_event, cl_int * ret_status, void** ret_data) {
   if (call.backend_status == NULL || ret_status == NULL || ret_data == NULL) return CL_INVALID_VALUE;
   else if (ret_event == NULL) return CL_INVALID_EVENT;
@@ -855,6 +949,12 @@ a_err metaOpenCLExpandCallback(meta_callback call, cl_event* ret_event, cl_int *
   return CL_SUCCESS;
 }
 
+/**
+ * Internal function to register a meta_callback with the OpenCL backend via the metaOpenCLCallbackHelper
+ * \param event the meta_event (containing a pointer to a valid cl_event payload) to which to register the callback
+ * \param call the meta_callback payload that should be invoked and filled when triggered
+ * \return CL_INVALID_VALUE if the callback is improperly-created, otherwise the result of clSetEventCallback
+ */
 a_err metaOpenCLRegisterCallback(meta_event * event, meta_callback * call) {
   a_err ret = CL_SUCCESS;
     if (event == NULL || event->event_pl == NULL) ret = CL_INVALID_EVENT;
@@ -1160,6 +1260,13 @@ meta_cl_device_vendor metaOpenCLDetectDevice(cl_device_id dev) {
   return ret;
 }
 
+/**
+ * A simple wrapper around clCreateBuffer to create a cl_mem in the current context and pass it back up to the backend-agnostic layer
+ * Memory is always allocated as CL_MEM_READ_WRITE for now
+ * \param ptr The address in which to return allocated buffer (a cl_mem cast as a void * for backend-agnosticism)
+ * \param size The number of bytes to allocate
+ * \return the OpenCL error status of the clCreateBuffer call
+ */
 a_err metaOpenCLAlloc(void ** ptr, size_t size) {
   a_err ret;
 		//Make sure some context exists..
@@ -1168,6 +1275,11 @@ a_err metaOpenCLAlloc(void ** ptr, size_t size) {
   return ret;
 }
 
+/**
+ * Wrapper function around clReleaseMemObject to release a MetaMorph-allocated OpenCL buffer
+ * \param ptr The buffer to release (a cl_mem cast to a void *)
+ * \return the result of clReleaseMemObject
+ */
 a_err metaOpenCLFree(void* ptr) {
   a_err ret;
 		//Make sure some context exists..
@@ -1176,6 +1288,16 @@ a_err metaOpenCLFree(void* ptr) {
   return ret;
 }
 
+/**
+ * A wrapper for an OpenCL host-to-device copy within the current context
+ * \param dst The destination buffer, a cl_mem allocated in MetaMorph's currently-running cl_context, cast to a void *
+ * \param src The source buffer, a host memory region
+ * \param size The number of bytes to copy from the host to the device
+ * \param async whether the write should be asynchronous or blocking
+ * \param call A callback to run when the transfer finishes, or NULL if none
+ * \param ret_event The address of a meta_event with initialized cl_event payload in which to copy the cl_event corresponding to the write back to
+ * \return the OpenCL error status of the wrapped clEnqueueWriteBuffer
+ */
 a_err metaOpenCLWrite(void * dst, void * src, size_t size, a_bool async, meta_callback *call, meta_event * ret_event) {
   a_err ret;
 		//Make sure some context exists..
@@ -1194,6 +1316,16 @@ a_err metaOpenCLWrite(void * dst, void * src, size_t size, a_bool async, meta_ca
   return ret;
 }
 
+/**
+ * A wrapper for an OpenCL device-to-host copy within the current context
+ * \param dst The destination buffer, a host memory region
+ * \param src The source buffer, a cl_mem allocated in MetaMorph's currently-running cl_context, cast to a void *
+ * \param size The number of bytes to copy from the device to the host
+ * \param async whether the read should be asynchronous or blocking
+ * \param call A callback to run when the transfer finishes, or NULL if none
+ * \param ret_event The address of a meta_event with initialized cl_event payload in which to copy the cl_event corresponding to the read back to
+ * \return the OpenCL error status of the wrapped clEnqueueReadBuffer
+ */
 a_err metaOpenCLRead(void * dst, void * src, size_t size, a_bool async, meta_callback *call, meta_event * ret_event) {
   a_err ret;
 		//Make sure some context exists..
@@ -1212,6 +1344,16 @@ a_err metaOpenCLRead(void * dst, void * src, size_t size, a_bool async, meta_cal
   return ret;
 }
 
+/**
+ * A wrapper for an OpenCL device-to-device copy within the current context
+ * \param dst The destination buffer, a cl_mem allocated in MetaMorph's currently-running cl_context, cast to a void *
+ * \param src The source buffer, a cl_mem allocated in MetaMorph's currently-running cl_context, cast to a void *
+ * \param size The number of bytes to copy
+ * \param async whether the copy should be asynchronous or blocking
+ * \param call A callback to run when the transfer finishes, or NULL if none
+ * \param ret_event The address of a meta_event with initialized cl_event payload in which to copy the cl_event corresponding to the copy back to
+ * \return the OpenCL error status of the wrapped clEnqueueCopyBuffer
+ */
 a_err metaOpenCLDevCopy(void * dst, void * src, size_t size, a_bool async, meta_callback *call, meta_event * ret_event) {
   a_err ret;
 		//Make sure some context exists..
@@ -1231,15 +1373,7 @@ a_err metaOpenCLDevCopy(void * dst, void * src, size_t size, a_bool async, meta_
 		if (!async) clFinish(meta_queue);
   return ret;
 }
-//  !this kernel works for 3D data only.
-//  ! PHI1 and PHI2 are input arrays.
-//  ! s* parameters are start values in each dimension.
-//  ! e* parameters are end values in each dimension.
-//  ! s* and e* are only necessary when the halo layers 
-//  !   has different thickness along various directions.
-//  ! i,j,k are the array dimensions
-//  ! len_ is number of threads in a threadblock.
-//  !      This can be computed in the kernel itself.
+
 a_err opencl_dotProd(size_t (*grid_size)[3], size_t (*block_size)[3],
 		void * data1, void * data2, size_t (*array_size)[3],
 		size_t (*arr_start)[3], size_t (*arr_end)[3], void * reduced_val,

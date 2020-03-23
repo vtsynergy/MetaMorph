@@ -1,4 +1,4 @@
-/*
+/** \file
  * Implementation of all MPI-related functionality for the library
  *
  * MPI is considered a library PLUGIN, therefore it must be kept

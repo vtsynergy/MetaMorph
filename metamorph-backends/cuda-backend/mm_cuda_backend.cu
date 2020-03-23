@@ -7,6 +7,8 @@
 #include "mm_cuda_backend.cuh"
 #include "metamorph_dynamic_symbols.h"
 
+
+/** Reuse the function pointers from the profiling plugin if it's found */
 extern struct profiling_dyn_ptrs profiling_symbols;
 /** non-specialized shared memory class template */
 template<typename T>
@@ -14,6 +16,9 @@ class SharedMem {
 public:
 	// Ensure that we won't compile any un-specialized types
 	__device__
+	/** Just get the address of the shared memory region
+	 * \return The start address of the shared memory region
+	 */
 	T* getPointer() {
 		return (T*) NULL;
 	}
@@ -25,6 +30,9 @@ template<>
 class SharedMem<double> {
 public:
 	__device__
+	/** Just get the address of the shared memory region
+	 * \return The start address of the shared memory region
+	 */
 	double* getPointer() {
 		extern __shared__ double s_db[]; return s_db;
 	}
@@ -35,6 +43,9 @@ template<>
 class SharedMem<float> {
 public:
 	__device__
+	/** Just get the address of the shared memory region
+	 * \return The start address of the shared memory region
+	 */
 	float* getPointer() {
 		extern __shared__ float s_fl[]; return s_fl;
 	}
@@ -45,6 +56,9 @@ template<>
 class SharedMem<unsigned long long> {
 public:
 	__device__
+	/** Just get the address of the shared memory region
+	 * \return The start address of the shared memory region
+	 */
 	unsigned long long* getPointer() {
 		extern __shared__ unsigned long long s_ul[]; return s_ul;
 	}
@@ -55,6 +69,9 @@ template<>
 class SharedMem<int> {
 public:
 	__device__
+	/** Just get the address of the shared memory region
+	 * \return The start address of the shared memory region
+	 */
 	int* getPointer() {
 		extern __shared__ int s_in[]; return s_in;
 	}
@@ -65,6 +82,9 @@ template<>
 class SharedMem<unsigned int> {
 public:
 	__device__
+	/** Just get the address of the shared memory region
+	 * \return The start address of the shared memory region
+	 */
 	unsigned int* getPointer() {
 		extern __shared__ unsigned int s_ui[]; return s_ui;
 	}
@@ -103,7 +123,7 @@ __device__ void block_reduction(T *psum, int tid, int len_) {
 }
 
 /** Implementation of double atomicAdd from CUDA Programming Guide: Appendix B.12.
- * \oaram address the read-write address
+ * \param address the read-write address
  * \param val the value to add
  * \return the old value at address after successfully writing
  * \todo TODO figure out how to use templates with the __X_as_Y intrinsics (???)
@@ -250,9 +270,11 @@ __global__ void kernel_reduction3(T *phi,
 }
 
 //"constant" buffers for face indexing in pack/unpack kernels
+/** The number of elements in each level of the face struct */
 __constant__ int c_face_size[METAMORPH_FACE_MAX_DEPTH];
+/** The stride between elements at each level of the face struct */
 __constant__ int c_face_stride[METAMORPH_FACE_MAX_DEPTH];
-//Size of all children (>= level+1) so at level 0, child_size = total_num_face_elements
+/** Size of all children (>= level+1) so at level 0, child_size = total_num_face_elements */
 __constant__ int c_face_child_size[METAMORPH_FACE_MAX_DEPTH];
 
 /** Helper function to compute the integer read offset for buffer packing
@@ -673,9 +695,7 @@ __global__ void kernel_stencil_3d7p_v4(const T * __restrict__ ind, T * __restric
 	}
 }
 #endif
-/// END KERNELS
 
-/// BEGIN HOST WRAPPERS
 a_err metaCUDAAlloc(void ** ptr, size_t size) {
   return cudaMalloc(ptr, size);
 }
@@ -796,7 +816,6 @@ a_err metaCUDAInitByID(a_int accel) {
 a_err metaCUDACurrDev(a_int * accel) {
   return cudaGetDevice(accel);
 }
-//FIXME Implement
 a_err metaCUDAMaxWorkSizes(a_dim3 * grid, a_dim3 * block) {
   fprintf(stderr, "metaCUDAMaxWorkSizes unimplemented\n");
   return -1;
@@ -835,8 +854,14 @@ a_err metaCUDAEventElapsedTime(float * ret_ms, meta_event event) {
   else ret = cudaErrorInvalidValue;
   return ret;
 }
+/**
+ * This struct just allows the status and event values returned by the CUDA callback to be passed through
+ * the meta_callback payload back up to the user
+ */
 struct cuda_callback_data {
+  /** The returned status from a CUDA callback */
   cudaError_t status;
+  /** The returned stream from a CUDA callback */
   cudaStream_t stream;
 };
 
@@ -849,6 +874,7 @@ void CUDART_CB  metaCUDACallbackHelper(cudaStream_t stream, cudaError_t status, 
   payload->backend_status = info;
   (payload->callback_func)((meta_callback *)data);
 }
+
 a_err metaCUDAExpandCallback(meta_callback call, cudaStream_t * ret_stream, cudaError_t * ret_status, void** ret_data) {
   if (call.backend_status == NULL || ret_status == NULL || ret_data == NULL || ret_stream == NULL) return cudaErrorInvalidValue;
   (*ret_stream) = ((struct cuda_callback_data *)call.backend_status)->stream;
@@ -866,21 +892,6 @@ return ret;
 }
 
 
-/**
- * Host wrapper for the dot-product kernel
- * \param grid_size The number of thread blocks to run in the X and Y dimensions and the number of iterations to run in the Z dimension
- * \param block_size The size of a threadblock in the X, Y, and Z dimensions
- * \param data1 The first input array
- * \param data2 The second input array
- * \param array_size the X, Y, and Z dimensions of data1 and data2 
- * \param arr_start the X, Y, and Z start indicies (inclusive) to bound the computed region
- * \param arr_end the X, Y, and Z end indicies to (inclusive) bound the computed region
- * \param reduced_val the output buffer for the computed global dot product
- * \param type The type of data to run the kernel on
- * \param async whether to run the kernel asynchronously (1) or synchronously (0)
- * \param event the start and finish events used for asynchronous calls and timing
- * \return either cudaSuccess if async or the result of cudaThreadSynchronize if sync
- */
   a_err cuda_dotProd(size_t (* grid_size)[3], size_t (* block_size)[3], void * data1, void * data2, size_t (* array_size)[3], size_t (* arr_start)[3], size_t (* arr_end)[3], void * reduced_val, meta_type_id type, int async, meta_callback * call, meta_event * ret_event) {
 	a_err ret = cudaSuccess;
 	size_t smem_len;
@@ -957,20 +968,6 @@ return ret;
 	return (ret);
 }
 
-/**
- * Host wrapper for the reduction-sum kernel
- * \param grid_size The number of thread blocks to run in the X and Y dimensions and the number of iterations to run in the Z dimension
- * \param block_size The size of a threadblock in the X, Y, and Z dimensions
- * \param data The input array to reduce
- * \param array_size the X, Y, and Z dimensions of data 
- * \param arr_start the X, Y, and Z start indicies (inclusive) to bound the computed region
- * \param arr_end the X, Y, and Z end indicies to (inclusive) bound the computed region
- * \param reduced_val the output buffer for the computed global reduction sum
- * \param type The type of data to run the kernel on
- * \param async whether to run the kernel asynchronously (1) or synchronously (0)
- * \param event the start and finish events used for asynchronous calls and timing
- * \return either cudaSuccess if async or the result of cudaThreadSynchronize if sync
- */
   a_err cuda_reduce(size_t (* grid_size)[3], size_t (* block_size)[3], void * data, size_t (* array_size)[3], size_t (* arr_start)[3], size_t (* arr_end)[3], void * reduced_val, meta_type_id type, int async, meta_callback * call, meta_event * ret_event) {
 	a_err ret = cudaSuccess;
 	size_t smem_len;
@@ -1049,19 +1046,6 @@ return ret;
 	return (ret);
 }
 
-/**
- * Host wrapper for the 2D transpose kernel
- * \param grid_size The number of thread blocks to run in the X and Y dimensions and the number of iterations to run in the Z dimension
- * \param block_size The size of a threadblock in the X, Y, and Z dimensions
- * \param indata The input untransposed 2D array
- * \param outdata The output transposed 2D array
- * \param arr_dim_xy the X and Y dimensions of indata, Z is ignored 
- * \param tran_dim_xy the X and Y dimensions of outdata, Z is ignored
- * \param type The type of data to run the kernel on
- * \param async whether to run the kernel asynchronously (1) or synchronously (0)
- * \param event the start and finish events used for asynchronous calls and timing
- * \return either cudaSuccess if async or the result of cudaThreadSynchronize if sync
- */
   a_err cuda_transpose_face(size_t (* grid_size)[3], size_t (* block_size)[3], void * indata, void * outdata, size_t (* arr_dim_xy)[3], size_t (* tran_dim_xy)[3], meta_type_id type, int async, meta_callback * call, meta_event * ret_event) {
 	a_err ret = cudaSuccess;
 	size_t smem_len;
@@ -1135,23 +1119,6 @@ return ret;
 	return (ret);
 }
 
-/**
- * Host wrapper for the face packing kernel
- * \param grid_size The number of thread blocks to run in the X dimension, Y and Z are ignored
- * \param block_size The size of a threadblock in the X dimension, Y and Z are ignored
- * \param packed_buf The output packed array
- * \param buf The input full array
- * \param face The face/slab to extract, returned from make_slab_from_3d
- * \param remain_dim At each subsequent layer of the face struct, the *cummulative* size of all remaining descendant dimensions. Used for computing the per-thread read offset, typically automatically pre-computed in the backend-agnostic MetaMorph wrapper, meta_pack_face
- * \param type The type of data to run the kernel on
- * \param async whether to run the kernel asynchronously (1) or synchronously (0)
- * \param event_k1 the kernel start and finish events used for asynchronous calls and timing
- * \param event_c1 the copyToSymbol of face->size start and finish events used for asynchronous calls and timing
- * \param event_c2 the copyToSymbol of face->stride start and finish events used for asynchronous calls and timing
- * \param event_c3 the copyToSymbol of face->child_size start and finish events used for asynchronous calls and timing
- * \return either cudaSuccess if async or the result of cudaThreadSynchronize if sync
- * \warning Implemented as a 1D kernel, Y and Z grid/block parameters will be ignored
- */
   a_err cuda_pack_face(size_t (* grid_size)[3], size_t (* block_size)[3], void * packed_buf, void * buf, meta_face * face, int * remain_dim, meta_type_id type, int async, meta_callback * call, meta_event * ret_event_k1, meta_event * ret_event_c1, meta_event * ret_event_c2, meta_event * ret_event_c3) {
 	a_err ret = cudaSuccess;
 	size_t smem_size;

@@ -1,4 +1,4 @@
-/*
+/** \file
  * Implementation of the Fortran-compatible variants of all
  * top-level C library functions. Currently implemented as
  * part of core.

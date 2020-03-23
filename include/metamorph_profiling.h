@@ -1,4 +1,5 @@
-/*
+/** \file
+ * Exposed functions and types for the MetaMorph event-based profiling plugin
  * Exclusively for the core mechanics of timer implementations
  * Don't need to expose too many things to direct users of the profiing API
  */
