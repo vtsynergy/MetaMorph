@@ -176,9 +176,14 @@ a_err (* metaProfilingCreateTimer)(meta_timer **, meta_preferred_mode, size_t);
 a_err (* metaProfilingEnqueueTimer)(meta_timer, metaProfilingBuiltinQueueType);
 };
 
+/**
+ * Struct to hold MPI wrapper functions the main library may need to reference, for now just destructor and flush
+ */
 struct mpi_dyn_ptrs {
+  /** Dynamically-loaded pointer to the MPIFinalize wrapper */
   a_err (* meta_mpi_finalize)();
-  a_err (* finish_mpi_requests)();
+  /** Dynamically-loaded pointer to the function to finish outstanding MPI work without finalizing MPI */
+  void (* finish_mpi_requests)();
 };
 
 void meta_load_libs();

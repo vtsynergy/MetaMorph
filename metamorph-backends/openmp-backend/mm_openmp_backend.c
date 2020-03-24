@@ -1049,7 +1049,7 @@ static void omp_transpose_face_kernel_db(double * __restrict__ indata,
  * \param arr_dim_xy indata's X and Y dimensions, and outdata's Y and X
  */
 static void omp_transpose_face_kernel_fl(float * __restrict__ indata,
-		float * __restrict__ outdata, size_t (*arr_dim_xy)[3]i) {
+		float * __restrict__ outdata, size_t (*arr_dim_xy)[3]) {
 	int ni, nj;
 	unsigned int sum = 0;
 

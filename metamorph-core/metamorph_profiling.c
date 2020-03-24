@@ -44,9 +44,14 @@ struct openmp_dyn_ptrs_profiling {
 /** A global storage struct for profiling-specific functions from the OpenMP backend, if it is loaded */
 struct openmp_dyn_ptrs_profiling openmp_timing_funcs = {NULL};
 
+/**
+ * Struct to hold MPI function pointers that are only relevant to profiling
+ */
 struct mpi_dyn_ptrs_profiling {
+  /** Dynamically-loaded pointer to the function to safely get the current process' MPI Rank to add to profiling information */
   a_err (* metaMPIRank)(int *);
 };
+/** A global storage struct for profiling-specific functions from the MPI plugin, if it is loaded */
 struct mpi_dyn_ptrs_profiling mpi_timing_funcs = {NULL};
 
 #ifdef DEPRECATED
