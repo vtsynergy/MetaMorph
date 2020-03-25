@@ -7,11 +7,15 @@
 #include <dlfcn.h>
 #include <string.h>
 
+/** Maintain a static set of queues for all builtin operations (transfers and kernels) */
 metaTimerQueue metaBuiltinQueues[queue_count];
+/** Maintain a state variable that tells whether the profiling queues have been initialized for use */
 a_bool __meta_timers_initialized = false;
+/** Must be aware of what backends are available */
 extern struct backend_handles backends;
+/** Must be aware of what plugins are available, currently only leverage MPI rank information */
 extern struct plugin_handles plugins;
-//Make sure we know what the core supports
+/** Make sure we know what the core supports */
 extern a_module_implements_backend core_capability;
 
 /**
@@ -149,8 +153,6 @@ a_err metaProfilingCreateTimer(meta_timer ** ret_timer, meta_preferred_mode mode
   else ret = -1;
   return ret;
 }
-//Take a copy of the frame and insert it on to the selected queue.
-// Do nothing else with the frame, the caller should handle releasing it.
 a_err metaProfilingEnqueueTimer(meta_timer timer, metaProfilingBuiltinQueueType type) {
 // a_err metaTimerEnqueue(metaTimerQueueFrame * frame, metaTimerQueue * queue) {
 	if (!__meta_timers_initialized) metaTimersInit();
@@ -183,10 +185,18 @@ a_err metaProfilingEnqueueTimer(meta_timer timer, metaProfilingBuiltinQueueType 
 	}
 	__sync_bool_compare_and_swap(&(queue->tail), t, newnode);
 	//printf("Event %s created ..... in queue %s\n",newnode->name,queue->name);
+	return 0;
 }
 
-//Take the copy of the front frame on the queue, and then remove it from the queue
-// Do nothing else with the frame's copy, the caller should allocate and free it.
+/**
+ * Internal: Take the copy of the front frame on the queue, and then remove it from the queue
+ * Do nothing else with the frame's copy, the caller should allocate and free it.
+ * \param ret_timer the Address in which to record the dequeued timer
+ * \param queue The queue to dequeue from
+ * \return always returns zero
+ * \todo FIXME implement proper error codes
+ * \todo Make Hazard aware
+ */
 a_err metaTimerDequeue(meta_timer * ret_timer, metaTimerQueue * queue) {
 	if (!__meta_timers_initialized) metaTimersInit();
 	//TODO add a check to make sure the caller actually allocated the frame
@@ -221,10 +231,7 @@ a_err metaTimerDequeue(meta_timer * ret_timer, metaTimerQueue * queue) {
 	return 0; //success
 }
 
-//Prepare the environment for timing, should be called by the first METAMORPH Runtime
-// Library Call, and should never be called again. If called a second time before
-// metaTimersFinish is called, will be a silent NOOP.
-__attribute__((constructor(104)))  a_err metaTimersInit() {
+__attribute__((constructor(104)))  void metaTimersInit() {
   if (core_capability == module_uninitialized) meta_init();
 	if (__meta_timers_initialized) return -1;
 	//Each builtin queue needs one of these pairs
@@ -348,11 +355,14 @@ __attribute__((constructor(104)))  a_err metaTimersInit() {
 	__meta_timers_initialized = true;
 }
 
-//Workhorse that loops over a queue until it receives an empty signal
-// Performs work according to what METAMORPH_TIMER_LEVEL is passed in.
-//TODO figure out how to handle encountered events which have not completed
-// (do we put them back on the queue? register a callback? force the command_queue to finish?
-//FIXME needs to handle bad return codes
+/**
+ * Workhorse that loops over a queue until it receives an empty signal
+ * Performs work according to what METAMORPH_TIMER_LEVEL is passed in.
+ * \param queue the queue to flush all timers from
+ * \param level The verbosity level to report (0 = silent, 1 = aggregate, 2 = individual cals, 3 = unimplemented)
+ * \todo figure out how to handle encountered events which have not completed (do we put them back on the queue? register a callback? force the command_queue to finish?
+ * \todo FIXME needs to handle bad return codes
+ */
 void flushWorker(metaTimerQueue * queue, int level) {
 	a_err ret;
 	meta_timer * timer = (meta_timer *) malloc(sizeof(meta_timer));
@@ -435,14 +445,6 @@ void flushWorker(metaTimerQueue * queue, int level) {
 printf("Profiling event time for %s = %f\n",queue->name, time);
 }
 
-//Flush out properly-formatted timers/bandwidths/diagnostics
-// Clears the timer queues entirely, and performs some (potentially intensive)
-// aggregation of statistics, so should be used sparingly. If the application
-// consists of large-scale sequential phases it might be appropriate to flush
-// between phases, or if a sufficient number of library calls are performed to
-// cause significant memory overhead (unlikely except in RAM-starved systems).
-// Otherwise the metaTimersFlush() call inherent in metaTimersFinish should
-// be sufficient.
 a_err metaTimersFlush() {
 	//Basically, just run through all the builtin queues,
 	// dequeuing each element and tallying it up
@@ -492,9 +494,9 @@ a_err metaTimersFlush() {
 			flushWorker(&metaBuiltinQueues[i], 0);
 		//no mode is specified, just silently eat the nodes.
 	}
+	return 0;
 }
 
-//Safely flush timer stats to the output stream
 a_err metaTimersFinish() {
 
 	//first, make sure everything is flushed.
@@ -503,13 +505,13 @@ a_err metaTimersFinish() {
 	//then remove all reference points to these timers
 	// (so that another thread can potentially spin up a separate new set..)
 	//TODO timer cleanup
+	return 0;
 }
 
 //TODO expose a way for users to generate their own timer queues
 // Will likely require overloaded function headers for each call which
 // take a queue list/count struct..
 
-//Since fortran is now part of core, it makes sense for the Fortran timing wrappers to also be part of the profiling plugin's core
-int meta_timers_init_c_() {return (int) metaTimersInit();}
-int meta_timers_flush_c_() {return (int) metaTimersFlush();}
-int meta_timers_finish_c_() {return (int) metaTimersFinish();}
+void meta_timers_init_c_() { metaTimersInit();}
+void meta_timers_flush_c_() {metaTimersFlush();}
+void meta_timers_finish_c_() {metaTimersFinish();}

@@ -170,9 +170,15 @@ a_err (* openmp_stencil_3d7p)(size_t (*)[3], size_t (*)[3], void *, void *, size
 #ifndef METAMORPH_PROFILING_H
 #include "metamorph_profiling.h"
 #endif
+/**
+ * Struct to hold Profiling functions the main library needs to reference, to create and enqueue timers, and forcibly flush currently-held timers
+ */
 struct profiling_dyn_ptrs {
+/** Pointer to function to flush all curently-held timing results */
 a_err (* metaTimersFinish)();
+/** Pointer to function to create a new timer */
 a_err (* metaProfilingCreateTimer)(meta_timer **, meta_preferred_mode, size_t);
+/** Pointer to function to enqueue the new timer */
 a_err (* metaProfilingEnqueueTimer)(meta_timer, metaProfilingBuiltinQueueType);
 };
 
