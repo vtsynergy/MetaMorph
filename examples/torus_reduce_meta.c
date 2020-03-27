@@ -1,3 +1,12 @@
+/**
+ * @file
+ * A simple reduction on a torus, works with or without MPI
+ * Each process initializes a portion of a 3D torus, where cells are filled with the sum of their global x, y, and z indices
+ * Each process has a ghost region on one of their "low index" faces, and sends the opposite "high index" face to it's ((rank+1)%num_ranks) neighbor, using the pack_and_send and recv_and_unpack MetaMorph+MPI plugin operators
+ * After receiving values for the empty ghost region, each process performs a dot product of their portion of the torus against a matrix of ones, equivalent to a reduction sum.
+ * Per-process values are then reduces using MPI_Allreduce
+ * For the non-MPI case, the pack and unpack are still performed, but no process communication or all-reduce is performed
+ */
 #include <stdio.h>
 #include <sys/time.h>
 #include <stdlib.h>
@@ -7,81 +16,110 @@
 #include <metamorph_mpi.h>
 #endif
 
-#define DEBUG2
-
 //Should be set on the compile line, but if not, default to double
 #ifdef DOUBLE 
+/** The global host type to run the test as */
 #define G_TYPE double
+/** The OpenCL type corresponding to G_TYPE */
 #define CL_G_TYPE cl_double
+/** The MetaMorph type corresponding to G_TYPE */
 #define M_TYPE a_db
+/** The MPI type corresponding to G_TYPE */
 #define MPI_TYPE MPI_DOUBLE
 #elif defined(FLOAT)
+/** The global host type to run the test as */
 #define G_TYPE float
+/** The OpenCL type corresponding to G_TYPE */
 #define CL_G_TYPE cl_float
+/** The MetaMorph type corresponding to G_TYPE */
 #define M_TYPE a_fl
+/** The MPI type corresponding to G_TYPE */
 #define MPI_TYPE MPI_FLOAT
 #elif defined(UNSIGNED_LONG)
+/** The global host type to run the test as */
 #define G_TYPE unsigned long
+/** The OpenCL type corresponding to G_TYPE */
 #define CL_G_TYPE cl_ulong
+/** The MetaMorph type corresponding to G_TYPE */
 #define M_TYPE a_ul
+/** The MPI type corresponding to G_TYPE */
 #define MPI_TYPE MPI_UNSIGNED_LONG
 #elif defined(INTEGER)
+/** The global host type to run the test as */
 #define G_TYPE int
+/** The OpenCL type corresponding to G_TYPE */
 #define CL_G_TYPE cl_int
+/** The MetaMorph type corresponding to G_TYPE */
 #define M_TYPE a_in
+/** The MPI type corresponding to G_TYPE */
 #define MPI_TYPE MPI_INT
 #elif defined(UNISGNED_INTEGER)
+/** The global host type to run the test as */
 #define G_TYPE unsigned int
+/** The OpenCL type corresponding to G_TYPE */
 #define CL_G_TYPE cl_uint
+/** The MetaMorph type corresponding to G_TYPE */
 #define M_TYPE a_ui
+/** The MPI type corresponding to G_TYPE */
 #define MPI_TYPE MPI_UNSIGNED
 #else
+/** The global host type to run the test as */
 #define G_TYPE double
+/** The OpenCL type corresponding to G_TYPE */
 #define CL_G_TYPE cl_double
+/** The MetaMorph type corresponding to G_TYPE */
 #define M_TYPE a_db
+/** The MPI type corresponding to G_TYPE */
 #define MPI_TYPE MPI_DOUBLE
 #endif
 
-//Sum of a region when all cells are filled by i+j+k (i=0:ni-1, j=0:nj-1, k=0:nk-1)
+/** Sum of a region when all cells are filled by i+j+k (i=0:ni-1, j=0:nj-1, k=0:nk-1)
+ * \param a The X dimension of the region
+ * \param b The Y dimension of the region
+ * \param c The Z dimension of the region
+ */
 #define SUM_REG(a,b,c) ((((a)*(b)*(c))/2.0)*((a)+(b)+(c)-3))
 
-// host buffers
-void *domain, *domain2;
+/** Host side left buffer */
+void *domain;
+/** Host side right buffer */
+void *domain2;
 
-// dev buffers
-void *d_domain, *d_domain2, *result, *d_sendbuf, *d_recvbuf;
+/** Device side left buffer */
+void *d_domain;
+/** Device side right buffer */
+void *d_domain2;
+/** Device side result buffer (scalar) */
+void *result;
+/** Device side packed staging buffer for MPI_Send */
+void *d_sendbuf;
+/** Device side packed staging buffer for MPI_Recv */
+void *d_recvbuf;
 
-int ni, nj, nk;
+/** Number of grid elements in the X dimension (not counting a single ghost-element slab) */
+int ni;
+/** Number of grid elements in the Y dimension (no ghost elements) */
+int nj;
+/** Number of grid elements in the Z dimension (no ghost elements) */
+int nk;
+/** Local reduced value */
 G_TYPE r_val;
+/** Global reduced value */
 G_TYPE global_sum;
+/** Reused error value */
 a_err err;
-a_dim3 grid, block, array, a_start, a_end;
+/** Reused thread grid struct */
+a_dim3 grid;
+/** Reused thread block struct */
+a_dim3 block;
+/** Size of the data arrays */
+a_dim3 array;
+/** Start offsets in the data arrays */
+a_dim3 a_start;
+/** End offsets in the data arrays */
+a_dim3 a_end;
 
-void init(int rank) {
-//#ifdef WITH_CUDA
-	//Switched to using environment-based controls
-	meta_set_acc(-1, metaModePreferGeneric);
-//	if (rank == 0) meta_set_acc(0, metaModePreferCUDA);
-//	else fprintf(stderr, "WITH_CUDA should only be defined for rank 0, I have rank [%d]\n", rank);
-//#elif defined(WITH_OPENCL)
-//#ifdef DEBUG2
-//	if (rank ==0) meta_set_acc(-1, metaModePreferOpenCL);
-//#else
-//	if (rank ==2) meta_set_acc(0, metaModePreferOpenCL);
-//#endif
-//	else fprintf(stderr, "WITH_OPENCL should only be defined for rank 2, I have rank [%d]\n", rank);
-//#elif defined(WITH_OPENMP)
-//#ifdef DEBUG2
-//	if (rank ==0) meta_set_acc(0, metaModePreferOpenMP);
-//#else
-//	if (rank == 1 || rank == 3) meta_set_acc(0, metaModePreferOpenMP);
-//#endif
-//	else fprintf(stderr, "WITH_OPENMP should only be defined for ranks 1 and 3, I have rank [%d]\n", rank);
-//#else
-//#error MetaMorph needs either WITH_CUDA, WITH_OPENCL, or WITH_OPENMP
-//#endif
-}
-
+/** Create two buffers of size (ni+1)*nj*nk */
 void data_allocate() {
 	domain = malloc(sizeof(G_TYPE) * (ni + 1) * nj * nk);
 	domain2 = malloc(sizeof(G_TYPE) * (ni + 1) * nj * nk);
@@ -102,6 +140,9 @@ void data_allocate() {
 		fprintf(stderr, "Error allocating d_recvbuf: [%d]\n", err);
 }
 
+/** Fill the left data buffer with values corresponding to each cell's global (i+j+k) index, and the right data buffer with ones
+ * \param rank MPI rank for computing offset, assumes all ranks have the same size region
+ */
 void data_initialize(int rank) {
 	G_TYPE *l_domain = (G_TYPE *) domain;
 	G_TYPE *l_domain2 = (G_TYPE *) domain2;
@@ -131,6 +172,7 @@ void data_initialize(int rank) {
 	}
 }
 
+/** Release both host and device buffers */
 void deallocate() {
 	free(domain);
 	free(domain2);
@@ -158,6 +200,12 @@ void print_grid(G_TYPE * grid) {
 }
 #endif
 
+/**
+ * The main driver function
+ * \param argc The number of command line arguments
+ * \param argv The vector of command line argument strings
+ * \return a termination status code, zero if success
+ */
 int main(int argc, char **argv) {
 	int rank = 0;
 	int comm_sz = 1;
@@ -185,7 +233,8 @@ int main(int argc, char **argv) {
 			autoconfig);
 
 	//Initialization
-	init(rank);
+	//Use environment-based controls
+	meta_set_acc(-1, metaModePreferGeneric);
 	//metaTimersInit();
 	data_allocate();
 	data_initialize(rank);
