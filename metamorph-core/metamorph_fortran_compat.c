@@ -1,4 +1,4 @@
-/*
+/** \file
  * Implementation of the Fortran-compatible variants of all
  * top-level C library functions. Currently implemented as
  * part of core.
@@ -13,16 +13,17 @@
  * some other compilation setup for whatever reason, all bets
  * are off. ISO_C_BINDINGS *should* help
  * 
- * FIXME: Fortran interface hasn't been audited for behavior with MetaMorph 0.2b+
+ * \todo FIXME: Fortran interface hasn't been audited for behavior with MetaMorph 0.2b+
  */
+#include <time.h>
+#include "metamorph.h"
 #include "metamorph_fortran_compat.h"
 
-int elapsed_(double *sec) {
-	extern int gettimeofday();
-	struct timeval t;
+int curr_ns_(double *sec) {
+	struct timespec t;
 
-	int stat = gettimeofday(&t, NULL);
-	*sec = (double) (t.tv_sec * 1000000.0 + t.tv_usec);
+	int stat = clock_gettime(CLOCK_REALTIME, &t);
+	*sec = (double) (t.tv_sec * 1000000000.0 + t.tv_nsec);
 	return (stat);
 }
 int meta_alloc_c_(void ** ptr, size_t * size) {
@@ -57,7 +58,7 @@ int meta_dotprod_c_(size_t * grid_x, size_t * grid_y, size_t * grid_z,
 	start[0] = *start_x - 1, start[1] = *start_y - 1, start[2] = *start_z - 1;
 	end[0] = *end_x - 1, end[1] = *end_y - 1, end[2] = *end_z - 1;
 	return (int) meta_dotProd(&grid, &block, data1, data2, &size, &start, &end,
-			reduction_var, type, (a_bool) *async, NULL);
+			reduction_var, type, (a_bool) *async, NULL, NULL);
 }
 int meta_reduce_c_(size_t * grid_x, size_t * grid_y, size_t * grid_z,
 		size_t * block_x, size_t * block_y, size_t * block_z, void * data,
@@ -71,15 +72,15 @@ int meta_reduce_c_(size_t * grid_x, size_t * grid_y, size_t * grid_z,
 	start[0] = *start_x - 1, start[1] = *start_y - 1, start[2] = *start_z - 1;
 	end[0] = *end_x - 1, end[1] = *end_y - 1, end[2] = *end_z - 1;
 	return (int) meta_reduce(&grid, &block, data, &size, &start, &end,
-			reduction_var, type, (a_bool) *async, NULL);
+			reduction_var, type, (a_bool) *async, NULL, NULL);
 }
 int meta_copy_h2d_c_(void * dst, void * src, size_t * size, int * async) {
-	return (int) meta_copy_h2d(dst, src, *size, (a_bool) *async, NULL);
+	return (int) meta_copy_h2d(dst, src, *size, (a_bool) *async, NULL, NULL);
 }
 int meta_copy_d2h_c_(void * dst, void * src, size_t * size, int * async) {
-	return (int) meta_copy_d2h(dst, src, *size, (a_bool) *async, NULL);
+	return (int) meta_copy_d2h(dst, src, *size, (a_bool) *async, NULL, NULL);
 }
 int meta_copy_d2d_c_(void * dst, void * src, size_t * size, int * async) {
-	return (int) meta_copy_d2d(dst, src, *size, (a_bool) *async, NULL);
+	return (int) meta_copy_d2d(dst, src, *size, (a_bool) *async, NULL, NULL);
 }
 

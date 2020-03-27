@@ -1,4 +1,6 @@
-/** OpenMP Back-End **/
+/** \file
+ * OpenMP 3 Backend implementation
+ */
 #include <sys/time.h>
 #include "mm_openmp_backend.h"
 #include "metamorph_dynamic_symbols.h"
@@ -9,9 +11,13 @@ extern struct profiling_dyn_ptrs profiling_symbols;
 
 //TODO figure out how to use templates with the  intrinsics
 
-#define BLOCK 	8
+/** Size of the square tile to use during transpose */
+#define TRANSPOSE_BLOCK 	8
+/** X stride for the cache-blocked stencil algorithm, currently unused */
 #define CX		256
+/** Y stride for the cache-blocked stencil algorithm, currently unused */
 #define CY		32
+/** Z stride for the cache-blocked stencil algorithm, currently unused */
 #define CZ		1
 
 #include <x86intrin.h>
@@ -196,9 +202,18 @@ a_err metaOpenMPRegisterCallback(meta_callback * call) {
   if (call != NULL) {
     (call->callback_func)(call);
   }
+  return 0;
 }
 
-// Kernels
+/**
+ * 3D double-precision dot-product kernel with bound control.
+ * \param data1 left input array
+ * \param data2 right input array
+ * \param array_size data1 and data2's X, Y, and Z dimensions
+ * \param arr_start start index in X, Y, and Z dimensions
+ * \param arr_end end index in X, Y, and Z dimensions
+ * \param reduction_var storage for the globally-reduced final value
+ */
 static void omp_dotProd_kernel_db(double * __restrict__ data1,
 		double * __restrict__ data2, size_t (*array_size)[3],
 		size_t (*arr_start)[3], size_t (*arr_end)[3], double * reduction_var) {
@@ -288,6 +303,15 @@ static void omp_dotProd_kernel_db(double * __restrict__ data1,
 	*reduction_var += sum;
 }
 
+/**
+ * 3D single-precision dot-product kernel with bound control.
+ * \param data1 left input array
+ * \param data2 right input array
+ * \param array_size data1 and data2's X, Y, and Z dimensions
+ * \param arr_start start index in X, Y, and Z dimensions
+ * \param arr_end end index in X, Y, and Z dimensions
+ * \param reduction_var storage for the globally-reduced final value
+ */
 static void omp_dotProd_kernel_fl(float * __restrict__ data1,
 		float * __restrict__ data2, size_t (*array_size)[3],
 		size_t (*arr_start)[3], size_t (*arr_end)[3], float * reduction_var) {
@@ -375,6 +399,15 @@ static void omp_dotProd_kernel_fl(float * __restrict__ data1,
 	*reduction_var += sum;
 }
 
+/**
+ * 3D unsigned long dot-product kernel with bound control.
+ * \param data1 left input array
+ * \param data2 right input array
+ * \param array_size data1 and data2's X, Y, and Z dimensions
+ * \param arr_start start index in X, Y, and Z dimensions
+ * \param arr_end end index in X, Y, and Z dimensions
+ * \param reduction_var storage for the globally-reduced final value
+ */
 static void omp_dotProd_kernel_ul(unsigned long * __restrict__ data1,
 		unsigned long * __restrict__ data2, size_t (*array_size)[3],
 		size_t (*arr_start)[3], size_t (*arr_end)[3],
@@ -443,6 +476,15 @@ static void omp_dotProd_kernel_ul(unsigned long * __restrict__ data1,
 	*reduction_var += sum;
 }
 
+/**
+ * 3D integer dot-product kernel with bound control.
+ * \param data1 left input array
+ * \param data2 right input array
+ * \param array_size data1 and data2's X, Y, and Z dimensions
+ * \param arr_start start index in X, Y, and Z dimensions
+ * \param arr_end end index in X, Y, and Z dimensions
+ * \param reduction_var storage for the globally-reduced final value
+ */
 static void omp_dotProd_kernel_in(int * __restrict__ data1,
 		int * __restrict__ data2, size_t (*array_size)[3],
 		size_t (*arr_start)[3], size_t (*arr_end)[3], int * reduction_var) {
@@ -510,6 +552,15 @@ static void omp_dotProd_kernel_in(int * __restrict__ data1,
 	*reduction_var += sum;
 }
 
+/**
+ * 3D unsigned integer dot-product kernel with bound control.
+ * \param data1 left input array
+ * \param data2 right input array
+ * \param array_size data1 and data2's X, Y, and Z dimensions
+ * \param arr_start start index in X, Y, and Z dimensions
+ * \param arr_end end index in X, Y, and Z dimensions
+ * \param reduction_var storage for the globally-reduced final value
+ */
 static void omp_dotProd_kernel_ui(unsigned int * __restrict__ data1,
 		unsigned int * __restrict__ data2, size_t (*array_size)[3],
 		size_t (*arr_start)[3], size_t (*arr_end)[3],
@@ -578,7 +629,14 @@ static void omp_dotProd_kernel_ui(unsigned int * __restrict__ data1,
 	*reduction_var += sum;
 }
 
-//reduce
+/**
+ * 3D double-precision reduction sum kernel with bound control.
+ * \param data input array
+ * \param array_size data's X, Y, and Z dimensions
+ * \param arr_start start index in X, Y, and Z dimensions
+ * \param arr_end end index in X, Y, and Z dimensions
+ * \param reduction_var storage for the globally-reduced final value
+ */
 static void omp_reduce_kernel_db(double * __restrict__ data,
 		size_t (*array_size)[3], size_t (*arr_start)[3], size_t (*arr_end)[3],
 		double * reduction_var) {
@@ -646,6 +704,14 @@ static void omp_reduce_kernel_db(double * __restrict__ data,
 	*reduction_var += sum;
 }
 
+/**
+ * 3D single-precision reduction sum kernel with bound control.
+ * \param data input array
+ * \param array_size data's X, Y, and Z dimensions
+ * \param arr_start start index in X, Y, and Z dimensions
+ * \param arr_end end index in X, Y, and Z dimensions
+ * \param reduction_var storage for the globally-reduced final value
+ */
 static void omp_reduce_kernel_fl(float *__restrict__ data,
 		size_t (*array_size)[3], size_t (*arr_start)[3], size_t (*arr_end)[3],
 		float * reduction_var) {
@@ -713,6 +779,14 @@ static void omp_reduce_kernel_fl(float *__restrict__ data,
 	*reduction_var += sum;
 }
 
+/**
+ * 3D unsigned long reduction sum kernel with bound control.
+ * \param data input array
+ * \param array_size data's X, Y, and Z dimensions
+ * \param arr_start start index in X, Y, and Z dimensions
+ * \param arr_end end index in X, Y, and Z dimensions
+ * \param reduction_var storage for the globally-reduced final value
+ */
 static void omp_reduce_kernel_ul(unsigned long * __restrict__ data,
 		size_t (*array_size)[3], size_t (*arr_start)[3], size_t (*arr_end)[3],
 		unsigned long * reduction_var) {
@@ -780,6 +854,14 @@ static void omp_reduce_kernel_ul(unsigned long * __restrict__ data,
 	*reduction_var += sum;
 }
 
+/**
+ * 3D integer reduction sum kernel with bound control.
+ * \param data input array
+ * \param array_size data's X, Y, and Z dimensions
+ * \param arr_start start index in X, Y, and Z dimensions
+ * \param arr_end end index in X, Y, and Z dimensions
+ * \param reduction_var storage for the globally-reduced final value
+ */
 static void omp_reduce_kernel_in(int * __restrict__ data,
 		size_t (*array_size)[3], size_t (*arr_start)[3], size_t (*arr_end)[3],
 		int * reduction_var) {
@@ -847,6 +929,14 @@ static void omp_reduce_kernel_in(int * __restrict__ data,
 	*reduction_var += sum;
 }
 
+/**
+ * 3D unsigned integer reduction sum kernel with bound control.
+ * \param data input array
+ * \param array_size data's X, Y, and Z dimensions
+ * \param arr_start start index in X, Y, and Z dimensions
+ * \param arr_end end index in X, Y, and Z dimensions
+ * \param reduction_var storage for the globally-reduced final value
+ */
 static void omp_reduce_kernel_ui(unsigned int * __restrict__ data,
 		size_t (*array_size)[3], size_t (*arr_start)[3], size_t (*arr_end)[3],
 		unsigned int * reduction_var) {
@@ -914,9 +1004,14 @@ static void omp_reduce_kernel_ui(unsigned int * __restrict__ data,
 	*reduction_var += sum;
 }
 
+/**
+ * 2D double-precision out-of-place transpose
+ * \param indata input array
+ * \param outdata output array
+ * \param arr_dim_xy indata's X and Y dimensions, and outdata's Y and X
+ */
 static void omp_transpose_face_kernel_db(double * __restrict__ indata,
-		double * __restrict__ outdata, size_t (*arr_dim_xy)[3],
-		size_t (*tran_dim_xy)[3]) {
+		double * __restrict__ outdata, size_t (*arr_dim_xy)[3]) {
 	int ni, nj;
 	unsigned int sum = 0;
 
@@ -929,12 +1024,12 @@ static void omp_transpose_face_kernel_db(double * __restrict__ indata,
 
 		//#pragma omp for schedule(static, 1)
 #pragma omp for schedule(dynamic, 1) nowait
-		for (j = 0; j < nj; j += BLOCK)
+		for (j = 0; j < nj; j += TRANSPOSE_BLOCK)
 		{
-			for (i = 0; i < ni; i += BLOCK)
+			for (i = 0; i < ni; i += TRANSPOSE_BLOCK)
 			{
-				int iimax = (ni < i + BLOCK ? ni : i + BLOCK);
-				int jjmax = (nj < j + BLOCK ? nj : j + BLOCK);
+				int iimax = (ni < i + TRANSPOSE_BLOCK ? ni : i + TRANSPOSE_BLOCK);
+				int jjmax = (nj < j + TRANSPOSE_BLOCK ? nj : j + TRANSPOSE_BLOCK);
 
 				for (jj = j; jj < jjmax; jj++) {
 					for (ii = i; ii < iimax; ii++) {
@@ -947,9 +1042,14 @@ static void omp_transpose_face_kernel_db(double * __restrict__ indata,
 
 }
 
+/**
+ * 2D single-precision out-of-place transpose
+ * \param indata input array
+ * \param outdata output array
+ * \param arr_dim_xy indata's X and Y dimensions, and outdata's Y and X
+ */
 static void omp_transpose_face_kernel_fl(float * __restrict__ indata,
-		float * __restrict__ outdata, size_t (*arr_dim_xy)[3],
-		size_t (*tran_dim_xy)[3]) {
+		float * __restrict__ outdata, size_t (*arr_dim_xy)[3]) {
 	int ni, nj;
 	unsigned int sum = 0;
 
@@ -962,12 +1062,12 @@ static void omp_transpose_face_kernel_fl(float * __restrict__ indata,
 
 		//#pragma omp for schedule(static, 1)
 #pragma omp for schedule(dynamic, 1) nowait
-		for (j = 0; j < nj; j += BLOCK)
+		for (j = 0; j < nj; j += TRANSPOSE_BLOCK)
 		{
-			for (i = 0; i < ni; i += BLOCK)
+			for (i = 0; i < ni; i += TRANSPOSE_BLOCK)
 			{
-				int iimax = (ni < i + BLOCK ? ni : i + BLOCK);
-				int jjmax = (nj < j + BLOCK ? nj : j + BLOCK);
+				int iimax = (ni < i + TRANSPOSE_BLOCK ? ni : i + TRANSPOSE_BLOCK);
+				int jjmax = (nj < j + TRANSPOSE_BLOCK ? nj : j + TRANSPOSE_BLOCK);
 
 				for (jj = j; jj < jjmax; jj++) {
 					for (ii = i; ii < iimax; ii++) {
@@ -979,9 +1079,14 @@ static void omp_transpose_face_kernel_fl(float * __restrict__ indata,
 	}
 }
 
+/**
+ * 2D unsigned long out-of-place transpose
+ * \param indata input array
+ * \param outdata output array
+ * \param arr_dim_xy indata's X and Y dimensions, and outdata's Y and X
+ */
 static void omp_transpose_face_kernel_ul(unsigned long * __restrict__ indata,
-		unsigned long * __restrict__ outdata, size_t (*arr_dim_xy)[3],
-		size_t (*tran_dim_xy)[3]) {
+		unsigned long * __restrict__ outdata, size_t (*arr_dim_xy)[3]) {
 
 	int ni, nj;
 	unsigned int sum = 0;
@@ -995,12 +1100,12 @@ static void omp_transpose_face_kernel_ul(unsigned long * __restrict__ indata,
 
 		//#pragma omp for schedule(static, 1)
 #pragma omp for schedule(dynamic, 1) nowait
-		for (j = 0; j < nj; j += BLOCK)
+		for (j = 0; j < nj; j += TRANSPOSE_BLOCK)
 		{
-			for (i = 0; i < ni; i += BLOCK)
+			for (i = 0; i < ni; i += TRANSPOSE_BLOCK)
 			{
-				int iimax = (ni < i + BLOCK ? ni : i + BLOCK);
-				int jjmax = (nj < j + BLOCK ? nj : j + BLOCK);
+				int iimax = (ni < i + TRANSPOSE_BLOCK ? ni : i + TRANSPOSE_BLOCK);
+				int jjmax = (nj < j + TRANSPOSE_BLOCK ? nj : j + TRANSPOSE_BLOCK);
 
 				for (jj = j; jj < jjmax; jj++) {
 					for (ii = i; ii < iimax; ii++) {
@@ -1012,9 +1117,14 @@ static void omp_transpose_face_kernel_ul(unsigned long * __restrict__ indata,
 	}
 }
 
+/**
+ * 2D integer out-of-place transpose
+ * \param indata input array
+ * \param outdata output array
+ * \param arr_dim_xy indata's X and Y dimensions, and outdata's Y and X
+ */
 static void omp_transpose_face_kernel_in(int * __restrict__ indata,
-		int * __restrict__ outdata, size_t (*arr_dim_xy)[3],
-		size_t (*tran_dim_xy)[3]) {
+		int * __restrict__ outdata, size_t (*arr_dim_xy)[3]) {
 	int ni, nj;
 	unsigned int sum = 0;
 
@@ -1027,12 +1137,12 @@ static void omp_transpose_face_kernel_in(int * __restrict__ indata,
 
 		//#pragma omp for schedule(static, 1)
 #pragma omp for schedule(dynamic, 1) nowait
-		for (j = 0; j < nj; j += BLOCK)
+		for (j = 0; j < nj; j += TRANSPOSE_BLOCK)
 		{
-			for (i = 0; i < ni; i += BLOCK)
+			for (i = 0; i < ni; i += TRANSPOSE_BLOCK)
 			{
-				int iimax = (ni < i + BLOCK ? ni : i + BLOCK);
-				int jjmax = (nj < j + BLOCK ? nj : j + BLOCK);
+				int iimax = (ni < i + TRANSPOSE_BLOCK ? ni : i + TRANSPOSE_BLOCK);
+				int jjmax = (nj < j + TRANSPOSE_BLOCK ? nj : j + TRANSPOSE_BLOCK);
 
 				for (jj = j; jj < jjmax; jj++) {
 					for (ii = i; ii < iimax; ii++) {
@@ -1045,9 +1155,14 @@ static void omp_transpose_face_kernel_in(int * __restrict__ indata,
 
 }
 
+/**
+ * 2D unsigned integer out-of-place transpose
+ * \param indata input array
+ * \param outdata output array
+ * \param arr_dim_xy indata's X and Y dimensions, and outdata's Y and X
+ */
 static void omp_transpose_face_kernel_ui(unsigned int * __restrict__ indata,
-		unsigned int * __restrict__ outdata, size_t (*arr_dim_xy)[3],
-		size_t (*tran_dim_xy)[3]) {
+		unsigned int * __restrict__ outdata, size_t (*arr_dim_xy)[3]) {
 	int ni, nj;
 	unsigned int sum = 0;
 
@@ -1060,12 +1175,12 @@ static void omp_transpose_face_kernel_ui(unsigned int * __restrict__ indata,
 
 		//#pragma omp for schedule(static, 1)
 #pragma omp for schedule(dynamic, 1) nowait
-		for (j = 0; j < nj; j += BLOCK)
+		for (j = 0; j < nj; j += TRANSPOSE_BLOCK)
 		{
-			for (i = 0; i < ni; i += BLOCK)
+			for (i = 0; i < ni; i += TRANSPOSE_BLOCK)
 			{
-				int iimax = (ni < i + BLOCK ? ni : i + BLOCK);
-				int jjmax = (nj < j + BLOCK ? nj : j + BLOCK);
+				int iimax = (ni < i + TRANSPOSE_BLOCK ? ni : i + TRANSPOSE_BLOCK);
+				int jjmax = (nj < j + TRANSPOSE_BLOCK ? nj : j + TRANSPOSE_BLOCK);
 
 				for (jj = j; jj < jjmax; jj++) {
 					for (ii = i; ii < iimax; ii++) {
@@ -1077,6 +1192,12 @@ static void omp_transpose_face_kernel_ui(unsigned int * __restrict__ indata,
 	}
 }
 
+/** Helper function to compute the integer read offset for buffer packing
+ * \param idx the index in the packed buffer to calculate the unpacked index for
+ * \param face the structure defining the slab of the buffer that should be packed
+ * \param remain_dim a precomputed array of the combined sizes of all interior dimensions at all face levels
+ * \return the offset index in the full buffer for this idx to read/write to/from
+*/
 static int get_pack_index(int idx, meta_face *face,
 		int * __restrict__ remain_dim) {
 	int pos;
@@ -1107,6 +1228,13 @@ static int get_pack_index(int idx, meta_face *face,
 	return pos;
 }
 
+/**
+ * A kernel to pack a subregion of a 3D buffer into contiguous memory
+ * \param packed_buf the output buffer, of sufficient size to store an entire face/slab
+ * \param buf the unpacked 3D buffer
+ * \param face the data structure defining the slab to pack
+ * \param remain_dim a precomputed array of the combined sizes of all interior dimensions at all face levels
+ */
 void omp_pack_face_kernel_db(double * __restrict__ packed_buf,
 		double * __restrict__ buf, meta_face *face, int *remain_dim) {
 	int size = face->size[0] * face->size[1] * face->size[2];
@@ -1120,6 +1248,13 @@ void omp_pack_face_kernel_db(double * __restrict__ packed_buf,
 	}
 }
 
+/**
+ * A kernel to pack a subregion of a 3D buffer into contiguous memory
+ * \param packed_buf the output buffer, of sufficient size to store an entire face/slab
+ * \param buf the unpacked 3D buffer
+ * \param face the data structure defining the slab to pack
+ * \param remain_dim a precomputed array of the combined sizes of all interior dimensions at all face levels
+ */
 void omp_pack_face_kernel_fl(float * __restrict__ packed_buf,
 		float * __restrict__ buf, meta_face *face, int *remain_dim) {
 	int size = face->size[0] * face->size[1] * face->size[2];
@@ -1133,6 +1268,13 @@ void omp_pack_face_kernel_fl(float * __restrict__ packed_buf,
 	}
 }
 
+/**
+ * A kernel to pack a subregion of a 3D buffer into contiguous memory
+ * \param packed_buf the output buffer, of sufficient size to store an entire face/slab
+ * \param buf the unpacked 3D buffer
+ * \param face the data structure defining the slab to pack
+ * \param remain_dim a precomputed array of the combined sizes of all interior dimensions at all face levels
+ */
 void omp_pack_face_kernel_ul(unsigned long * __restrict__ packed_buf,
 		unsigned long * __restrict__ buf, meta_face *face,
 		int *remain_dim) {
@@ -1147,6 +1289,13 @@ void omp_pack_face_kernel_ul(unsigned long * __restrict__ packed_buf,
 	}
 }
 
+/**
+ * A kernel to pack a subregion of a 3D buffer into contiguous memory
+ * \param packed_buf the output buffer, of sufficient size to store an entire face/slab
+ * \param buf the unpacked 3D buffer
+ * \param face the data structure defining the slab to pack
+ * \param remain_dim a precomputed array of the combined sizes of all interior dimensions at all face levels
+ */
 void omp_pack_face_kernel_in(int * __restrict__ packed_buf,
 		int * __restrict__ buf, meta_face *face, int *remain_dim) {
 	int size = face->size[0] * face->size[1] * face->size[2];
@@ -1160,6 +1309,13 @@ void omp_pack_face_kernel_in(int * __restrict__ packed_buf,
 	}
 }
 
+/**
+ * A kernel to pack a subregion of a 3D buffer into contiguous memory
+ * \param packed_buf the output buffer, of sufficient size to store an entire face/slab
+ * \param buf the unpacked 3D buffer
+ * \param face the data structure defining the slab to pack
+ * \param remain_dim a precomputed array of the combined sizes of all interior dimensions at all face levels
+ */
 void omp_pack_face_kernel_ui(unsigned int * __restrict__ packed_buf,
 		unsigned int * __restrict__ buf, meta_face *face,
 		int *remain_dim) {
@@ -1174,6 +1330,13 @@ void omp_pack_face_kernel_ui(unsigned int * __restrict__ packed_buf,
 	}
 }
 
+/**
+ * A kernel to unpack a contiguous memory buffer into a subregion of a 3D buffer
+ * \param packed_buf the input buffer, of sufficient size to store an entire face/slab
+ * \param buf the unpacked 3D buffer
+ * \param face the data structure defining the slab to unpack
+ * \param remain_dim a precomputed array of the combined sizes of all interior dimensions at all face levels
+ */
 void omp_unpack_face_kernel_db(double * __restrict__ packed_buf,
 		double * __restrict__ buf, meta_face *face, int *remain_dim) {
 	int size = face->size[0] * face->size[1] * face->size[2];
@@ -1187,6 +1350,13 @@ void omp_unpack_face_kernel_db(double * __restrict__ packed_buf,
 	}
 }
 
+/**
+ * A kernel to unpack a contiguous memory buffer into a subregion of a 3D buffer
+ * \param packed_buf the input buffer, of sufficient size to store an entire face/slab
+ * \param buf the unpacked 3D buffer
+ * \param face the data structure defining the slab to unpack
+ * \param remain_dim a precomputed array of the combined sizes of all interior dimensions at all face levels
+ */
 void omp_unpack_face_kernel_fl(float * __restrict__ packed_buf,
 		float * __restrict__ buf, meta_face *face, int *remain_dim) {
 	int size = face->size[0] * face->size[1] * face->size[2];
@@ -1200,6 +1370,13 @@ void omp_unpack_face_kernel_fl(float * __restrict__ packed_buf,
 	}
 }
 
+/**
+ * A kernel to unpack a contiguous memory buffer into a subregion of a 3D buffer
+ * \param packed_buf the input buffer, of sufficient size to store an entire face/slab
+ * \param buf the unpacked 3D buffer
+ * \param face the data structure defining the slab to unpack
+ * \param remain_dim a precomputed array of the combined sizes of all interior dimensions at all face levels
+ */
 void omp_unpack_face_kernel_ul(unsigned long * __restrict__ packed_buf,
 		unsigned long * __restrict__ buf, meta_face *face,
 		int *remain_dim) {
@@ -1214,6 +1391,13 @@ void omp_unpack_face_kernel_ul(unsigned long * __restrict__ packed_buf,
 	}
 }
 
+/**
+ * A kernel to unpack a contiguous memory buffer into a subregion of a 3D buffer
+ * \param packed_buf the input buffer, of sufficient size to store an entire face/slab
+ * \param buf the unpacked 3D buffer
+ * \param face the data structure defining the slab to unpack
+ * \param remain_dim a precomputed array of the combined sizes of all interior dimensions at all face levels
+ */
 void omp_unpack_face_kernel_in(int * __restrict__ packed_buf,
 		int * __restrict__ buf, meta_face *face, int *remain_dim) {
 	int size = face->size[0] * face->size[1] * face->size[2];
@@ -1227,6 +1411,13 @@ void omp_unpack_face_kernel_in(int * __restrict__ packed_buf,
 	}
 }
 
+/**
+ * A kernel to unpack a contiguous memory buffer into a subregion of a 3D buffer
+ * \param packed_buf the input buffer, of sufficient size to store an entire face/slab
+ * \param buf the unpacked 3D buffer
+ * \param face the data structure defining the slab to unpack
+ * \param remain_dim a precomputed array of the combined sizes of all interior dimensions at all face levels
+ */
 void omp_unpack_face_kernel_ui(unsigned int * __restrict__ packed_buf,
 		unsigned int * __restrict__ buf, meta_face *face,
 		int *remain_dim) {
@@ -1242,6 +1433,18 @@ void omp_unpack_face_kernel_ui(unsigned int * __restrict__ packed_buf,
 }
 
 #if 1
+/** A kernel to compute a 3D 7-point averaging stencil
+ * (i.e sum the cubic cell and its 6 directly-adjacent neighbors and divide by 7)
+ * \todo Optimizations: document variations
+ * \param indata a non-aliased 3D region of size (i*j*k)
+ * \param outdata a non-aliased 3D region of size (i*j*k)
+ * \param array_size size of indata and outdata in the X, Y, and Z dimensions
+ * \param arr_start index of starting halo cell in the X, Y, and Z dimensions
+ * \param arr_end index of ending halo cell in the X, Y, and Z dimensions
+ * \warning assumes that s* and e* bounds include a 1-thick halo
+ *   (i.e. will only compute values for cells in T([sx+1:ex-1], [sy+1:ey-1], [sz+1:ez-1])
+ * \warning this kernel works for 3D data only.
+ */
 void omp_stencil_3d7p_kernel_db(double * __restrict__ indata,
 		double * __restrict__ outdata, size_t (*array_size)[3],
 		size_t (*arr_start)[3], size_t (*arr_end)[3]) {
@@ -1442,6 +1645,18 @@ void omp_stencil_3d7p_kernel_db(double * __restrict__ indata, double * __restric
 }
 #endif
 
+/** A kernel to compute a 3D 7-point averaging stencil
+ * (i.e sum the cubic cell and its 6 directly-adjacent neighbors and divide by 7)
+ * \todo Optimizations: document variations
+ * \param indata a non-aliased 3D region of size (i*j*k)
+ * \param outdata a non-aliased 3D region of size (i*j*k)
+ * \param array_size size of indata and outdata in the X, Y, and Z dimensions
+ * \param arr_start index of starting halo cell in the X, Y, and Z dimensions
+ * \param arr_end index of ending halo cell in the X, Y, and Z dimensions
+ * \warning assumes that s* and e* bounds include a 1-thick halo
+ *   (i.e. will only compute values for cells in T([sx+1:ex-1], [sy+1:ey-1], [sz+1:ez-1])
+ * \warning this kernel works for 3D data only.
+ */
 void omp_stencil_3d7p_kernel_fl(float * indata, float * outdata,
 		size_t (*array_size)[3], size_t (*arr_start)[3], size_t (*arr_end)[3]) {
 	int ni, nj, nk;
@@ -1478,6 +1693,18 @@ void omp_stencil_3d7p_kernel_fl(float * indata, float * outdata,
 	}
 }
 
+/** A kernel to compute a 3D 7-point averaging stencil
+ * (i.e sum the cubic cell and its 6 directly-adjacent neighbors and divide by 7)
+ * \todo Optimizations: document variations
+ * \param indata a non-aliased 3D region of size (i*j*k)
+ * \param outdata a non-aliased 3D region of size (i*j*k)
+ * \param array_size size of indata and outdata in the X, Y, and Z dimensions
+ * \param arr_start index of starting halo cell in the X, Y, and Z dimensions
+ * \param arr_end index of ending halo cell in the X, Y, and Z dimensions
+ * \warning assumes that s* and e* bounds include a 1-thick halo
+ *   (i.e. will only compute values for cells in T([sx+1:ex-1], [sy+1:ey-1], [sz+1:ez-1])
+ * \warning this kernel works for 3D data only.
+ */
 void omp_stencil_3d7p_kernel_ul(unsigned long * indata, unsigned long * outdata,
 		size_t (*array_size)[3], size_t (*arr_start)[3], size_t (*arr_end)[3]) {
 	int ni, nj, nk;
@@ -1514,6 +1741,18 @@ void omp_stencil_3d7p_kernel_ul(unsigned long * indata, unsigned long * outdata,
 	}
 }
 
+/** A kernel to compute a 3D 7-point averaging stencil
+ * (i.e sum the cubic cell and its 6 directly-adjacent neighbors and divide by 7)
+ * \todo Optimizations: document variations
+ * \param indata a non-aliased 3D region of size (i*j*k)
+ * \param outdata a non-aliased 3D region of size (i*j*k)
+ * \param array_size size of indata and outdata in the X, Y, and Z dimensions
+ * \param arr_start index of starting halo cell in the X, Y, and Z dimensions
+ * \param arr_end index of ending halo cell in the X, Y, and Z dimensions
+ * \warning assumes that s* and e* bounds include a 1-thick halo
+ *   (i.e. will only compute values for cells in T([sx+1:ex-1], [sy+1:ey-1], [sz+1:ez-1])
+ * \warning this kernel works for 3D data only.
+ */
 void omp_stencil_3d7p_kernel_in(int * indata, int * outdata,
 		size_t (*array_size)[3], size_t (*arr_start)[3], size_t (*arr_end)[3]) {
 	int ni, nj, nk;
@@ -1549,6 +1788,18 @@ void omp_stencil_3d7p_kernel_in(int * indata, int * outdata,
 	}
 }
 
+/** A kernel to compute a 3D 7-point averaging stencil
+ * (i.e sum the cubic cell and its 6 directly-adjacent neighbors and divide by 7)
+ * \todo Optimizations: document variations
+ * \param indata a non-aliased 3D region of size (i*j*k)
+ * \param outdata a non-aliased 3D region of size (i*j*k)
+ * \param array_size size of indata and outdata in the X, Y, and Z dimensions
+ * \param arr_start index of starting halo cell in the X, Y, and Z dimensions
+ * \param arr_end index of ending halo cell in the X, Y, and Z dimensions
+ * \warning assumes that s* and e* bounds include a 1-thick halo
+ *   (i.e. will only compute values for cells in T([sx+1:ex-1], [sy+1:ey-1], [sz+1:ez-1])
+ * \warning this kernel works for 3D data only.
+ */
 void omp_stencil_3d7p_kernel_ui(unsigned int * indata, unsigned int * outdata,
 		size_t (*array_size)[3], size_t (*arr_start)[3], size_t (*arr_end)[3]) {
 	int ni, nj, nk;
@@ -1585,7 +1836,6 @@ void omp_stencil_3d7p_kernel_ui(unsigned int * indata, unsigned int * outdata,
 	}
 }
 
-//wrappers
 a_err openmp_dotProd(size_t (* grid_size)[3], size_t (* block_size)[3], void * data1, void * data2, size_t (* array_size)[3], size_t (* arr_start)[3], size_t (* arr_end)[3], void * reduction_var, meta_type_id type, int async, meta_callback * call, meta_event * ret_event) {
 	int ret = 0; //Success
 openmpEvent * events = NULL;
@@ -1719,7 +1969,7 @@ openmpEvent * events = NULL;
   if (ret_event != NULL && ret_event->mode == metaModePreferOpenMP && ret_event->event_pl != NULL) events = ((openmpEvent *)ret_event->event_pl);
   meta_timer * timer = NULL;
   if (profiling_symbols.metaProfilingCreateTimer != NULL) {
-    (*(profiling_symbols.metaProfilingCreateTimer))(&timer, metaModePreferOpenMP, (*tran_dim_xy)[0]*(*tran_dim_xy)[1]*get_atype_size(type));
+    (*(profiling_symbols.metaProfilingCreateTimer))(&timer, metaModePreferOpenMP, (*arr_dim_xy)[0]*(*arr_dim_xy)[1]*get_atype_size(type));
     if (events == NULL) {
       events = ((openmpEvent *)timer->event.event_pl);
     } else {
@@ -1737,27 +1987,27 @@ openmpEvent * events = NULL;
 	switch (type) {
 	case a_db:
 		omp_transpose_face_kernel_db((double*) indata, (double*) outdata,
-				arr_dim_xy, tran_dim_xy);
+				arr_dim_xy);
 		break;
 
 	case a_fl:
 		omp_transpose_face_kernel_fl((float*) indata, (float*) outdata,
-				arr_dim_xy, tran_dim_xy);
+				arr_dim_xy);
 		break;
 
 	case a_ul:
 		omp_transpose_face_kernel_ul((unsigned long*) indata,
-				(unsigned long*) outdata, arr_dim_xy, tran_dim_xy);
+				(unsigned long*) outdata, arr_dim_xy);
 		break;
 
 	case a_in:
 		omp_transpose_face_kernel_in((int*) indata, (int*) outdata,
-				arr_dim_xy, tran_dim_xy);
+				arr_dim_xy);
 		break;
 
 	case a_ui:
 		omp_transpose_face_kernel_ui((unsigned int*) indata,
-				(unsigned int*) outdata, arr_dim_xy, tran_dim_xy);
+				(unsigned int*) outdata, arr_dim_xy);
 		break;
 
 	default:
@@ -1885,7 +2135,7 @@ openmpEvent * events_k1 = NULL, * events_c1 = NULL, * events_c2 = NULL, * events
 	return (ret);
 }
 
-a_err openmp_unpack_face(size_t (* grid_zie)[3], size_t (* block_size)[3], void * packed_buf, void * buf, meta_face * face, int * remain_dim, meta_type_id type, int async, meta_callback * call, meta_event * ret_event_k1, meta_event * ret_event_c1, meta_event * ret_event_c2, meta_event * ret_event_c3) {
+a_err openmp_unpack_face(size_t (* grid_size)[3], size_t (* block_size)[3], void * packed_buf, void * buf, meta_face * face, int * remain_dim, meta_type_id type, int async, meta_callback * call, meta_event * ret_event_k1, meta_event * ret_event_c1, meta_event * ret_event_c2, meta_event * ret_event_c3) {
 	int ret = 0; //Success
 openmpEvent * events_k1 = NULL, * events_c1 = NULL, * events_c2 = NULL, * events_c3 = NULL;
   if (ret_event_k1 != NULL && ret_event_k1->mode == metaModePreferOpenMP && ret_event_k1->event_pl != NULL) events_k1 = ((openmpEvent *)ret_event_k1->event_pl);

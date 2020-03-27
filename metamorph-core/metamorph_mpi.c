@@ -1,25 +1,78 @@
+/** \file
+ * Implementation of MetaMorph's MPI interoperability plugin
+ *
+ * MPI is considered a library PLUGIN, therefore it must be kept
+ * entirely optional. The library should function (build) without skipping
+ * a beat on single node/process configurations regardless of whether
+ * the system has an MPI install available. It is implemented as a
+ * plugin as a convenience, as all packing and D2H transfer functions
+ * needed to implement an MPI exchange by hand are already provided.
+ * This piece simply provides an abstracted, unified wrapper around
+ * GPUDirect, via-host, and (potentially) other transfer primitives.
+ *
+ * Further, GPUDirect and other approaches to reducing/eliminating
+ * staging of GPU buffers in the host before transfer are OPTIONAL
+ * components of the MPI plugin. When suitable, direct transfers
+ * should be be provided and supplant the host-staged versions via
+ * a compiler option, such as "-D WITH_MPI_GPU_DIRECT".
+ *
+ * Regardless of whether GPUDirect modes are enabled, the user
+ * application should not need to provide any temp/staging buffers,
+ * or other supporting info. This should all be managed by the
+ * plugin internally, and transparently.
+ */
 #include <string.h>
 #include <stdlib.h>
 #include "metamorph_mpi.h"
 #include "metamorph_dynamic_symbols.h"
 
-//Make sure we know what the core supports
+/** An internal state variable to ensure the request queue only gets initialized once */
 a_bool __meta_mpi_initialized = false;
+/** Need to reference the core capability to know whether it is initialized yet, and if not, start it before the plugin */
 extern a_module_implements_backend core_capability;
+/** If the profiling plugin is loaded, we will want to flush it before meta_mpi_finalize so statistics get tagged with their rank information */
 extern struct profiling_dyn_ptrs profiling_symbols;
-//This pool manages host staging buffers
-//These arrays are kept in sync to store the pointer and size of each buffer
+/** Reference the current global execution mode */
+extern meta_preferred_mode run_mode;
+#ifndef META_MPI_POOL_SIZE
+/**
+ * The number of elements in the internal pool
+ * Must be a power of two for quick masks instead of modulo
+ * Behavior is left undefined if this is violated
+ */
+#define META_MPI_POOL_SIZE 16
+#endif
+
+/** To keep the internal pool structure lightweight, it's a simple ring array.
+ * This param specifies how many previous ring slots we should look
+ * at for one of appropriate size before just reallocating the current one.
+ * The default is half the size.
+ * This lookback is part of the "ratchet" behavior of the ring.
+ */
+#ifndef META_MPI_POOL_LOOKBACK
+#define META_MPI_POOL_LOOKBACK (META_MPI_POOL_SIZE>>1)
+#endif
+
+/**
+ * Should never be user-edited, it's just for masking the bits needed for fast indexing
+ */
+#define POOL_MASK (META_MPI_POOL_SIZE - 1)
+/** Manage a reusable ring queue pool of host-staging buffers, since applications frequently transfer the same setof buffers between stages */
 void * host_buf_pool[META_MPI_POOL_SIZE];
-//The size array moonlights as an occupied flag if size !=0
+/** The pool implmentation needs to know how big each allocation was to know if the one in this slot will fit, or zero if it is unoccupied */
 unsigned long host_buf_pool_size[META_MPI_POOL_SIZE];
+/** A monotonically increasing token that is masked by the ring queue size to represent the "front" of the queue */
 unsigned long host_pool_token = 0;
 #ifdef WITH_MPI_POOL_TIMING
+/** An internal counter for time spent performing staging buffer pool operations. (Currently unused) */
 double host_time = 0.0;
 #endif
 
-//This separate pool manages internal buffers for requests/callback payloads
+/** Manage an internal pool for our frequently used request and callback payloads just like host buffers */
 void* internal_pool[META_MPI_POOL_SIZE];
+/** Keep track of their sizes */
 unsigned long internal_pool_size[META_MPI_POOL_SIZE];
+/** Keep a separate monotonically increasing index */
 unsigned long internal_pool_token = 0;
 #ifdef WITH_MPI_POOL_TIMING
 double internal_time = 0.0;
@@ -195,10 +248,12 @@ MPI_Datatype get_mpi_type(meta_type_id type, size_t * size) {
 		*size = type_size;
 	return mpi_type;
 }
-//Static sentinel head node, and dynamic tail pointer for the
-// MPI request queue
-//Spawn the queue in the uninit state to force calling the init function
+/**
+ * Static sentinel head node for the MPI request queue
+ * Spawn the queue in the uninit state to force calling the init function
+ */
 recordQueueNode record_queue = { uninit, { NULL, NULL }, NULL };
+/** Tail pointer for the MPI request queue */
 recordQueueNode *record_queue_tail;
 
 void meta_mpi_init(int * argc, char *** argv) {
@@ -235,7 +290,10 @@ void meta_mpi_finalize() {
 	__meta_mpi_initialized = false;
 }
 
-//Helper functions for asynchronous transfers
+/**
+ * Create the internal queue for managing records
+ * Should only be used internally, and typically only once per application launch
+ */
 __attribute__((constructor(103))) void init_record_queue() {
   if (core_capability == module_uninitialized) meta_init();
 	record_queue.type = sentinel;
@@ -328,7 +386,7 @@ void help_mpi_request() {
 
 //A "forced wait until all requests finish" helper
 // Meant to be used with meta_flush and meta_finish
-a_err finish_mpi_requests() {
+void finish_mpi_requests() {
 	//printf("FINISH TRIGGERED\n");
 	//TODO: Implement "finish the world"
 	//Use MPI_Wait rather than MPI Test
@@ -392,6 +450,11 @@ a_err finish_mpi_requests() {
 	}
 }
 
+/**
+ * This callback finishes setting up the MPI_ISend for an asynchronous send_packed
+ * It should be internally registered to the device-to-host copy of the relevant buffer
+ * \param data The callback payload, containing a reference to this functino and an sp_callback_payload with the information necessary to launch the MPI_ISend
+ */
 void sp_isend_cb(meta_callback * data) {
 	sp_callback_payload * call_pl = (sp_callback_payload *)(data->data_payload);
 	size_t type_size;
@@ -419,7 +482,7 @@ void sp_helper(request_record * sp_request) {
 
 //Compound transfers, reliant on other library functions
 //Essentially a wrapper for a contiguous buffer send
-a_err meta_mpi_packed_face_send(int dst_rank, void *packed_buf, size_t buf_leng,
+void meta_mpi_packed_face_send(int dst_rank, void *packed_buf, size_t buf_leng,
 		int tag, MPI_Request *req, meta_type_id type, int async) {
 	a_err error = 0;
 	size_t type_size;
@@ -463,12 +526,12 @@ a_err meta_mpi_packed_face_send(int dst_rank, void *packed_buf, size_t buf_leng,
 		call_pl->req = req;
 		call->data_payload = (void *) call_pl;
 		//Copy the buffer to the host, with the callback chain needed to complete the transfer
-		error |= meta_copy_d2h_cb(packed_buf_host, packed_buf,
+		error |= meta_copy_d2h(packed_buf_host, packed_buf,
 				buf_leng * type_size, 0, call, NULL);
 	} else {
 		//copy into the host buffer
 		error |= meta_copy_d2h(packed_buf_host, packed_buf,
-				buf_leng * type_size, 0, NULL);
+				buf_leng * type_size, 0, NULL, NULL);
 		MPI_Send(packed_buf_host, buf_leng, mpi_type, dst_rank, tag,
 				MPI_COMM_WORLD);
 		//FIXME: remove associated async frees
@@ -481,7 +544,10 @@ a_err meta_mpi_packed_face_send(int dst_rank, void *packed_buf, size_t buf_leng,
 }
 
 //minimal callback to free a host buffer
-
+/**
+ * After an asynchronous recv_packed performs its host-to-device copy, the host-staging buffer should be returned to the pool for reuse
+ * \param data The callback payload which should be internally registered to the host-to-device transfer, and contains a reference to this function and an rp_callback_payload with the pointers to release back into the pool
+ */
 void free_host_cb(meta_callback * data) {
 	rp_callback_payload * call_pl = (rp_callback_payload *)(data->data_payload);
 	pool_free(call_pl->host_packed_buf, call_pl->buf_size, 1);
@@ -506,13 +572,13 @@ void rp_helper(request_record * rp_request) {
 	call_pl->buf_size = rp_request->rp_rec.buf_size;
 	call->data_payload = call_pl;
 	//and invoke the async copy with the callback specified and the host pointer as the payload
-	meta_copy_h2d_cb(rp_request->rp_rec.dev_packed_buf,
+	meta_copy_h2d(rp_request->rp_rec.dev_packed_buf,
 			rp_request->rp_rec.host_packed_buf, rp_request->rp_rec.buf_size, 1,
 			call, NULL);
 }
 
 //Essentially a wrapper for a contiguous buffer receive
-a_err meta_mpi_packed_face_recv(int src_rank, void *packed_buf, size_t buf_leng,
+void meta_mpi_packed_face_recv(int src_rank, void *packed_buf, size_t buf_leng,
 		int tag, MPI_Request *req, meta_type_id type, int async) {
 	a_err error = 0;
 	MPI_Status status;
@@ -571,7 +637,7 @@ a_err meta_mpi_packed_face_recv(int src_rank, void *packed_buf, size_t buf_leng,
 				MPI_COMM_WORLD, &status);
 		//Copy into the device buffer
 		error |= meta_copy_h2d(packed_buf, packed_buf_host,
-				buf_leng * type_size, 0, NULL);
+				buf_leng * type_size, 0, NULL, NULL);
 		//free the host buffer
 		//FIXME: remove associated async frees
 		pool_free(packed_buf_host, buf_leng * type_size, 1);
@@ -582,6 +648,10 @@ a_err meta_mpi_packed_face_recv(int src_rank, void *packed_buf, size_t buf_leng,
 #endif // WITH_MPI_GPU_DIRECT
 }
 
+/**
+ * To complete an asynchronous pack_and_send this callback is triggered after the packing kernel and device-to-host tranfser, to finish setting up the MPI_ISend
+ * \param data The callback payload passed through from the device-to-host copy, containing a reference to this function and a sap_callback_payload with the information necessary to start the MPI_ISend
+ */
 void sap_isend_cb(meta_callback * data) {
 	sap_callback_payload * call_pl = (sap_callback_payload *)(data->data_payload);
 	size_t type_size;
@@ -589,7 +659,7 @@ void sap_isend_cb(meta_callback * data) {
 	if (call_pl->host_packed_buf != NULL) { //No GPUDirect
 		MPI_Isend(call_pl->host_packed_buf, call_pl->buf_leng, mpi_type, call_pl->dst_rank, call_pl->tag, MPI_COMM_WORLD, call_pl->req);
 	} else {
-		FIXME(GPUDirect PAS triggered illegally);
+		fprintf(stderr, "GPUDirect PAS triggered in callback illegally\n");
 		//GPUDirect send requires CUDA API calls, forbidden in callbacks
 		MPI_Isend(call_pl->dev_packed_buf, call_pl->buf_leng, mpi_type, call_pl->dst_rank, call_pl->tag, MPI_COMM_WORLD, call_pl->req);
 	}
@@ -617,7 +687,7 @@ void sap_helper(request_record * sap_request) {
 }
 
 //A wrapper that, provided a face, will pack it, then send it
-a_err meta_mpi_pack_and_send_face(a_dim3 *grid_size, a_dim3 *block_size,
+void meta_mpi_pack_and_send_face(a_dim3 *grid_size, a_dim3 *block_size,
 		int dst_rank, meta_face * face, void * buf,
 		void * packed_buf, int tag, MPI_Request *req, meta_type_id type,
 		int async) {
@@ -678,7 +748,7 @@ a_err meta_mpi_pack_and_send_face(a_dim3 *grid_size, a_dim3 *block_size,
 	//DO all variants via copy to host
 	if (async) {
 		meta_pack_face(grid_size, block_size, packed_buf, buf, face, type,
-				1, NULL, NULL, NULL, NULL);
+				1, NULL, NULL, NULL, NULL, NULL);
 		//Figure out whether to use CUDA or OpenCL callback
 		meta_callback * call = (meta_callback*) pool_alloc(
 				sizeof(meta_callback), 0);
@@ -695,12 +765,12 @@ a_err meta_mpi_pack_and_send_face(a_dim3 *grid_size, a_dim3 *block_size,
 		call_pl->tag = tag;
 		call_pl->req = req;
 		call->data_payload = call_pl;
-		meta_copy_d2h_cb(packed_buf_host, packed_buf, size * type_size, 1, call, NULL);
+		meta_copy_d2h(packed_buf_host, packed_buf, size * type_size, 1, call, NULL);
 	} else {
 		error |= meta_pack_face(grid_size, block_size, packed_buf, buf, face,
-				type, 0, NULL, NULL, NULL, NULL);
+				type, 0, NULL, NULL, NULL, NULL, NULL);
 		error |= meta_copy_d2h(packed_buf_host, packed_buf, size * type_size,
-				0, NULL);
+				0, NULL, NULL);
 		MPI_Send(packed_buf_host, size, mpi_type, dst_rank, tag,
 				MPI_COMM_WORLD);
 		//FIXME: remove asynchronous frees too
@@ -716,6 +786,10 @@ a_err meta_mpi_pack_and_send_face(a_dim3 *grid_size, a_dim3 *block_size,
 	//FIXME: Free device packed_buf correctly (with callback if async)
 }
 
+/**
+ * After a recv_and_unpack operation, this callback fires after the unpacking kernel to release the host-staging buffer back to the pool
+ * \param data The callback payload returned from the unpacking kernel, which contains a reference to this function and a rap_callback_payload containing the pointers that should be released back to the pool
+ */
 void rap_freebufs_cb(meta_callback * data) {
 	rap_callback_payload * call_pl = (rap_callback_payload *)(data->data_payload);
 	if (call_pl->host_packed_buf != NULL) pool_free(call_pl->host_packed_buf, call_pl->buf_size, 1);
@@ -739,14 +813,14 @@ void rap_helper(request_record *rap_request) {
 	if (rap_request->rap_rec.host_packed_buf != NULL) {
 		meta_copy_h2d(rap_request->rap_rec.dev_packed_buf,
 				rap_request->rap_rec.host_packed_buf,
-				rap_request->rap_rec.buf_size, 1, NULL);
+				rap_request->rap_rec.buf_size, 1, NULL, NULL);
 		call_pl->host_packed_buf = rap_request->rap_rec.host_packed_buf;
 		call_pl->buf_size = rap_request->rap_rec.buf_size;
 	}
 	call_pl->packed_buf = rap_request->rap_rec.dev_packed_buf;
 	call->data_payload = (void*) call_pl;
 	//check that the "NULL grid/block" flags aren't set with ternaries
-	meta_unpack_face_cb(
+	meta_unpack_face(
 			(rap_request->rap_rec.grid_size[0] == 0 ?
 					NULL : &(rap_request->rap_rec.grid_size)),
 			(rap_request->rap_rec.block_size[0] == 0 ?
@@ -756,7 +830,7 @@ void rap_helper(request_record *rap_request) {
 }
 
 //A wrapper that, provided a face, will receive a buffer, and unpack it
-a_err meta_mpi_recv_and_unpack_face(a_dim3 * grid_size, a_dim3 * block_size,
+void meta_mpi_recv_and_unpack_face(a_dim3 * grid_size, a_dim3 * block_size,
 		int src_rank, meta_face * face, void * buf,
 		void * packed_buf, int tag, MPI_Request * req, meta_type_id type,
 		int async) {
@@ -880,12 +954,12 @@ a_err meta_mpi_recv_and_unpack_face(a_dim3 * grid_size, a_dim3 * block_size,
 				&status);
 		//copy the buffer to the device
 		error |= meta_copy_h2d(packed_buf, packed_buf_host, size * type_size,
-				0, NULL);
+				0, NULL, NULL);
 		//free the host temp buffer
 		pool_free(packed_buf_host, size * type_size, 1);
 		//Unpack on the device
 		error |= meta_unpack_face(grid_size, block_size, packed_buf, buf,
-				face, type, 0, NULL, NULL, NULL, NULL);
+				face, type, 0, NULL, NULL, NULL, NULL, NULL);
 		//free the device temp buffer
 		//FIXME: remove async frees
 		//meta_free(packed_buf);

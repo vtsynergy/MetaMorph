@@ -405,10 +405,9 @@ meta_cl_device_vendor metaOpenCLDetectDevice(cl_device_id dev);
 
 //Some OpenCL implementations (may) not provide the CL_CALLBACK convention
 #ifndef CL_CALLBACK
+/** A No-op PP macro if the OpenCL runtime doesn't define it *//
 #define CL_CALLBACK
 #endif
-typedef void (CL_CALLBACK * openclCallback)(cl_event event, cl_int status, void * data);
-//TODO Doxygen these pass-through functions
 //Note that they are really only meant to support the dynamic backend loading, users should either use the API-agnositic top-level version, or the runtime-specific, not these shims
 a_err metaOpenCLAlloc(void ** ptr, size_t size);
 a_err metaOpenCLFree(void * prt);
@@ -439,19 +438,21 @@ a_err meta_get_event(char * qname, char * ename, cl_event ** e);
 #endif // DEPRECATED
 
 /**
- * OpenCL wrapper to all dot product kernels
- * \param grid_size The number of workgroups in each dimension (NOT the global work size)
- * \param block_size The size of a workgroup in each dimension
- * \param data1 The first input array
- * \param data2 The second input array
- * \param array_size The X, Y, and Z sizes of data1 and data2
- * \param arr_start The X, Y, and Z start indicies for the dot product (to allow halo avoidance)
- * \param arr_end The X, Y, and Z end indicies for the dot product (to allow halo avoidance)
- * \param reduced_val The final global dot product value
- * \param type The data type to invoke the appropriate kernel for
- * \param async Whether the kernel should run asynchronously or block
- * \param event if a cl_event is provided pass it to the kernel enqueue call
- * \return An OpenCL error code if anything went wrong, CL_SUCCESS otherwise
+ * Dot-product of identically-shaped subregions of two identically-shaped 3D arrays
+ * this kernel works for 3D data only.
+ * \param grid_size The number of workgroups in each global dimension (not global work-items)
+ * \param block_size The dimensions of each workgroup (local work size)
+ * \param data1 first input array (a cl_mem residing on the currently-active context)
+ * \param data2 second input array (a cl_mem residing on the currently-active context)
+ * \param array_size X, Y, and Z dimension sizes of the input arrays (must match)
+ * \param arr_start X, Y, and Z dimension start indicies for computing on a subregion, to allow for a halo region
+ * \param arr_end X, Y, and Z dimension end indicies for computing on a subregion, to allow for a halo region
+ * \param reduced_val the final dotproduct output (scalar) across all workgroups, assumed to be initialized before the kernel (a cl_mem residing on the currently-active context)
+ * \param type The supported MetaMorph data type that data1, data2, and reduced_val contain (Currently: a_db, a_fl, a_ul, a_in, a_ui)
+ * \param async Whether the kernel should be run asynchronously or blocking
+ * \param call Register a callback to be automatically invoked when the kernel finishes, or NULL if none
+ * \param ret_event A pointer to an event (with initialized cl_event payload) to copy the kernel's event into
+ * \return the result of clEnqueueNDRange if asynchronous, or clFinish if synchronous
  * \bug OpenCL return codes should not be binary OR'd, rather separately checked and the last error returned
  */
 cl_int opencl_dotProd(size_t (*grid_size)[3], size_t (*block_size)[3],
@@ -460,18 +461,20 @@ cl_int opencl_dotProd(size_t (*grid_size)[3], size_t (*block_size)[3],
 		meta_type_id type, int async, meta_callback * call, meta_event * ret_event);
 
 /**
- * OpenCL wrapper to all reduction sum kernels
- * \param grid_size The number of workgroups in each dimension (NOT the global work size)
- * \param block_size The size of a workgroup in each dimension
- * \param data The array to sum across
- * \param array_size The X, Y, and Z sizes of data
- * \param arr_start The X, Y, and Z start indicies for the reduction sum (to allow halo avoidance)
- * \param arr_end The X, Y, and Z end indicies for the reduction sum (to allow halo avoidance)
- * \param reduced_val The final globally-reduced sum
- * \param type The data type to invoke the appropriate kernel for
- * \param async Whether the kernel should run asynchronously or block
- * \param event if a cl_event is provided pass it to the kernel enqueue call
- * \return An OpenCL error code if anything went wrong, CL_SUCCESS otherwise
+ * Sum Reduction of subregion of a 3D array
+ * this kernel works for 3D data only.
+ * \param grid_size The number of workgroups in each global dimension (not global work-items)
+ * \param block_size The dimensions of each workgroup (local work size)
+ * \param data input array (a cl_mem residing on the currently-active context)
+ * \param array_size X, Y, and Z dimension sizes of the input arrays (must match)
+ * \param arr_start X, Y, and Z dimension start indicies for computing on a subregion, to allow for a halo region
+ * \param arr_end X, Y, and Z dimension end indicies for computing on a subregion, to allow for a halo region
+ * \param reduced_val the final dotproduct output (scalar) across all workgroups, assumed to be initialized before the kernel (a cl_mem residing on the currently-active context)
+ * \param type The supported MetaMorph data type that data1, data2, and reduced_val contain (Currently: a_db, a_fl, a_ul, a_in, a_ui)
+ * \param async Whether the kernel should be run asynchronously or blocking
+ * \param call Register a callback to be automatically invoked when the kernel finishes, or NULL if none
+ * \param ret_event A pointer to an event (with initialized cl_event payload) to copy the kernel's event into
+ * \return the result of clEnqueueNDRange if asynchronous, or clFinish if synchronous
  * \bug OpenCL return codes should not be binary OR'd, rather separately checked and the last error returned
  */
 cl_int opencl_reduce(size_t (*grid_size)[3], size_t (*block_size)[3],
@@ -488,7 +491,8 @@ cl_int opencl_reduce(size_t (*grid_size)[3], size_t (*block_size)[3],
  * \param tran_dim_xy the X and Y dimensions of outdata, Z is ignored
  * \param type The data type to invoke the appropriate kernel for
  * \param async Whether the kernel should run asynchronously or block
- * \param event if a cl_event is provided pass it to the kernel enqueue call
+ * \param call Register a callback to be automatically invoked when the kernel finishes, or NULL if none
+ * \param ret_event Address of an initialized event (with cl_event payload) in which to return the kernel's clEnqueueNDRange event
  * \return An OpenCL error code if anything went wrong, CL_SUCCESS otherwise
  * \bug OpenCL return codes should not be binary OR'd, rather separately checked and the last error returned
  */
@@ -505,10 +509,11 @@ cl_int opencl_transpose_face(size_t (*grid_size)[3], size_t (*block_size)[3],
  * \param remain_dim At each subsequent layer of the face struct, the *cummulative* size of all remaining descendant dimensions. Used for computing the per-thread read offset, typically automatically pre-computed in the backend-agnostic MetaMorph wrapper, meta_pack_face
  * \param type The type of data to run the kernel on
  * \param async whether to run the kernel asynchronously (1) or synchronously (0)
- * \param event_k1 the kernel event used for asynchronous calls and timing
- * \param event_c1 the clEnqueueWriteBuffer of face->size event used for asynchronous calls and timing
- * \param event_c2 the clEnqueueWriteBuffer of face->stride event used for asynchronous calls and timing
- * \param event_c3 the clEnqueueWriteBuffer of remain_dim to c_face_child_size event used for asynchronous calls and timing
+ * \param ret_event_k1 Address of an initialized event (with cl_event payload) in which to return the kernel event used for asynchronous calls and timing
+ * \param call Register a callback to be automatically invoked when the kernel finishes, or NULL if none
+ * \param ret_event_c1 Address of an initialized event (with cl_event payload) in which to return the event for the clEnqueueWriteBuffer of face->size event used for asynchronous calls and timing
+ * \param ret_event_c2 Address of an initialized event (with cl_event payload) in which to return the event for the clEnqueueWriteBuffer of face->stride event used for asynchronous calls and timing
+ * \param ret_event_c3 Address of an initialized event (with cl_event payload) in which to return the event for the clEnqueueWriteBuffer of remain_dim to c_face_child_size event used for asynchronous calls and timing
  * \return either the result of enqueing the kernel if async or the result of clFinish if sync
  * \warning Implemented as a 1D kernel, Y and Z grid/block parameters will be ignored
  * \bug OpenCL return codes should not be binary OR'd, rather separately checked and the last error returned
@@ -526,10 +531,11 @@ cl_int opencl_pack_face(size_t (*grid_size)[3], size_t (*block_size)[3],
  * \param remain_dim At each subsequent layer of the face struct, the *cummulative* size of all remaining descendant dimensions. Used for computing the per-thread write offset, typically automatically pre-computed in the backend-agnostic MetaMorph wrapper, meta_pack_face
  * \param type The type of data to run the kernel on
  * \param async whether to run the kernel asynchronously (1) or synchronously (0)
- * \param event_k1 the kernel event used for asynchronous calls and timing
- * \param event_c1 the clEnqueueWriteBuffer of face->size event used for asynchronous calls and timing
- * \param event_c2 the clEnqueueWriteBuffer of face->stride event used for asynchronous calls and timing
- * \param event_c3 the clEnqueueWriteBuffer of remain_dim to c_face_child_size event used for asynchronous calls and timing
+ * \param call Register a callback to be automatically invoked when the kernel finishes, or NULL if none
+ * \param ret_event_k1 Address of an initialized event (with cl_event payload) in which to return the kernel event used for asynchronous calls and timing
+ * \param ret_event_c1 Address of an initialized event (with cl_event payload) in which to return the event for the clEnqueueWriteBuffer of face->size event used for asynchronous calls and timing
+ * \param ret_event_c2 Address of an initialized event (with cl_event payload) in which to return the event for the clEnqueueWriteBuffer of face->stride event used for asynchronous calls and timing
+ * \param ret_event_c3 Address of an initialized event (with cl_event payload) in which to return the event for the clEnqueueWriteBuffer of remain_dim to c_face_child_size event used for asynchronous calls and timing
  * \return either the result of enqueuing the kernel if async or the result of clFinish if sync
  * \warning Implemented as a 1D kernel, Y and Z grid/block parameters will be ignored
  * \bug OpenCL return codes should not be binary OR'd, rather separately checked and the last error returned
@@ -550,7 +556,8 @@ cl_int opencl_unpack_face(size_t (*grid_size)[3], size_t (*block_size)[3],
  * \warning Assumes at least a one-thick halo region i.e. (arr_end[dim]+1 <= array_size[dim]-1)
  * \param type The type of data to run the kernel on
  * \param async whether to run the kernel asynchronously (1) or synchronously (0)
- * \param event the kernel event used for asynchronous calls and timing
+ * \param call Register a callback to be automatically invoked when the kernel finishes, or NULL if none
+ * \param ret_event Address of an initialized event (with cl_event payload) in which to return the kernel event used for asynchronous calls and timing
  * \return either the result of enqueuing the kernel if async or the result of clFinish if sync
  * \bug OpenCL return codes should not be binary OR'd, rather separately checked and the last error returned
  */
@@ -568,10 +575,11 @@ cl_int opencl_stencil_3d7p(size_t (*grid_size)[3], size_t (*block_size)[3],
  * \param csr_ax The cell value array
  * \param x_loc The input vector to multiply A by
  * \param y_loc The output vector to sum into
- * \param type The type of data to run the kernel on
- * \param async whether to run the kernel asynchronously (1) or synchronously (0)
- * \param event the kernel event used for asynchronous calls and timing
- * \return either the result of enqueuing the kernel if async or the result of clFinish if sync
+ * \param type The supported MetaMorph data type that data1, data2, and reduced_val contain (Currently: a_db, a_fl, a_ul, a_in, a_ui)
+ * \param async Whether the kernel should be run asynchronously or blocking
+ * \param call Register a callback to be automatically invoked when the kernel finishes, or NULL if none
+ * \param ret_event A pointer to an event (with initialized cl_event payload) to copy the kernel's event into
+ * \return the result of clEnqueueNDRange if asynchronous, or clFinish if synchronous
  * \warning, treated as a 1D kernel, Y and Z parameters ignored
  * \bug OpenCL return codes should not be binary OR'd, rather separately checked and the last error returned
  */
@@ -585,13 +593,14 @@ cl_int opencl_csr(size_t (*grid_size)[3], size_t (*block_size)[3], size_t global
  * \param num_words TODO
  * \param numpages TODO
  * \param dev_output The result
- * \param type The type of data to run the kernel on
- * \param async whether to run the kernel asynchronously (1) or synchronously (0)
- * \param event the kernel event used for asynchronous calls and timing
- * \return either the result of enqueuing the kernel if async or the result of clFinish if sync
+ * \param type The supported MetaMorph data type that dev_input contains (Currently: a_db, a_fl, a_ul, a_in, a_ui)
+ * \param async Whether the kernel should be run asynchronously or blocking
+ * \param call Register a callback to be automatically invoked when the kernel finishes, or NULL if none
+ * \param ret_event A pointer to an event (with initialized cl_event payload) to copy the kernel's event into
+ * \return the result of clEnqueueNDRange if asynchronous, or clFinish if synchronous
  * \warning all supported types are interpreted as binary data via the unsigned int kernel
- * \todo TODO Implement meta_typeless "type" for such kernels
  * \bug OpenCL return codes should not be binary OR'd, rather separately checked and the last error returned
+ * \todo TODO Implement meta_typeless "type" for such kernels
  * \todo TODO Implement an NDRange kernel variant for better performance on non-FPGA platforms
  * \bug non-CL types need to be passed to the kernel through enforced-width cl_\<type\>s
  */
