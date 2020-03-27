@@ -526,12 +526,12 @@ void meta_mpi_packed_face_send(int dst_rank, void *packed_buf, size_t buf_leng,
 		call_pl->req = req;
 		call->data_payload = (void *) call_pl;
 		//Copy the buffer to the host, with the callback chain needed to complete the transfer
-		error |= meta_copy_d2h_cb(packed_buf_host, packed_buf,
+		error |= meta_copy_d2h(packed_buf_host, packed_buf,
 				buf_leng * type_size, 0, call, NULL);
 	} else {
 		//copy into the host buffer
 		error |= meta_copy_d2h(packed_buf_host, packed_buf,
-				buf_leng * type_size, 0, NULL);
+				buf_leng * type_size, 0, NULL, NULL);
 		MPI_Send(packed_buf_host, buf_leng, mpi_type, dst_rank, tag,
 				MPI_COMM_WORLD);
 		//FIXME: remove associated async frees
@@ -572,7 +572,7 @@ void rp_helper(request_record * rp_request) {
 	call_pl->buf_size = rp_request->rp_rec.buf_size;
 	call->data_payload = call_pl;
 	//and invoke the async copy with the callback specified and the host pointer as the payload
-	meta_copy_h2d_cb(rp_request->rp_rec.dev_packed_buf,
+	meta_copy_h2d(rp_request->rp_rec.dev_packed_buf,
 			rp_request->rp_rec.host_packed_buf, rp_request->rp_rec.buf_size, 1,
 			call, NULL);
 }
@@ -637,7 +637,7 @@ void meta_mpi_packed_face_recv(int src_rank, void *packed_buf, size_t buf_leng,
 				MPI_COMM_WORLD, &status);
 		//Copy into the device buffer
 		error |= meta_copy_h2d(packed_buf, packed_buf_host,
-				buf_leng * type_size, 0, NULL);
+				buf_leng * type_size, 0, NULL, NULL);
 		//free the host buffer
 		//FIXME: remove associated async frees
 		pool_free(packed_buf_host, buf_leng * type_size, 1);
@@ -659,7 +659,7 @@ void sap_isend_cb(meta_callback * data) {
 	if (call_pl->host_packed_buf != NULL) { //No GPUDirect
 		MPI_Isend(call_pl->host_packed_buf, call_pl->buf_leng, mpi_type, call_pl->dst_rank, call_pl->tag, MPI_COMM_WORLD, call_pl->req);
 	} else {
-		FIXME(GPUDirect PAS triggered illegally);
+		fprintf(stderr, "GPUDirect PAS triggered in callback illegally\n");
 		//GPUDirect send requires CUDA API calls, forbidden in callbacks
 		MPI_Isend(call_pl->dev_packed_buf, call_pl->buf_leng, mpi_type, call_pl->dst_rank, call_pl->tag, MPI_COMM_WORLD, call_pl->req);
 	}
@@ -748,7 +748,7 @@ void meta_mpi_pack_and_send_face(a_dim3 *grid_size, a_dim3 *block_size,
 	//DO all variants via copy to host
 	if (async) {
 		meta_pack_face(grid_size, block_size, packed_buf, buf, face, type,
-				1, NULL, NULL, NULL, NULL);
+				1, NULL, NULL, NULL, NULL, NULL);
 		//Figure out whether to use CUDA or OpenCL callback
 		meta_callback * call = (meta_callback*) pool_alloc(
 				sizeof(meta_callback), 0);
@@ -765,12 +765,12 @@ void meta_mpi_pack_and_send_face(a_dim3 *grid_size, a_dim3 *block_size,
 		call_pl->tag = tag;
 		call_pl->req = req;
 		call->data_payload = call_pl;
-		meta_copy_d2h_cb(packed_buf_host, packed_buf, size * type_size, 1, call, NULL);
+		meta_copy_d2h(packed_buf_host, packed_buf, size * type_size, 1, call, NULL);
 	} else {
 		error |= meta_pack_face(grid_size, block_size, packed_buf, buf, face,
-				type, 0, NULL, NULL, NULL, NULL);
+				type, 0, NULL, NULL, NULL, NULL, NULL);
 		error |= meta_copy_d2h(packed_buf_host, packed_buf, size * type_size,
-				0, NULL);
+				0, NULL, NULL);
 		MPI_Send(packed_buf_host, size, mpi_type, dst_rank, tag,
 				MPI_COMM_WORLD);
 		//FIXME: remove asynchronous frees too
@@ -813,14 +813,14 @@ void rap_helper(request_record *rap_request) {
 	if (rap_request->rap_rec.host_packed_buf != NULL) {
 		meta_copy_h2d(rap_request->rap_rec.dev_packed_buf,
 				rap_request->rap_rec.host_packed_buf,
-				rap_request->rap_rec.buf_size, 1, NULL);
+				rap_request->rap_rec.buf_size, 1, NULL, NULL);
 		call_pl->host_packed_buf = rap_request->rap_rec.host_packed_buf;
 		call_pl->buf_size = rap_request->rap_rec.buf_size;
 	}
 	call_pl->packed_buf = rap_request->rap_rec.dev_packed_buf;
 	call->data_payload = (void*) call_pl;
 	//check that the "NULL grid/block" flags aren't set with ternaries
-	meta_unpack_face_cb(
+	meta_unpack_face(
 			(rap_request->rap_rec.grid_size[0] == 0 ?
 					NULL : &(rap_request->rap_rec.grid_size)),
 			(rap_request->rap_rec.block_size[0] == 0 ?
@@ -954,12 +954,12 @@ void meta_mpi_recv_and_unpack_face(a_dim3 * grid_size, a_dim3 * block_size,
 				&status);
 		//copy the buffer to the device
 		error |= meta_copy_h2d(packed_buf, packed_buf_host, size * type_size,
-				0, NULL);
+				0, NULL, NULL);
 		//free the host temp buffer
 		pool_free(packed_buf_host, size * type_size, 1);
 		//Unpack on the device
 		error |= meta_unpack_face(grid_size, block_size, packed_buf, buf,
-				face, type, 0, NULL, NULL, NULL, NULL);
+				face, type, 0, NULL, NULL, NULL, NULL, NULL);
 		//free the device temp buffer
 		//FIXME: remove async frees
 		//meta_free(packed_buf);

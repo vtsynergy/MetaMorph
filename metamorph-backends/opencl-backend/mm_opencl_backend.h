@@ -593,7 +593,7 @@ cl_int opencl_csr(size_t (*grid_size)[3], size_t (*block_size)[3], size_t global
  * \param num_words TODO
  * \param numpages TODO
  * \param dev_output The result
- * \param type The supported MetaMorph data type that data1, data2, and reduced_val contain (Currently: a_db, a_fl, a_ul, a_in, a_ui)
+ * \param type The supported MetaMorph data type that dev_input contains (Currently: a_db, a_fl, a_ul, a_in, a_ui)
  * \param async Whether the kernel should be run asynchronously or blocking
  * \param call Register a callback to be automatically invoked when the kernel finishes, or NULL if none
  * \param ret_event A pointer to an event (with initialized cl_event payload) to copy the kernel's event into

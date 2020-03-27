@@ -9,7 +9,7 @@ extern "C" {
 #endif
 
 #include "metamorph.h"
-//A storage struct for dynamically loaded library handles, not meant for users but needs to be exposed to the plugins
+/** A storage struct for dynamically loaded library handles, not meant for users but needs to be exposed to the plugins */
 struct backend_handles {
   /** Handle from dlopen for libmm_openmp_backend.so */
   void * openmp_be_handle;
@@ -24,6 +24,7 @@ struct backend_handles {
   /** Handle from dlopen for libcudart.so */
   void * cuda_lib_handle;
 };
+/** A storage strut for dynamically-loaded plugin library handles, not meant for users but needs to be exposed to the backends */
 struct plugin_handles {
   /** Handle from dlopen for libmm_mpi.so */
   void * mpi_handle;
@@ -31,6 +32,12 @@ struct plugin_handles {
   void * profiling_handle;
 };
 
+/** Try to load a symbol by name from a given library that already has a handle
+ * \param lib A char const string with the library name for diagnostic
+ * \param handle The handle from dlopen to look for the symbol in
+ * \param sym A char const string witht he symbol name to look for
+ * \param sym_ptr The function pointer to save the retreived symbol to
+ */
 #define CHECKED_DLSYM(lib, handle, sym, sym_ptr) {\
   sym_ptr = dlsym(handle, sym);\
   char *sym_err; \
@@ -192,7 +199,9 @@ struct mpi_dyn_ptrs {
   void (* finish_mpi_requests)();
 };
 
+/** The loader function that looks for each of the backends and plugins and tries to lookup the required symbols */
 void meta_load_libs();
+/** The cleanup function that dlcloses each of the backends or plugins that was successfully loaded */
 void meta_close_libs();
 #ifdef __cplusplus
 }
