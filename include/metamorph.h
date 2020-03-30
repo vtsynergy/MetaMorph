@@ -38,19 +38,19 @@ extern "C" {
 //#define ALIGNED_MEMORY
 //#define ALIGNED_MEMORY_PAGE	64
 
-//This needs to be here so that the back-ends can internally
+// This needs to be here so that the back-ends can internally
 // switch between implementations for different primitive types
 typedef enum {
-	a_db = 0, 		// double
-	a_fl = 1, 		// float
-	a_lo = 2, 		// long
-	a_ul = 3, 		// unsigned long
-	a_in = 4, 		// int
-	a_ui = 5, 		// unsigned int
-	a_sh = 6, 		// short
-	a_us = 7, 		// unsigned short
-	a_ch = 8, 		// char
-	a_uc = 9 		// unsigned char
+  a_db = 0, // double
+  a_fl = 1, // float
+  a_lo = 2, // long
+  a_ul = 3, // unsigned long
+  a_in = 4, // int
+  a_ui = 5, // unsigned int
+  a_sh = 6, // short
+  a_us = 7, // unsigned short
+  a_ch = 8, // char
+  a_uc = 9  // unsigned char
 } meta_type_id;
 size_t get_atype_size(meta_type_id type);
 
@@ -61,39 +61,42 @@ size_t get_atype_size(meta_type_id type);
 /// \todo FIXME even if it does, OpenCL will need to pass them during compilation
 /** Primary transpose tile dimension */
 #define TRANSPOSE_TILE_DIM (16)
-/** Largely deprecated, for non-square transpose tiles, define the number of rows */
+/** Largely deprecated, for non-square transpose tiles, define the number of
+ * rows */
 #define TRANSPOSE_TILE_BLOCK_ROWS (16)
 
 /**
- * A structure describing a face of a multi-dimensional (in our case 3D) rectanguluar prism
- * It is effectively a targetted reimplementation of gslice
+ * A structure describing a face of a multi-dimensional (in our case 3D)
+ * rectanguluar prism It is effectively a targetted reimplementation of gslice
  */
 typedef struct {
-	/** Starting offset in uni-dimensional buffer */
-	int start;
-	/** The size of size and stride buffers (number of tree levels) */
-	int count;
-	/** The number of samples at each tree level */
-	int *size;
-	/** The distance between samples at each tree level */
-	int *stride;
+  /** Starting offset in uni-dimensional buffer */
+  int start;
+  /** The size of size and stride buffers (number of tree levels) */
+  int count;
+  /** The number of samples at each tree level */
+  int *size;
+  /** The distance between samples at each tree level */
+  int *stride;
 } meta_face;
 /**
- * Pack the provided face specification information into a new struct, copying the arrays
- * This is largely for compatibility so an existing slice can be used by MetaMorph calls
+ * Pack the provided face specification information into a new struct, copying
+ * the arrays This is largely for compatibility so an existing slice can be used
+ * by MetaMorph calls
  * \param s Position of the first element
  * \param c number of elements in the size and stride arrays
  * \param si an array that defines the number of elements in each dimension
- * \param st an array that defines the number of positions between successive elements in each dimension
+ * \param st an array that defines the number of positions between successive
+ * elements in each dimension
  * \return A dynamically-allocated face object with the corresponding data
  */
-meta_face * meta_get_face(int s, int c, int *si, int *st);
+meta_face *meta_get_face(int s, int c, int *si, int *st);
 /**
  * Release a face and its internal size and stride arrays
  * \param face the object to release
  */
-void meta_free_face(meta_face * face);
-meta_face * make_slab_from_3d(int face, int ni, int nj, int nk, int thickness);
+void meta_free_face(meta_face *face);
+meta_face *make_slab_from_3d(int face, int ni, int nj, int nk, int thickness);
 
 /// \todo move all these typedefs, the generic types need to be runtime controlled
 /// \todo should generic "accelerator" types be typedefs, unions, ...?
@@ -121,45 +124,47 @@ typedef unsigned long a_ulong;
 /** Typedef for internal error type */
 typedef int a_err;
 /** Ensure a boolean type exists, use an existing one if possible */
-#if defined (__CUDACC__) || defined(__cplusplus) || defined(bool)
+#if defined(__CUDACC__) || defined(__cplusplus) || defined(bool)
 typedef bool a_bool;
 #else
-typedef enum boolean {false , true}a_bool;
+typedef enum boolean { false, true } a_bool;
 #endif
-/** Define a standard type for specifying parameters of three or less dimensions */
+/** Define a standard type for specifying parameters of three or less dimensions
+ */
 typedef size_t a_dim3[3];
 
 #ifdef UNIMPLEMENTED
 /**
- * Originally, all MetaMorph operations were supposed to be thread-safe via hazard pointers
- * This struct was the beginning of implementing that, but this aspirational goal was shelved
+ * Originally, all MetaMorph operations were supposed to be thread-safe via
+ * hazard pointers This struct was the beginning of implementing that, but this
+ * aspirational goal was shelved
  */
 typedef struct HPRecType {
-	void * HP[2];
-	struct HPRecType * next;
-	void * rlist; /// \todo implement the rlist type
-	int rcount;
-	char active;
+  void *HP[2];
+  struct HPRecType *next;
+  void *rlist; /// \todo implement the rlist type
+  int rcount;
+  char active;
 } HPRecType;
 #endif
-//Shared HP variables
+// Shared HP variables
 
 /** Define the set of supported execution modes */
 typedef enum {
-	/** A special-purpose mode which indicates none has been declared */
-	metaModeUnset = -1,
-	/** CUDA execution mode */
-metaModePreferCUDA = 1,
-	/** OpenCL execution mode */
-metaModePreferOpenCL = 2,
-	/** OpenMP execution mode */
-metaModePreferOpenMP = 3,
-	/** Generic execution mode
-	 * Intended to support a "don't care, pick the best" adaptive mode */
-	metaModePreferGeneric = 0
+  /** A special-purpose mode which indicates none has been declared */
+  metaModeUnset = -1,
+  /** CUDA execution mode */
+  metaModePreferCUDA = 1,
+  /** OpenCL execution mode */
+  metaModePreferOpenCL = 2,
+  /** OpenMP execution mode */
+  metaModePreferOpenMP = 3,
+  /** Generic execution mode
+   * Intended to support a "don't care, pick the best" adaptive mode */
+  metaModePreferGeneric = 0
 } meta_preferred_mode;
 
-//Module Management
+// Module Management
 /// \todo need a bitfield to store the type of backend
 typedef enum {
   module_uninitialized = -1,
@@ -169,52 +174,74 @@ typedef enum {
   module_implements_openmp = 4,
   module_implements_all = 7,
   module_implements_profiling = 8,
-//A CoreTSAR backend would likely want all 3 and profiling
-//  module_implements_coretsar = 15,
+  // A CoreTSAR backend would likely want all 3 and profiling
+  //  module_implements_coretsar = 15,
   module_implements_mpi = 16,
   module_implements_fortran = 32,
-  module_implements_general = 64 //general operations not related to a backend
+  module_implements_general = 64 // general operations not related to a backend
 } a_module_implements_backend;
 
 /** Forward declaration of the module record structure */
 struct a_module_record;
-/** External MetaMorph modules need a well-defined interface for sharing information with the MetaMorph core
- * putting it in a structure allows us to abstract some of it from the user and more easily adapt it if needs adjust in the future
+/** External MetaMorph modules need a well-defined interface for sharing
+ * information with the MetaMorph core putting it in a structure allows us to
+ * abstract some of it from the user and more easily adapt it if needs adjust in
+ * the future
  */
 typedef struct a_module_record {
   /** Function pointer to the initializer for the module, should not be NULL
-   * This function must attempt to auto-register if not already known to MetaMorph
-   * Once it is finished it must set the initialized state of the record to a non-zero value (this may change)
+   * This function must attempt to auto-register if not already known to
+   * MetaMorph Once it is finished it must set the initialized state of the
+   * record to a non-zero value (this may change)
    */
   void (*module_init)(void);
   /** Function pointer to the destructor for the module, should not be NULL
-   * This function must attempt to auto-deregister if its registration is still valid
+   * This function must attempt to auto-deregister if its registration is still
+   * valid
    */
   void (*module_deinit)(void);
   /** Pointer to the module's registration function, should not be NULL
-   * This function is called multiple times to do different things depending on the module's current state and the value of record
-   * IFF record is NULL, it returns the pointer to the module's current registration (or NULL if unregistered)
-   * IFF record is non-NULL and the module's current registration is NULL, accept record as the new current registration, and populate the record with the functino pointsrs and implements/status variables, then return the old registration (NULL)
-   * IFF record is non-NULL and the module's current registration is non-NULL, but matches record, this signifies a deregistration request coming from MetaMorph. Set the current registration to NULL, and return the old value
-   * IFF record is non-NULL and the module's current registration is non-NULL, and does not match record, this is an attempted re-registration, return whichever record is *not* accepted. (Currently re-registrations should be rejected and thus return the value of record)
+   * This function is called multiple times to do different things depending on
+   * the module's current state and the value of record IFF record is NULL, it
+   * returns the pointer to the module's current registration (or NULL if
+   * unregistered) IFF record is non-NULL and the module's current registration
+   * is NULL, accept record as the new current registration, and populate the
+   * record with the functino pointsrs and implements/status variables, then
+   * return the old registration (NULL) IFF record is non-NULL and the module's
+   * current registration is non-NULL, but matches record, this signifies a
+   * deregistration request coming from MetaMorph. Set the current registration
+   * to NULL, and return the old value IFF record is non-NULL and the module's
+   * current registration is non-NULL, and does not match record, this is an
+   * attempted re-registration, return whichever record is *not* accepted.
+   * (Currently re-registrations should be rejected and thus return the value of
+   * record)
    */
-  struct a_module_record * (*module_registry_func)(struct a_module_record * record);
-  /** enum "bitfield" defining which backend(s) (or general) the module provides implementations for, typically defaults to module_implements_none, but could be module_uninitialized */
+  struct a_module_record *(*module_registry_func)(
+      struct a_module_record *record);
+  /** enum "bitfield" defining which backend(s) (or general) the module provides
+   * implementations for, typically defaults to module_implements_none, but
+   * could be module_uninitialized */
   a_module_implements_backend implements;
-  /** An initialized state boolean, set and unset during calls to the init and deinit function pointers
-   * May be deprecated in light of the module_uninitialized value that was introduced */
-  char initialized;// = 0;
+  /** An initialized state boolean, set and unset during calls to the init and
+   * deinit function pointers May be deprecated in light of the
+   * module_uninitialized value that was introduced */
+  char initialized; // = 0;
 } a_module_record;
 
-/** 
- * A simple abstract type to store the type of event and a payload pointer containing the actual backend-specific value
- * \todo FIXME meta_events are currently allocated and freed by the client, but assumed to persist throughout. It would be safer to have our own copy the user cannot tamper with
+/**
+ * A simple abstract type to store the type of event and a payload pointer
+ * containing the actual backend-specific value
+ * \todo FIXME meta_events are currently allocated and freed by the client, but
+ * assumed to persist throughout. It would be safer to have our own copy the
+ * user cannot tamper with
  */
 typedef struct meta_event {
-  /** The backend mode active when the event was created, how to interpret the event_pl */
+  /** The backend mode active when the event was created, how to interpret the
+   * event_pl */
   meta_preferred_mode mode;
-  /** The event's "payload", dynamically allocated to the backend-specific type when the event is created */
-  void * event_pl;
+  /** The event's "payload", dynamically allocated to the backend-specific type
+   * when the event is created */
+  void *event_pl;
 } meta_event;
 
 /** Global destructor */
@@ -222,58 +249,85 @@ void meta_finalize();
 /** Global constructor */
 void meta_init();
 
-/** 
+/**
  * Lookup all modules with a matching implementation signature
  * \param retRecords a pointer to a storage buffer for matched record pointers
  * \param szRetRecords the size of the retRecords buffer
  * \param signature the signature to match on
- * \param matchAny if true, will match if the record and signature have any matching flags (binary OR), otherwise will only match exactly (binary AND)
- * \return the number of matched modules, regardless of how many were actually storable in retRecords
+ * \param matchAny if true, will match if the record and signature have any
+ * matching flags (binary OR), otherwise will only match exactly (binary AND)
+ * \return the number of matched modules, regardless of how many were actually
+ * storable in retRecords
  */
-int lookup_implementing_modules(a_module_record ** retRecords, size_t szRetRecords, a_module_implements_backend signature, a_bool matchAny);
+int lookup_implementing_modules(a_module_record **retRecords,
+                                size_t szRetRecords,
+                                a_module_implements_backend signature,
+                                a_bool matchAny);
 /**
- * Allow add-on modules to pass a pointer to their registration function to metamorph-core, so that the core can then initialize and exchange the appropriate internal data structs
- * Any functions from the module should implicitly call this if the module is not already registered, but users can explicitly call it if they wish to pay initialization costs outside the critical application
- * \param module_registry_func The function implementing the registration contract as specified in the a_module_record type
- * \return 0 if the module is successfully registered or was already registered, -1 if the function pointer is NULL
+ * Allow add-on modules to pass a pointer to their registration function to
+ * metamorph-core, so that the core can then initialize and exchange the
+ * appropriate internal data structs Any functions from the module should
+ * implicitly call this if the module is not already registered, but users can
+ * explicitly call it if they wish to pay initialization costs outside the
+ * critical application
+ * \param module_registry_func The function implementing the registration
+ * contract as specified in the a_module_record type
+ * \return 0 if the module is successfully registered or was already registered,
+ * -1 if the function pointer is NULL
  */
-a_err meta_register_module(a_module_record * (*module_registry_func)(a_module_record * record));
+a_err meta_register_module(
+    a_module_record *(*module_registry_func)(a_module_record *record));
 /**
- * Explicitly remove an external module from metamorph-core, causing it to trigger any deconstruction code necessary to clean up the module
- * Users *can* explicitly call this if they will be done with MetaMorph for a while, but it is implicitly called by the global MetaMorph constructor at program end on any remaining modules
- * \param module_registry_func The function implementing the registration contract as specified in the a_module_record type
- * \return 0 if the module was successfully or already deregistered, -1 if the function pointer is NULL
+ * Explicitly remove an external module from metamorph-core, causing it to
+ * trigger any deconstruction code necessary to clean up the module Users *can*
+ * explicitly call this if they will be done with MetaMorph for a while, but it
+ * is implicitly called by the global MetaMorph constructor at program end on
+ * any remaining modules
+ * \param module_registry_func The function implementing the registration
+ * contract as specified in the a_module_record type
+ * \return 0 if the module was successfully or already deregistered, -1 if the
+ * function pointer is NULL
  */
-a_err meta_deregister_module(a_module_record * (*module_registry_func)(a_module_record * record));
+a_err meta_deregister_module(
+    a_module_record *(*module_registry_func)(a_module_record *record));
 /**
  * Reinitialize all modules with a given implements_backend mask
- * It will reinitialize them using a binary AND of the mask and each module's reported capability
- * This function is typically called internally when the MetaMorph internal state changes
- * (For example, when the OpenCL backend switches to a new device, it will trigger this with meta_implements_opencl so that the module can re-create cl_programs and cl_kernels for the new device.)
+ * It will reinitialize them using a binary AND of the mask and each module's
+ * reported capability This function is typically called internally when the
+ * MetaMorph internal state changes (For example, when the OpenCL backend
+ * switches to a new device, it will trigger this with meta_implements_opencl so
+ * that the module can re-create cl_programs and cl_kernels for the new device.)
  * \param module_type The mask of supported capabilitys
  * \return -1 if there are no known modules, 0 otherwise
  */
 a_err meta_reinitialize_modules(a_module_implements_backend module_type);
 /**
  * Allocate a MetaMorph buffer on the currently-active backend and device
- * In most cases the returned pointer should not be tampered with on the host as it maps to a backend type
+ * In most cases the returned pointer should not be tampered with on the host as
+ * it maps to a backend type
  * \param ptr The address to return the new buffer's handle (not pointer) in
  * \param size The size of the buffer to allocate
- * \return -1 if the current backend's implementation wasn't loaded properly, otherwise the results of the backend implementation, which is directly castable to that backend's internal error type
+ * \return -1 if the current backend's implementation wasn't loaded properly,
+ * otherwise the results of the backend implementation, which is directly
+ * castable to that backend's internal error type
  */
-a_err meta_alloc(void ** ptr, size_t size);
+a_err meta_alloc(void **ptr, size_t size);
 /**
- * Release a MetaMorph-allocated backend buffer that resides on the currently-active backend
+ * Release a MetaMorph-allocated backend buffer that resides on the
+ * currently-active backend
  * \param ptr The MetaMorph buffer handle returned by meta_alloc
- * \return -1 if the current backend's implementation wasn't loaded properly, otherwise the results of the backend implementation, which is directly castable to that backend's internal error type
+ * \return -1 if the current backend's implementation wasn't loaded properly,
+ * otherwise the results of the backend implementation, which is directly
+ * castable to that backend's internal error type
  */
-a_err meta_free(void * ptr);
+a_err meta_free(void *ptr);
 /**
  * Switch MetaMorph to the device with the provided ID on the provided backend
  * \param accel the ID of the desired device
  * \param mode the desired mode
  * \return 0 on success, -1 or a backend-specific error code otherwise
- * \todo unpack OpenCL platform from the uint's high short, and the device from the low short
+ * \todo unpack OpenCL platform from the uint's high short, and the device from
+ * the low short
  */
 a_err meta_set_acc(int accel, meta_preferred_mode mode);
 /**
@@ -281,36 +335,40 @@ a_err meta_set_acc(int accel, meta_preferred_mode mode);
  * \param accel The address in which to return the device's ID
  * \param mode The address in which to return the currently-active mode
  * \return 0 on success, -1 or an error code from the returned backend otherwise
- * \todo pack OpenCL platform into the uint's high short, and the device into the low short
+ * \todo pack OpenCL platform into the uint's high short, and the device into
+ * the low short
  */
-a_err meta_get_acc(int * accel, meta_preferred_mode * mode);
+a_err meta_get_acc(int *accel, meta_preferred_mode *mode);
 /**
  * Checks that grid_size is a valid multiple of block_size, and that
- * both obey the bounds specified for the device/execution model currently in use.
- * For now CUDA and OpenMP are NOOP
- * For now it does not directly modify the work size at all
- * nor does it return the ideal worksize in any way
- * it just produces a STDERR comment stating which variable is out of bounds
- * what the bound is, and what the variable is currently.
+ * both obey the bounds specified for the device/execution model currently in
+ * use. For now CUDA and OpenMP are NOOP For now it does not directly modify the
+ * work size at all nor does it return the ideal worksize in any way it just
+ * produces a STDERR comment stating which variable is out of bounds what the
+ * bound is, and what the variable is currently.
  * \param grid_size desired number of thread blocks in each dimension
  * \param block_size desired thread dimensions within each thread block
  * \return 0 on success or NOOP, -1 if there is a problem with the configuration
  */
-a_err meta_validate_worksize(a_dim3 * grid_size, a_dim3 * block_size);
+a_err meta_validate_worksize(a_dim3 *grid_size, a_dim3 *block_size);
 /**
- * Flush does exactly what it sounds like - forces any outstanding work to be finished before returning
- * For now it handles flushing async kernels, and finishing outstanding transfers from the MPI plugin
- * It could easily handle timer dumping as well, but that might not be ideal
+ * Flush does exactly what it sounds like - forces any outstanding work to be
+ * finished before returning For now it handles flushing async kernels, and
+ * finishing outstanding transfers from the MPI plugin It could easily handle
+ * timer dumping as well, but that might not be ideal
  * \return 0 on success, -1 or the backend-specific error code otherwise
  */
 a_err meta_flush();
 
 /**
- * Simple initializer for an event that sets the mode to whatever we are currently using, creates a heap-allocated payload corresponding to that backend, and uses the backend's initializer to prepare the payload
- * \param event An address in which to return the dynamically-allocated new event
+ * Simple initializer for an event that sets the mode to whatever we are
+ * currently using, creates a heap-allocated payload corresponding to that
+ * backend, and uses the backend's initializer to prepare the payload
+ * \param event An address in which to return the dynamically-allocated new
+ * event
  * \return 0 on success, -1 or a backend-specific error code otherwise
  */
-a_err meta_init_event(meta_event * event);
+a_err meta_init_event(meta_event *event);
 /**
  * Simple destructor that frees the backend-agnostic void* event payload
  * \param event The event to release the payload from
@@ -318,78 +376,104 @@ a_err meta_init_event(meta_event * event);
  */
 a_err meta_destroy_event(meta_event event);
 
-/** Forward declaration of the structure used to contain backend-agnostic MetaMorph callback objects */
+/** Forward declaration of the structure used to contain backend-agnostic
+ * MetaMorph callback objects */
 struct meta_callback;
 /**
- * MetaMorph needs a backend-agnostic way of handling callback functions to broadly support asynchronous execution
- * This structure provides a way of recording both the function pointer and data payload, and any additional information added by the backend's callback implementation 
- * \todo FIXME meta_callbacks are currently allocated and freed by the client, but assumed to persist throughout. It would be safer to have our own copy the user cannot tamper with
+ * MetaMorph needs a backend-agnostic way of handling callback functions to
+ * broadly support asynchronous execution This structure provides a way of
+ * recording both the function pointer and data payload, and any additional
+ * information added by the backend's callback implementation
+ * \todo FIXME meta_callbacks are currently allocated and freed by the client,
+ * but assumed to persist throughout. It would be safer to have our own copy the
+ * user cannot tamper with
  */
 typedef struct meta_callback {
-  /** The callback function should only take this object as an argument, and has the responsibily to unpack it */
-  void (* callback_func)(struct meta_callback *);
+  /** The callback function should only take this object as an argument, and has
+   * the responsibily to unpack it */
+  void (*callback_func)(struct meta_callback *);
   /** The execution mode when the callback was registered */
   meta_preferred_mode callback_mode;
   /** The actual data payload to pass to whetever the final function is */
-  void * data_payload;
-  /** A pointer to a backend-specific struct with any additional information the backend provides to the callback (event, stream, status, etc.) */
-  void * backend_status;
+  void *data_payload;
+  /** A pointer to a backend-specific struct with any additional information the
+   * backend provides to the callback (event, stream, status, etc.) */
+  void *backend_status;
 } meta_callback;
 
 /**
  * Wrapper for writes to the device
- * \param dst The destination buffer, a MetaMorph handle allocated on the currently-running backend and device
+ * \param dst The destination buffer, a MetaMorph handle allocated on the
+ * currently-running backend and device
  * \param src The source buffer, a host memory region
  * \param size The number of bytes to copy from the host to the device
  * \param async whether the write should be asynchronous or blocking
  * \param call A callback to run when the transfer finishes, or NULL if none
- * \param ret_event The address of a meta_event with initialized backend payload in which to copy the bacckend event corresponding to the write back to
- * \return -1 if the current backend's implementation wasn't loaded properly, otherwise the results of the backend implementation, which is directly castable to that backend's internal error type
+ * \param ret_event The address of a meta_event with initialized backend payload
+ * in which to copy the bacckend event corresponding to the write back to
+ * \return -1 if the current backend's implementation wasn't loaded properly,
+ * otherwise the results of the backend implementation, which is directly
+ * castable to that backend's internal error type
  */
-a_err meta_copy_h2d(void * dst, void * src, size_t size, a_bool async,
-	meta_callback *call, meta_event * ret_event);
+a_err meta_copy_h2d(void *dst, void *src, size_t size, a_bool async,
+                    meta_callback *call, meta_event *ret_event);
 /**
  * Wrapper for reads from the device
  * \param dst The destination buffer, a host memory region
- * \param src The source buffer, a MetaMorph handle allocated on the currently-running backend and device
+ * \param src The source buffer, a MetaMorph handle allocated on the
+ * currently-running backend and device
  * \param size The number of bytes to copy from the device to the host
  * \param async whether the read should be asynchronous or blocking
  * \param call A callback to run when the transfer finishes, or NULL if none
- * \param ret_event The address of a meta_event with initialized backend payload in which to copy the bacckend event corresponding to the read back to
- * \return -1 if the current backend's implementation wasn't loaded properly, otherwise the results of the backend implementation, which is directly castable to that backend's internal error type
+ * \param ret_event The address of a meta_event with initialized backend payload
+ * in which to copy the bacckend event corresponding to the read back to
+ * \return -1 if the current backend's implementation wasn't loaded properly,
+ * otherwise the results of the backend implementation, which is directly
+ * castable to that backend's internal error type
  */
-a_err meta_copy_d2h(void * dst, void * src, size_t size, a_bool async,
-	meta_callback *call, meta_event * ret_event);
+a_err meta_copy_d2h(void *dst, void *src, size_t size, a_bool async,
+                    meta_callback *call, meta_event *ret_event);
 /**
  * Wrapper for on-device copies of MetaMorph-allocated buffers
- * \param dst The destination buffer, a MetaMorph handle allocated on the currently-running backend and device
- * \param src The source buffer, a MetaMorph handle allocated on the currently-running backend and device
+ * \param dst The destination buffer, a MetaMorph handle allocated on the
+ * currently-running backend and device
+ * \param src The source buffer, a MetaMorph handle allocated on the
+ * currently-running backend and device
  * \param size The number of bytes to copy
  * \param async whether the copy should be asynchronous or blocking
  * \param call A callback to run when the transfer finishes, or NULL if none
- * \param ret_event The address of a meta_event with initialized backend payload in which to copy the bacckend event corresponding to the read back to
- * \return -1 if the current backend's implementation wasn't loaded properly, otherwise the results of the backend implementation, which is directly castable to that backend's internal error type
+ * \param ret_event The address of a meta_event with initialized backend payload
+ * in which to copy the bacckend event corresponding to the read back to
+ * \return -1 if the current backend's implementation wasn't loaded properly,
+ * otherwise the results of the backend implementation, which is directly
+ * castable to that backend's internal error type
  */
-a_err meta_copy_d2d(void * dst, void * src, size_t size, a_bool async,
-	meta_callback *call, meta_event * ret_event);
+a_err meta_copy_d2d(void *dst, void *src, size_t size, a_bool async,
+                    meta_callback *call, meta_event *ret_event);
 /**
  * Wrapper to transpose a 2D array
- * \param grid_size The number of blocks in each dimension (NOT the global work size)
+ * \param grid_size The number of blocks in each dimension (NOT the global work
+ * size)
  * \param block_size The size of a block in each dimension
  * \param indata The input untransposed 2D array
  * \param outdata The output transposed 2D array
- * \param arr_dim_xy the X and Y dimensions of indata, Z is ignored 
+ * \param arr_dim_xy the X and Y dimensions of indata, Z is ignored
  * \param tran_dim_xy the X and Y dimensions of outdata, Z is ignored
  * \param type The data type to invoke the appropriate kernel for
  * \param async Whether the kernel should be run asynchronously or blocking
  * \param call A callback to run when the transfer finishes, or NULL if none
- * \param ret_event The address of a meta_event with initialized backend payload in which to copy the bacckend event corresponding to the read back to
- * \return -1 if the current backend's implementation wasn't loaded properly, otherwise the results of the backend implementation, which is directly castable to that backend's internal error type
- * \bug OpenCL return codes should not be binary OR'd, rather separately checked and the last error returned
+ * \param ret_event The address of a meta_event with initialized backend payload
+ * in which to copy the bacckend event corresponding to the read back to
+ * \return -1 if the current backend's implementation wasn't loaded properly,
+ * otherwise the results of the backend implementation, which is directly
+ * castable to that backend's internal error type
+ * \bug OpenCL return codes should not be binary OR'd, rather separately checked
+ * and the last error returned
  */
-a_err meta_transpose_face(a_dim3 * grid_size, a_dim3 * block_size,
-	void *indata, void *outdata, a_dim3 * arr_dim_xy, a_dim3 * tran_dim_xy,
-	meta_type_id type, a_bool async, meta_callback *call, meta_event * ret_event);
+a_err meta_transpose_face(a_dim3 *grid_size, a_dim3 *block_size, void *indata,
+                          void *outdata, a_dim3 *arr_dim_xy,
+                          a_dim3 *tran_dim_xy, meta_type_id type, a_bool async,
+                          meta_callback *call, meta_event *ret_event);
 /**
  * Wrapper for the face packing kernel
  * \param grid_size The number of workgroups to run in the X dimension, Y and Z are ignored (NOT the global worksize)
@@ -408,9 +492,11 @@ a_err meta_transpose_face(a_dim3 * grid_size, a_dim3 * block_size,
  * \warning Implemented as a 1D kernel, Y and Z grid/block parameters will be ignored
 /// \todo fix frame->size to reflect face size
  */
-a_err meta_pack_face(a_dim3 * grid_size, a_dim3 * block_size,
-	void *packed_buf, void *buf, meta_face *face, meta_type_id type,
-	a_bool async, meta_callback *call, meta_event * ret_event_k1, meta_event * ret_event_c1, meta_event * ret_event_c2, meta_event * ret_event_c3);
+a_err meta_pack_face(a_dim3 *grid_size, a_dim3 *block_size, void *packed_buf,
+                     void *buf, meta_face *face, meta_type_id type,
+                     a_bool async, meta_callback *call,
+                     meta_event *ret_event_k1, meta_event *ret_event_c1,
+                     meta_event *ret_event_c2, meta_event *ret_event_c3);
 /**
  * Wrapper for the face unpacking kernel
  * \param grid_size The number of workgroups to run in the X dimension, Y and Z are ignored (NOT the global worksize)
@@ -429,116 +515,162 @@ a_err meta_pack_face(a_dim3 * grid_size, a_dim3 * block_size,
  * \warning Implemented as a 1D kernel, Y and Z grid/block parameters will be ignored
 /// \todo fix frame->size to reflect face size
  */
-a_err meta_unpack_face(a_dim3 * grid_size, a_dim3 * block_size,
-	void *packed_buf, void *buf, meta_face *face, meta_type_id type,
-	a_bool async, meta_callback *call, meta_event * ret_event_k1, meta_event * ret_event_c1, meta_event * ret_event_c2, meta_event * ret_event_c3);
+a_err meta_unpack_face(a_dim3 *grid_size, a_dim3 *block_size, void *packed_buf,
+                       void *buf, meta_face *face, meta_type_id type,
+                       a_bool async, meta_callback *call,
+                       meta_event *ret_event_k1, meta_event *ret_event_c1,
+                       meta_event *ret_event_c2, meta_event *ret_event_c3);
 /**
- * Dot-product of identically-shaped subregions of two identically-shaped 3D arrays
- * this kernel works for 3D data only.
- * \param grid_size The number of blocks in each global dimension (not global work-items)
+ * Dot-product of identically-shaped subregions of two identically-shaped 3D
+ * arrays this kernel works for 3D data only.
+ * \param grid_size The number of blocks in each global dimension (not global
+ * work-items)
  * \param block_size The dimensions of each block
- * \param data1 first input array (a MetaMorph buffer handle allocated on the currently-active backend and device)
- * \param data2 second input array (a MetaMorph buffer handle allocated on the currently-active backend and device)
- * \param array_size X, Y, and Z dimension sizes of the input arrays (must match)
- * \param array_start X, Y, and Z dimension start indicies for computing on a subregion, to allow for a halo region
- * \param array_end X, Y, and Z dimension end indicies for computing on a subregion, to allow for a halo region
- * \param reduction_var the final dotproduct output (scalar) across all workgroups, assumed to be initialized before the kernel (a MetaMorph buffer handle allocated on the currently-active backend and device)
- * \param type The supported MetaMorph data type that data1, data2, and reduction_var contain (Currently: a_db, a_fl, a_ul, a_in, a_ui)
+ * \param data1 first input array (a MetaMorph buffer handle allocated on the
+ * currently-active backend and device)
+ * \param data2 second input array (a MetaMorph buffer handle allocated on the
+ * currently-active backend and device)
+ * \param array_size X, Y, and Z dimension sizes of the input arrays (must
+ * match)
+ * \param array_start X, Y, and Z dimension start indicies for computing on a
+ * subregion, to allow for a halo region
+ * \param array_end X, Y, and Z dimension end indicies for computing on a
+ * subregion, to allow for a halo region
+ * \param reduction_var the final dotproduct output (scalar) across all
+ * workgroups, assumed to be initialized before the kernel (a MetaMorph buffer
+ * handle allocated on the currently-active backend and device)
+ * \param type The supported MetaMorph data type that data1, data2, and
+ * reduction_var contain (Currently: a_db, a_fl, a_ul, a_in, a_ui)
  * \param async Whether the kernel should be run asynchronously or blocking
  * \param call A callback to run when the transfer finishes, or NULL if none
- * \param ret_event The address of a meta_event with initialized backend payload in which to copy the bacckend event corresponding to the read back to
- * \return -1 if the current backend's implementation wasn't loaded properly, otherwise the results of the backend implementation, which is directly castable to that backend's internal error type
+ * \param ret_event The address of a meta_event with initialized backend payload
+ * in which to copy the bacckend event corresponding to the read back to
+ * \return -1 if the current backend's implementation wasn't loaded properly,
+ * otherwise the results of the backend implementation, which is directly
+ * castable to that backend's internal error type
  */
-a_err meta_dotProd(a_dim3 * grid_size, a_dim3 * block_size, void * data1,
-	void * data2, a_dim3 * array_size, a_dim3 * array_start, a_dim3 * array_end,
-	void * reduction_var, meta_type_id type, a_bool async, meta_callback *call,
-	meta_event * ret_event);
+a_err meta_dotProd(a_dim3 *grid_size, a_dim3 *block_size, void *data1,
+                   void *data2, a_dim3 *array_size, a_dim3 *array_start,
+                   a_dim3 *array_end, void *reduction_var, meta_type_id type,
+                   a_bool async, meta_callback *call, meta_event *ret_event);
 /**
- * Reduction sum of identically-shaped subregions of two identically-shaped 3D arrays
- * this kernel works for 3D data only.
- * \param grid_size The number of blocks in each global dimension (not global work-items)
+ * Reduction sum of identically-shaped subregions of two identically-shaped 3D
+ * arrays this kernel works for 3D data only.
+ * \param grid_size The number of blocks in each global dimension (not global
+ * work-items)
  * \param block_size The dimensions of each block
- * \param data input array (a MetaMorph buffer handle allocated on the currently-active backend and device)
- * \param array_size X, Y, and Z dimension sizes of the input arrays (must match)
- * \param array_start X, Y, and Z dimension start indicies for computing on a subregion, to allow for a halo region
- * \param array_end X, Y, and Z dimension end indicies for computing on a subregion, to allow for a halo region
- * \param reduction_var the final dotproduct output (scalar) across all workgroups, assumed to be initialized before the kernel (a MetaMorph buffer handle allocated on the currently-active backend and device)
- * \param type The supported MetaMorph data type that data and reduction_var contain (Currently: a_db, a_fl, a_ul, a_in, a_ui)
+ * \param data input array (a MetaMorph buffer handle allocated on the
+ * currently-active backend and device)
+ * \param array_size X, Y, and Z dimension sizes of the input arrays (must
+ * match)
+ * \param array_start X, Y, and Z dimension start indicies for computing on a
+ * subregion, to allow for a halo region
+ * \param array_end X, Y, and Z dimension end indicies for computing on a
+ * subregion, to allow for a halo region
+ * \param reduction_var the final dotproduct output (scalar) across all
+ * workgroups, assumed to be initialized before the kernel (a MetaMorph buffer
+ * handle allocated on the currently-active backend and device)
+ * \param type The supported MetaMorph data type that data and reduction_var
+ * contain (Currently: a_db, a_fl, a_ul, a_in, a_ui)
  * \param async Whether the kernel should be run asynchronously or blocking
  * \param call A callback to run when the transfer finishes, or NULL if none
- * \param ret_event The address of a meta_event with initialized backend payload in which to copy the bacckend event corresponding to the read back to
- * \return -1 if the current backend's implementation wasn't loaded properly, otherwise the results of the backend implementation, which is directly castable to that backend's internal error type
+ * \param ret_event The address of a meta_event with initialized backend payload
+ * in which to copy the bacckend event corresponding to the read back to
+ * \return -1 if the current backend's implementation wasn't loaded properly,
+ * otherwise the results of the backend implementation, which is directly
+ * castable to that backend's internal error type
  */
-a_err meta_reduce(a_dim3 * grid_size, a_dim3 * block_size, void * data,
-	a_dim3 * array_size, a_dim3 * array_start, a_dim3 * array_end,
-	void * reduction_var, meta_type_id type, a_bool async, meta_callback *call,
-	meta_event * ret_event);
+a_err meta_reduce(a_dim3 *grid_size, a_dim3 *block_size, void *data,
+                  a_dim3 *array_size, a_dim3 *array_start, a_dim3 *array_end,
+                  void *reduction_var, meta_type_id type, a_bool async,
+                  meta_callback *call, meta_event *ret_event);
 /**
  * Wrapper for the 3D 7-point stencil averaging kernel
- * \param grid_size The number of workgroups to run in each dimension (NOT the global worksize)
+ * \param grid_size The number of workgroups to run in each dimension (NOT the
+ * global worksize)
  * \param block_size The size of a workgroup in each dimension
  * \param indata The array of input read values
  * \param outdata The array of output write values
  * \param array_size The size of the input and output arrays
- * \param array_start The start index for writing in each dimension (for avoiding writes to halo cells)
- * \warning Assumes at least a one-thick halo region i.e. (arr_start[dim]-1 >= 0)
- * \param array_end The end index for writing in each dimension (for avoiding writes to halo cells)
- * \warning Assumes at least a one-thick halo region i.e. (arr_end[dim]+1 <= array_size[dim]-1)
+ * \param array_start The start index for writing in each dimension (for
+ * avoiding writes to halo cells)
+ * \warning Assumes at least a one-thick halo region i.e. (arr_start[dim]-1 >=
+ * 0)
+ * \param array_end The end index for writing in each dimension (for avoiding
+ * writes to halo cells)
+ * \warning Assumes at least a one-thick halo region i.e. (arr_end[dim]+1 <=
+ * array_size[dim]-1)
  * \param type The type of data to run the kernel on
  * \param async Whether the kernel should be run asynchronously or blocking
  * \param call A callback to run when the transfer finishes, or NULL if none
- * \param ret_event The address of a meta_event with initialized backend payload in which to copy the bacckend event corresponding to the read back to
- * \return -1 if the current backend's implementation wasn't loaded properly, otherwise the results of the backend implementation, which is directly castable to that backend's internal error type
+ * \param ret_event The address of a meta_event with initialized backend payload
+ * in which to copy the bacckend event corresponding to the read back to
+ * \return -1 if the current backend's implementation wasn't loaded properly,
+ * otherwise the results of the backend implementation, which is directly
+ * castable to that backend's internal error type
  */
-a_err meta_stencil_3d7p(a_dim3 * grid_size, a_dim3 * block_size,
-	void *indata, void *outdata, a_dim3 * array_size, a_dim3 * array_start,
-	a_dim3 * array_end, meta_type_id type, a_bool async, meta_callback *call,
-	meta_event * ret_event);
+a_err meta_stencil_3d7p(a_dim3 *grid_size, a_dim3 *block_size, void *indata,
+                        void *outdata, a_dim3 *array_size, a_dim3 *array_start,
+                        a_dim3 *array_end, meta_type_id type, a_bool async,
+                        meta_callback *call, meta_event *ret_event);
 /**
  * Wrapper for the SPMV kernel for CSR sparse matrix format
- * \param grid_size The number of workgroups to run in the X dimension, Y and Z are ignored (NOT the global worksize)
+ * \param grid_size The number of workgroups to run in the X dimension, Y and Z
+ * are ignored (NOT the global worksize)
  * \param block_size The size of a workgroup in each dimension
- * \param global_size The number of rows in the A matrix, one computed per work-item
+ * \param global_size The number of rows in the A matrix, one computed per
+ * work-item
  * \param csr_ap The row start and end index array
  * \param csr_aj The column index array
  * \param csr_ax The cell value array
  * \param x_loc The input vector to multiply A by
  * \param y_loc The output vector to sum into
- * \param type The supported MetaMorph data type that csr_ax, x_loc, and y_loc contain (Currently: a_db, a_fl, a_ul, a_in, a_ui)
+ * \param type The supported MetaMorph data type that csr_ax, x_loc, and y_loc
+ * contain (Currently: a_db, a_fl, a_ul, a_in, a_ui)
  * \param async Whether the kernel should be run asynchronously or blocking
  * \param call A callback to run when the transfer finishes, or NULL if none
- * \param ret_event The address of a meta_event with initialized backend payload in which to copy the bacckend event corresponding to the read back to
- * \return -1 if the current backend's implementation wasn't loaded properly, otherwise the results of the backend implementation, which is directly castable to that backend's internal error type
+ * \param ret_event The address of a meta_event with initialized backend payload
+ * in which to copy the bacckend event corresponding to the read back to
+ * \return -1 if the current backend's implementation wasn't loaded properly,
+ * otherwise the results of the backend implementation, which is directly
+ * castable to that backend's internal error type
  * \warning Y and Z dimensions are ignored
  * \todo FIXME Only exists for OpenCL backend
  */
-a_err meta_csr(a_dim3 * grid_size, a_dim3 * block_size, size_t global_size, void * csr_ap, void * csr_aj, void * csr_ax, void * x_loc, void * y_loc,
-		meta_type_id type, a_bool async,
-		meta_callback *call, meta_event * ret_event);
+a_err meta_csr(a_dim3 *grid_size, a_dim3 *block_size, size_t global_size,
+               void *csr_ap, void *csr_aj, void *csr_ax, void *x_loc,
+               void *y_loc, meta_type_id type, a_bool async,
+               meta_callback *call, meta_event *ret_event);
 /**
  * Wrapper for the cyclic redundancy check task kernel
- * \param grid_size The number of blocks to run in the X dimension, Y and Z are ignored (NOT the global worksize)
+ * \param grid_size The number of blocks to run in the X dimension, Y and Z are
+ * ignored (NOT the global worksize)
  * \param block_size The size of a block in each dimension
  * \param dev_input The input buffer to perform the redundancy check on
  * \param page_size The length in bytes of each page
  * \param num_words TODO
  * \param numpages TODO
  * \param dev_output The result
- * \param type The supported MetaMorph data type that dev_input contains (Currently: a_db, a_fl, a_ul, a_in, a_ui)
+ * \param type The supported MetaMorph data type that dev_input contains
+ * (Currently: a_db, a_fl, a_ul, a_in, a_ui)
  * \param async Whether the kernel should be run asynchronously or blocking
  * \param call A callback to run when the transfer finishes, or NULL if none
- * \param ret_event The address of a meta_event with initialized backend payload in which to copy the bacckend event corresponding to the read back to
- * \return -1 if the current backend's implementation wasn't loaded properly, otherwise the results of the backend implementation, which is directly castable to that backend's internal error type
- * \warning all supported types are interpreted as binary data via the unsigned int kernel
+ * \param ret_event The address of a meta_event with initialized backend payload
+ * in which to copy the bacckend event corresponding to the read back to
+ * \return -1 if the current backend's implementation wasn't loaded properly,
+ * otherwise the results of the backend implementation, which is directly
+ * castable to that backend's internal error type
+ * \warning all supported types are interpreted as binary data via the unsigned
+ * int kernel
  * \todo FIXME Only exists for OpenCL backend
  */
-a_err meta_crc(a_dim3 * grid_size, a_dim3 * block_size, void * dev_input, int page_size, int num_words, int numpages, void * dev_output,
-		meta_type_id type, a_bool async,
-		meta_callback *call, meta_event * ret_event);
-		
+a_err meta_crc(a_dim3 *grid_size, a_dim3 *block_size, void *dev_input,
+               int page_size, int num_words, int numpages, void *dev_output,
+               meta_type_id type, a_bool async, meta_callback *call,
+               meta_event *ret_event);
 
 #ifdef __cplusplus
 }
 #endif
 
-#endif //METAMORPH_H
+#endif // METAMORPH_H
