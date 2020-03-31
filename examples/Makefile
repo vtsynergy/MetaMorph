@@ -2,7 +2,6 @@
 #CC=icc
 #USE_MPI=TRUE
 
-BUILD_FLAGS=
 DEPS =
 ifeq ($(USE_CUDA),TRUE)
 BUILD_FLAGS += -D WITH_CUDA -lmm_cuda_backend -L$(CUDA_LIB_DIR) -lcudart
@@ -23,15 +22,18 @@ ifeq ($(USE_TIMERS),TRUE)
 BUILD_FLAGS += -D WITH_TIMERS
 endif
 ifeq ($(USE_MPI),TRUE)
-BUILD_FLAGS += -D WITH_MPI -L$(MPI_DIR)/lib -I$(MPI_DIR)/include
+BUILD_FLAGS += -D WITH_MPI -lmm_mpi -L$(MPI_DIR)/lib -I$(MPI_DIR)/include
+CC=$(MPICC)
 endif
+
+all: torus_reduce_test csr_alt crc_alt
 
 .PHONY: torus_reduce_test torus_reduce_test_mp torus_reduce_test_mic torus_reduce_test_cu torus_reduce_test_cl
 torus_reduce_test: torus_reduce_meta.c $(DEPS)
 ifneq ($(USE_TIMERS),TRUE)
 $(error torus_reduce_test requires Timers)
 else
-	$(CC) torus_reduce_meta.c $(OPT_LVL) $(INCLUDES) -L $(MM_LIB) -D $(G_TYPE) -lmetamorph $(BUILD_FLAGS) -o torus_reduce_test
+	$(CC) torus_reduce_meta.c $(OPT_LVL) $(INCLUDES) -L $(MM_LIB) -D $(G_TYPE) -lmetamorph -lmm_profiling $(BUILD_FLAGS) -o torus_reduce_test
 endif
 #torus_reduce_test: torus_reduce_meta.c
 #ifeq ($(USE_MPI),TRUE)
@@ -74,11 +76,13 @@ mm_opencl_backend.cl:
 reduce_alt: reduce_alt.c | mm_opencl_intelfpga_backend.cl
 	$(CC) reduce_alt.c $(OPT_LVL) $(INCLUDES) $(FPGA_DEF) -L $(MM_LIB) $(AOCL_LINK_CONFIG) $(FPGA_LIB) -D $(G_TYPE) -lmetamorph -lmm_opencl_intelfpga_backend -lOpenCL -o reduce_alt
 
-csr_alt: csr_alt.c | mm_opencl_intelfpga_backend.cl
-	$(CC) csr_alt.c $(OPT_LVL) $(INCLUDES) $(FPGA_DEF) -L $(MM_LIB) $(AOCL_LINK_CONFIG) $(FPGA_LIB) -D $(G_TYPE) -lmetamorph -lmm_opencl_intelfpga_backend -lOpenCL -o csr_alt
+#file never added to repo
+#csr_alt: csr_alt.c | mm_opencl_intelfpga_backend.cl
+#	$(CC) csr_alt.c $(OPT_LVL) $(INCLUDES) $(FPGA_DEF) -L $(MM_LIB) $(AOCL_LINK_CONFIG) $(FPGA_LIB) -D $(G_TYPE) -lmetamorph -lmm_opencl_intelfpga_backend -lOpenCL -o csr_alt
 
-crc_alt: crc_alt.c | mm_opencl_intelfpga_backend.cl
-	$(CC) crc_alt.c $(OPT_LVL) $(INCLUDES) $(FPGA_DEF) -L $(MM_LIB) $(AOCL_LINK_CONFIG) $(FPGA_LIB) -D $(G_TYPE) -lmetamorph -lmm_opencl_intelfpga_backend -lOpenCL -o crc_alt
+#file never added to repo
+#crc_alt: crc_alt.c | mm_opencl_intelfpga_backend.cl
+#	$(CC) crc_alt.c $(OPT_LVL) $(INCLUDES) $(FPGA_DEF) -L $(MM_LIB) $(AOCL_LINK_CONFIG) $(FPGA_LIB) -D $(G_TYPE) -lmetamorph -lmm_opencl_intelfpga_backend -lOpenCL -o crc_alt
 
 
 mm_opencl_intelfpga_backend.cl:

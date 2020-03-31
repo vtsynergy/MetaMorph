@@ -1,190 +1,10 @@
-      module metamorph_c
-      use ISO_C_BINDING
-      real (C_DOUBLE) :: db
-      real (C_FLOAT) :: fl
-      integer (C_INT) :: in
-
-      
-      interface meta_alloc_c
-      function meta_alloc_c(ptr, size)
-      use ISO_C_BINDING
-      integer (C_INT) :: meta_alloc_c
-      type (C_PTR) :: ptr
-      integer (C_SIZE_T) :: size
-      end function meta_alloc_c
-      end interface
-
-      interface meta_free_c
-      function meta_free_c(ptr)
-      use ISO_C_BINDING
-      integer (C_INT) :: meta_free_c
-      type (C_PTR), VALUE :: ptr
-      end function meta_free_c
-      end interface
-
-      interface meta_set_acc
-      function meta_set_acc_c(accel, mode)
-      use ISO_C_BINDING
-      integer (C_INT) :: meta_set_acc
-      integer (C_INT) :: accel
-      integer (C_INT) :: mode
-      end function meta_set_acc_c
-      end interface
-
-      interface meta_get_acc
-      function meta_get_acc_c(accel, mode)
-      use ISO_C_BINDING
-      integer (C_INT) :: meta_get_acc
-      integer (C_INT) :: accel
-      integer (C_INT) :: mode
-      end function meta_get_acc_c
-      end interface
-
-      interface meta_validate_worksize_c
-      function meta_validate_worksize_c(grid_x, grid_y, grid_z, block_x,&
-      & block_y, block_z)
-      use ISO_C_BINDING
-      integer (C_INT) :: meta_validate_worksize
-      integer (C_SIZE_T) :: grid_x, grid_y, grid_z
-      integer (C_SIZE_T) :: block_x, block_y, block_z
-      end function meta_validate_worksize_c
-      end interface
-
-      interface meta_dotprod_c
-      function meta_dotprod_c(grid_x, grid_y, grid_z, block_x, block_y,&
-      & block_z, data1, data2, size_x, size_y, size_z, start_x, start_y&
-      &, start_z, end_x, end_y, end_z, reduction_var, a_type, async)
-      use ISO_C_BINDING
-      integer (C_INT) :: meta_dotprod_c
-      integer (C_SIZE_T) :: grid_x, grid_y, grid_z
-      integer (C_SIZE_T) :: block_x, block_y, block_z
-      type (C_PTR), VALUE :: data1, data2
-      integer (C_SIZE_T) :: size_x, size_y, size_z
-      integer (C_SIZE_T) :: start_x, start_y, start_z
-      integer (C_SIZE_T) :: end_x, end_y, end_z
-      type (C_PTR), VALUE :: reduction_var
-      integer (C_INT), VALUE :: a_type
-      integer (C_INT) :: async
-      end function meta_dotprod_c
-      end interface
-
-      interface meta_reduce_c
-      function meta_reduce_c(grid_x, grid_y, grid_z, block_x, block_y,&
-      & block_z, data, size_x, size_y, size_z, start_x, start_y&
-      &, start_z, end_x, end_y, end_z, reduction_var, a_type, async)
-      use ISO_C_BINDING
-      integer (C_INT) :: meta_reduce_c
-      integer (C_SIZE_T) :: grid_x, grid_y, grid_z
-      integer (C_SIZE_T) :: block_x, block_y, block_z
-      type (C_PTR), VALUE :: data
-      integer (C_SIZE_T) :: size_x, size_y, size_z
-      integer (C_SIZE_T) :: start_x, start_y, start_z
-      integer (C_SIZE_T) :: end_x, end_y, end_z
-      type (C_PTR), VALUE :: reduction_var
-      integer (C_INT), VALUE :: a_type
-      integer (C_INT) :: async
-      end function meta_reduce_c
-      end interface
-
-      interface meta_copy_h2d_c
-      function meta_copy_h2d_c(dst, src, size, async)
-      use ISO_C_BINDING
-      integer (C_INT) :: meta_copy_h2d_c
-      type (C_PTR), VALUE :: dst, src
-      integer (C_SIZE_T) :: size
-      integer (C_INT) :: async
-      end function meta_copy_h2d_c
-      end interface
-
-! we need an interface and special versions for each rank of source
-!  since Fortran apparently can't just treat src like a void *
-!      interface meta_copy_h2d
-!      function meta_copy_h2d_1d(dst, src, size, async)
-!      use ISO_C_BINDING
-!      integer (C_INT) :: meta_copy_h2d_1d
-!      class(*), TARGET :: dst
-!      class(*), dimension(:) :: src
-!      integer :: size
-!      integer (C_INT) :: async
-!      end function meta_copy_h2d_1d
-!      function meta_copy_h2d_2d(dst, src, size, async)
-!      use ISO_C_BINDING
-!      integer (C_INT) :: meta_copy_h2d_2d
-!      class(*), TARGET :: dst
-!      class(*), dimension(:,:) :: src
-!      integer :: size
-!      integer (C_INT) :: async
-!      end function meta_copy_h2d_2d
-!      function meta_copy_h2d_3d(dst, src, size, async)
-!      use ISO_C_BINDING
-!      integer (C_INT) :: meta_copy_h2d_3d
-!      class(*), TARGET :: dst
-!      class(*), dimension(:,:,:) :: src
-!      integer :: size
-!      integer (C_INT) :: async
-!      end function meta_copy_h2d_3d
-!      function meta_copy_h2d_4d(dst, src, size, async)
-!      use ISO_C_BINDING
-!      integer (C_INT) :: meta_copy_h2d_4d
-!      class(*), TARGET :: dst
-!      class(*), dimension(:,:,:,:) :: src
-!      integer :: size
-!      integer (C_INT) :: async
-!      end function meta_copy_h2d_4d
-!      end interface
-
-      interface meta_copy_d2h_c
-      function meta_copy_d2h_c(dst, src, size, async)
-      use ISO_C_BINDING
-      integer (C_INT) :: meta_copy_d2h_c
-      type (C_PTR), VALUE :: dst, src
-      integer (C_SIZE_T) :: size
-      integer (C_INT) :: async
-      end function meta_copy_d2h_c
-      end interface
-
-      interface meta_copy_d2d_c
-      function meta_copy_d2d_c(dst, src, size, async)
-      use ISO_C_BINDING
-      integer (C_INT) :: meta_copy_d2d_c
-      type (C_PTR), VALUE :: dst, src
-      integer (C_SIZE_T) :: size
-      integer (C_INT) :: async
-      end function meta_copy_d2d_c
-      end interface
-
-      interface meta_alloc
-        module procedure meta_alloc_db, meta_alloc_fl, meta_alloc_in
-      end interface meta_alloc
-#ifdef WITH_TIMERS
-
-      interface meta_timers_init
-      function meta_timers_init_c()
-      use ISO_C_BINDING
-      integer (C_INT) :: meta_timers_init_c
-      end function meta_timers_init_c
-      end interface
-
-      interface meta_timers_flush
-      function meta_timers_flush_c()
-      use ISO_C_BINDING
-      integer (C_INT) :: meta_timers_flush_c
-      end function meta_timers_flush_c
-      end interface
-
-      interface meta_timers_finish
-      function meta_timers_finish_c()
-      use ISO_C_BINDING
-      integer (C_INT) :: meta_timers_finish_c
-      end function meta_timers_finish_c
-      end interface
-      
-#endif
+include "metamorph_fortran_header.F03"
 
       contains
-
+!> Fortran implemetation for allocating a MetaMorph buffer of double-precision values
       function meta_alloc_db(ptr, size)
       use ISO_C_BINDING
+!> @return The error status of the underlying meta_alloc call
       integer (C_INT) :: meta_alloc_db
       real(C_DOUBLE), POINTER, intent(inout) :: ptr
       integer :: size
@@ -194,8 +14,10 @@
       call C_F_POINTER(cptr, ptr)
       end function meta_alloc_db
 
+!> Fortran implementation for allocating a MetaMorph buffer of single-precision values
       function meta_alloc_fl(ptr, size)
       use ISO_C_BINDING
+!> @return The error status of the underlying meta_alloc call
       integer (C_INT) :: meta_alloc_fl
       real(C_FLOAT), POINTER, intent(inout) :: ptr
       integer :: size
@@ -205,8 +27,10 @@
       call C_F_POINTER(cptr, ptr) 
       end function meta_alloc_fl
 
+!> Fortran implementation for allocating a MetaMorph buffer of 4-byte integer values
       function meta_alloc_in(ptr, size)
       use ISO_C_BINDING
+!> @return The error status of the underlying meta_alloc call
       integer (C_INT) :: meta_alloc_in
       integer(C_INT), POINTER, intent(inout) :: ptr
       integer :: size
@@ -215,28 +39,11 @@
        int(C_SIZEOF(in)*size, kind=C_SIZE_T))
       call C_F_POINTER(cptr, ptr)
       end function meta_alloc_in
-!      function meta_alloc(ptr, size)
-!      use ISO_C_BINDING
-!      integer (C_INT) :: meta_alloc
-!      class(*), TARGET :: ptr
-!      integer :: size
-!      select type(ptr)
-!      type is (integer(kind=C_INT))
-!           meta_alloc = meta_alloc_c(C_LOC(ptr), &
-!            int(C_SIZEOF(in)*size, kind=C_SIZE_T))
-!      type is (real(kind=C_FLOAT))
-!           meta_alloc = meta_alloc_c(C_LOC(ptr), &
-!            int(C_SIZEOF(fl)*size, kind=C_SIZE_T))
-!      type is (real(kind=C_DOUBLE))
-!           meta_alloc = meta_alloc_c(C_LOC(ptr), &
-!            int(C_SIZEOF(db)*size, kind=C_SIZE_T))
-!      class default
-           ! do something
-!      end select
-!      end function meta_alloc
 
+!> Fortran implementation for releasing a MetaMorph buffer
       function meta_free(ptr)
       use ISO_C_BINDING
+!> @return The error status of the underlying meta_free call
       integer (C_INT) :: meta_free
       class(*), TARGET :: ptr
       select type (ptr)
@@ -251,8 +58,10 @@
       end select
       end function meta_free
 
+!> Fortran implementation around the worksize validator
       function meta_validate_worksize(grid, block)
       use ISO_C_BINDING
+!> @return The error status of the underlying meta_validate_worksize call
       integer (C_INT) :: meta_validate_worksize
       integer, dimension(3) :: grid, block
       meta_validate_worksize = meta_validate_worksize_c( &
@@ -261,9 +70,11 @@
        int(block(2),kind=C_SIZE_T), int(block(3),kind=C_SIZE_T))
       end function meta_validate_worksize
       
+!> Fortran implementation around the dot product kernel
       function meta_dotprod(grid, block, data1, data2, sz, start_idx&
       &, end_idx, reduction_var, async)
       use ISO_C_BINDING
+!> @return The error status of the underlying meta_dotprod call
       integer (C_INT) :: meta_dotprod
       integer, dimension(3) :: grid
       integer, dimension(3) :: block
@@ -331,9 +142,11 @@
       end select
       end function meta_dotprod
       
+!> Fortran implementation around the reduction sum kernel
       function meta_reduce(grid, block, data, sz, start_idx&
       &, end_idx, reduction_var, async)
       use ISO_C_BINDING
+!> @return The error status of the underlying meta_reduce call
       integer (C_INT) :: meta_reduce
       integer, dimension(3) :: grid
       integer, dimension(3) :: block
@@ -392,9 +205,10 @@
       end select
       end function meta_reduce
 
-
+!> Fortran implementation around the function to write to a device buffer
       function meta_copy_h2d(dst, src, size, async)
       use ISO_C_BINDING
+!> @return The error status of the underlying meta_copy_h2d call
       integer (C_INT) :: meta_copy_h2d
       class(*), TARGET :: dst
       type(*), dimension(*), TARGET :: src
@@ -415,8 +229,10 @@
       end select
       end function meta_copy_h2d
 
+!> Fortran implementation around the function to read from a device buffer
       function meta_copy_d2h(dst, src, size, async)
       use ISO_C_BINDING
+!> @return The error status of the underlying meta_copy_d2h call
       integer (C_INT) :: meta_copy_d2h
       class(*), TARGET :: src 
       type(*), dimension(*), TARGET :: dst
@@ -437,8 +253,10 @@
       end select
       end function meta_copy_d2h
 
+!> Fortran implementation around the function to copy between two device buffers
       function meta_copy_d2d(dst, src, size, async)
       use ISO_C_BINDING
+!> @return The error status of the underlying meta_copy_d2d call
       integer (C_INT) :: meta_copy_d2d
       class(*), TARGET :: dst, src
       integer :: size

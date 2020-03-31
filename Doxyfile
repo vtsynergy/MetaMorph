@@ -778,7 +778,7 @@ RECURSIVE              = YES
 # Note that relative paths are relative to the directory from which doxygen is
 # run.
 
-EXCLUDE                = ./lib ./metamorph-generators/opencl/clang_tarball ./metamorph-generators/opencl/docs ./metamoorph-backends/opencl-backend/*_mic.* ./metamorph-backends/opencl-backend/*_intelfpga_* ./metamorph-backends/opencl-backend/eth_crc32_lut.h
+EXCLUDE                = ./lib ./metamorph-generators/opencl/clang_tarball ./metamorph-generators/opencl/docs ./metamorph-backends/opencl-backend/*_mic.* ./metamorph-backends/opencl-backend/*_intelfpga_* ./metamorph-backends/opencl-backend/eth_crc32_lut.h
 
 # The EXCLUDE_SYMLINKS tag can be used to select whether or not files or
 # directories that are symbolic links (a Unix file system feature) are excluded

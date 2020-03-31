@@ -114,22 +114,10 @@ mm_opencl_intelfpga_backend_csr_ui.aocx: mm_opencl_backend.cl
 	aoc $(AOC_DEF) mm_opencl_backend.cl -o $(MM_LIB)/mm_opencl_intelfpga_backend_csr_ui.aocx $(FPGA_DEF) -D SINGLE_KERNEL_PROGS -D UNSIGNED_INTEGER -D KERNEL_CSR
 FPGA_DEPS := $(FPGA_DEPS) mm_opencl_intelfpga_backend_csr_db.aocx mm_opencl_intelfpga_backend_csr_fl.aocx mm_opencl_intelfpga_backend_csr_ul.aocx mm_opencl_intelfpga_backend_csr_in.aocx mm_opencl_intelfpga_backend_csr_ui.aocx
 
-#mm_opencl_intelfpga_backend_crc_db.aocx: mm_opencl_backend.cl
-#	aoc $(AOC_DEF) mm_opencl_backend.cl -o $(MM_LIB)/mm_opencl_intelfpga_backend_crc_db.aocx $(FPGA_DEF) -D SINGLE_KERNEL_PROGS -D DOUBLE -D KERNEL_CRC
-
-#mm_opencl_intelfpga_backend_crc_fl.aocx: mm_opencl_backend.cl
-#	aoc $(AOC_DEF) mm_opencl_backend.cl -o $(MM_LIB)/mm_opencl_intelfpga_backend_crc_fl.aocx $(FPGA_DEF) -D SINGLE_KERNEL_PROGS -D FLOAT -D KERNEL_CRC
-
-#mm_opencl_intelfpga_backend_crc_ul.aocx: mm_opencl_backend.cl
-#	aoc $(AOC_DEF) mm_opencl_backend.cl -o $(MM_LIB)/mm_opencl_intelfpga_backend_crc_ul.aocx $(FPGA_DEF) -D SINGLE_KERNEL_PROGS -D UNSIGNED_LONG -D KERNEL_CRC
-
-#mm_opencl_intelfpga_backend_crc_in.aocx: mm_opencl_backend.cl
-#	aoc $(AOC_DEF) mm_opencl_backend.cl -o $(MM_LIB)/mm_opencl_intelfpga_backend_crc_in.aocx $(FPGA_DEF) -D SINGLE_KERNEL_PROGS -D INTEGER -D KERNEL_CRC
 
 mm_opencl_intelfpga_backend_crc_ui.aocx: mm_opencl_backend.cl
 	aoc $(AOC_DEF) mm_opencl_backend.cl -o $(MM_LIB)/mm_opencl_intelfpga_backend_crc_ui.aocx $(FPGA_DEF) -D SINGLE_KERNEL_PROGS -D UNSIGNED_INTEGER -D KERNEL_CRC
 
-#FPGA_DEPS := $(FPGA_DEPS) mm_opencl_intelfpga_backend_crc_db.aocx mm_opencl_intelfpga_backend_crc_fl.aocx mm_opencl_intelfpga_backend_crc_ul.aocx mm_opencl_intelfpga_backend_crc_in.aocx mm_opencl_intelfpga_backend_crc_ui.aocx
 FPGA_DEPS := $(FPGA_DEPS) mm_opencl_intelfpga_backend_crc_ui.aocx
 FPGA_DEF := -D OPENCL_SINGLE_KERNEL_PROGS $(FPGA_DEF)
 else
@@ -139,19 +127,12 @@ endif
 ifeq ($(OPENCL_SINGLE_KERNEL_PROGS),TRUE)
  CL_DEFS := $(CL_DEFS) -D OPENCL_SINGLE_KERNEL_PROGS
 endif
-ifeq ($(USE_TIMERS),TRUE)
- CL_DEFS := $(CL_DEFS) -D WITH_TIMERS
-endif
 
 libmm_opencl_backend.so:
-	g++ mm_opencl_backend.cpp $(OPT_LVL) $(L_FLAGS) $(INCLUDES) -I$(OPENCL_INCL_DIR) -L$(OPENCL_LIB_DIR) -lOpenCL -o $(MM_LIB)/libmm_opencl_backend.so $(CL_DEFS) -shared -Wl,-soname,libmm_opencl_backend.so -DMETAMORPH_OCL_KERNEL_PATH=\"$(shell pwd | sed 's/ /\\ /g'):$(MM_LIB):.\"
-#deprecated
-#libmm_opencl_intelfpga_backend.so: $(FPGA_DEPS)
-#	g++ mm_opencl_intelfpga_backend.cpp $(OPT_LVL) $(L_FLAGS) $(INCLUDES) $(FPGA_DEF) $(AOCL_COMPILE_CONFIG) $(FPGA_LIB) -I$(OPENCL_INCL_DIR) -L$(OPENCL_LIB_DIR) -lOpenCL -o $(MM_LIB)/libmm_opencl_intelfpga_backend.so -D __OPENCLCC__ -shared -Wl,-soname,libmm_opencl_intelfpga_backend.so
-
+	g++ mm_opencl_backend.cpp $(OPT_LVL) $(L_FLAGS) $(INCLUDES) -I$(OPENCL_INCL_DIR) -L$(OPENCL_LIB_DIR) -lOpenCL -o $(MM_LIB)/libmm_opencl_backend.so $(CL_DEFS) $(OPENCL_FLAGS) -shared -Wl,-soname,libmm_opencl_backend.so -DMETAMORPH_OCL_KERNEL_PATH=\"$(shell pwd | sed 's/ /\\ /g'):$(MM_LIB):.\"
 
 libmm_opencl_intelfpga_backend.so: $(FPGA_DEPS)
-	g++ mm_opencl_backend.cpp $(OPT_LVL) $(L_FLAGS) $(INCLUDES) $(FPGA_DEF) $(AOCL_COMPILE_CONFIG) $(FPGA_LIB) -I$(OPENCL_INCL_DIR) -L$(OPENCL_LIB_DIR) -lOpenCL -o $(MM_LIB)/libmm_opencl_intelfpga_backend.so -D __OPENCLCC__ -shared -Wl,-soname,libmm_opencl_intelfpga_backend.so -DMETAMORPH_OCL_KERNEL_PATH=\"$(shell pwd | sed 's/ /\\ /g'):$(MM_LIB):.\"
+	g++ mm_opencl_backend.cpp $(OPT_LVL) $(L_FLAGS) $(INCLUDES) $(FPGA_DEF) $(AOCL_COMPILE_CONFIG) $(FPGA_LIB) -I$(OPENCL_INCL_DIR) -L$(OPENCL_LIB_DIR) -lOpenCL -o $(MM_LIB)/libmm_opencl_intelfpga_backend.so -D __OPENCLCC__ $(OPENCL_FLAGS) -shared -Wl,-soname,libmm_opencl_intelfpga_backend.so -DMETAMORPH_OCL_KERNEL_PATH=\"$(shell pwd | sed 's/ /\\ /g'):$(MM_LIB):.\"
 
 mm_opencl_intelfpga_backend.aocx: mm_opencl_backend.cl
 	aoc $(AOC_DEF) mm_opencl_backend.cl -o $(MM_LIB)/mm_opencl_intelfpga_backend.aocx $(FPGA_DEF)
