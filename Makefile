@@ -227,7 +227,7 @@ endif
 #Paul above here is the discovery stuff, below here is the configuration stuff
 
 
-BUILD_LIBS = libmetamorph.so
+BUILD_LIBS = $(MM_LIB)/libmetamorph.so
 export G_TYPE = DOUBLE
 ifeq ($(DEBUG),TRUE)
 export OPT_LVL = -g -DDEBUG
@@ -247,25 +247,25 @@ MM_DEPS= $(MM_CORE)/metamorph.c $(MM_CORE)/metamorph_fortran_compat.c $(MM_CORE)
 
 #MPI features
 ifeq ($(USE_MPI),TRUE)
-BUILD_LIBS += libmm_mpi.so
+BUILD_LIBS += $(MM_LIB)/libmm_mpi.so
 MPICC := $(MPI_DIR)/bin/mpicc -cc=$(CC)
 endif
 
 #timer features
 ifeq ($(USE_TIMERS),TRUE)
-BUILD_LIBS += libmm_profiling.so
+BUILD_LIBS += $(MM_LIB)/libmm_profiling.so
 endif
 
 #CUDA backend
 ifeq ($(USE_CUDA),TRUE)
-BUILD_LIBS += libmm_cuda_backend.so
+BUILD_LIBS += $(MM_LIB)/libmm_cuda_backend.so
 endif
 
 #OpenCL backend
 ifeq ($(USE_OPENCL),TRUE)
  ifeq ($(USE_FPGA),INTEL)
   OPENCL_FLAGS += -D WITH_INTELFPGA
-  BUILD_LIBS += libmm_opencl_intelfpga_backend.so
+  BUILD_LIBS += $(MM_LIB)/libmm_opencl_intelfpga_backend.so
   ####################### FPGA ##################################
   # Where is the Intel(R) FPGA SDK for OpenCL(TM) software?
   #TODO clean up this lookup
@@ -301,10 +301,10 @@ ifeq ($(USE_OPENCL),TRUE)
 
  else ifeq ($(USE_FPGA),XILINX)
   OPENCL_FLAGS += -D WITH_XILINXFPGA
-  BUILD_LIBS += libmm_opencl_xilinx_backend.so
+  BUILD_LIBS += $(MM_LIB)/libmm_opencl_xilinx_backend.so
   $(error XILINX not yet supported)
  else ifeq ($(USE_FPGA),) #The non-FPGA implementation has an empty string
-  BUILD_LIBS += libmm_opencl_backend.so
+  BUILD_LIBS += $(MM_LIB)/libmm_opencl_backend.so
  else #They asked for an FPGA backend that is not explicitly supported
   $(error USE_FPGA=$(USE_FPGA) is not supported)
  endif
@@ -322,9 +322,9 @@ ifeq ($(USE_OPENMP),TRUE)
   endif
 
   CC_FLAGS += -mmic
-  BUILD_LIBS += libmm_openmp_mic_backend.so
+  BUILD_LIBS += $(MM_LIB)/libmm_openmp_mic_backend.so
  else
-  BUILD_LIBS += libmm_openmp_backend.so
+  BUILD_LIBS += $(MM_LIB)/libmm_openmp_backend.so
  endif
 
  ifeq ($(CC),gcc)
@@ -338,56 +338,191 @@ export INCLUDES
 
 MFLAGS := USE_CUDA=$(USE_CUDA) CUDA_LIB_DIR=$(CUDA_LIB_DIR) USE_OPENCL=$(USE_OPENCL) OPENCL_LIB_DIR=$(OPENCL_LIB_DIR) OPENCL_INCL_DIR=$(OPENCL_INCL_DIR) OPENCL_SINGLE_KERNEL_PROGS=$(OPENCL_SINGLE_KERNEL_PROGS) USE_OPENMP=$(USE_OPENMP) USE_MIC=$(USE_MIC) ICC_BIN=$(ICC_BIN) USE_TIMERS=$(USE_TIMERS) USE_MPI=$(USE_MPI) MPI_DIR=$(MPI_DIR) USE_FPGA=$(USE_FPGA) CC="$(CC)" NVCC="$(NVCC)" MPICC="$(MPICC)" OPENMP_FLAGS="$(OPENMP_FLAGS)" OPENCL_FLAGS="$(OPENCL_FLAGS)" $(MFLAGS)
 
-#.PHONY: metamorph_all examples
-.PHONY: libmetamorph.so examples
+.PHONY: all
 all: $(BUILD_LIBS)
 
-libmetamorph.so: $(MM_DEPS)
+$(MM_LIB)/libmetamorph.so: $(MM_DEPS)
 	$(CC) $(MM_DEPS) $(CC_FLAGS) $(INCLUDES) -L$(MM_LIB) $(MM_COMPONENTS) -o $(MM_LIB)/libmetamorph.so -ldl -shared -Wl,-soname,libmetamorph.so
 
-libmm_profiling.so: $(MM_CORE)/metamorph_profiling.c
+$(MM_LIB)/libmm_profiling.so: $(MM_CORE)/metamorph_profiling.c
 	$(CC) $(MM_CORE)/metamorph_profiling.c $(CC_FLAGS) $(INCLUDES) -o $(MM_LIB)/libmm_profiling.so -shared -Wl,-soname,libmm_profiling.so
 
-libmm_mpi.so: $(MM_CORE)/metamorph_mpi.c
+$(MM_LIB)/libmm_mpi.so: $(MM_CORE)/metamorph_mpi.c
 	$(MPICC) $(MM_CORE)/metamorph_mpi.c $(CC_FLAGS) $(INCLUDES) -I$(MPI_DIR)/include -L$(MPI_DIR)/lib -o $(MM_LIB)/libmm_mpi.so -shared -Wl,-soname,libmm_mpi.so
 
-libmm_openmp_backend.so:	
+$(MM_LIB)/libmm_openmp_backend.so:	
 	cd $(MM_MP) && $(MFLAGS) $(MAKE) libmm_openmp_backend.so
 
 #TODO Make this happen transparently to this file, create a symlink in the backend's makefile	
-libmm_openmp_mic_backend.so:
+$(MM_LIB)/libmm_openmp_mic_backend.so:
 	cd $(MM_MP) && $(MFLAGS) $(MAKE) libmm_openmp_backend_mic.so
 
-libmm_cuda_backend.so:
+$(MM_LIB)/libmm_cuda_backend.so:
 	cd $(MM_CU) && $(MFLAGS) $(MAKE) libmm_cuda_backend.so
 
-libmm_opencl_backend.so:
+$(MM_LIB)/libmm_opencl_backend.so:
 	cd $(MM_CL) && $(MFLAGS) $(MAKE) libmm_opencl_backend.so
 
 #TODO Make this happen transparently to this file, create a symlink in the backend's makefile	
-libmm_opencl_intelfpga_backend.so:
+$(MM_LIB)/libmm_opencl_intelfpga_backend.so:
 	cd $(MM_CL) && $(MFLAGS) $(MAKE) libmm_opencl_intelfpga_backend.so
 
-generators: metaCL
+.PHONY: generators
+generators: $(MM_GEN_CL)/metaCL
 
-metaCL:
+
+$(MM_GEN_CL)/metaCL:
 	cd $(MM_GEN_CL) && $(MAKE) metaCL
-	
+
+.PHONY: examples
 examples: torus_ex
 
 torus_ex:
 	cd $(MM_EX) && $(MFLAGS) $(MAKE) torus_reduce_test
 
-#Dependency never added to repo
-#csr_ex:
-#	cd $(MM_EX) && $(MFLAGS) $(MAKE) csr_alt
-#	cd $(MM_EX) && $(MAKE) torus_reduce_test_mp torus_reduce_test_mic torus_reduce_test_cu torus_reduce_test_cl $(MFLAGS)
+#Move things to where they should be based on Linux FHS, everything under /usr as it's non-essential
+#MetaCL --> /usr/bin/metaCL
+#libraries --> /usr/lib/libmm ln -s --> /usr/lib/metamorph/libmm... (These might also make sense for /usr/local since which you want depend on the hardware and drivers in the system)
+#headers --> /usr/include
+#documentation --> /usr/share/doc
+#OpenCL kernels? .cl and .aocx?? (These might make sense for /usr/local since which you want depend on the hardware in the system)
+#Example binaries?
+#Source-only examples?
+#Useful to have symbolic links in the main library directory
+LINK_LIB_DIR=$(DESTDIR)/usr/lib
+#Actual copies of the library may be somewhere else in the lib tree, in case multiple versions/implementations are co-installed
+INSTALL_LIB_DIR=$(LINK_LIB_DIR)/metamorph-0.3-rc1
 
-#dependency never added to repo
-#crc_ex:
-#	cd $(MM_EX) && $(MFLAGS) $(MAKE) crc_alt
+#Should install and link on the same libraries as all, that's what the foreach is for
+.PHONY: install
+install: all $(foreach target,$(BUILD_LIBS),$(subst $(MM_LIB),$(LINK_LIB_DIR),$(target)))
+
+.PHONY: install-core-library
+install-core-library: $(LINK_LIB_DIR)/libmetamorph.so
+
+#Symbolic link to the actual library folder, in case we support multiple versioning down the road
+$(LINK_LIB_DIR)/libmetamorph.so: $(INSTALL_LIB_DIR)/libmetamorph.so
+	#Remove any existing symlink
+	@if [ -L $(LINK_LIB_DIR)/libmetamorph.so ]; then rm $(LINK_LIB_DIR)/libmetamorph.so; fi
+	#Create a symlink in the main library directory
+	ln -s $(INSTALL_LIB_DIR)/libmetamorph.so $(LINK_LIB_DIR)/libmetamorph.so
+
+#Copy to the actual library folder
+$(INSTALL_LIB_DIR)/libmetamorph.so: $(INSTALL_LIB_DIR) $(MM_LIB)/libmetamorph.so
+	#Remove any existing copy
+	@if [ -f $(INSTALL_LIB_DIR)/libmetamorph.so ]; then rm $(INSTALL_LIB_DIR)/libmetamorph.so; fi
+	#Copy the current version
+	cp $(MM_LIB)/libmetamorph.so $(INSTALL_LIB_DIR)/libmetamorph.so
+
+#Create the actual library folder
+$(INSTALL_LIB_DIR):
+	#Ensure the directory exists
+	@if [ ! -d $(INSTALL_LIB_DIR) ]; then mkdir -p $(INSTALL_LIB_DIR); fi
+
+.PHONY: install-opencl-library
+install-opencl-library: install-core-library $(LINK_LIB_DIR)/libmm_opencl_backend.so
+
+$(LINK_LIB_DIR)/libmm_opencl_backend.so: $(INSTALL_LIB_DIR)/libmm_opencl_backend.so
+	@if [ -L $(LINK_LIB_DIR)/libmm_opencl_backend.so ]; then rm $(LINK_LIB_DIR)/libmm_opencl_backend.so; fi
+	ln -s $(INSTALL_LIB_DIR)/libmm_opencl_backend.so $(LINK_LIB_DIR)/libmm_opencl_backend.so
+
+$(INSTALL_LIB_DIR)/libmm_opencl_backend.so: $(INSTALL_LIB_DIR) $(MM_LIB)/libmm_opencl_backend.so
+	@if [ -f $(INSTALL_LIB_DIR)/libmm_opencl_backend.so ]; then rm $(INSTALL_LIB_DIR)/libmm_opencl_backend.so; fi
+	cp $(MM_LIB)/libmm_opencl_backend.so $(INSTALL_LIB_DIR)/libmm_opencl_backend.so
+
+.PHONY: install-cuda-library
+install-cuda-library: install-core-library $(LINK_LIB_DIR)/libmm_cuda_backend.so
+
+$(LINK_LIB_DIR)/libmm_cuda_backend.so: $(INSTALL_LIB_DIR)/libmm_cuda_backend.so
+	@if [ -L $(LINK_LIB_DIR)/libmm_cuda_backend.so ]; then rm $(LINK_LIB_DIR)/libmm_cuda_backend.so; fi
+	ln -s $(INSTALL_LIB_DIR)/libmm_cuda_backend.so $(LINK_LIB_DIR)/libmm_cuda_backend.so
+
+$(INSTALL_LIB_DIR)/libmm_cuda_backend.so: $(INSTALL_LIB_DIR) $(MM_LIB)/libmm_cuda_backend.so
+	@if [ -f $(INSTALL_LIB_DIR)/libmm_cuda_backend.so ]; then rm $(INSTALL_LIB_DIR)/libmm_cuda_backend.so; fi
+	cp $(MM_LIB)/libmm_cuda_backend.so $(INSTALL_LIB_DIR)/libmm_cuda_backend.so
+
+.PHONY: install-openmp-library
+install-openmp-library: install-core-library $(LINK_LIB_DIR)/libmm_openmp_backend.so
+
+$(LINK_LIB_DIR)/libmm_openmp_backend.so: $(INSTALL_LIB_DIR)/libmm_openmp_backend.so
+	@if [ -L $(LINK_LIB_DIR)/libmm_openmp_backend.so ]; then rm $(LINK_LIB_DIR)/libmm_openmp_backend.so; fi
+	ln -s $(INSTALL_LIB_DIR)/libmm_openmp_backend.so $(LINK_LIB_DIR)/libmm_openmp_backend.so
+
+$(INSTALL_LIB_DIR)/libmm_openmp_backend.so: $(INSTALL_LIB_DIR) $(MM_LIB)/libmm_openmp_backend.so
+	@if [ -f $(INSTALL_LIB_DIR)/libmm_openmp_backend.so ]; then rm $(INSTALL_LIB_DIR)/libmm_openmp_backend.so; fi
+	cp $(MM_LIB)/libmm_openmp_backend.so $(INSTALL_LIB_DIR)/libmm_openmp_backend.so
+
+.PHONY: install-mpi-library
+install-mpi-library: install-core-library $(LINK_LIB_DIR)/libmm_mpi.so
+
+$(LINK_LIB_DIR)/libmm_mpi.so: $(INSTALL_LIB_DIR)/libmm_mpi.so
+	@if [ -L $(LINK_LIB_DIR)/libmm_mpi.so ]; then rm $(LINK_LIB_DIR)/libmm_mpi.so; fi
+	ln -s $(INSTALL_LIB_DIR)/libmm_mpi.so $(LINK_LIB_DIR)/libmm_mpi.so
+
+$(INSTALL_LIB_DIR)/libmm_mpi.so: $(INSTALL_LIB_DIR) $(MM_LIB)/libmm_mpi.so
+	@if [ -f $(INSTALL_LIB_DIR)/libmm_mpi.so ]; then rm $(INSTALL_LIB_DIR)/libmm_mpi.so; fi
+	cp $(MM_LIB)/libmm_mpi.so $(INSTALL_LIB_DIR)/libmm_mpi.so
+
+.PHONY: install-profiling-library
+install-profiling-library: install-core-library $(LINK_LIB_DIR)/libmm_profiling.so
+
+$(LINK_LIB_DIR)/libmm_profiling.so: $(INSTALL_LIB_DIR)/libmm_profiling.so
+	@if [ -L $(LINK_LIB_DIR)/libmm_profiling.so ]; then rm $(LINK_LIB_DIR)/libmm_profiling.so; fi
+	ln -s $(INSTALL_LIB_DIR)/libmm_profiling.so $(LINK_LIB_DIR)/libmm_profiling.so
+
+$(INSTALL_LIB_DIR)/libmm_profiling.so: $(INSTALL_LIB_DIR) $(MM_LIB)/libmm_profiling.so
+	@if [ -f $(INSTALL_LIB_DIR)/libmm_profiling.so ]; then rm $(INSTALL_LIB_DIR)/libmm_profiling.so; fi
+	cp $(MM_LIB)/libmm_profiling.so $(INSTALL_LIB_DIR)/libmm_profiling.so
+
+install-core-headers:
+	@if [ -d $(CASE_THAT_CONTROLS_HEADERS) ]; then cp -r $(MM_DIR)/include $(DESTDIR)/usr/include/metamorph;
+
+install-opencl-headers:
+
+install-cude-headers:
+
+install-openmp-headers:
+
+install-opencl-kernels:
+
+install-docs: docs
+	@if [ -d $(MM_DIR)/docs ]; then cp -r $(MM_DIR)/docs $(DESTDIR)/usr/share/doc/metamorph; fi
+
+install-templates:
+
+install-examples: examples
+
+install-metaCL: metaCL
+	@if [ -f $(MM_GEN_CL)/metaCL ]; then cp $(MM_GEN_CL)/metaCL $(DESTDIR)/usr/bin/metaCL; fi
+
+.PHONY: clean
 clean:
-	rm $(MM_LIB)/libmetamorph*.so $(MM_LIB)/libmm*.so $(MM_CU)/mm_cuda_backend.o
+	rm $(MM_LIB)/libmetamorph*.so $(MM_LIB)/libmm*.so
+	if [ -f $(MM_CU)/mm_cuda_backend.o ]; then rm $(MM_CU)/mm_cuda_backend.o; fi
+
+.PHONY: uninstall
+uninstall:
+	#Core library and link
+	if [ -f $(INSTALL_LIB_DIR)/libmetamorph.so ]; then rm $(INSTALL_LIB_DIR)/libmetamorph.so; fi
+	if [ -L $(LINK_LIB_DIR)/libmetamorph.so ]; then rm $(LINK_LIB_DIR)/libmetamorph.so; fi
+	#Backend libraries and links
+	if [ -f $(INSTALL_LIB_DIR)/libmm_opencl_backend.so ]; then rm $(INSTALL_LIB_DIR)/libmm_opencl_backend.so; fi
+	if [ -L $(LINK_LIB_DIR)/libmm_opencl_backend.so ]; then rm $(LINK_LIB_DIR)/libmm_opencl_backend.so; fi
+	if [ -f $(INSTALL_LIB_DIR)/libmm_cuda_backend.so ]; then rm $(INSTALL_LIB_DIR)/libmm_cuda_backend.so; fi
+	if [ -L $(LINK_LIB_DIR)/libmm_cuda_backend.so ]; then rm $(LINK_LIB_DIR)/libmm_cuda_backend.so; fi
+	if [ -f $(INSTALL_LIB_DIR)/libmm_openmp_backend.so ]; then rm $(INSTALL_LIB_DIR)/libmm_openmp_backend.so; fi
+	if [ -L $(LINK_LIB_DIR)/libmm_openmp_backend.so ]; then rm $(LINK_LIB_DIR)/libmm_openmp_backend.so; fi
+	#Plugin libraries and links
+	if [ -f $(INSTALL_LIB_DIR)/libmm_mpi.so ]; then rm $(INSTALL_LIB_DIR)/libmm_mpi.so; fi
+	if [ -L $(LINK_LIB_DIR)/libmm_mpi.so ]; then rm $(LINK_LIB_DIR)/libmm_mpi.so; fi
+	if [ -f $(INSTALL_LIB_DIR)/libmm_profiling.so ]; then rm $(INSTALL_LIB_DIR)/libmm_profiling.so; fi
+	if [ -L $(LINK_LIB_DIR)/libmm_profiling.so ]; then rm $(LINK_LIB_DIR)/libmm_profiling.so; fi
+	#Library install directory
+	if [ -d $(INSTALL_LIB_DIR) ]; then rmdir $(INSTALL_LIB_DIR); fi
+	#Core headers
+	#Library headers
+	#MetaCL
+	#Doxygen
 
 refresh:
 	rm $(MM_EX)/crc_alt $(MM_EX)/mm_opencl_intelfpga_backend.aocx
