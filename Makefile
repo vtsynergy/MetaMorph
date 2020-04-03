@@ -18,6 +18,17 @@ export MM_LIB=$(MM_DIR)/lib
 MM_AOCX_DIR=$(MM_LIB)
 
 export MM_GEN_CL=$(MM_DIR)/metamorph-generators/opencl
+OS := 
+ARCH :=
+VER :=
+ifeq ($(shell uname),Linux)
+ifneq (, $(shell which lsb_release))
+OS = $(shell lsb_release -si)
+OS := $(shell echo $(OS) | tr '[:upper:]' '[:lower:]')
+ARCH = $(shell uname -m)#| sed 's/x86_//;s/i[3-6]86/32/')
+VER = $(shell lsb_release -sr)
+endif
+endif
 #check if 64-bit libs should be used
 ifeq ($(shell arch),x86_64)
 ARCH_64 = x86_64
@@ -341,30 +352,33 @@ MFLAGS := USE_CUDA=$(USE_CUDA) CUDA_LIB_DIR=$(CUDA_LIB_DIR) USE_OPENCL=$(USE_OPE
 .PHONY: all
 all: $(BUILD_LIBS)
 
-$(MM_LIB)/libmetamorph.so: $(MM_DEPS)
+$(MM_LIB):
+	if [ ! -d $(MM_LIB) ]; then mkdir -p $(MM_LIB); fi
+
+$(MM_LIB)/libmetamorph.so: $(MM_LIB) $(MM_DEPS)
 	$(CC) $(MM_DEPS) $(CC_FLAGS) $(INCLUDES) -L$(MM_LIB) $(MM_COMPONENTS) -o $(MM_LIB)/libmetamorph.so -ldl -shared -Wl,-soname,libmetamorph.so
 
-$(MM_LIB)/libmm_profiling.so: $(MM_CORE)/metamorph_profiling.c
+$(MM_LIB)/libmm_profiling.so: $(MM_LIB) $(MM_CORE)/metamorph_profiling.c
 	$(CC) $(MM_CORE)/metamorph_profiling.c $(CC_FLAGS) $(INCLUDES) -o $(MM_LIB)/libmm_profiling.so -shared -Wl,-soname,libmm_profiling.so
 
-$(MM_LIB)/libmm_mpi.so: $(MM_CORE)/metamorph_mpi.c
+$(MM_LIB)/libmm_mpi.so: $(MM_LIB) $(MM_CORE)/metamorph_mpi.c
 	$(MPICC) $(MM_CORE)/metamorph_mpi.c $(CC_FLAGS) $(INCLUDES) -I$(MPI_DIR)/include -L$(MPI_DIR)/lib -o $(MM_LIB)/libmm_mpi.so -shared -Wl,-soname,libmm_mpi.so
 
-$(MM_LIB)/libmm_openmp_backend.so:	
+$(MM_LIB)/libmm_openmp_backend.so: $(MM_LIB)	
 	cd $(MM_MP) && $(MFLAGS) $(MAKE) libmm_openmp_backend.so
 
 #TODO Make this happen transparently to this file, create a symlink in the backend's makefile	
-$(MM_LIB)/libmm_openmp_mic_backend.so:
+$(MM_LIB)/libmm_openmp_mic_backend.so: $(MM_LIB)
 	cd $(MM_MP) && $(MFLAGS) $(MAKE) libmm_openmp_backend_mic.so
 
-$(MM_LIB)/libmm_cuda_backend.so:
+$(MM_LIB)/libmm_cuda_backend.so: $(MM_LIB)
 	cd $(MM_CU) && $(MFLAGS) $(MAKE) libmm_cuda_backend.so
 
-$(MM_LIB)/libmm_opencl_backend.so:
+$(MM_LIB)/libmm_opencl_backend.so: $(MM_LIB)
 	cd $(MM_CL) && $(MFLAGS) $(MAKE) libmm_opencl_backend.so
 
 #TODO Make this happen transparently to this file, create a symlink in the backend's makefile	
-$(MM_LIB)/libmm_opencl_intelfpga_backend.so:
+$(MM_LIB)/libmm_opencl_intelfpga_backend.so: $(MM_LIB)
 	cd $(MM_CL) && $(MFLAGS) $(MAKE) libmm_opencl_intelfpga_backend.so
 
 .PHONY: generators
@@ -388,8 +402,16 @@ torus_ex:
 #OpenCL kernels? .cl and .aocx?? (These might make sense for /usr/local since which you want depend on the hardware in the system)
 #Example binaries?
 #Source-only examples?
+#Base install directory. On many systems, according to the FHS ths would be /usr/local since the libraries are likely machine-specific. However Debian saves that path for the sysadmin's tools and pushes you to /usr instead
+ifeq ($(OS),debian)
+BASE_INSTALL_DIR=$(DESTDIR)/usr
+else ifeq ($(OS),ubuntu)
+BASE_INSTALL_DIR=$(DESTDIR)/usr
+else
+BASE_INSTALL_DIR=$(DESTDIR)/usr/local
+endif
 #Useful to have symbolic links in the main library directory
-LINK_LIB_DIR=$(DESTDIR)/usr/lib
+LINK_LIB_DIR=$(BASE_INSTALL_DIR)/lib
 #Actual copies of the library may be somewhere else in the lib tree, in case multiple versions/implementations are co-installed
 INSTALL_LIB_DIR=$(LINK_LIB_DIR)/metamorph-0.3-rc1
 
@@ -485,15 +507,17 @@ install-openmp-headers:
 
 install-opencl-kernels:
 
-install-docs: docs
-	@if [ -d $(MM_DIR)/docs ]; then cp -r $(MM_DIR)/docs $(DESTDIR)/usr/share/doc/metamorph; fi
-
 install-templates:
 
 install-examples: examples
 
-install-metaCL: metaCL
-	@if [ -f $(MM_GEN_CL)/metaCL ]; then cp $(MM_GEN_CL)/metaCL $(DESTDIR)/usr/bin/metaCL; fi
+$(BASE_INSTALL_DIR)/bin:
+	if [ ! -d $(BASE_INSTALL_DIR)/bin ]; then mkdir -p $(BASE_INSTALL_DIR)/bin; fi
+
+.PHONY: install-metaCL
+install-metaCL: $(MM_GEN_CL)/metaCL $(BASE_INSTALL_DIR)/bin
+	if [ -f $(BASE_INSTALL_DIR)/bin/metaCL ]; then rm $(BASE_INSTALL_DIR)/bin/metaCL; fi
+	cp $(MM_GEN_CL)/metaCL $(BASE_INSTALL_DIR)/bin/metaCL
 
 .PHONY: clean
 clean:
@@ -520,9 +544,12 @@ uninstall:
 	#Library install directory
 	if [ -d $(INSTALL_LIB_DIR) ]; then rmdir $(INSTALL_LIB_DIR); fi
 	#Core headers
-	#Library headers
+	#Backend headers
+	#Plugin headers
 	#MetaCL
+	if [ -f $(BASE_INSTALL_DIR)/bin/metaCL ]; then rm $(BASE_INSTALL_DIR)/bin/metaCL; fi
 	#Doxygen
+	if [ -d $(BASE_INSTALL_DIR)/share/docs/metamorph ]; then rm -Rf $(BASE_INSTALL_DIR)/share/docs/metamorph; fi
 
 refresh:
 	rm $(MM_EX)/crc_alt $(MM_EX)/mm_opencl_intelfpga_backend.aocx
@@ -532,3 +559,10 @@ doc:
 
 latex: doc
 	cd docs/latex && make
+
+$(BASE_INSTALL_DIR)/share/docs/metamorph:
+	if [ ! -d $(BASE_INSTALL_DIR)/share/docs/metamorph ]; then mkdir -p $(BASE_INSTALL_DIR)/share/docs/metamorph; fi
+
+.PHONY: install-docs
+install-docs: doc $(BASE_INSTALL_DIR)/share/docs/metamorph
+	cp -r $(MM_DIR)/docs/* $(BASE_INSTALL_DIR)/share/docs/metamorph/
