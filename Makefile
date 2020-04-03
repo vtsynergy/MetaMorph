@@ -63,16 +63,23 @@ ifneq ($(shell test -e $(MPI_DIR)/bin/mpicc && echo -n yes),yes) #check if mpicc
 $(error bin/mpicc not found at MPI_DIR=$(MPI_DIR))
 endif
 endif
+#If MPI is explicitly set, captialize
 ifdef USE_MPI
-#make uppercase
 USE_MPI := $(shell echo $(USE_MPI) | tr '[:lower:]' '[:upper:]')
+#If it's enabled, but not found, error out
 ifeq ($(USE_MPI),TRUE)
 ifeq ($(MPI_DIR),)
 $(error USE_MPI is set but no MPI environment found)
 endif
 endif
+endif
+#If not explicitly enabled, only activate if the directory exists
+ifndef USE_MPI
+ifneq ($(MPI_DIR),)
+USE_MPI=TRUE
 else
 USE_MPI=FALSE
+endif
 endif
 
 
