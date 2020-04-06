@@ -528,8 +528,14 @@ install-metaCL: $(MM_GEN_CL)/metaCL $(BASE_INSTALL_DIR)/bin
 
 .PHONY: clean
 clean:
-	rm $(MM_LIB)/libmetamorph*.so $(MM_LIB)/libmm*.so
+	if [ -f $(MM_LIB)/libmetamorph.so ]; then rm $(MM_LIB)/libmetamorph.so; fi
+	if [ -f $(MM_LIB)/libmm_opencl_backend.so ]; then rm $(MM_LIB)/libmm_opencl_backend.so; fi
+	if [ -f $(MM_LIB)/libmm_openmp_backend.so ]; then rm $(MM_LIB)/libmm_openmp_backend.so; fi
+	if [ -f $(MM_LIB)/libmm_cuda_backend.so ]; then rm $(MM_LIB)/libmm_cuda_backend.so; fi
+	if [ -f $(MM_LIB)/libmm_profiling.so ]; then rm $(MM_LIB)/libmm_profiling.so; fi
+	if [ -f $(MM_LIB)/libmm_mpi.so ]; then rm $(MM_LIB)/libmm_mpi.so; fi
 	if [ -f $(MM_CU)/mm_cuda_backend.o ]; then rm $(MM_CU)/mm_cuda_backend.o; fi
+	if [ -f $(MM_GEN_CL)/metaCL ]; then rm $(MM_GEN_CL)/metaCL; fi
 
 .PHONY: uninstall
 uninstall:
