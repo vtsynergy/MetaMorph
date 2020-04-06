@@ -372,21 +372,21 @@ $(MM_LIB)/libmm_mpi.so: $(MM_LIB) $(MM_CORE)/metamorph_mpi.c
 	$(MPICC) $(MM_CORE)/metamorph_mpi.c $(CC_FLAGS) $(INCLUDES) -I$(MPI_DIR)/include -L$(MPI_DIR)/lib -o $(MM_LIB)/libmm_mpi.so -shared -Wl,-soname,libmm_mpi.so
 
 $(MM_LIB)/libmm_openmp_backend.so: $(MM_LIB)	
-	cd $(MM_MP) && $(MFLAGS) $(MAKE) libmm_openmp_backend.so
+	cd $(MM_MP) && $(MAKE) $(MFLAGS) libmm_openmp_backend.so
 
 #TODO Make this happen transparently to this file, create a symlink in the backend's makefile	
 $(MM_LIB)/libmm_openmp_mic_backend.so: $(MM_LIB)
-	cd $(MM_MP) && $(MFLAGS) $(MAKE) libmm_openmp_backend_mic.so
+	cd $(MM_MP) && $(MAKE) $(MFLAGS) libmm_openmp_backend_mic.so
 
 $(MM_LIB)/libmm_cuda_backend.so: $(MM_LIB)
-	cd $(MM_CU) && $(MFLAGS) $(MAKE) libmm_cuda_backend.so
+	cd $(MM_CU) && $(MAKE) $(MFLAGS) libmm_cuda_backend.so
 
 $(MM_LIB)/libmm_opencl_backend.so: $(MM_LIB)
-	cd $(MM_CL) && $(MFLAGS) $(MAKE) libmm_opencl_backend.so
+	cd $(MM_CL) && $(MAKE) $(MFLAGS) libmm_opencl_backend.so
 
 #TODO Make this happen transparently to this file, create a symlink in the backend's makefile	
 $(MM_LIB)/libmm_opencl_intelfpga_backend.so: $(MM_LIB)
-	cd $(MM_CL) && $(MFLAGS) $(MAKE) libmm_opencl_intelfpga_backend.so
+	cd $(MM_CL) && $(MAKE) $(MFLAGS) libmm_opencl_intelfpga_backend.so
 
 .PHONY: generators
 generators: $(MM_GEN_CL)/metaCL
@@ -399,7 +399,7 @@ $(MM_GEN_CL)/metaCL:
 examples: torus_ex
 
 torus_ex:
-	cd $(MM_EX) && $(MFLAGS) $(MAKE) torus_reduce_test
+	cd $(MM_EX) && $(MAKE) $(MFLAGS) torus_reduce_test
 
 #Move things to where they should be based on Linux FHS, everything under /usr as it's non-essential
 #MetaCL --> /usr/bin/metaCL
