@@ -3,6 +3,12 @@
 #Options that attempt to autodetect: USE_CUDA, USE_OPENCL
 #Options that must be explicitly enabled: USE_MPI, USE_FPGA, USE_MIC 
 
+#Manually update package version information
+#Use origin for a stronger "not-defined" check, and a defined but empty variable still returns true to ifdef
+ifeq ($(origin VERSION),undefined)
+VERSION=0.3b-rc1
+endif
+
 #Configure root directories (usually just wherever you pulled MetaMorph and run the makefile from)
 ifndef MM_DIR
 export MM_DIR=$(shell pwd | sed 's/ /\\ /g')
@@ -40,6 +46,16 @@ ifndef DEBUG
 DEBUG=FALSE
 else
 DEBUG := $(shell echo $(DEBUG) | tr '[:lower:]' '[:upper:]')
+endif
+
+#Tagging with package version
+ifeq ($(origin VERSION_STR),undefined)
+ ifneq ($(strip $(VERSION)),)
+  VERSION_STR=-$(VERSION)
+ else
+  #what is happening
+  VERSION_STR=
+ endif
 endif
 
 #Timers default to on
@@ -418,90 +434,100 @@ else
 BASE_INSTALL_DIR=$(DESTDIR)/usr/local
 endif
 #Useful to have symbolic links in the main library directory
-LINK_LIB_DIR=$(BASE_INSTALL_DIR)/lib
+LINK_LIB_RDIR=lib
 #Actual copies of the library may be somewhere else in the lib tree, in case multiple versions/implementations are co-installed
-INSTALL_LIB_DIR=$(LINK_LIB_DIR)/metamorph-0.3-rc1
+INSTALL_LIB_RDIR=$(LINK_LIB_RDIR)/metamorph
+VERSIONED_LIB_RDIR=metamorph$(VERSION_STR)
 
 #Should install and link on the same libraries as all, that's what the foreach is for
 .PHONY: install
-install: all $(foreach target,$(BUILD_LIBS),$(subst $(MM_LIB),$(LINK_LIB_DIR),$(target)))
+install: all $(foreach target,$(BUILD_LIBS),$(subst $(MM_LIB),$(BASE_INSTALL_DIR)/$(LINK_LIB_RDIR),$(target)))
 
 .PHONY: install-core-library
-install-core-library: $(LINK_LIB_DIR)/libmetamorph.so
+install-core-library: $(BASE_INSTALL_DIR)/$(LINK_LIB_RDIR)/libmetamorph.so
 
 #Symbolic link to the actual library folder, in case we support multiple versioning down the road
-$(LINK_LIB_DIR)/libmetamorph.so: $(INSTALL_LIB_DIR)/libmetamorph.so
+$(BASE_INSTALL_DIR)/$(LINK_LIB_RDIR)/libmetamorph.so: $(BASE_INSTALL_DIR)/$(INSTALL_LIB_RDIR)/libmetamorph.so
 	#Remove any existing symlink
-	@if [ -L $(LINK_LIB_DIR)/libmetamorph.so ]; then rm $(LINK_LIB_DIR)/libmetamorph.so; fi
+	@if [ -L $(BASE_INSTALL_DIR)/$(LINK_LIB_RDIR)/libmetamorph.so ]; then rm $(BASE_INSTALL_DIR)/$(LINK_LIB_RDIR)/libmetamorph.so; fi
 	#Create a symlink in the main library directory
-	ln -s $(INSTALL_LIB_DIR)/libmetamorph.so $(LINK_LIB_DIR)/libmetamorph.so
+	ln -s ./metamorph/libmetamorph.so $(BASE_INSTALL_DIR)/$(LINK_LIB_RDIR)/libmetamorph.so
 
 #Copy to the actual library folder
-$(INSTALL_LIB_DIR)/libmetamorph.so: $(INSTALL_LIB_DIR) $(MM_LIB)/libmetamorph.so
+$(BASE_INSTALL_DIR)/$(INSTALL_LIB_RDIR)/libmetamorph.so: $(BASE_INSTALL_DIR)/$(INSTALL_LIB_RDIR) $(MM_LIB)/libmetamorph.so
 	#Remove any existing copy
-	@if [ -f $(INSTALL_LIB_DIR)/libmetamorph.so ]; then rm $(INSTALL_LIB_DIR)/libmetamorph.so; fi
+	@if [ -f $(BASE_INSTALL_DIR)/$(INSTALL_LIB_RDIR)/libmetamorph.so ]; then rm $(BASE_INSTALL_DIR)/$(INSTALL_LIB_RDIR)/libmetamorph.so; fi
 	#Copy the current version
-	cp $(MM_LIB)/libmetamorph.so $(INSTALL_LIB_DIR)/libmetamorph.so
+	cp $(MM_LIB)/libmetamorph.so $(BASE_INSTALL_DIR)/$(INSTALL_LIB_RDIR)/libmetamorph.so
 
-#Create the actual library folder
-$(INSTALL_LIB_DIR):
+
+#Create the actual library folder (versioned with a symlink to it if the version is non-empty)
+ifneq ($(INSTALL_LIB_RDIR),$(LINK_LIB_RDIR)/$(VERSIONED_LIB_RDIR))
+$(BASE_INSTALL_DIR)/$(INSTALL_LIB_RDIR): $(BASE_INSTALL_DIR)/$(LINK_LIB_RDIR)/$(VERSIONED_LIB_RDIR)
+	#Link to the versioned directory
+	@if [ ! -L $(BASE_INSTALL_DIR)/$(INSTALL_LIB_RDIR) ]; then ln -s ./$(VERSIONED_LIB_RDIR) $(BASE_INSTALL_DIR)/$(INSTALL_LIB_RDIR); fi
+
+$(BASE_INSTALL_DIR)/$(LINK_LIB_RDIR)/$(VERSIONED_LIB_RDIR):
+else
+$(BASE_INSTALL_DIR)/$(INSTALL_LIB_RDIR):
+endif
 	#Ensure the directory exists
-	@if [ ! -d $(INSTALL_LIB_DIR) ]; then mkdir -p $(INSTALL_LIB_DIR); fi
+	@if [ ! -d $(BASE_INSTALL_DIR)/$(LINK_LIB_RDIR)/$(VERSIONED_LIB_RDIR) ]; then mkdir -p $(BASE_INSTALL_DIR)/$(LINK_LIB_RDIR)/$(VERSIONED_LIB_RDIR); fi
 
 .PHONY: install-opencl-library
-install-opencl-library: install-core-library $(LINK_LIB_DIR)/libmm_opencl_backend.so
+install-opencl-library: install-core-library $(BASE_INSTALL_DIR)/$(LINK_LIB_RDIR)/libmm_opencl_backend.so
 
-$(LINK_LIB_DIR)/libmm_opencl_backend.so: $(INSTALL_LIB_DIR)/libmm_opencl_backend.so
-	@if [ -L $(LINK_LIB_DIR)/libmm_opencl_backend.so ]; then rm $(LINK_LIB_DIR)/libmm_opencl_backend.so; fi
-	ln -s $(INSTALL_LIB_DIR)/libmm_opencl_backend.so $(LINK_LIB_DIR)/libmm_opencl_backend.so
+$(BASE_INSTALL_DIR)/$(LINK_LIB_RDIR)/libmm_opencl_backend.so: $(BASE_INSTALL_DIR)/$(INSTALL_LIB_RDIR)/libmm_opencl_backend.so
+	@if [ -L $(BASE_INSTALL_DIR)/$(LINK_LIB_RDIR)/libmm_opencl_backend.so ]; then rm $(BASE_INSTALL_DIR)/$(LINK_LIB_RDIR)/libmm_opencl_backend.so; fi
+	ln -s ./metamorph/libmm_opencl_backend.so $(BASE_INSTALL_DIR)/$(LINK_LIB_RDIR)/libmm_opencl_backend.so
 
-$(INSTALL_LIB_DIR)/libmm_opencl_backend.so: $(INSTALL_LIB_DIR) $(MM_LIB)/libmm_opencl_backend.so
-	@if [ -f $(INSTALL_LIB_DIR)/libmm_opencl_backend.so ]; then rm $(INSTALL_LIB_DIR)/libmm_opencl_backend.so; fi
-	cp $(MM_LIB)/libmm_opencl_backend.so $(INSTALL_LIB_DIR)/libmm_opencl_backend.so
+$(BASE_INSTALL_DIR)/$(INSTALL_LIB_RDIR)/libmm_opencl_backend.so: $(BASE_INSTALL_DIR)/$(INSTALL_LIB_RDIR) $(MM_LIB)/libmm_opencl_backend.so
+	@if [ -f $(BASE_INSTALL_DIR)/$(INSTALL_LIB_RDIR)/libmm_opencl_backend.so ]; then rm $(BASE_INSTALL_DIR)/$(INSTALL_LIB_RDIR)/libmm_opencl_backend.so; fi
+	cp $(MM_LIB)/libmm_opencl_backend.so $(BASE_INSTALL_DIR)/$(INSTALL_LIB_RDIR)/libmm_opencl_backend.so
 
 .PHONY: install-cuda-library
-install-cuda-library: install-core-library $(LINK_LIB_DIR)/libmm_cuda_backend.so
+install-cuda-library: install-core-library $(BASE_INSTALL_DIR)/$(LINK_LIB_RDIR)/libmm_cuda_backend.so
 
-$(LINK_LIB_DIR)/libmm_cuda_backend.so: $(INSTALL_LIB_DIR)/libmm_cuda_backend.so
-	@if [ -L $(LINK_LIB_DIR)/libmm_cuda_backend.so ]; then rm $(LINK_LIB_DIR)/libmm_cuda_backend.so; fi
-	ln -s $(INSTALL_LIB_DIR)/libmm_cuda_backend.so $(LINK_LIB_DIR)/libmm_cuda_backend.so
+$(BASE_INSTALL_DIR)/$(LINK_LIB_RDIR)/libmm_cuda_backend.so: $(BASE_INSTALL_DIR)/$(INSTALL_LIB_RDIR)/libmm_cuda_backend.so
+	@if [ -L $(BASE_INSTALL_DIR)/$(LINK_LIB_RDIR)/libmm_cuda_backend.so ]; then rm $(BASE_INSTALL_DIR)/$(LINK_LIB_RDIR)/libmm_cuda_backend.so; fi
+	ln -s ./metamorph/libmm_cuda_backend.so $(BASE_INSTALL_DIR)/$(LINK_LIB_RDIR)/libmm_cuda_backend.so
 
-$(INSTALL_LIB_DIR)/libmm_cuda_backend.so: $(INSTALL_LIB_DIR) $(MM_LIB)/libmm_cuda_backend.so
-	@if [ -f $(INSTALL_LIB_DIR)/libmm_cuda_backend.so ]; then rm $(INSTALL_LIB_DIR)/libmm_cuda_backend.so; fi
-	cp $(MM_LIB)/libmm_cuda_backend.so $(INSTALL_LIB_DIR)/libmm_cuda_backend.so
+$(BASE_INSTALL_DIR)/$(INSTALL_LIB_RDIR)/libmm_cuda_backend.so: $(BASE_INSTALL_DIR)/$(INSTALL_LIB_RDIR) $(MM_LIB)/libmm_cuda_backend.so
+	@if [ -f $(BASE_INSTALL_DIR)/$(INSTALL_LIB_RDIR)/libmm_cuda_backend.so ]; then rm $(BASE_INSTALL_DIR)/$(INSTALL_LIB_RDIR)/libmm_cuda_backend.so; fi
+	cp $(MM_LIB)/libmm_cuda_backend.so $(BASE_INSTALL_DIR)/$(INSTALL_LIB_RDIR)/libmm_cuda_backend.so
 
 .PHONY: install-openmp-library
-install-openmp-library: install-core-library $(LINK_LIB_DIR)/libmm_openmp_backend.so
+install-openmp-library: install-core-library $(BASE_INSTALL_DIR)/$(LINK_LIB_RDIR)/libmm_openmp_backend.so
 
-$(LINK_LIB_DIR)/libmm_openmp_backend.so: $(INSTALL_LIB_DIR)/libmm_openmp_backend.so
-	@if [ -L $(LINK_LIB_DIR)/libmm_openmp_backend.so ]; then rm $(LINK_LIB_DIR)/libmm_openmp_backend.so; fi
-	ln -s $(INSTALL_LIB_DIR)/libmm_openmp_backend.so $(LINK_LIB_DIR)/libmm_openmp_backend.so
+$(BASE_INSTALL_DIR)/$(LINK_LIB_RDIR)/libmm_openmp_backend.so: $(BASE_INSTALL_DIR)/$(INSTALL_LIB_RDIR)/libmm_openmp_backend.so
+	@if [ -L $(BASE_INSTALL_DIR)/$(LINK_LIB_RDIR)/libmm_openmp_backend.so ]; then rm $(BASE_INSTALL_DIR)/$(LINK_LIB_RDIR)/libmm_openmp_backend.so; fi
+	ln -s ./metamorph/libmm_openmp_backend.so $(BASE_INSTALL_DIR)/$(LINK_LIB_RDIR)/libmm_openmp_backend.so
 
-$(INSTALL_LIB_DIR)/libmm_openmp_backend.so: $(INSTALL_LIB_DIR) $(MM_LIB)/libmm_openmp_backend.so
-	@if [ -f $(INSTALL_LIB_DIR)/libmm_openmp_backend.so ]; then rm $(INSTALL_LIB_DIR)/libmm_openmp_backend.so; fi
-	cp $(MM_LIB)/libmm_openmp_backend.so $(INSTALL_LIB_DIR)/libmm_openmp_backend.so
+$(BASE_INSTALL_DIR)/$(INSTALL_LIB_RDIR)/libmm_openmp_backend.so: $(BASE_INSTALL_DIR)/$(INSTALL_LIB_RDIR) $(MM_LIB)/libmm_openmp_backend.so
+	@if [ -f $(BASE_INSTALL_DIR)/$(INSTALL_LIB_RDIR)/libmm_openmp_backend.so ]; then rm $(BASE_INSTALL_DIR)/$(INSTALL_LIB_RDIR)/libmm_openmp_backend.so; fi
+	cp $(MM_LIB)/libmm_openmp_backend.so $(BASE_INSTALL_DIR)/$(INSTALL_LIB_RDIR)/libmm_openmp_backend.so
 
 .PHONY: install-mpi-library
-install-mpi-library: install-core-library $(LINK_LIB_DIR)/libmm_mpi.so
+install-mpi-library: install-core-library $(BASE_INSTALL_DIR)/$(LINK_LIB_RDIR)/libmm_mpi.so
 
-$(LINK_LIB_DIR)/libmm_mpi.so: $(INSTALL_LIB_DIR)/libmm_mpi.so
-	@if [ -L $(LINK_LIB_DIR)/libmm_mpi.so ]; then rm $(LINK_LIB_DIR)/libmm_mpi.so; fi
-	ln -s $(INSTALL_LIB_DIR)/libmm_mpi.so $(LINK_LIB_DIR)/libmm_mpi.so
+$(BASE_INSTALL_DIR)/$(LINK_LIB_RDIR)/libmm_mpi.so: $(BASE_INSTALL_DIR)/$(INSTALL_LIB_RDIR)/libmm_mpi.so
+	@if [ -L $(BASE_INSTALL_DIR)/$(LINK_LIB_RDIR)/libmm_mpi.so ]; then rm $(BASE_INSTALL_DIR)/$(LINK_LIB_RDIR)/libmm_mpi.so; fi
+	ln -s ./metamorph/libmm_mpi.so $(BASE_INSTALL_DIR)/$(LINK_LIB_RDIR)/libmm_mpi.so
 
-$(INSTALL_LIB_DIR)/libmm_mpi.so: $(INSTALL_LIB_DIR) $(MM_LIB)/libmm_mpi.so
-	@if [ -f $(INSTALL_LIB_DIR)/libmm_mpi.so ]; then rm $(INSTALL_LIB_DIR)/libmm_mpi.so; fi
-	cp $(MM_LIB)/libmm_mpi.so $(INSTALL_LIB_DIR)/libmm_mpi.so
+$(BASE_INSTALL_DIR)/$(INSTALL_LIB_RDIR)/libmm_mpi.so: $(BASE_INSTALL_DIR)/$(INSTALL_LIB_RDIR) $(MM_LIB)/libmm_mpi.so
+	@if [ -f $(BASE_INSTALL_DIR)/$(INSTALL_LIB_RDIR)/libmm_mpi.so ]; then rm $(BASE_INSTALL_DIR)/$(INSTALL_LIB_RDIR)/libmm_mpi.so; fi
+	cp $(MM_LIB)/libmm_mpi.so $(BASE_INSTALL_DIR)/$(INSTALL_LIB_RDIR)/libmm_mpi.so
 
 .PHONY: install-profiling-library
-install-profiling-library: install-core-library $(LINK_LIB_DIR)/libmm_profiling.so
+install-profiling-library: install-core-library $(BASE_INSTALL_DIR)/$(LINK_LIB_RDIR)/libmm_profiling.so
 
-$(LINK_LIB_DIR)/libmm_profiling.so: $(INSTALL_LIB_DIR)/libmm_profiling.so
-	@if [ -L $(LINK_LIB_DIR)/libmm_profiling.so ]; then rm $(LINK_LIB_DIR)/libmm_profiling.so; fi
-	ln -s $(INSTALL_LIB_DIR)/libmm_profiling.so $(LINK_LIB_DIR)/libmm_profiling.so
+$(BASE_INSTALL_DIR)/$(LINK_LIB_RDIR)/libmm_profiling.so: $(BASE_INSTALL_DIR)/$(INSTALL_LIB_RDIR)/libmm_profiling.so
+	@if [ -L $(BASE_INSTALL_DIR)/$(LINK_LIB_RDIR)/libmm_profiling.so ]; then rm $(BASE_INSTALL_DIR)/$(LINK_LIB_RDIR)/libmm_profiling.so; fi
+	ln -s ./metamorph/libmm_profiling.so $(BASE_INSTALL_DIR)/$(LINK_LIB_RDIR)/libmm_profiling.so
 
-$(INSTALL_LIB_DIR)/libmm_profiling.so: $(INSTALL_LIB_DIR) $(MM_LIB)/libmm_profiling.so
-	@if [ -f $(INSTALL_LIB_DIR)/libmm_profiling.so ]; then rm $(INSTALL_LIB_DIR)/libmm_profiling.so; fi
-	cp $(MM_LIB)/libmm_profiling.so $(INSTALL_LIB_DIR)/libmm_profiling.so
+$(BASE_INSTALL_DIR)/$(INSTALL_LIB_RDIR)/libmm_profiling.so: $(BASE_INSTALL_DIR)/$(INSTALL_LIB_RDIR) $(MM_LIB)/libmm_profiling.so
+	@if [ -f $(BASE_INSTALL_DIR)/$(INSTALL_LIB_RDIR)/libmm_profiling.so ]; then rm $(BASE_INSTALL_DIR)/$(INSTALL_LIB_RDIR)/libmm_profiling.so; fi
+	cp $(MM_LIB)/libmm_profiling.so $(BASE_INSTALL_DIR)/$(INSTALL_LIB_RDIR)/libmm_profiling.so
 
 install-core-headers:
 	@if [ -d $(CASE_THAT_CONTROLS_HEADERS) ]; then cp -r $(MM_DIR)/include $(DESTDIR)/usr/include/metamorph;
@@ -540,22 +566,23 @@ clean:
 .PHONY: uninstall
 uninstall:
 	#Core library and link
-	if [ -f $(INSTALL_LIB_DIR)/libmetamorph.so ]; then rm $(INSTALL_LIB_DIR)/libmetamorph.so; fi
-	if [ -L $(LINK_LIB_DIR)/libmetamorph.so ]; then rm $(LINK_LIB_DIR)/libmetamorph.so; fi
+	if [ -f $(BASE_INSTALL_DIR)/$(INSTALL_LIB_RDIR)/libmetamorph.so ]; then rm $(BASE_INSTALL_DIR)/$(INSTALL_LIB_RDIR)/libmetamorph.so; fi
+	if [ -L $(BASE_INSTALL_DIR)/$(LINK_LIB_RDIR)/libmetamorph.so ]; then rm $(BASE_INSTALL_DIR)/$(LINK_LIB_RDIR)/libmetamorph.so; fi
 	#Backend libraries and links
-	if [ -f $(INSTALL_LIB_DIR)/libmm_opencl_backend.so ]; then rm $(INSTALL_LIB_DIR)/libmm_opencl_backend.so; fi
-	if [ -L $(LINK_LIB_DIR)/libmm_opencl_backend.so ]; then rm $(LINK_LIB_DIR)/libmm_opencl_backend.so; fi
-	if [ -f $(INSTALL_LIB_DIR)/libmm_cuda_backend.so ]; then rm $(INSTALL_LIB_DIR)/libmm_cuda_backend.so; fi
-	if [ -L $(LINK_LIB_DIR)/libmm_cuda_backend.so ]; then rm $(LINK_LIB_DIR)/libmm_cuda_backend.so; fi
-	if [ -f $(INSTALL_LIB_DIR)/libmm_openmp_backend.so ]; then rm $(INSTALL_LIB_DIR)/libmm_openmp_backend.so; fi
-	if [ -L $(LINK_LIB_DIR)/libmm_openmp_backend.so ]; then rm $(LINK_LIB_DIR)/libmm_openmp_backend.so; fi
+	if [ -f $(BASE_INSTALL_DIR)/$(INSTALL_LIB_RDIR)/libmm_opencl_backend.so ]; then rm $(BASE_INSTALL_DIR)/$(INSTALL_LIB_RDIR)/libmm_opencl_backend.so; fi
+	if [ -L $(BASE_INSTALL_DIR)/$(LINK_LIB_RDIR)/libmm_opencl_backend.so ]; then rm $(BASE_INSTALL_DIR)/$(LINK_LIB_RDIR)/libmm_opencl_backend.so; fi
+	if [ -f $(BASE_INSTALL_DIR)/$(INSTALL_LIB_RDIR)/libmm_cuda_backend.so ]; then rm $(BASE_INSTALL_DIR)/$(INSTALL_LIB_RDIR)/libmm_cuda_backend.so; fi
+	if [ -L $(BASE_INSTALL_DIR)/$(LINK_LIB_RDIR)/libmm_cuda_backend.so ]; then rm $(BASE_INSTALL_DIR)/$(LINK_LIB_RDIR)/libmm_cuda_backend.so; fi
+	if [ -f $(BASE_INSTALL_DIR)/$(INSTALL_LIB_RDIR)/libmm_openmp_backend.so ]; then rm $(BASE_INSTALL_DIR)/$(INSTALL_LIB_RDIR)/libmm_openmp_backend.so; fi
+	if [ -L $(BASE_INSTALL_DIR)/$(LINK_LIB_RDIR)/libmm_openmp_backend.so ]; then rm $(BASE_INSTALL_DIR)/$(LINK_LIB_RDIR)/libmm_openmp_backend.so; fi
 	#Plugin libraries and links
-	if [ -f $(INSTALL_LIB_DIR)/libmm_mpi.so ]; then rm $(INSTALL_LIB_DIR)/libmm_mpi.so; fi
-	if [ -L $(LINK_LIB_DIR)/libmm_mpi.so ]; then rm $(LINK_LIB_DIR)/libmm_mpi.so; fi
-	if [ -f $(INSTALL_LIB_DIR)/libmm_profiling.so ]; then rm $(INSTALL_LIB_DIR)/libmm_profiling.so; fi
-	if [ -L $(LINK_LIB_DIR)/libmm_profiling.so ]; then rm $(LINK_LIB_DIR)/libmm_profiling.so; fi
+	if [ -f $(BASE_INSTALL_DIR)/$(INSTALL_LIB_RDIR)/libmm_mpi.so ]; then rm $(BASE_INSTALL_DIR)/$(INSTALL_LIB_RDIR)/libmm_mpi.so; fi
+	if [ -L $(BASE_INSTALL_DIR)/$(LINK_LIB_RDIR)/libmm_mpi.so ]; then rm $(BASE_INSTALL_DIR)/$(LINK_LIB_RDIR)/libmm_mpi.so; fi
+	if [ -f $(BASE_INSTALL_DIR)/$(INSTALL_LIB_RDIR)/libmm_profiling.so ]; then rm $(BASE_INSTALL_DIR)/$(INSTALL_LIB_RDIR)/libmm_profiling.so; fi
+	if [ -L $(BASE_INSTALL_DIR)/$(LINK_LIB_RDIR)/libmm_profiling.so ]; then rm $(BASE_INSTALL_DIR)/$(LINK_LIB_RDIR)/libmm_profiling.so; fi
 	#Library install directory
-	if [ -d $(INSTALL_LIB_DIR) ]; then rmdir $(INSTALL_LIB_DIR); fi
+	if [ -L $(BASE_INSTALL_DIR)/$(INSTALL_LIB_RDIR) ]; then rm $(BASE_INSTALL_DIR)/$(INSTALL_LIB_RDIR); fi
+	if [ -d $(BASE_INSTALL_DIR)/$(LINK_LIB_RDIR)/$(VERSIONED_LIB_RDIR) ]; then rmdir $(BASE_INSTALL_DIR)/$(LINK_LIB_RDIR)/$(VERSIONED_LIB_RDIR); fi
 	#Core headers
 	#Backend headers
 	#Plugin headers
