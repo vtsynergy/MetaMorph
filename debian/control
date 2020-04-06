@@ -14,30 +14,31 @@ Multi-Arch: same
 Depends: metamorphBROKEN (= ${binary:Version}), ${shlibs:Depends}, ${misc:Depends}
 Recommends: metamorph-openmp
 Description: MetaMorph Core Library
- The MetaMorph Core Library implements the core API and bridge across supported backends
+ The MetaMorph Core Library implements the core API and dynamically-loaded bridge across supported backends
 
 Package: metamorph-openmp
 Section: libs
 Architecture: any
 Multi-Arch: same
 Depends: metamorph (= ${binary:Version}), ${shlibs:Depends}, ${misc:Depends}
-Description: MetaMorph Core Library
- The MetaMorph Core Library implements the core API and bridge across supported backends
+Enhances: metamorph
+Description: MetaMorph OpenMP Backend
+ The MetaMorph OpenMP Backend implements OpenMP versions of MetaMorph's top-level functions
 
 Package: metamorph-cuda
 Section: libs
 Architecture: any
 Multi-Arch: same
-Depends: metamorph (= ${binary:Version}), ${shlibs:Depends}, ${misc:Depends}
+Depends: metamorph (= ${binary:Version}), cuda, ${shlibs:Depends}, ${misc:Depends}
 Enhances: metamorph
-Description: MetaMorph Core Library
+Description: MetaMorph CUDA Backend
  The MetaMorph OpenCL Backend implements the CUDA versions of MetaMorph's top-level functions.
 
 Package: metamorph-opencl
 Section: libs
 Architecture: any
 Multi-Arch: same
-Depends: metamorph (= ${binary:Version}), ${shlibs:Depends}, ${misc:Depends}
+Depends: metamorph (= ${binary:Version}), OpenCL, ${shlibs:Depends}, ${misc:Depends}
 Enhances: metamorph
 Description: MetaMorph OpenCL Backend
  The MetaMorph OpenCL Backend implements the OpenCL versions of MetaMorph's top-level
@@ -45,55 +46,87 @@ Description: MetaMorph OpenCL Backend
  It also provides OpenCL-specific functionality to support general OpenCL applications,
  particularly those created with MetaCL.
 
-Package: metamorph-dev
+Package: metamorph-mpi
+Section: libs
+Architecture: any
+Multi-Arch: same
+Depends: metamorph (= ${binary:Version}), MPI, ${shlibs:Depends}, ${misc:Depends}
+Enhances: metamorph
+Description: MetaMorph MPI Interoperability Plugin
+ Provides operations to send and receive MetaMorph device buffers across MPI
+
+Package: metamorph-profiling
 Section: libs
 Architecture: any
 Multi-Arch: same
 Depends: metamorph (= ${binary:Version}), ${shlibs:Depends}, ${misc:Depends}
+Enhances: metamorph
+Description: MetaMorph Profiling Plugin
+ Provides transparent profiling of MetaMorph API calls via backend-native
+ events.
+
+Package: metamorph-dev
+Section: libs
+Architecture: all
+Multi-Arch: same
+Depends: metamorph (= ${binary:Version}), ${shlibs:Depends}, ${misc:Depends}
 #Doesn't need to recommend any backend, a dev could write to the MM API and not care what backends exist
-Description: MetaMorph Core Library Development Files
- The MetaMorph Core Library implements the core API and bridge across supported backends
+Description: MetaMorph Core Headers
+ Header files to develop a new application based on only the core MetaMorph capabilities
 
 Package: metamorph-openmp-dev
 Section: libs
-Architecture: any
+Architecture: all
 Multi-Arch: same
 Depends: metamorph-openmp, metamorph-dev (= ${binary:Version}), ${shlibs:Depends}, ${misc:Depends}
-Description: MetaMorph Core Library
- The MetaMorph Core Library implements the core API and bridge across supported backends
+Description: MetaMorph OpenMP Backend Headers
+ Header files to develop a new application using features specific to the OpenMP backend
 
 Package: metamorph-cuda-dev
 Section: libs
-Architecture: any
+Architecture: all
 Multi-Arch: same
 Depends: metamorph-cuda, metamorph-dev (= ${binary:Version}), ${shlibs:Depends}, ${misc:Depends}
-Description: MetaMorph Core Library
- The MetaMorph Core Library implements the core API and bridge across supported backends
+Description: MetaMorph CUDA Backend Headers
+ Header files to develop a new application using features specific to the CUDA backend
 
 Package: metamorph-opencl-dev
 Section: libs
-Architecture: any
+Architecture: all
 Multi-Arch: same
 Suggests: metacl
 Depends: metamorph-opencl, metamorph-dev (= ${binary:Version}), ${shlibs:Depends}, ${misc:Depends}
-Description: MetaMorph Core Library
- The MetaMorph Core Library implements the core API and bridge across supported backends
+Description: MetaMorph OpenCL Bacend Headers
+ Header files to develop a new application using features specific to the OpenCL backend
+
+Package: metamorph-mpi-dev
+Section: libs
+Architecture: any
+Multi-Arch: same
+Depends: metamorph-mpi, metamorph-dev (= ${binary:Version}), MPI, ${shlibs:Depends}, ${misc:Depends}
+Enhances: metamorph
+Description: MetaMorph MPI Interoperability Plugin
+ Header files to develop a new application using functionality from the MPI plugin
+
+Package: metamorph-profiling-dev
+Section: libs
+Architecture: any
+Multi-Arch: same
+Depends: metamorph-profiling, metamorph-dev (= ${binary:Version}), ${shlibs:Depends}, ${misc:Depends}
+Enhances: metamorph
+Description: MetaMorph Profiling Plugin
+ Header files to directly utilize MetaMorph's backend-native timing infrastructure.
+ Only necessary for developers adding timers to features that lie outside the core MetaMorph API.
 
 Package: metacl
 Section: devel
 Architecture: any
 Multi-Arch: same
 Depends: clang 6.0.1 (= ${binary:Version}), ${misc:Depends}
+#Need to suggest the metamorph-dev and metamorph-opencl-dev. (They are required to compile/run the resulting application, but not to just run metaCL)
 Description: MetaCL OpenCL Host Autogenerator
  MetaCL is an autogenerator for OpenCL host code based on the Clang/LLVM compiler framework.
  Given a set of OpenCL kernel file(s), it generates the appropriate boilerplate to initialze
   the kernels and invoke them, wrapped inside a convenient and simplified API.
  Generated code is dependent on metamorph-opencl and metamorph to run, and corresponding
   dev packages to compile, but the MetaCL tool itself does not.
-
-Package: metamorphBROKEN
-Architecture: any
-Multi-Arch: same
-Depends: ${shlibs:Depends}, ${misc:Depends}
-Description: <insert up to 60 chars description>
- <insert long description, indented with spaces>

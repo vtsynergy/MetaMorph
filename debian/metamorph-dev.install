@@ -1,4 +1,4 @@
-usr/include/*
-usr/lib/*/lib*.so
-usr/lib/*/pkgconfig/*
-usr/share/pkgconfig/*
+usr/include/metamorph/metamorph.h
+usr/include/metamorph/metamorph_dynamic_symbols.h
+usr/include/metamorph/metamorph_fortran_compat.h
+usr/include/metamorph/metamorph_fortran_header.F03

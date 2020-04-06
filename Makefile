@@ -579,3 +579,7 @@ $(BASE_INSTALL_DIR)/share/docs/metamorph:
 .PHONY: install-docs
 install-docs: doc $(BASE_INSTALL_DIR)/share/docs/metamorph
 	cp -r $(MM_DIR)/docs/* $(BASE_INSTALL_DIR)/share/docs/metamorph/
+
+.PHONY: package
+package:
+	dpkg-buildpackage -rfakeroot -b -us -uc
