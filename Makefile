@@ -441,7 +441,7 @@ VERSIONED_LIB_RDIR=metamorph$(VERSION_STR)
 
 #Should install and link on the same libraries as all, that's what the foreach is for
 .PHONY: install
-install: all $(foreach target,$(BUILD_LIBS),$(subst $(MM_LIB),$(BASE_INSTALL_DIR)/$(LINK_LIB_RDIR),$(target)))
+install: all $(foreach target,$(BUILD_LIBS),$(subst $(MM_LIB),$(BASE_INSTALL_DIR)/$(LINK_LIB_RDIR),$(target))) install-metaCL
 
 .PHONY: install-core-library
 install-core-library: $(BASE_INSTALL_DIR)/$(LINK_LIB_RDIR)/libmetamorph.so
