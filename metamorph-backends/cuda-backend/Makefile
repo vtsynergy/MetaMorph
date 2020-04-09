@@ -1,5 +1,5 @@
-mm_cuda_backend.o: mm_cuda_backend.cu
-	$(NVCC) mm_cuda_backend.cu $(OPT_LVL) -c -Xcompiler -fPIC $(INCLUDES) -o mm_cuda_backend.o -D __CUDACC__
+metamorph_cuda.o: metamorph_cuda.cu
+	$(NVCC) metamorph_cuda.cu $(OPT_LVL) -c -Xcompiler -fPIC $(INCLUDES) -o metamorph_cuda.o
 
-libmm_cuda_backend.so: mm_cuda_backend.o
-	$(CC) mm_cuda_backend.o $(OPT_LVL) $(L_FLAGS) $(INCLUDES) -L$(CUDA_LIB_DIR) -lcudart -o $(MM_LIB)/libmm_cuda_backend.so -Wl,-soname,libmm_cuda_backend.so
+libmetamorph_cuda.so: metamorph_cuda.o
+	$(CC) metamorph_cuda.o $(OPT_LVL) $(L_FLAGS) $(INCLUDES) -L$(CUDA_LIB_DIR) -lcudart -o $(MM_LIB)/libmetamorph_cuda.so -Wl,-soname,libmetamorph_cuda.so

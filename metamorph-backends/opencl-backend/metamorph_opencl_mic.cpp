@@ -1,5 +1,5 @@
 /** OpenCL Back-End: MIC customization **/
-#include "../../metamorph-backends/opencl-backend/mm_opencl_backend.h"
+#include "../../metamorph-backends/opencl-backend/metamorph_opencl.h"
 
 extern cl_context meta_context;
 extern cl_command_queue meta_queue;
@@ -102,7 +102,7 @@ cl_int metaOpenCLBuildProgram(metaOpenCLStackFrame *frame) {
   cl_int ret = CL_SUCCESS;
   if (metaCLProgLen == 0) {
     metaCLProgLen =
-        metaOpenCLLoadProgramSource("mm_opencl_backend_mic.cl", &metaCLProgSrc);
+        metaOpenCLLoadProgramSource("metamorph_opencl_mic.cl", &metaCLProgSrc);
   }
   frame->program_opencl_core = clCreateProgramWithSource(
       frame->context, 1, &metaCLProgSrc, &metaCLProgLen, NULL);
@@ -472,7 +472,7 @@ cl_int metaOpenCLInitStackFrame(metaOpenCLStackFrame **frame, cl_int device) {
   (*frame)->queue = clCreateCommandQueue((*frame)->context, (*frame)->device,
                                          CL_QUEUE_PROFILING_ENABLE, NULL);
   metaOpenCLBuildProgram((*frame));
-  // Add this debug string if needed: -g -s\"./mm_opencl_backend.cl\"
+  // Add this debug string if needed: -g -s\"./metamorph_opencl.cl\"
   // Allocate any internal buffers necessary for kernel functions
   (*frame)->constant_face_size =
       clCreateBuffer((*frame)->context, CL_MEM_READ_ONLY,

@@ -12,16 +12,16 @@ extern "C" {
 /** A storage struct for dynamically loaded library handles, not meant for users
  * but needs to be exposed to the plugins */
 struct backend_handles {
-  /** Handle from dlopen for libmm_openmp_backend.so */
+  /** Handle from dlopen for libmetamorph_openmp.so */
   void *openmp_be_handle;
   /** Handle from dlopen for whatever the OpenMP implementation library is,
    * currently unused */
   void *openmp_lib_handle;
-  /** Handle from dlopen for libmm_opencl_backend.so */
+  /** Handle from dlopen for libmetamorph_opencl.so */
   void *opencl_be_handle;
   /** Handle from dlopen for libOpenCL.so */
   void *opencl_lib_handle;
-  /** Handle from dlopen for libmm_cuda_backend.so */
+  /** Handle from dlopen for libmetamorph_cuda.so */
   void *cuda_be_handle;
   /** Handle from dlopen for libcudart.so */
   void *cuda_lib_handle;
@@ -29,9 +29,9 @@ struct backend_handles {
 /** A storage strut for dynamically-loaded plugin library handles, not meant for
  * users but needs to be exposed to the backends */
 struct plugin_handles {
-  /** Handle from dlopen for libmm_mpi.so */
+  /** Handle from dlopen for libmetamorph_mpi.so */
   void *mpi_handle;
-  /** Handle from dlopen for libmm_profiling.so */
+  /** Handle from dlopen for libmetamorph_profiling.so */
   void *profiling_handle;
 };
 

@@ -127,7 +127,7 @@ GCC_VER=$(shell gcc --version | grep "gcc" | awk '{print $3}')
 NVCC=nvcc
 #Long term we want to automatically match the installed CUDA and CC version, but there is broad variabilty between SDK, different OS versions, and different C compilers. For now just pass through an options string
 ifdef NVCC_OPTS
-NVCC += NVCC_OPTS
+NVCC += $(NVCC_OPTS)
 #-ccbin gcc-4.9
 endif
 endif
@@ -314,14 +314,14 @@ endif
 
 #CUDA backend
 ifeq ($(USE_CUDA),TRUE)
-BUILD_LIBS += $(MM_LIB)/libmm_cuda_backend.so
+BUILD_LIBS += $(MM_LIB)/libmetamorph_cuda.so
 endif
 
 #OpenCL backend
 ifeq ($(USE_OPENCL),TRUE)
  ifeq ($(USE_FPGA),INTEL)
   OPENCL_FLAGS += -D WITH_INTELFPGA
-  BUILD_LIBS += $(MM_LIB)/libmm_opencl_intelfpga_backend.so
+  BUILD_LIBS += $(MM_LIB)/libmetamorph_opencl_intelfpga.so
   ####################### FPGA ##################################
   # Where is the Intel(R) FPGA SDK for OpenCL(TM) software?
   #TODO clean up this lookup
@@ -357,10 +357,10 @@ ifeq ($(USE_OPENCL),TRUE)
 
  else ifeq ($(USE_FPGA),XILINX)
   OPENCL_FLAGS += -D WITH_XILINXFPGA
-  BUILD_LIBS += $(MM_LIB)/libmm_opencl_xilinx_backend.so
+  BUILD_LIBS += $(MM_LIB)/libmetamorph_opencl_xilinx.so
   $(error XILINX not yet supported)
  else ifeq ($(USE_FPGA),) #The non-FPGA implementation has an empty string
-  BUILD_LIBS += $(MM_LIB)/libmm_opencl_backend.so
+  BUILD_LIBS += $(MM_LIB)/libmetamorph_opencl.so
  else #They asked for an FPGA backend that is not explicitly supported
   $(error USE_FPGA=$(USE_FPGA) is not supported)
  endif
@@ -378,9 +378,9 @@ ifeq ($(USE_OPENMP),TRUE)
   endif
 
   CC_FLAGS += -mmic
-  BUILD_LIBS += $(MM_LIB)/libmm_openmp_mic_backend.so
+  BUILD_LIBS += $(MM_LIB)/libmetamorph_openmp_mic.so
  else
-  BUILD_LIBS += $(MM_LIB)/libmm_openmp_backend.so
+  BUILD_LIBS += $(MM_LIB)/libmetamorph_openmp.so
  endif
 
  ifeq ($(CC),gcc)
@@ -409,22 +409,22 @@ $(MM_LIB)/libmm_profiling.so: $(MM_LIB) $(MM_CORE)/metamorph_profiling.c
 $(MM_LIB)/libmm_mpi.so: $(MM_LIB) $(MM_CORE)/metamorph_mpi.c
 	$(MPICC) $(MM_CORE)/metamorph_mpi.c $(CC_FLAGS) $(INCLUDES) -I$(MPI_DIR)/include -L$(MPI_DIR)/lib -o $(MM_LIB)/libmm_mpi.so -shared -Wl,-soname,libmm_mpi.so
 
-$(MM_LIB)/libmm_openmp_backend.so: $(MM_LIB)	
-	cd $(MM_MP) && $(MAKE) $(MFLAGS) libmm_openmp_backend.so
+$(MM_LIB)/libmetamorph_openmp.so: $(MM_LIB)	
+	cd $(MM_MP) && $(MAKE) $(MFLAGS) libmetamorph_openmp.so
 
 #TODO Make this happen transparently to this file, create a symlink in the backend's makefile	
-$(MM_LIB)/libmm_openmp_mic_backend.so: $(MM_LIB)
-	cd $(MM_MP) && $(MAKE) $(MFLAGS) libmm_openmp_backend_mic.so
+$(MM_LIB)/libmetamorph_openmp_mic.so: $(MM_LIB)
+	cd $(MM_MP) && $(MAKE) $(MFLAGS) libmetamorph_openmp_mic.so
 
-$(MM_LIB)/libmm_cuda_backend.so: $(MM_LIB)
-	cd $(MM_CU) && $(MAKE) $(MFLAGS) libmm_cuda_backend.so
+$(MM_LIB)/libmetamorph_cuda.so: $(MM_LIB)
+	cd $(MM_CU) && $(MAKE) $(MFLAGS) libmetamorph_cuda.so
 
-$(MM_LIB)/libmm_opencl_backend.so: $(MM_LIB)
-	cd $(MM_CL) && $(MAKE) $(MFLAGS) libmm_opencl_backend.so
+$(MM_LIB)/libmetamorph_opencl.so: $(MM_LIB)
+	cd $(MM_CL) && $(MAKE) $(MFLAGS) libmetamorph_opencl.so
 
 #TODO Make this happen transparently to this file, create a symlink in the backend's makefile	
-$(MM_LIB)/libmm_opencl_intelfpga_backend.so: $(MM_LIB)
-	cd $(MM_CL) && $(MAKE) $(MFLAGS) libmm_opencl_intelfpga_backend.so
+$(MM_LIB)/libmetamorph_opencl_intelfpga.so: $(MM_LIB)
+	cd $(MM_CL) && $(MAKE) $(MFLAGS) libmetamorph_opencl_intelfpga.so
 
 .PHONY: generators
 generators: $(MM_GEN_CL)/metaCL
@@ -497,37 +497,37 @@ endif
 	@if [ ! -d $(BASE_INSTALL_DIR)/$(LINK_LIB_RDIR)/$(VERSIONED_LIB_RDIR) ]; then mkdir -p $(BASE_INSTALL_DIR)/$(LINK_LIB_RDIR)/$(VERSIONED_LIB_RDIR); fi
 
 .PHONY: install-opencl-library
-install-opencl-library: install-core-library $(BASE_INSTALL_DIR)/$(LINK_LIB_RDIR)/libmm_opencl_backend.so
+install-opencl-library: install-core-library $(BASE_INSTALL_DIR)/$(LINK_LIB_RDIR)/libmetamorph_opencl.so
 
-$(BASE_INSTALL_DIR)/$(LINK_LIB_RDIR)/libmm_opencl_backend.so: $(BASE_INSTALL_DIR)/$(INSTALL_LIB_RDIR)/libmm_opencl_backend.so
-	@if [ -L $(BASE_INSTALL_DIR)/$(LINK_LIB_RDIR)/libmm_opencl_backend.so ]; then rm $(BASE_INSTALL_DIR)/$(LINK_LIB_RDIR)/libmm_opencl_backend.so; fi
-	ln -s ./metamorph/libmm_opencl_backend.so $(BASE_INSTALL_DIR)/$(LINK_LIB_RDIR)/libmm_opencl_backend.so
+$(BASE_INSTALL_DIR)/$(LINK_LIB_RDIR)/libmetamorph_opencl.so: $(BASE_INSTALL_DIR)/$(INSTALL_LIB_RDIR)/libmetamorph_opencl.so
+	@if [ -L $(BASE_INSTALL_DIR)/$(LINK_LIB_RDIR)/libmetamorph_opencl.so ]; then rm $(BASE_INSTALL_DIR)/$(LINK_LIB_RDIR)/libmetamorph_opencl.so; fi
+	ln -s ./metamorph/libmetamorph_opencl.so $(BASE_INSTALL_DIR)/$(LINK_LIB_RDIR)/libmetamorph_opencl.so
 
-$(BASE_INSTALL_DIR)/$(INSTALL_LIB_RDIR)/libmm_opencl_backend.so: $(BASE_INSTALL_DIR)/$(INSTALL_LIB_RDIR) $(MM_LIB)/libmm_opencl_backend.so
-	@if [ -f $(BASE_INSTALL_DIR)/$(INSTALL_LIB_RDIR)/libmm_opencl_backend.so ]; then rm $(BASE_INSTALL_DIR)/$(INSTALL_LIB_RDIR)/libmm_opencl_backend.so; fi
-	cp $(MM_LIB)/libmm_opencl_backend.so $(BASE_INSTALL_DIR)/$(INSTALL_LIB_RDIR)/libmm_opencl_backend.so
+$(BASE_INSTALL_DIR)/$(INSTALL_LIB_RDIR)/libmetamorph_opencl.so: $(BASE_INSTALL_DIR)/$(INSTALL_LIB_RDIR) $(MM_LIB)/libmetamorph_opencl.so
+	@if [ -f $(BASE_INSTALL_DIR)/$(INSTALL_LIB_RDIR)/libmetamorph_opencl.so ]; then rm $(BASE_INSTALL_DIR)/$(INSTALL_LIB_RDIR)/libmetamorph_opencl.so; fi
+	cp $(MM_LIB)/libmetamorph_opencl.so $(BASE_INSTALL_DIR)/$(INSTALL_LIB_RDIR)/libmetamorph_opencl.so
 
 .PHONY: install-cuda-library
-install-cuda-library: install-core-library $(BASE_INSTALL_DIR)/$(LINK_LIB_RDIR)/libmm_cuda_backend.so
+install-cuda-library: install-core-library $(BASE_INSTALL_DIR)/$(LINK_LIB_RDIR)/libmetamorph_cuda.so
 
-$(BASE_INSTALL_DIR)/$(LINK_LIB_RDIR)/libmm_cuda_backend.so: $(BASE_INSTALL_DIR)/$(INSTALL_LIB_RDIR)/libmm_cuda_backend.so
-	@if [ -L $(BASE_INSTALL_DIR)/$(LINK_LIB_RDIR)/libmm_cuda_backend.so ]; then rm $(BASE_INSTALL_DIR)/$(LINK_LIB_RDIR)/libmm_cuda_backend.so; fi
-	ln -s ./metamorph/libmm_cuda_backend.so $(BASE_INSTALL_DIR)/$(LINK_LIB_RDIR)/libmm_cuda_backend.so
+$(BASE_INSTALL_DIR)/$(LINK_LIB_RDIR)/libmetamorph_cuda.so: $(BASE_INSTALL_DIR)/$(INSTALL_LIB_RDIR)/libmetamorph_cuda.so
+	@if [ -L $(BASE_INSTALL_DIR)/$(LINK_LIB_RDIR)/libmetamorph_cuda.so ]; then rm $(BASE_INSTALL_DIR)/$(LINK_LIB_RDIR)/libmetamorph_cuda.so; fi
+	ln -s ./metamorph/libmetamorph_cuda.so $(BASE_INSTALL_DIR)/$(LINK_LIB_RDIR)/libmetamorph_cuda.so
 
-$(BASE_INSTALL_DIR)/$(INSTALL_LIB_RDIR)/libmm_cuda_backend.so: $(BASE_INSTALL_DIR)/$(INSTALL_LIB_RDIR) $(MM_LIB)/libmm_cuda_backend.so
-	@if [ -f $(BASE_INSTALL_DIR)/$(INSTALL_LIB_RDIR)/libmm_cuda_backend.so ]; then rm $(BASE_INSTALL_DIR)/$(INSTALL_LIB_RDIR)/libmm_cuda_backend.so; fi
-	cp $(MM_LIB)/libmm_cuda_backend.so $(BASE_INSTALL_DIR)/$(INSTALL_LIB_RDIR)/libmm_cuda_backend.so
+$(BASE_INSTALL_DIR)/$(INSTALL_LIB_RDIR)/libmetamorph_cuda.so: $(BASE_INSTALL_DIR)/$(INSTALL_LIB_RDIR) $(MM_LIB)/libmetamorph_cuda.so
+	@if [ -f $(BASE_INSTALL_DIR)/$(INSTALL_LIB_RDIR)/libmetamorph_cuda.so ]; then rm $(BASE_INSTALL_DIR)/$(INSTALL_LIB_RDIR)/libmetamorph_cuda.so; fi
+	cp $(MM_LIB)/libmetamorph_cuda.so $(BASE_INSTALL_DIR)/$(INSTALL_LIB_RDIR)/libmetamorph_cuda.so
 
 .PHONY: install-openmp-library
-install-openmp-library: install-core-library $(BASE_INSTALL_DIR)/$(LINK_LIB_RDIR)/libmm_openmp_backend.so
+install-openmp-library: install-core-library $(BASE_INSTALL_DIR)/$(LINK_LIB_RDIR)/libmetamorph_openmp.so
 
-$(BASE_INSTALL_DIR)/$(LINK_LIB_RDIR)/libmm_openmp_backend.so: $(BASE_INSTALL_DIR)/$(INSTALL_LIB_RDIR)/libmm_openmp_backend.so
-	@if [ -L $(BASE_INSTALL_DIR)/$(LINK_LIB_RDIR)/libmm_openmp_backend.so ]; then rm $(BASE_INSTALL_DIR)/$(LINK_LIB_RDIR)/libmm_openmp_backend.so; fi
-	ln -s ./metamorph/libmm_openmp_backend.so $(BASE_INSTALL_DIR)/$(LINK_LIB_RDIR)/libmm_openmp_backend.so
+$(BASE_INSTALL_DIR)/$(LINK_LIB_RDIR)/libmetamorph_openmp.so: $(BASE_INSTALL_DIR)/$(INSTALL_LIB_RDIR)/libmetamorph_openmp.so
+	@if [ -L $(BASE_INSTALL_DIR)/$(LINK_LIB_RDIR)/libmetamorph_openmp.so ]; then rm $(BASE_INSTALL_DIR)/$(LINK_LIB_RDIR)/libmetamorph_openmp.so; fi
+	ln -s ./metamorph/libmetamorph_openmp.so $(BASE_INSTALL_DIR)/$(LINK_LIB_RDIR)/libmetamorph_openmp.so
 
-$(BASE_INSTALL_DIR)/$(INSTALL_LIB_RDIR)/libmm_openmp_backend.so: $(BASE_INSTALL_DIR)/$(INSTALL_LIB_RDIR) $(MM_LIB)/libmm_openmp_backend.so
-	@if [ -f $(BASE_INSTALL_DIR)/$(INSTALL_LIB_RDIR)/libmm_openmp_backend.so ]; then rm $(BASE_INSTALL_DIR)/$(INSTALL_LIB_RDIR)/libmm_openmp_backend.so; fi
-	cp $(MM_LIB)/libmm_openmp_backend.so $(BASE_INSTALL_DIR)/$(INSTALL_LIB_RDIR)/libmm_openmp_backend.so
+$(BASE_INSTALL_DIR)/$(INSTALL_LIB_RDIR)/libmetamorph_openmp.so: $(BASE_INSTALL_DIR)/$(INSTALL_LIB_RDIR) $(MM_LIB)/libmetamorph_openmp.so
+	@if [ -f $(BASE_INSTALL_DIR)/$(INSTALL_LIB_RDIR)/libmetamorph_openmp.so ]; then rm $(BASE_INSTALL_DIR)/$(INSTALL_LIB_RDIR)/libmetamorph_openmp.so; fi
+	cp $(MM_LIB)/libmetamorph_openmp.so $(BASE_INSTALL_DIR)/$(INSTALL_LIB_RDIR)/libmetamorph_openmp.so
 
 .PHONY: install-mpi-library
 install-mpi-library: install-core-library $(BASE_INSTALL_DIR)/$(LINK_LIB_RDIR)/libmm_mpi.so
@@ -577,12 +577,12 @@ install-metaCL: $(MM_GEN_CL)/metaCL $(BASE_INSTALL_DIR)/bin
 .PHONY: clean
 clean:
 	if [ -f $(MM_LIB)/libmetamorph.so ]; then rm $(MM_LIB)/libmetamorph.so; fi
-	if [ -f $(MM_LIB)/libmm_opencl_backend.so ]; then rm $(MM_LIB)/libmm_opencl_backend.so; fi
-	if [ -f $(MM_LIB)/libmm_openmp_backend.so ]; then rm $(MM_LIB)/libmm_openmp_backend.so; fi
-	if [ -f $(MM_LIB)/libmm_cuda_backend.so ]; then rm $(MM_LIB)/libmm_cuda_backend.so; fi
+	if [ -f $(MM_LIB)/libmetamorph_opencl.so ]; then rm $(MM_LIB)/libmetamorph_opencl.so; fi
+	if [ -f $(MM_LIB)/libmetamorph_openmp.so ]; then rm $(MM_LIB)/libmetamorph_openmp.so; fi
+	if [ -f $(MM_LIB)/libmetamorph_cuda.so ]; then rm $(MM_LIB)/libmetamorph_cuda.so; fi
 	if [ -f $(MM_LIB)/libmm_profiling.so ]; then rm $(MM_LIB)/libmm_profiling.so; fi
 	if [ -f $(MM_LIB)/libmm_mpi.so ]; then rm $(MM_LIB)/libmm_mpi.so; fi
-	if [ -f $(MM_CU)/mm_cuda_backend.o ]; then rm $(MM_CU)/mm_cuda_backend.o; fi
+	if [ -f $(MM_CU)/metamorph_cuda.o ]; then rm $(MM_CU)/metamorph_cuda.o; fi
 	if [ -f $(MM_GEN_CL)/metaCL ]; then rm $(MM_GEN_CL)/metaCL; fi
 
 .PHONY: uninstall
@@ -591,12 +591,12 @@ uninstall:
 	if [ -f $(BASE_INSTALL_DIR)/$(INSTALL_LIB_RDIR)/libmetamorph.so ]; then rm $(BASE_INSTALL_DIR)/$(INSTALL_LIB_RDIR)/libmetamorph.so; fi
 	if [ -L $(BASE_INSTALL_DIR)/$(LINK_LIB_RDIR)/libmetamorph.so ]; then rm $(BASE_INSTALL_DIR)/$(LINK_LIB_RDIR)/libmetamorph.so; fi
 	#Backend libraries and links
-	if [ -f $(BASE_INSTALL_DIR)/$(INSTALL_LIB_RDIR)/libmm_opencl_backend.so ]; then rm $(BASE_INSTALL_DIR)/$(INSTALL_LIB_RDIR)/libmm_opencl_backend.so; fi
-	if [ -L $(BASE_INSTALL_DIR)/$(LINK_LIB_RDIR)/libmm_opencl_backend.so ]; then rm $(BASE_INSTALL_DIR)/$(LINK_LIB_RDIR)/libmm_opencl_backend.so; fi
-	if [ -f $(BASE_INSTALL_DIR)/$(INSTALL_LIB_RDIR)/libmm_cuda_backend.so ]; then rm $(BASE_INSTALL_DIR)/$(INSTALL_LIB_RDIR)/libmm_cuda_backend.so; fi
-	if [ -L $(BASE_INSTALL_DIR)/$(LINK_LIB_RDIR)/libmm_cuda_backend.so ]; then rm $(BASE_INSTALL_DIR)/$(LINK_LIB_RDIR)/libmm_cuda_backend.so; fi
-	if [ -f $(BASE_INSTALL_DIR)/$(INSTALL_LIB_RDIR)/libmm_openmp_backend.so ]; then rm $(BASE_INSTALL_DIR)/$(INSTALL_LIB_RDIR)/libmm_openmp_backend.so; fi
-	if [ -L $(BASE_INSTALL_DIR)/$(LINK_LIB_RDIR)/libmm_openmp_backend.so ]; then rm $(BASE_INSTALL_DIR)/$(LINK_LIB_RDIR)/libmm_openmp_backend.so; fi
+	if [ -f $(BASE_INSTALL_DIR)/$(INSTALL_LIB_RDIR)/libmetamorph_opencl.so ]; then rm $(BASE_INSTALL_DIR)/$(INSTALL_LIB_RDIR)/libmetamorph_opencl.so; fi
+	if [ -L $(BASE_INSTALL_DIR)/$(LINK_LIB_RDIR)/libmetamorph_opencl.so ]; then rm $(BASE_INSTALL_DIR)/$(LINK_LIB_RDIR)/libmetamorph_opencl.so; fi
+	if [ -f $(BASE_INSTALL_DIR)/$(INSTALL_LIB_RDIR)/libmetamorph_cuda.so ]; then rm $(BASE_INSTALL_DIR)/$(INSTALL_LIB_RDIR)/libmetamorph_cuda.so; fi
+	if [ -L $(BASE_INSTALL_DIR)/$(LINK_LIB_RDIR)/libmetamorph_cuda.so ]; then rm $(BASE_INSTALL_DIR)/$(LINK_LIB_RDIR)/libmetamorph_cuda.so; fi
+	if [ -f $(BASE_INSTALL_DIR)/$(INSTALL_LIB_RDIR)/libmetamorph_openmp.so ]; then rm $(BASE_INSTALL_DIR)/$(INSTALL_LIB_RDIR)/libmetamorph_openmp.so; fi
+	if [ -L $(BASE_INSTALL_DIR)/$(LINK_LIB_RDIR)/libmetamorph_openmp.so ]; then rm $(BASE_INSTALL_DIR)/$(LINK_LIB_RDIR)/libmetamorph_openmp.so; fi
 	#Plugin libraries and links
 	if [ -f $(BASE_INSTALL_DIR)/$(INSTALL_LIB_RDIR)/libmm_mpi.so ]; then rm $(BASE_INSTALL_DIR)/$(INSTALL_LIB_RDIR)/libmm_mpi.so; fi
 	if [ -L $(BASE_INSTALL_DIR)/$(LINK_LIB_RDIR)/libmm_mpi.so ]; then rm $(BASE_INSTALL_DIR)/$(LINK_LIB_RDIR)/libmm_mpi.so; fi
@@ -614,7 +614,7 @@ uninstall:
 	if [ -d $(BASE_INSTALL_DIR)/share/docs/metamorph ]; then rm -Rf $(BASE_INSTALL_DIR)/share/docs/metamorph; fi
 
 refresh:
-	rm $(MM_EX)/crc_alt $(MM_EX)/mm_opencl_intelfpga_backend.aocx
+	rm $(MM_EX)/crc_alt $(MM_EX)/metamorph_opencl_intelfpga.aocx
 
 doc:
 	DOXY_PROJECT_NUMBER=$(shell git log -1 --format \"%h \(%cd\)\") doxygen Doxyfile

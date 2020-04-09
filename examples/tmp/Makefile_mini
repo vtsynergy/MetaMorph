@@ -12,31 +12,31 @@ endif
 
 miniGhost_test_mp: miniGhost_meta.c
 ifeq ($(USE_MPI),TRUE)
-	mpicc miniGhost_meta.c $(OPT_LVL) $(INCLUDES) -L $(MM_LIB) -I $(MPICH_DIR)/include -L $(MPICH_DIR)/lib -D $(G_TYPE) -D WITH_OPENMP -D WITH_TIMERS -D WITH_MPI -lmetamorph_mp -lmm_openmp_backend -o miniGhost_test_mp
+	mpicc miniGhost_meta.c $(OPT_LVL) $(INCLUDES) -L $(MM_LIB) -I $(MPICH_DIR)/include -L $(MPICH_DIR)/lib -D $(G_TYPE) -D WITH_OPENMP -D WITH_TIMERS -D WITH_MPI -lmetamorph_mp -lmetamorph_openmp -o miniGhost_test_mp
 else
-	$(CC) miniGhost_meta.c $(OPT_LVL) $(INCLUDES) -L $(MM_LIB) -D $(G_TYPE) -D WITH_OPENMP -D WITH_TIMERS -lmetamorph_mp -lmm_openmp_backend -o miniGhost_test_mp
+	$(CC) miniGhost_meta.c $(OPT_LVL) $(INCLUDES) -L $(MM_LIB) -D $(G_TYPE) -D WITH_OPENMP -D WITH_TIMERS -lmetamorph_mp -lmetamorph_openmp -o miniGhost_test_mp
 endif
 
 miniGhost_mic: miniGhost_meta.c
 ifeq ($(USE_MPI),TRUE)
-	mpicc -cc=icc miniGhost_meta.c $(OPT_LVL) $(INCLUDES) -L $(MM_LIB) -I $(MPICH_DIR)-mic/include -L $(MPICH_DIR)-mic/lib -D $(G_TYPE) -mmic -D WITH_OPENMP -D WITH_TIMERS -D WITH_MPI -lmetamorph_mic -libmm_openmp_backend_mic -o miniGhost_test_mic -Wl,-rpath,/opt/intel/lib/mic,-rpath,$(MM_LIB)
+	mpicc -cc=icc miniGhost_meta.c $(OPT_LVL) $(INCLUDES) -L $(MM_LIB) -I $(MPICH_DIR)-mic/include -L $(MPICH_DIR)-mic/lib -D $(G_TYPE) -mmic -D WITH_OPENMP -D WITH_TIMERS -D WITH_MPI -lmetamorph_mic -libmetamorph_openmp_mic -o miniGhost_test_mic -Wl,-rpath,/opt/intel/lib/mic,-rpath,$(MM_LIB)
 else
-	icc miniGhost_meta.c $(OPT_LVL) $(INCLUDES) -L $(MM_LIB) -D $(G_TYPE) -mmic -D WITH_OPENMP -D WITH_TIMERS -lmetamorph_mic -libmm_openmp_backend_mic -o miniGhost_test_mic -Wl,-rpath,/opt/intel/lib/mic,-rpath,$(MM_LIB)
+	icc miniGhost_meta.c $(OPT_LVL) $(INCLUDES) -L $(MM_LIB) -D $(G_TYPE) -mmic -D WITH_OPENMP -D WITH_TIMERS -lmetamorph_mic -libmetamorph_openmp_mic -o miniGhost_test_mic -Wl,-rpath,/opt/intel/lib/mic,-rpath,$(MM_LIB)
 endif
 
 miniGhost_test_cu: miniGhost_meta.c
 ifeq ($(USE_MPI),TRUE)
-	mpicc miniGhost_meta.c $(OPT_LVL) $(INCLUDES) -L $(MM_LIB) -I $(MPICH_DIR)/include -L $(MPICH_DIR)/lib -D $(G_TYPE) -D WITH_CUDA -D WITH_TIMERS -D WITH_MPI -lmetamorph_cu -lmm_cuda_backend -o miniGhost_test_cu
+	mpicc miniGhost_meta.c $(OPT_LVL) $(INCLUDES) -L $(MM_LIB) -I $(MPICH_DIR)/include -L $(MPICH_DIR)/lib -D $(G_TYPE) -D WITH_CUDA -D WITH_TIMERS -D WITH_MPI -lmetamorph_cu -lmetamorph_cuda -o miniGhost_test_cu
 else
 	$(CC) miniGhost_meta.c $(OPT_LVL) $(INCLUDES) -L $(MM_LIB) -D $(G_TYPE) -D WITH_CUDA -D WITH_TIMERS -lmetamorph_cu -o miniGhost_test_cu
 endif
 	
 miniGhost_test_cl: cl_link miniGhost_meta.c
 ifeq ($(USE_MPI),TRUE)
-	mpicc miniGhost_meta.c $(OPT_LVL) $(INCLUDES) -L $(MM_LIB) -I $(MPICH_DIR)/include -L $(MPICH_DIR)/lib -D $(G_TYPE) -D WITH_OPENCL -D WITH_TIMERS -D WITH_MPI -lmetamorph_cl -lmm_opencl_backend -lOpenCL -o miniGhost_test_cl
+	mpicc miniGhost_meta.c $(OPT_LVL) $(INCLUDES) -L $(MM_LIB) -I $(MPICH_DIR)/include -L $(MPICH_DIR)/lib -D $(G_TYPE) -D WITH_OPENCL -D WITH_TIMERS -D WITH_MPI -lmetamorph_cl -lmetamorph_opencl -lOpenCL -o miniGhost_test_cl
 else
 	$(CC) miniGhost_meta.c $(OPT_LVL) $(INCLUDES) -L $(MM_LIB) -D $(G_TYPE) -D WITH_OPENCL -D WITH_TIMERS -lmetamorph_cl -lOpenCL -o miniGhost_test_cl
 endif
 
 cl_link:
-	ln -s $(MM_CL)/mm_opencl_backend.cl mm_opencl_backend.cl
+	ln -s $(MM_CL)/metamorph_opencl.cl metamorph_opencl.cl

@@ -11,7 +11,7 @@
 #include <CL/opencl.h>
 #endif
 #include "metamorph_dynamic_symbols.h"
-#include "mm_opencl_backend.h"
+#include "metamorph_opencl.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -271,7 +271,7 @@ cl_int metaOpenCLBuildProgram(metaOpenCLStackFrame *frame) {
 #define ENSURE_SRC(name)                                                       \
   if (frame->metaCLbinLen_##name == 0)                                         \
     frame->metaCLbinLen_##name = metaOpenCLLoadProgramSource(                  \
-        "mm_opencl_intelfpga_backend_"##name ".aocx",                          \
+        "metamorph_opencl_intelfpga_"##name ".aocx",                          \
         &(frame->metaCLbin_##name));                                           \
   }                                                                            \
   if (frame->metaCLbinLen_##name != -1)                                        \
@@ -323,7 +323,7 @@ cl_int metaOpenCLBuildProgram(metaOpenCLStackFrame *frame) {
 #elif defined(WITH_INTELFPGA) && !defined(OPENCL_SINGLE_KERNEL_PROGS)
   if (frame->metaCLProgLen == 0) {
     frame->metaCLProgLen = metaOpenCLLoadProgramSource(
-        "mm_opencl_intelfpga_backend.aocx", &(frame->metaCLProgSrc));
+        "metamorph_opencl_intelfpga.aocx", &(frame->metaCLProgSrc));
   }
   if (frame->metaCLProgLen != -1)
     frame->program_opencl_core = clCreateProgramWithBinary(
@@ -331,7 +331,7 @@ cl_int metaOpenCLBuildProgram(metaOpenCLStackFrame *frame) {
         (const unsigned char **)&(frame->metaCLProgSrc), NULL, NULL);
 #elif !defined(WITH_INTELFPGA) && defined(OPENCL_SINGLE_KERNEL_PROGS)
   if (frame->metaCLProgLen == 0) {
-    frame->metaCLProgLen = metaOpenCLLoadProgramSource("mm_opencl_backend.cl",
+    frame->metaCLProgLen = metaOpenCLLoadProgramSource("metamorph_opencl.cl",
                                                        &(frame->metaCLProgSrc));
   }
   // They use the same source with different defines
@@ -457,7 +457,7 @@ cl_int metaOpenCLBuildProgram(metaOpenCLStackFrame *frame) {
 // it's just reading the source and the defines come in during build
 #else
   if (frame->metaCLProgLen == 0) {
-    frame->metaCLProgLen = metaOpenCLLoadProgramSource("mm_opencl_backend.cl",
+    frame->metaCLProgLen = metaOpenCLLoadProgramSource("metamorph_opencl.cl",
                                                        &(frame->metaCLProgSrc));
   }
   if (frame->metaCLProgLen != -1)
@@ -992,7 +992,7 @@ cl_int metaOpenCLInitStackFrame(metaOpenCLStackFrame **frame, cl_int device) {
                                          CL_QUEUE_PROFILING_ENABLE, NULL);
   // Now must be explicitly done, kernels check this
   // metaOpenCLBuildProgram((*frame));
-  // Add this debug string if needed: -g -s\"./mm_opencl_backend.cl\"
+  // Add this debug string if needed: -g -s\"./metamorph_opencl.cl\"
   // Allocate any internal buffers necessary for kernel functions
   (*frame)->constant_face_size =
       clCreateBuffer((*frame)->context, CL_MEM_READ_ONLY,
