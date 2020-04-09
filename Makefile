@@ -9,6 +9,10 @@ ifeq ($(origin VERSION),undefined)
 VERSION=0.3b-rc1
 endif
 
+#define version_less
+#LEFT_MAJOR=$(shell sed -i 's/\..*//' $(1)
+#endef
+
 #Configure root directories (usually just wherever you pulled MetaMorph and run the makefile from)
 ifndef MM_DIR
 export MM_DIR=$(shell pwd | sed 's/ /\\ /g')
@@ -107,7 +111,25 @@ CUDA_LIB_DIR=
 else
 #found
 CUDA_LIB_DIR=$(patsubst %/bin/nvcc,%,$(shell which nvcc))/$(if ARCH_64,lib64,lib)
-NVCC=nvcc -ccbin gcc-4.9
+#Make sure the installed CUDA version uses the maximum supported GCC
+NVCC_VER=$(shell nvcc --version | grep "release" | awk '{print $5 }' | sed 's/,//')
+GCC_VER=$(shell gcc --version | grep "gcc" | awk '{print $3}')
+#CUDA 4.1 --> gcc-4.5
+#CUDA 5.0 --> gcc-4.6
+#CUDA 6.0 --> gcc-4.7
+#CUDA 7.0 --> gcc-4.8 (4.9 if debian)
+#CUDA 7.5 --> gcc-4.8 (4.9 if debian)
+#CUDA 8 --> gcc-5.3
+#CUDA 9 --> gcc-6
+#CUDA 9.2 --> gcc-7
+#CUDA 10.1 --> gcc-8
+#CUDA 10.2 --> ?? gcc-8 but the toolkit doc says 7.3.0 for Ubuntu 18.04
+NVCC=nvcc
+#Long term we want to automatically match the installed CUDA and CC version, but there is broad variabilty between SDK, different OS versions, and different C compilers. For now just pass through an options string
+ifdef NVCC_OPTS
+NVCC += NVCC_OPTS
+#-ccbin gcc-4.9
+endif
 endif
 else #User has provided one, check it exists
 ifeq ($(shell test -e $(CUDA_LIB_DIR)/libcudart.so && echo -n yes),yes) #Check if the CUDA libs exist where they told us
