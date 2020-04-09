@@ -126,6 +126,10 @@ __device__ void block_reduction(T *psum, int tid, int len_) {
    }*/
 }
 
+
+/** This atomicAdd implementation is no longer needed and will cause errors on compute capability >= 6.x, so macro guard it */
+#if !defined(__CUDA_ARCH__) || __CUDA_ARCH__ >= 600
+#else
 /** Implementation of double atomicAdd from CUDA Programming Guide: Appendix
  * B.12.
  * \param address the read-write address
@@ -143,6 +147,7 @@ __device__ double atomicAdd(double *address, double val) {
   } while (assumed != old);
   return __longlong_as_double(old);
 }
+#endif
 
 /**
  * wrapper for all the types natively supported by CUDA
