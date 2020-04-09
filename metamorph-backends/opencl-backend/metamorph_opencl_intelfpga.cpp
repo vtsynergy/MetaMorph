@@ -1,5 +1,5 @@
 /** OpenCL Back-End: FPGA customization **/
-#include "../../metamorph-backends/opencl-backend/mm_opencl_backend.h"
+#include "../../metamorph-backends/opencl-backend/metamorph_opencl.h"
 
 #define CHKERR(err, str)                                                       \
   if (err != CL_SUCCESS) {                                                     \
@@ -108,11 +108,11 @@ cl_int metaOpenCLBuildProgram(metaOpenCLStackFrame *frame) {
   if (metaCLProgLen == 0) {
 #ifndef WITH_INTELFPGA
     metaCLProgLen =
-        metaOpenCLLoadProgramSource("mm_opencl_backend.cl", &metaCLProgSrc);
+        metaOpenCLLoadProgramSource("metamorph_opencl.cl", &metaCLProgSrc);
 #else
     printf("Building Kernel for FPGA\n");
     metaCLProgLen = metaOpenCLLoadProgramSource(
-        "mm_opencl_intelfpga_backend.aocx", &metaCLProgSrc);
+        "metamorph_opencl_intelfpga.aocx", &metaCLProgSrc);
 #endif
   }
 #ifndef WITH_INTELFPGA
@@ -830,7 +830,7 @@ cl_int metaOpenCLInitStackFrame(metaOpenCLStackFrame **frame, cl_int device) {
                                          CL_QUEUE_PROFILING_ENABLE, NULL);
 
   metaOpenCLBuildProgram((*frame));
-  // Add this debug string if needed: -g -s\"./mm_opencl_backend.cl\"
+  // Add this debug string if needed: -g -s\"./metamorph_opencl.cl\"
   // Allocate any internal buffers necessary for kernel functions
   (*frame)->constant_face_size =
       clCreateBuffer((*frame)->context, CL_MEM_READ_ONLY,

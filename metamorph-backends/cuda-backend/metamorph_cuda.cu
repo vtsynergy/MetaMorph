@@ -5,7 +5,7 @@
 #include <stdio.h>
 
 #include "metamorph_dynamic_symbols.h"
-#include "mm_cuda_backend.cuh"
+#include "metamorph_cuda.cuh"
 
 /** Reuse the function pointers from the profiling plugin if it's found */
 extern struct profiling_dyn_ptrs profiling_symbols;
@@ -126,10 +126,7 @@ __device__ void block_reduction(T *psum, int tid, int len_) {
    }*/
 }
 
-
 /** This atomicAdd implementation is no longer needed and will cause errors on compute capability >= 6.x, so macro guard it */
-#if !defined(__CUDA_ARCH__) || __CUDA_ARCH__ >= 600
-#else
 /** Implementation of double atomicAdd from CUDA Programming Guide: Appendix
  * B.12.
  * \param address the read-write address
@@ -137,6 +134,9 @@ __device__ void block_reduction(T *psum, int tid, int len_) {
  * \return the old value at address after successfully writing
  * \todo TODO figure out how to use templates with the __X_as_Y intrinsics (???)
  */
+#if !defined(__CUDA_ARCH__) || __CUDA_ARCH__ >= 600
+__device__ double atomicAdd(double *address, double val);
+#else
 __device__ double atomicAdd(double *address, double val) {
   unsigned long long int *address_as_ull = (unsigned long long int *)address;
   unsigned long long int old = *address_as_ull, assumed;

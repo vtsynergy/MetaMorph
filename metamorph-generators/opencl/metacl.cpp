@@ -1209,7 +1209,7 @@ int populateOutputFiles() {
       *out_c << "#include <CL/opencl.h>\n";
       *out_c << "#endif\n";
       *out_c << "#include \"metamorph.h\"\n";
-      *out_c << "#include \"mm_opencl_backend.h\"\n";
+      *out_c << "#include \"metamorph_opencl.h\"\n";
       *out_c << "#include \"" + outFileName + ".h\"\n";
       // Linker references for MetaMorph OpenCL variables (once per output)
       *out_c << "extern cl_context meta_context;\n";

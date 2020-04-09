@@ -362,25 +362,25 @@ __attribute__((constructor(104))) void metaTimersInit() {
   metaBuiltinQueues[k_crc].head->next = NULL;
   metaBuiltinQueues[k_crc].name = "crc kernel call";
   if (backends.cuda_be_handle != NULL) {
-    CHECKED_DLSYM("libmm_cuda_backend.so", backends.cuda_be_handle,
+    CHECKED_DLSYM("libmetamorph_cuda.so", backends.cuda_be_handle,
                   "metaCUDAEventElapsedTime",
                   cuda_timing_funcs.metaCUDAEventElapsedTime);
   }
   if (backends.opencl_be_handle != NULL) {
-    CHECKED_DLSYM("libmm_opencl_backend.so", backends.opencl_be_handle,
+    CHECKED_DLSYM("libmetamorph_opencl.so", backends.opencl_be_handle,
                   "metaOpenCLEventStartTime",
                   opencl_timing_funcs.metaOpenCLEventStartTime);
-    CHECKED_DLSYM("libmm_opencl_backend.so", backends.opencl_be_handle,
+    CHECKED_DLSYM("libmetamorph_opencl.so", backends.opencl_be_handle,
                   "metaOpenCLEventEndTime",
                   opencl_timing_funcs.metaOpenCLEventEndTime);
   }
   if (backends.openmp_be_handle != NULL) {
-    CHECKED_DLSYM("libmm_openmp_backend.so", backends.openmp_be_handle,
+    CHECKED_DLSYM("libmetamorph_openmp.so", backends.openmp_be_handle,
                   "metaOpenMPEventElapsedTime",
                   openmp_timing_funcs.metaOpenMPEventElapsedTime);
   }
   if (plugins.mpi_handle != NULL) {
-    CHECKED_DLSYM("libmm_mpi.so", plugins.mpi_handle, "metaMPIRank",
+    CHECKED_DLSYM("libmetamorph_mpi.so", plugins.mpi_handle, "metaMPIRank",
                   mpi_timing_funcs.metaMPIRank);
   }
   __meta_timers_initialized = true;
