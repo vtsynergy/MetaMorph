@@ -461,9 +461,17 @@ LINK_LIB_RDIR=lib
 INSTALL_LIB_RDIR=$(LINK_LIB_RDIR)/metamorph
 VERSIONED_LIB_RDIR=metamorph$(VERSION_STR)
 
-#Should install and link on the same libraries as all, that's what the foreach is for
+#Install should only do what's supported according to the config and auto-detected packages
+#TODO add headers
 .PHONY: install
 install: all $(foreach target,$(BUILD_LIBS),$(subst $(MM_LIB),$(BASE_INSTALL_DIR)/$(LINK_LIB_RDIR),$(target))) install-metaCL
+
+#install all should try to do everything
+.PHONY: install-all
+install-all: install-all-libraries install-all-headers install-metaCL
+
+.PHONY: install-all-libraries
+install-all-libraries: install-core-library install-backend-libraries install-plugin-libraries
 
 .PHONY: install-core-library
 install-core-library: $(BASE_INSTALL_DIR)/$(LINK_LIB_RDIR)/libmetamorph.so
@@ -496,6 +504,16 @@ endif
 	#Ensure the directory exists
 	@if [ ! -d $(BASE_INSTALL_DIR)/$(LINK_LIB_RDIR)/$(VERSIONED_LIB_RDIR) ]; then mkdir -p $(BASE_INSTALL_DIR)/$(LINK_LIB_RDIR)/$(VERSIONED_LIB_RDIR); fi
 
+.PHONY: install-backends-all
+install-backends-all: install-backend-libraries install-backend-headers
+
+.PHONY: install-backend-libraries
+install-backend-libraries: install-opencl-library install-cuda-library install-openmp-library
+
+#Kernels remain separated, the OpenCL core can function without them for MetaCL-ized apps
+.PHONY: install-opencl-all
+install-opencl-all: install-opencl-library install-opencl-headers install-opencl-kernels
+
 .PHONY: install-opencl-library
 install-opencl-library: install-core-library $(BASE_INSTALL_DIR)/$(LINK_LIB_RDIR)/libmetamorph_opencl.so
 
@@ -506,6 +524,9 @@ $(BASE_INSTALL_DIR)/$(LINK_LIB_RDIR)/libmetamorph_opencl.so: $(BASE_INSTALL_DIR)
 $(BASE_INSTALL_DIR)/$(INSTALL_LIB_RDIR)/libmetamorph_opencl.so: $(BASE_INSTALL_DIR)/$(INSTALL_LIB_RDIR) $(MM_LIB)/libmetamorph_opencl.so
 	@if [ -f $(BASE_INSTALL_DIR)/$(INSTALL_LIB_RDIR)/libmetamorph_opencl.so ]; then rm $(BASE_INSTALL_DIR)/$(INSTALL_LIB_RDIR)/libmetamorph_opencl.so; fi
 	cp $(MM_LIB)/libmetamorph_opencl.so $(BASE_INSTALL_DIR)/$(INSTALL_LIB_RDIR)/libmetamorph_opencl.so
+
+.PHONY: install-cuda-all
+install-cuda-all: install-cuda-library install-cuda-headers
 
 .PHONY: install-cuda-library
 install-cuda-library: install-core-library $(BASE_INSTALL_DIR)/$(LINK_LIB_RDIR)/libmetamorph_cuda.so
@@ -518,6 +539,9 @@ $(BASE_INSTALL_DIR)/$(INSTALL_LIB_RDIR)/libmetamorph_cuda.so: $(BASE_INSTALL_DIR
 	@if [ -f $(BASE_INSTALL_DIR)/$(INSTALL_LIB_RDIR)/libmetamorph_cuda.so ]; then rm $(BASE_INSTALL_DIR)/$(INSTALL_LIB_RDIR)/libmetamorph_cuda.so; fi
 	cp $(MM_LIB)/libmetamorph_cuda.so $(BASE_INSTALL_DIR)/$(INSTALL_LIB_RDIR)/libmetamorph_cuda.so
 
+.PHONY: install-openmp-all
+install-openmp-all: install-openmp-library install-openmp-headers
+
 .PHONY: install-openmp-library
 install-openmp-library: install-core-library $(BASE_INSTALL_DIR)/$(LINK_LIB_RDIR)/libmetamorph_openmp.so
 
@@ -528,6 +552,15 @@ $(BASE_INSTALL_DIR)/$(LINK_LIB_RDIR)/libmetamorph_openmp.so: $(BASE_INSTALL_DIR)
 $(BASE_INSTALL_DIR)/$(INSTALL_LIB_RDIR)/libmetamorph_openmp.so: $(BASE_INSTALL_DIR)/$(INSTALL_LIB_RDIR) $(MM_LIB)/libmetamorph_openmp.so
 	@if [ -f $(BASE_INSTALL_DIR)/$(INSTALL_LIB_RDIR)/libmetamorph_openmp.so ]; then rm $(BASE_INSTALL_DIR)/$(INSTALL_LIB_RDIR)/libmetamorph_openmp.so; fi
 	cp $(MM_LIB)/libmetamorph_openmp.so $(BASE_INSTALL_DIR)/$(INSTALL_LIB_RDIR)/libmetamorph_openmp.so
+
+.PHONY: install-plugins-all
+install-plugins-all: install-mpi-all install-profiling-all
+
+.PHONY: install-plugin-libraries
+install-plugin-libraries: install-mpi-library install-profiling-library
+
+.PHONY: install-mpi-all
+install-mpi-all: install-mpi-library install-mpi-headers
 
 .PHONY: install-mpi-library
 install-mpi-library: install-core-library $(BASE_INSTALL_DIR)/$(LINK_LIB_RDIR)/libmm_mpi.so
@@ -540,6 +573,9 @@ $(BASE_INSTALL_DIR)/$(INSTALL_LIB_RDIR)/libmm_mpi.so: $(BASE_INSTALL_DIR)/$(INST
 	@if [ -f $(BASE_INSTALL_DIR)/$(INSTALL_LIB_RDIR)/libmm_mpi.so ]; then rm $(BASE_INSTALL_DIR)/$(INSTALL_LIB_RDIR)/libmm_mpi.so; fi
 	cp $(MM_LIB)/libmm_mpi.so $(BASE_INSTALL_DIR)/$(INSTALL_LIB_RDIR)/libmm_mpi.so
 
+.PHONY: install-profiling-all
+install-profiling-all: install-profiling-library install-profiling-headers
+
 .PHONY: install-profiling-library
 install-profiling-library: install-core-library $(BASE_INSTALL_DIR)/$(LINK_LIB_RDIR)/libmm_profiling.so
 
@@ -551,16 +587,82 @@ $(BASE_INSTALL_DIR)/$(INSTALL_LIB_RDIR)/libmm_profiling.so: $(BASE_INSTALL_DIR)/
 	@if [ -f $(BASE_INSTALL_DIR)/$(INSTALL_LIB_RDIR)/libmm_profiling.so ]; then rm $(BASE_INSTALL_DIR)/$(INSTALL_LIB_RDIR)/libmm_profiling.so; fi
 	cp $(MM_LIB)/libmm_profiling.so $(BASE_INSTALL_DIR)/$(INSTALL_LIB_RDIR)/libmm_profiling.so
 
-install-core-headers:
-	@if [ -d $(CASE_THAT_CONTROLS_HEADERS) ]; then cp -r $(MM_DIR)/include $(DESTDIR)/usr/include/metamorph;
+.PHONY: install-all-headers
+install-all-headers: install-core-headers install-backend-headers install-plugin-headers
 
-install-opencl-headers:
+.PHONY: install-core-headers
+install-core-headers: install-main-header install-dynSym-header install-fortran-headers
 
-install-cude-headers:
+$(BASE_INSTALL_DIR)/include:
+	if [ ! -d $(BASE_INSTALL_DIR)/include ]; then mkdir -p $(BASE_INSTALL_DIR)/include; fi
 
-install-openmp-headers:
+.PHONY: install-main-header
+install-main-header: $(BASE_INSTALL_DIR)/include/metamorph.h
 
-install-opencl-kernels:
+$(BASE_INSTALL_DIR)/include/metamorph.h: $(BASE_INSTALL_DIR)/include include/metamorph.h
+	@if [ -f $(BASE_INSTALL_DIR)/include/metamorph.h ]; then rm $(BASE_INSTALL_DIR)/include/metamorph.h; fi
+	cp include/metamorph.h $(BASE_INSTALL_DIR)/include/
+
+.PHONY: install-dynSym-header
+install-dynSym-header: $(BASE_INSTALL_DIR)/include/metamorph_dynamic_symbols.h
+
+$(BASE_INSTALL_DIR)/include/metamorph_dynamic_symbols.h: $(BASE_INSTALL_DIR)/include include/metamorph_dynamic_symbols.h
+	@if [ -f $(BASE_INSTALL_DIR)/include/metamorph_dynamic_symbols.h ]; then rm $(BASE_INSTALL_DIR)/include/metamorph_dynamic_symbols.h; fi
+	cp include/metamorph_dynamic_symbols.h $(BASE_INSTALL_DIR)/include/
+
+.PHONY: install-fortran-headers
+install-fortran-headers: $(BASE_INSTALL_DIR)/include/metamorph_fortran_compat.h $(BASE_INSTALL_DIR)/include/metamorph_fortran_header.F03
+
+$(BASE_INSTALL_DIR)/include/metamorph_fortran_compat.h: $(BASE_INSTALL_DIR)/include include/metamorph_fortran_compat.h
+	@if [ -f $(BASE_INSTALL_DIR)/include/metamorph_fortran_compat.h ]; then rm $(BASE_INSTALL_DIR)/include/metamorph_fortran_compat.h; fi
+	cp include/metamorph_fortran_compat.h $(BASE_INSTALL_DIR)/include/
+
+$(BASE_INSTALL_DIR)/include/metamorph_fortran_header.F03: $(BASE_INSTALL_DIR)/include include/metamorph_fortran_header.F03
+	@if [ -f $(BASE_INSTALL_DIR)/include/metamorph_fortran_header.F03 ]; then rm $(BASE_INSTALL_DIR)/include/metamorph_fortran_header.F03; fi
+	cp include/metamorph_fortran_header.F03 $(BASE_INSTALL_DIR)/include/
+
+.PHONY: install-backend-headers
+install-backend-headers: install-opencl-headers install-cuda-headers install-openmp-headers
+
+.PHONY: install-opencl-headers
+install-opencl-headers: $(BASE_INSTALL_DIR)/include/metamorph_opencl.h
+
+$(BASE_INSTALL_DIR)/include/metamorph_opencl.h: $(BASE_INSTALL_DIR)/include metamorph-backends/opencl-backend/metamorph_opencl.h
+	@if [ -f $(BASE_INSTALL_DIR)/include/metamorph_opencl.h ]; then rm $(BASE_INSTALL_DIR)/include/metamorph_opencl.h; fi
+	cp metamorph-backends/opencl-backend/metamorph_opencl.h $(BASE_INSTALL_DIR)/include/
+
+.PHONY: install-cuda-headers
+install-cuda-headers: $(BASE_INSTALL_DIR)/include/metamorph_cuda.cuh
+
+$(BASE_INSTALL_DIR)/include/metamorph_cuda.cuh: $(BASE_INSTALL_DIR)/include metamorph-backends/cuda-backend/metamorph_cuda.cuh
+	@if [ -f $(BASE_INSTALL_DIR)/include/metamorph_cuda.cuh ]; then rm $(BASE_INSTALL_DIR)/include/metamorph_cuda.cuh; fi
+	cp metamorph-backends/cuda-backend/metamorph_cuda.cuh $(BASE_INSTALL_DIR)/include/
+
+.PHONY: install-openmp-headers
+install-openmp-headers: $(BASE_INSTALL_DIR)/include/metamorph_openmp.h
+
+$(BASE_INSTALL_DIR)/include/metamorph_openmp.h: $(BASE_INSTALL_DIR)/include metamorph-backends/openmp-backend/metamorph_openmp.h
+	@if [ -f $(BASE_INSTALL_DIR)/include/metamorph_openmp.h ]; then rm $(BASE_INSTALL_DIR)/include/metamorph_openmp.h; fi
+	cp metamorph-backends/openmp-backend/metamorph_openmp.h $(BASE_INSTALL_DIR)/include/
+
+.PHONY: install-plugin-headers
+install-plugin-headers: install-mpi-headers install-profiling-headers
+
+.PHONY: install-mpi-headers
+install-mpi-headers: $(BASE_INSTALL_DIR)/include/metamorph_mpi.h
+
+$(BASE_INSTALL_DIR)/include/metamorph_mpi.h: $(BASE_INSTALL_DIR)/include include/metamorph_mpi.h
+	@if [ -f $(BASE_INSTALL_DIR)/include/metamorph_mpi.h ]; then rm $(BASE_INSTALL_DIR)/include/metamorph_mpi.h; fi
+	cp include/metamorph_mpi.h $(BASE_INSTALL_DIR)/include/
+
+.PHONY: install-profiling-headers
+install-profiling-headers: $(BASE_INSTALL_DIR)/include/metamorph_profiling.h
+
+$(BASE_INSTALL_DIR)/include/metamorph_profiling.h: $(BASE_INSTALL_DIR)/include include/metamorph_profiling.h
+	@if [ -f $(BASE_INSTALL_DIR)/include/metamorph_profiling.h ]; then rm $(BASE_INSTALL_DIR)/include/metamorph_profiling.h; fi
+	cp include/metamorph_profiling.h $(BASE_INSTALL_DIR)/include/
+
+install-opencl-kernels: 
 
 install-templates:
 
@@ -606,8 +708,17 @@ uninstall:
 	if [ -L $(BASE_INSTALL_DIR)/$(INSTALL_LIB_RDIR) ]; then rm $(BASE_INSTALL_DIR)/$(INSTALL_LIB_RDIR); fi
 	if [ -d $(BASE_INSTALL_DIR)/$(LINK_LIB_RDIR)/$(VERSIONED_LIB_RDIR) ]; then rmdir $(BASE_INSTALL_DIR)/$(LINK_LIB_RDIR)/$(VERSIONED_LIB_RDIR); fi
 	#Core headers
+	if [ -f $(BASE_INSTALL_DIR)/include/metamorph.h ]; then rm $(BASE_INSTALL_DIR)/include/metamorph.h; fi
+	if [ -f $(BASE_INSTALL_DIR)/include/metamorph_dynamic_symbols.h ]; then rm $(BASE_INSTALL_DIR)/include/metamorph_dynamic_symbols.h; fi
+	if [ -f $(BASE_INSTALL_DIR)/include/metamorph_fortran_compat.h ]; then rm $(BASE_INSTALL_DIR)/include/metamorph_fortran_compat.h; fi
+	if [ -f $(BASE_INSTALL_DIR)/include/metamorph_fortran_header.F03 ]; then rm $(BASE_INSTALL_DIR)/include/metamorph_fortran_header.F03; fi
 	#Backend headers
+	if [ -f $(BASE_INSTALL_DIR)/include/metamorph_opencl.h ]; then rm $(BASE_INSTALL_DIR)/include/metamorph_opencl.h; fi
+	if [ -f $(BASE_INSTALL_DIR)/include/metamorph_cuda.cuh ]; then rm $(BASE_INSTALL_DIR)/include/metamorph_cuda.cuh; fi
+	if [ -f $(BASE_INSTALL_DIR)/include/metamorph_openmp.h ]; then rm $(BASE_INSTALL_DIR)/include/metamorph_openmp.h; fi
 	#Plugin headers
+	if [ -f $(BASE_INSTALL_DIR)/include/metamorph_mpi.h ]; then rm $(BASE_INSTALL_DIR)/include/metamorph_mpi.h; fi
+	if [ -f $(BASE_INSTALL_DIR)/include/metamorph_profiling.h ]; then rm $(BASE_INSTALL_DIR)/include/metamorph_profiling.h; fi
 	#MetaCL
 	if [ -f $(BASE_INSTALL_DIR)/bin/metaCL ]; then rm $(BASE_INSTALL_DIR)/bin/metaCL; fi
 	#Doxygen
