@@ -303,13 +303,13 @@ MM_DEPS= $(MM_CORE)/metamorph.c $(MM_CORE)/metamorph_fortran_compat.c $(MM_CORE)
 
 #MPI features
 ifeq ($(USE_MPI),TRUE)
-BUILD_LIBS += $(MM_LIB)/libmm_mpi.so
+BUILD_LIBS += $(MM_LIB)/libmetamorph_mpi.so
 MPICC := $(MPI_DIR)/bin/mpicc -cc=$(CC)
 endif
 
 #timer features
 ifeq ($(USE_TIMERS),TRUE)
-BUILD_LIBS += $(MM_LIB)/libmm_profiling.so
+BUILD_LIBS += $(MM_LIB)/libmetamorph_profiling.so
 endif
 
 #CUDA backend
@@ -403,11 +403,11 @@ $(MM_LIB):
 $(MM_LIB)/libmetamorph.so: $(MM_LIB) $(MM_DEPS)
 	$(CC) $(MM_DEPS) $(CC_FLAGS) $(INCLUDES) -L$(MM_LIB) $(MM_COMPONENTS) -o $(MM_LIB)/libmetamorph.so -ldl -shared -Wl,-soname,libmetamorph.so
 
-$(MM_LIB)/libmm_profiling.so: $(MM_LIB) $(MM_CORE)/metamorph_profiling.c
-	$(CC) $(MM_CORE)/metamorph_profiling.c $(CC_FLAGS) $(INCLUDES) -o $(MM_LIB)/libmm_profiling.so -shared -Wl,-soname,libmm_profiling.so
+$(MM_LIB)/libmetamorph_profiling.so: $(MM_LIB) $(MM_CORE)/metamorph_profiling.c
+	$(CC) $(MM_CORE)/metamorph_profiling.c $(CC_FLAGS) $(INCLUDES) -o $(MM_LIB)/libmetamorph_profiling.so -shared -Wl,-soname,libmetamorph_profiling.so
 
-$(MM_LIB)/libmm_mpi.so: $(MM_LIB) $(MM_CORE)/metamorph_mpi.c
-	$(MPICC) $(MM_CORE)/metamorph_mpi.c $(CC_FLAGS) $(INCLUDES) -I$(MPI_DIR)/include -L$(MPI_DIR)/lib -o $(MM_LIB)/libmm_mpi.so -shared -Wl,-soname,libmm_mpi.so
+$(MM_LIB)/libmetamorph_mpi.so: $(MM_LIB) $(MM_CORE)/metamorph_mpi.c
+	$(MPICC) $(MM_CORE)/metamorph_mpi.c $(CC_FLAGS) $(INCLUDES) -I$(MPI_DIR)/include -L$(MPI_DIR)/lib -o $(MM_LIB)/libmetamorph_mpi.so -shared -Wl,-soname,libmetamorph_mpi.so
 
 $(MM_LIB)/libmetamorph_openmp.so: $(MM_LIB)	
 	cd $(MM_MP) && $(MAKE) $(MFLAGS) libmetamorph_openmp.so
@@ -563,29 +563,29 @@ install-plugin-libraries: install-mpi-library install-profiling-library
 install-mpi-all: install-mpi-library install-mpi-headers
 
 .PHONY: install-mpi-library
-install-mpi-library: install-core-library $(BASE_INSTALL_DIR)/$(LINK_LIB_RDIR)/libmm_mpi.so
+install-mpi-library: install-core-library $(BASE_INSTALL_DIR)/$(LINK_LIB_RDIR)/libmetamorph_mpi.so
 
-$(BASE_INSTALL_DIR)/$(LINK_LIB_RDIR)/libmm_mpi.so: $(BASE_INSTALL_DIR)/$(INSTALL_LIB_RDIR)/libmm_mpi.so
-	@if [ -L $(BASE_INSTALL_DIR)/$(LINK_LIB_RDIR)/libmm_mpi.so ]; then rm $(BASE_INSTALL_DIR)/$(LINK_LIB_RDIR)/libmm_mpi.so; fi
-	ln -s ./metamorph/libmm_mpi.so $(BASE_INSTALL_DIR)/$(LINK_LIB_RDIR)/libmm_mpi.so
+$(BASE_INSTALL_DIR)/$(LINK_LIB_RDIR)/libmetamorph_mpi.so: $(BASE_INSTALL_DIR)/$(INSTALL_LIB_RDIR)/libmetamorph_mpi.so
+	@if [ -L $(BASE_INSTALL_DIR)/$(LINK_LIB_RDIR)/libmetamorph_mpi.so ]; then rm $(BASE_INSTALL_DIR)/$(LINK_LIB_RDIR)/libmetamorph_mpi.so; fi
+	ln -s ./metamorph/libmetamorph_mpi.so $(BASE_INSTALL_DIR)/$(LINK_LIB_RDIR)/libmetamorph_mpi.so
 
-$(BASE_INSTALL_DIR)/$(INSTALL_LIB_RDIR)/libmm_mpi.so: $(BASE_INSTALL_DIR)/$(INSTALL_LIB_RDIR) $(MM_LIB)/libmm_mpi.so
-	@if [ -f $(BASE_INSTALL_DIR)/$(INSTALL_LIB_RDIR)/libmm_mpi.so ]; then rm $(BASE_INSTALL_DIR)/$(INSTALL_LIB_RDIR)/libmm_mpi.so; fi
-	cp $(MM_LIB)/libmm_mpi.so $(BASE_INSTALL_DIR)/$(INSTALL_LIB_RDIR)/libmm_mpi.so
+$(BASE_INSTALL_DIR)/$(INSTALL_LIB_RDIR)/libmetamorph_mpi.so: $(BASE_INSTALL_DIR)/$(INSTALL_LIB_RDIR) $(MM_LIB)/libmetamorph_mpi.so
+	@if [ -f $(BASE_INSTALL_DIR)/$(INSTALL_LIB_RDIR)/libmetamorph_mpi.so ]; then rm $(BASE_INSTALL_DIR)/$(INSTALL_LIB_RDIR)/libmetamorph_mpi.so; fi
+	cp $(MM_LIB)/libmetamorph_mpi.so $(BASE_INSTALL_DIR)/$(INSTALL_LIB_RDIR)/libmetamorph_mpi.so
 
 .PHONY: install-profiling-all
 install-profiling-all: install-profiling-library install-profiling-headers
 
 .PHONY: install-profiling-library
-install-profiling-library: install-core-library $(BASE_INSTALL_DIR)/$(LINK_LIB_RDIR)/libmm_profiling.so
+install-profiling-library: install-core-library $(BASE_INSTALL_DIR)/$(LINK_LIB_RDIR)/libmetamorph_profiling.so
 
-$(BASE_INSTALL_DIR)/$(LINK_LIB_RDIR)/libmm_profiling.so: $(BASE_INSTALL_DIR)/$(INSTALL_LIB_RDIR)/libmm_profiling.so
-	@if [ -L $(BASE_INSTALL_DIR)/$(LINK_LIB_RDIR)/libmm_profiling.so ]; then rm $(BASE_INSTALL_DIR)/$(LINK_LIB_RDIR)/libmm_profiling.so; fi
-	ln -s ./metamorph/libmm_profiling.so $(BASE_INSTALL_DIR)/$(LINK_LIB_RDIR)/libmm_profiling.so
+$(BASE_INSTALL_DIR)/$(LINK_LIB_RDIR)/libmetamorph_profiling.so: $(BASE_INSTALL_DIR)/$(INSTALL_LIB_RDIR)/libmetamorph_profiling.so
+	@if [ -L $(BASE_INSTALL_DIR)/$(LINK_LIB_RDIR)/libmetamorph_profiling.so ]; then rm $(BASE_INSTALL_DIR)/$(LINK_LIB_RDIR)/libmetamorph_profiling.so; fi
+	ln -s ./metamorph/libmetamorph_profiling.so $(BASE_INSTALL_DIR)/$(LINK_LIB_RDIR)/libmetamorph_profiling.so
 
-$(BASE_INSTALL_DIR)/$(INSTALL_LIB_RDIR)/libmm_profiling.so: $(BASE_INSTALL_DIR)/$(INSTALL_LIB_RDIR) $(MM_LIB)/libmm_profiling.so
-	@if [ -f $(BASE_INSTALL_DIR)/$(INSTALL_LIB_RDIR)/libmm_profiling.so ]; then rm $(BASE_INSTALL_DIR)/$(INSTALL_LIB_RDIR)/libmm_profiling.so; fi
-	cp $(MM_LIB)/libmm_profiling.so $(BASE_INSTALL_DIR)/$(INSTALL_LIB_RDIR)/libmm_profiling.so
+$(BASE_INSTALL_DIR)/$(INSTALL_LIB_RDIR)/libmetamorph_profiling.so: $(BASE_INSTALL_DIR)/$(INSTALL_LIB_RDIR) $(MM_LIB)/libmetamorph_profiling.so
+	@if [ -f $(BASE_INSTALL_DIR)/$(INSTALL_LIB_RDIR)/libmetamorph_profiling.so ]; then rm $(BASE_INSTALL_DIR)/$(INSTALL_LIB_RDIR)/libmetamorph_profiling.so; fi
+	cp $(MM_LIB)/libmetamorph_profiling.so $(BASE_INSTALL_DIR)/$(INSTALL_LIB_RDIR)/libmetamorph_profiling.so
 
 .PHONY: install-all-headers
 install-all-headers: install-core-headers install-backend-headers install-plugin-headers
@@ -682,8 +682,8 @@ clean:
 	if [ -f $(MM_LIB)/libmetamorph_opencl.so ]; then rm $(MM_LIB)/libmetamorph_opencl.so; fi
 	if [ -f $(MM_LIB)/libmetamorph_openmp.so ]; then rm $(MM_LIB)/libmetamorph_openmp.so; fi
 	if [ -f $(MM_LIB)/libmetamorph_cuda.so ]; then rm $(MM_LIB)/libmetamorph_cuda.so; fi
-	if [ -f $(MM_LIB)/libmm_profiling.so ]; then rm $(MM_LIB)/libmm_profiling.so; fi
-	if [ -f $(MM_LIB)/libmm_mpi.so ]; then rm $(MM_LIB)/libmm_mpi.so; fi
+	if [ -f $(MM_LIB)/libmetamorph_profiling.so ]; then rm $(MM_LIB)/libmetamorph_profiling.so; fi
+	if [ -f $(MM_LIB)/libmetamorph_mpi.so ]; then rm $(MM_LIB)/libmetamorph_mpi.so; fi
 	if [ -f $(MM_CU)/metamorph_cuda.o ]; then rm $(MM_CU)/metamorph_cuda.o; fi
 	if [ -f $(MM_GEN_CL)/metaCL ]; then rm $(MM_GEN_CL)/metaCL; fi
 
@@ -700,10 +700,10 @@ uninstall:
 	if [ -f $(BASE_INSTALL_DIR)/$(INSTALL_LIB_RDIR)/libmetamorph_openmp.so ]; then rm $(BASE_INSTALL_DIR)/$(INSTALL_LIB_RDIR)/libmetamorph_openmp.so; fi
 	if [ -L $(BASE_INSTALL_DIR)/$(LINK_LIB_RDIR)/libmetamorph_openmp.so ]; then rm $(BASE_INSTALL_DIR)/$(LINK_LIB_RDIR)/libmetamorph_openmp.so; fi
 	#Plugin libraries and links
-	if [ -f $(BASE_INSTALL_DIR)/$(INSTALL_LIB_RDIR)/libmm_mpi.so ]; then rm $(BASE_INSTALL_DIR)/$(INSTALL_LIB_RDIR)/libmm_mpi.so; fi
-	if [ -L $(BASE_INSTALL_DIR)/$(LINK_LIB_RDIR)/libmm_mpi.so ]; then rm $(BASE_INSTALL_DIR)/$(LINK_LIB_RDIR)/libmm_mpi.so; fi
-	if [ -f $(BASE_INSTALL_DIR)/$(INSTALL_LIB_RDIR)/libmm_profiling.so ]; then rm $(BASE_INSTALL_DIR)/$(INSTALL_LIB_RDIR)/libmm_profiling.so; fi
-	if [ -L $(BASE_INSTALL_DIR)/$(LINK_LIB_RDIR)/libmm_profiling.so ]; then rm $(BASE_INSTALL_DIR)/$(LINK_LIB_RDIR)/libmm_profiling.so; fi
+	if [ -f $(BASE_INSTALL_DIR)/$(INSTALL_LIB_RDIR)/libmetamorph_mpi.so ]; then rm $(BASE_INSTALL_DIR)/$(INSTALL_LIB_RDIR)/libmetamorph_mpi.so; fi
+	if [ -L $(BASE_INSTALL_DIR)/$(LINK_LIB_RDIR)/libmetamorph_mpi.so ]; then rm $(BASE_INSTALL_DIR)/$(LINK_LIB_RDIR)/libmetamorph_mpi.so; fi
+	if [ -f $(BASE_INSTALL_DIR)/$(INSTALL_LIB_RDIR)/libmetamorph_profiling.so ]; then rm $(BASE_INSTALL_DIR)/$(INSTALL_LIB_RDIR)/libmetamorph_profiling.so; fi
+	if [ -L $(BASE_INSTALL_DIR)/$(LINK_LIB_RDIR)/libmetamorph_profiling.so ]; then rm $(BASE_INSTALL_DIR)/$(LINK_LIB_RDIR)/libmetamorph_profiling.so; fi
 	#Library install directory
 	if [ -L $(BASE_INSTALL_DIR)/$(INSTALL_LIB_RDIR) ]; then rm $(BASE_INSTALL_DIR)/$(INSTALL_LIB_RDIR); fi
 	if [ -d $(BASE_INSTALL_DIR)/$(LINK_LIB_RDIR)/$(VERSIONED_LIB_RDIR) ]; then rmdir $(BASE_INSTALL_DIR)/$(LINK_LIB_RDIR)/$(VERSIONED_LIB_RDIR); fi
