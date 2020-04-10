@@ -1,2 +1,2 @@
-usr/lib/libmm_cuda_backend.so
-usr/lib/metamorph/libmm_cuda_backend.so
+usr/lib/libmetamorph_cuda.so
+usr/lib/metamorph/libmetamorph_cuda.so

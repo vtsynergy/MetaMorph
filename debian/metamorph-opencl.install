@@ -1,2 +1,2 @@
-usr/lib/libmm_opencl_backend.so
-usr/lib/metamorph/libmm_opencl_backend.so
+usr/lib/libmetamorph_opencl.so
+usr/lib/metamorph/libmetamorph_opencl.so

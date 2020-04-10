@@ -1,2 +1,2 @@
-usr/lib/libmm_profiling.so
-usr/lib/metamorph/libmm_profiling.so
+usr/lib/libmetamorph_profiling.so
+usr/lib/metamorph/libmetamorph_profiling.so

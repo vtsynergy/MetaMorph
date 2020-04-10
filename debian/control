@@ -29,7 +29,7 @@ Package: metamorph-cuda
 Section: libs
 Architecture: any
 Multi-Arch: same
-Depends: metamorph (= ${binary:Version}), cuda, ${shlibs:Depends}, ${misc:Depends}
+Depends: metamorph (= ${binary:Version}), cuda, ${shlibs:Depends}, ${misc:Depends}, nvidia-cuda-toolkit
 Enhances: metamorph
 Description: MetaMorph CUDA Backend
  The MetaMorph OpenCL Backend implements the CUDA versions of MetaMorph's top-level functions.
@@ -122,7 +122,7 @@ Package: metacl
 Section: devel
 Architecture: any
 Multi-Arch: same
-Depends: clang 6.0.1 (= ${binary:Version}), ${misc:Depends}
+Depends: clang 6.0.1 (= ${binary:Version}), ${misc:Depends} libclang-6.0-dev, zlib1g-dev
 #Need to suggest the metamorph-dev and metamorph-opencl-dev. (They are required to compile/run the resulting application, but not to just run metaCL)
 Description: MetaCL OpenCL Host Autogenerator
  MetaCL is an autogenerator for OpenCL host code based on the Clang/LLVM compiler framework.

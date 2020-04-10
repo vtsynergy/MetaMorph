@@ -1,4 +1,4 @@
-usr/include/metamorph/metamorph.h
-usr/include/metamorph/metamorph_dynamic_symbols.h
-usr/include/metamorph/metamorph_fortran_compat.h
-usr/include/metamorph/metamorph_fortran_header.F03
+usr/include/metamorph.h
+usr/include/metamorph_dynamic_symbols.h
+usr/include/metamorph_fortran_compat.h
+usr/include/metamorph_fortran_header.F03

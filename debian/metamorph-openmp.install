@@ -1,2 +1,2 @@
-usr/lib/libmm_openmp_backend.so
-usr/lib/metamorph/libmm_openmp_backend.so
+usr/lib/libmetamorph_openmp.so
+usr/lib/metamorph/libmetamorph_openmp.so
