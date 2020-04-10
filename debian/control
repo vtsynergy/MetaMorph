@@ -11,8 +11,9 @@ Package: metamorph
 Section: libs
 Architecture: any
 Multi-Arch: same
-Depends: metamorphBROKEN (= ${binary:Version}), ${shlibs:Depends}, ${misc:Depends}
+#Depends: metamorphBROKEN (= ${binary:Version}), ${shlibs:Depends}, ${misc:Depends}
 Recommends: metamorph-openmp
+Suggests: metamorph-cuda, metamorph-opencl, metamorph-mpi, metamorph-profiling
 Description: MetaMorph Core Library
  The MetaMorph Core Library implements the core API and dynamically-loaded bridge across supported backends
 
@@ -20,7 +21,8 @@ Package: metamorph-openmp
 Section: libs
 Architecture: any
 Multi-Arch: same
-Depends: metamorph (= ${binary:Version}), ${shlibs:Depends}, ${misc:Depends}
+Depends: metamorph
+#(= ${binary:Version}), ${shlibs:Depends}, ${misc:Depends}
 Enhances: metamorph
 Description: MetaMorph OpenMP Backend
  The MetaMorph OpenMP Backend implements OpenMP versions of MetaMorph's top-level functions
@@ -29,7 +31,9 @@ Package: metamorph-cuda
 Section: libs
 Architecture: any
 Multi-Arch: same
-Depends: metamorph (= ${binary:Version}), cuda, ${shlibs:Depends}, ${misc:Depends}, nvidia-cuda-toolkit
+Build-Depends: nvidia-cuda-toolkit
+Depends: metamorph, licuda1
+# (= ${binary:Version}), cuda, ${shlibs:Depends}, ${misc:Depends}
 Enhances: metamorph
 Description: MetaMorph CUDA Backend
  The MetaMorph OpenCL Backend implements the CUDA versions of MetaMorph's top-level functions.
@@ -38,8 +42,11 @@ Package: metamorph-opencl
 Section: libs
 Architecture: any
 Multi-Arch: same
-Depends: metamorph (= ${binary:Version}), OpenCL, ${shlibs:Depends}, ${misc:Depends}
+Build-Depends: ocl-icd-opencl-dev | nvidia-opencl-dev
+Depends: metamorph, opencl-icd | amd-opencl-icd, libopencl-1.1-1 
+# (= ${binary:Version}), OpenCL, ${shlibs:Depends}, ${misc:Depends}
 Enhances: metamorph
+Suggests: metacl
 Description: MetaMorph OpenCL Backend
  The MetaMorph OpenCL Backend implements the OpenCL versions of MetaMorph's top-level
  functions.
@@ -50,7 +57,8 @@ Package: metamorph-mpi
 Section: libs
 Architecture: any
 Multi-Arch: same
-Depends: metamorph (= ${binary:Version}), MPI, ${shlibs:Depends}, ${misc:Depends}
+Depends: metamorph, mpi-default-bin
+#(= ${binary:Version}), MPI, ${shlibs:Depends}, ${misc:Depends}
 Enhances: metamorph
 Description: MetaMorph MPI Interoperability Plugin
  Provides operations to send and receive MetaMorph device buffers across MPI
@@ -59,7 +67,8 @@ Package: metamorph-profiling
 Section: libs
 Architecture: any
 Multi-Arch: same
-Depends: metamorph (= ${binary:Version}), ${shlibs:Depends}, ${misc:Depends}
+Depends: metamorph
+#(= ${binary:Version}), ${shlibs:Depends}, ${misc:Depends}
 Enhances: metamorph
 Description: MetaMorph Profiling Plugin
  Provides transparent profiling of MetaMorph API calls via backend-native
@@ -68,8 +77,8 @@ Description: MetaMorph Profiling Plugin
 Package: metamorph-dev
 Section: libs
 Architecture: all
-Multi-Arch: same
-Depends: metamorph (= ${binary:Version}), ${shlibs:Depends}, ${misc:Depends}
+Depends: metamorph
+#(= ${binary:Version}), ${shlibs:Depends}, ${misc:Depends}
 #Doesn't need to recommend any backend, a dev could write to the MM API and not care what backends exist
 Description: MetaMorph Core Headers
  Header files to develop a new application based on only the core MetaMorph capabilities
@@ -77,42 +86,42 @@ Description: MetaMorph Core Headers
 Package: metamorph-openmp-dev
 Section: libs
 Architecture: all
-Multi-Arch: same
-Depends: metamorph-openmp, metamorph-dev (= ${binary:Version}), ${shlibs:Depends}, ${misc:Depends}
+Depends: metamorph-openmp, metamorph-dev
+#(= ${binary:Version}), ${shlibs:Depends}, ${misc:Depends}
 Description: MetaMorph OpenMP Backend Headers
  Header files to develop a new application using features specific to the OpenMP backend
 
 Package: metamorph-cuda-dev
 Section: libs
 Architecture: all
-Multi-Arch: same
-Depends: metamorph-cuda, metamorph-dev (= ${binary:Version}), ${shlibs:Depends}, ${misc:Depends}
+Depends: metamorph-cuda, metamorph-dev
+#(= ${binary:Version}), ${shlibs:Depends}, ${misc:Depends}
 Description: MetaMorph CUDA Backend Headers
  Header files to develop a new application using features specific to the CUDA backend
 
 Package: metamorph-opencl-dev
 Section: libs
 Architecture: all
-Multi-Arch: same
 Suggests: metacl
-Depends: metamorph-opencl, metamorph-dev (= ${binary:Version}), ${shlibs:Depends}, ${misc:Depends}
+Depends: metamorph-opencl, metamorph-dev
+#(= ${binary:Version}), ${shlibs:Depends}, ${misc:Depends}
 Description: MetaMorph OpenCL Bacend Headers
  Header files to develop a new application using features specific to the OpenCL backend
 
 Package: metamorph-mpi-dev
 Section: libs
-Architecture: any
-Multi-Arch: same
-Depends: metamorph-mpi, metamorph-dev (= ${binary:Version}), MPI, ${shlibs:Depends}, ${misc:Depends}
+Architecture: all
+Depends: metamorph-mpi, metamorph-dev, mpi-default-dev
+# (= ${binary:Version}), MPI, ${shlibs:Depends}, ${misc:Depends}
 Enhances: metamorph
 Description: MetaMorph MPI Interoperability Plugin
  Header files to develop a new application using functionality from the MPI plugin
 
 Package: metamorph-profiling-dev
 Section: libs
-Architecture: any
-Multi-Arch: same
-Depends: metamorph-profiling, metamorph-dev (= ${binary:Version}), ${shlibs:Depends}, ${misc:Depends}
+Architecture: all
+Depends: metamorph-profiling, metamorph-dev
+#(= ${binary:Version}), ${shlibs:Depends}, ${misc:Depends}
 Enhances: metamorph
 Description: MetaMorph Profiling Plugin
  Header files to directly utilize MetaMorph's backend-native timing infrastructure.
@@ -122,7 +131,10 @@ Package: metacl
 Section: devel
 Architecture: any
 Multi-Arch: same
-Depends: clang 6.0.1 (= ${binary:Version}), ${misc:Depends} libclang-6.0-dev, zlib1g-dev
+Depends: libclang-common-6.0-dev
+Build-Depends: libclang-6.0-dev, zlib1g-dev
+Enhances: metamorph-opencl, metamorph-opencl-dev
+#Depends: clang 6.0.1 (= ${binary:Version}), ${misc:Depends} libclang-6.0-dev, zlib1g-dev
 #Need to suggest the metamorph-dev and metamorph-opencl-dev. (They are required to compile/run the resulting application, but not to just run metaCL)
 Description: MetaCL OpenCL Host Autogenerator
  MetaCL is an autogenerator for OpenCL host code based on the Clang/LLVM compiler framework.
