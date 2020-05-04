@@ -13,7 +13,6 @@
  * communication or all-reduce is performed
  */
 #include <metamorph.h>
-#include <metamorph_profiling.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <sys/time.h>
@@ -295,12 +294,12 @@ int main(int argc, char **argv) {
     // MM: data marshaling
 #ifdef WITH_MPI
     // set up async recv and unpack
-    err = meta_mpi_recv_and_unpack_face(
+    meta_mpi_recv_and_unpack_face(
         autoconfig ? NULL : &grid, autoconfig ? NULL : &block,
         (rank + comm_sz - 1) % comm_sz, recv_face, d_domain, d_recvbuf, ct,
         &request, M_TYPE, 1);
     // pack and send
-    err = meta_mpi_pack_and_send_face(autoconfig ? NULL : &grid,
+    meta_mpi_pack_and_send_face(autoconfig ? NULL : &grid,
                                       autoconfig ? NULL : &block,
                                       (rank + 1) % comm_sz, send_face, d_domain,
                                       d_sendbuf, ct, &request, M_TYPE, 0);
