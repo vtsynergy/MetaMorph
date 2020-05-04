@@ -257,7 +257,7 @@ __attribute__((constructor(104))) void metaTimersInit() {
   if (core_capability == module_uninitialized)
     meta_init();
   if (__meta_timers_initialized)
-    return -1;
+    return;
   // Each builtin queue needs one of these pairs
   // try to use the enum ints/names to minimize changes if new members
   // are added to the enum

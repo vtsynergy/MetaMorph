@@ -21,8 +21,10 @@ void meta_load_libs() {
   // FIXME Not sure if we need RTLD_DEEPBIND
   backends.cuda_be_handle =
       dlopen("libmetamorph_cuda.so", RTLD_NOW | RTLD_GLOBAL);
-  backends.cuda_lib_handle = dlopen("libcuda.so", RTLD_NOW | RTLD_GLOBAL);
-  if (backends.cuda_be_handle != NULL && backends.cuda_lib_handle != NULL) {
+  //Don't really need an explicit reference to the CUDA library
+//  backends.cuda_lib_handle = dlopen("libcuda.so", RTLD_NOW | RTLD_GLOBAL);
+//  if (backends.cuda_be_handle != NULL && backends.cuda_lib_handle != NULL) {
+  if (backends.cuda_be_handle != NULL) {
     core_capability |= module_implements_cuda;
     CHECKED_DLSYM("libmetamorph_cuda.so", backends.cuda_be_handle,
                   "metaCUDAAlloc", cuda_symbols.metaCUDAAlloc);
@@ -64,8 +66,11 @@ void meta_load_libs() {
   }
   backends.opencl_be_handle =
       dlopen("libmetamorph_opencl.so", RTLD_NOW | RTLD_GLOBAL);
-  backends.opencl_lib_handle = dlopen("libOpenCL.so", RTLD_NOW | RTLD_GLOBAL);
-  if (backends.opencl_be_handle != NULL && backends.opencl_lib_handle != NULL) {
+  //OpenCL is explicitly versioned, i.e. libOpenCL.so.1, so we either need to 
+  // Demand a specific one, or just not directly load it at all
+//  backends.opencl_lib_handle = dlopen("libOpenCL.so", RTLD_NOW | RTLD_GLOBAL);
+//  if (backends.opencl_be_handle != NULL && backends.opencl_lib_handle != NULL) {
+  if (backends.opencl_be_handle != NULL) {
     core_capability |= module_implements_opencl;
     CHECKED_DLSYM("libmetamorph_opencl.so", backends.opencl_be_handle,
                   "metaOpenCLFallback", opencl_symbols.metaOpenCLFallback);

@@ -19,12 +19,12 @@ struct backend_handles {
   void *openmp_lib_handle;
   /** Handle from dlopen for libmetamorph_opencl.so */
   void *opencl_be_handle;
-  /** Handle from dlopen for libOpenCL.so */
-  void *opencl_lib_handle;
+//  /** Handle from dlopen for libOpenCL.so */
+//  void *opencl_lib_handle;
   /** Handle from dlopen for libmetamorph_cuda.so */
   void *cuda_be_handle;
-  /** Handle from dlopen for libcudart.so */
-  void *cuda_lib_handle;
+//  /** Handle from dlopen for libcudart.so */
+//  void *cuda_lib_handle;
 };
 /** A storage strut for dynamically-loaded plugin library handles, not meant for
  * users but needs to be exposed to the backends */

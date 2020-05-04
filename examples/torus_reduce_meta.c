@@ -13,7 +13,6 @@
  * communication or all-reduce is performed
  */
 #include <metamorph.h>
-#include <metamorph_profiling.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <sys/time.h>
@@ -274,10 +273,10 @@ int main(int argc, char **argv) {
   // MM: Data-copy
 #ifndef USE_UNIFIED_MEMORY
   if (err = meta_copy_h2d(d_domain, domain, sizeof(G_TYPE) * (ni + 1) * nj * nk,
-                          false, NULL))
+                          false, NULL, NULL));
     fprintf(stderr, "ERROR Init d_domain failed: [%d]\n", err);
   if (err = meta_copy_h2d(d_domain2, domain2,
-                          sizeof(G_TYPE) * (ni + 1) * nj * nk, false, NULL))
+                          sizeof(G_TYPE) * (ni + 1) * nj * nk, false, NULL, NULL));
     fprintf(stderr, "ERROR Init dev_d3 failed: [%d]\n", err);
 #endif
 
@@ -285,7 +284,7 @@ int main(int argc, char **argv) {
   printf("Post-H2D domain");
 #ifndef USE_UNIFIED_MEMORY
   meta_copy_d2h(domain, d_domain, sizeof(G_TYPE) * (ni + 1) * nj * nk, false,
-                NULL);
+                NULL, NULL);
 #endif
   print_grid(domain);
 #endif
@@ -295,12 +294,12 @@ int main(int argc, char **argv) {
     // MM: data marshaling
 #ifdef WITH_MPI
     // set up async recv and unpack
-    err = meta_mpi_recv_and_unpack_face(
+    meta_mpi_recv_and_unpack_face(
         autoconfig ? NULL : &grid, autoconfig ? NULL : &block,
         (rank + comm_sz - 1) % comm_sz, recv_face, d_domain, d_recvbuf, ct,
         &request, M_TYPE, 1);
     // pack and send
-    err = meta_mpi_pack_and_send_face(autoconfig ? NULL : &grid,
+    meta_mpi_pack_and_send_face(autoconfig ? NULL : &grid,
                                       autoconfig ? NULL : &block,
                                       (rank + 1) % comm_sz, send_face, d_domain,
                                       d_sendbuf, ct, &request, M_TYPE, 0);
@@ -308,14 +307,14 @@ int main(int argc, char **argv) {
     // Non-MPI still needs to exchange the face with itself
     err = meta_pack_face(autoconfig ? NULL : &grid, autoconfig ? NULL : &block,
                          d_sendbuf, d_domain, send_face, M_TYPE, 0, NULL, NULL,
-                         NULL, NULL);
+                         NULL, NULL, NULL);
     size_t selfCopySize = sizeof(G_TYPE);
     for (int i = 0; i < send_face->count; i++)
       selfCopySize *= send_face->size[i];
-    err = meta_copy_d2d(d_recvbuf, d_sendbuf, selfCopySize, 0, NULL);
+    err = meta_copy_d2d(d_recvbuf, d_sendbuf, selfCopySize, 0, NULL, NULL);
     err = meta_unpack_face(autoconfig ? NULL : &grid,
                            autoconfig ? NULL : &block, d_recvbuf, d_domain,
-                           recv_face, M_TYPE, 0, NULL, NULL, NULL, NULL);
+                           recv_face, M_TYPE, 0, NULL, NULL, NULL, NULL, NULL);
 #endif
     // MM flush
     meta_flush();
@@ -325,17 +324,17 @@ int main(int argc, char **argv) {
       fprintf(stderr, "ERROR allocating result: [%d]\n", err);
 #ifndef USE_UNIFIED_MEMORY
     meta_copy_d2h(domain, d_domain, sizeof(G_TYPE) * (ni + 1) * nj * nk, false,
-                  NULL);
+                  NULL, NULL);
 #endif
     print_grid(domain);
 #endif
 
     // MM: global dot Product
-    meta_copy_h2d(result, &zero, sizeof(G_TYPE), true, NULL);
+    meta_copy_h2d(result, &zero, sizeof(G_TYPE), true, NULL, NULL);
     meta_dotProd(autoconfig ? NULL : &grid, autoconfig ? NULL : &block,
                  d_domain, d_domain2, &array, &a_start, &a_end, result, M_TYPE,
-                 true, NULL);
-    meta_copy_d2h(&r_val, result, sizeof(G_TYPE), false, NULL);
+                 true, NULL, NULL);
+    meta_copy_d2h(&r_val, result, sizeof(G_TYPE), false, NULL, NULL);
 #ifdef WITH_MPI
     MPI_Reduce(&r_val, &global_sum, 1, MPI_TYPE, MPI_SUM, 0, MPI_COMM_WORLD);
 #else
