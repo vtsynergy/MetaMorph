@@ -15,7 +15,7 @@ BUILD_FLAGS += -lmetamorph_openmp
 endif
 endif
 ifeq ($(USE_TIMERS),TRUE)
-BUILD_FLAGS += -D WITH_TIMERS
+BUILD_FLAGS += -D WITH_TIMERS -lmetamorph_profiling
 endif
 ifeq ($(USE_MPI),TRUE)
 BUILD_FLAGS += -D WITH_MPI -lmetamorph_mpi -L$(MPI_DIR)/lib -I$(MPI_DIR)/include
@@ -26,7 +26,7 @@ all: torus_reduce_test csr_alt crc_alt
 
 .PHONY: torus_reduce_test torus_reduce_test_mp torus_reduce_test_mic torus_reduce_test_cu torus_reduce_test_cl
 torus_reduce_test: torus_reduce_meta.c $(DEPS)
-	$(CC) torus_reduce_meta.c $(OPT_LVL) $(INCLUDES) -L $(MM_LIB) -D $(G_TYPE) -lmetamorph -lmetamorph_profiling $(BUILD_FLAGS) -o torus_reduce_test
+	$(CC) torus_reduce_meta.c $(OPT_LVL) $(INCLUDES) -L $(MM_LIB) -D $(G_TYPE) -lmetamorph $(BUILD_FLAGS) -o torus_reduce_test
 
 metamorph_opencl.cl:
 	ln -s $(MM_CL)/metamorph_opencl.cl metamorph_opencl.cl
