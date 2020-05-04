@@ -308,14 +308,14 @@ int main(int argc, char **argv) {
     // Non-MPI still needs to exchange the face with itself
     err = meta_pack_face(autoconfig ? NULL : &grid, autoconfig ? NULL : &block,
                          d_sendbuf, d_domain, send_face, M_TYPE, 0, NULL, NULL,
-                         NULL, NULL);
+                         NULL, NULL, NULL);
     size_t selfCopySize = sizeof(G_TYPE);
     for (int i = 0; i < send_face->count; i++)
       selfCopySize *= send_face->size[i];
     err = meta_copy_d2d(d_recvbuf, d_sendbuf, selfCopySize, 0, NULL, NULL);
     err = meta_unpack_face(autoconfig ? NULL : &grid,
                            autoconfig ? NULL : &block, d_recvbuf, d_domain,
-                           recv_face, M_TYPE, 0, NULL, NULL, NULL, NULL);
+                           recv_face, M_TYPE, 0, NULL, NULL, NULL, NULL, NULL);
 #endif
     // MM flush
     meta_flush();
@@ -334,7 +334,7 @@ int main(int argc, char **argv) {
     meta_copy_h2d(result, &zero, sizeof(G_TYPE), true, NULL, NULL);
     meta_dotProd(autoconfig ? NULL : &grid, autoconfig ? NULL : &block,
                  d_domain, d_domain2, &array, &a_start, &a_end, result, M_TYPE,
-                 true, NULL);
+                 true, NULL, NULL);
     meta_copy_d2h(&r_val, result, sizeof(G_TYPE), false, NULL, NULL);
 #ifdef WITH_MPI
     MPI_Reduce(&r_val, &global_sum, 1, MPI_TYPE, MPI_SUM, 0, MPI_COMM_WORLD);
