@@ -11,7 +11,8 @@ Package: metamorph
 Section: libs
 Architecture: any
 Multi-Arch: same
-#Depends: metamorphBROKEN (= ${binary:Version}), ${shlibs:Depends}, ${misc:Depends}
+Depends: metamorph-openmp | metamorph-opencl | metamorph-cuda
+#metamorphBROKEN (= ${binary:Version}), ${shlibs:Depends}, ${misc:Depends}
 Recommends: metamorph-openmp
 Suggests: metamorph-cuda, metamorph-opencl, metamorph-mpi, metamorph-profiling
 Description: MetaMorph Core Library
@@ -32,7 +33,7 @@ Section: libs
 Architecture: any
 Multi-Arch: same
 Build-Depends: nvidia-cuda-toolkit
-Depends: metamorph, licuda1
+Depends: metamorph, libcuda1
 # (= ${binary:Version}), cuda, ${shlibs:Depends}, ${misc:Depends}
 Enhances: metamorph
 Description: MetaMorph CUDA Backend
