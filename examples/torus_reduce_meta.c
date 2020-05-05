@@ -264,7 +264,7 @@ int main(int argc, char **argv) {
   a_start[0] = a_start[1] = a_start[2] = 0;
   a_end[0] = ni - 1, a_end[1] = nj - 1, a_end[2] = nk - 1;
   if (autoconfig) printf("Using auto-configured grid and block\n");
-  else printf("Using grid:[%d][%d][%d] of blocks:[%d]{%d][%d]\n", grid[0], grid[1], grid[2], block[0], block[1], block[2]);
+  else printf("Using grid:[%lu][%lu][%lu] of blocks:[%lu]{%lu][%lu]\n", grid[0], grid[1], grid[2], block[0], block[1], block[2]);
 
   // MM: Face specs
   meta_face *send_face, *recv_face;

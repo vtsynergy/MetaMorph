@@ -392,7 +392,29 @@ endif
 
 export INCLUDES
 
-MFLAGS := USE_CUDA=$(USE_CUDA) CUDA_LIB_DIR=$(CUDA_LIB_DIR) USE_OPENCL=$(USE_OPENCL) OPENCL_LIB_DIR=$(OPENCL_LIB_DIR) OPENCL_INCL_DIR=$(OPENCL_INCL_DIR) OPENCL_SINGLE_KERNEL_PROGS=$(OPENCL_SINGLE_KERNEL_PROGS) USE_OPENMP=$(USE_OPENMP) USE_MIC=$(USE_MIC) ICC_BIN=$(ICC_BIN) USE_TIMERS=$(USE_TIMERS) USE_MPI=$(USE_MPI) MPI_DIR=$(MPI_DIR) USE_FPGA=$(USE_FPGA) NVCC="$(NVCC)" MPICC="$(MPICC)" OPENMP_FLAGS="$(OPENMP_FLAGS)" OPENCL_FLAGS="$(OPENCL_FLAGS)" $(MFLAGS)
+#Move things to where they should be based on Linux FHS, everything under /usr as it's non-essential
+#MetaCL --> /usr/bin/metaCL
+#libraries --> /usr/lib/libmm ln -s --> /usr/lib/metamorph/libmm... (These might also make sense for /usr/local since which you want depend on the hardware and drivers in the system)
+#headers --> /usr/include
+#documentation --> /usr/share/doc
+#OpenCL kernels? .cl and .aocx?? (These might make sense for /usr/local since which you want depend on the hardware in the system)
+#Example binaries?
+#Source-only examples?
+#Base install directory. On many systems, according to the FHS ths would be /usr/local since the libraries are likely machine-specific. However Debian saves that path for the sysadmin's tools and pushes you to /usr instead
+ifeq ($(OS),debian)
+BASE_INSTALL_DIR=$(DESTDIR)/usr
+else ifeq ($(OS),ubuntu)
+BASE_INSTALL_DIR=$(DESTDIR)/usr
+else
+BASE_INSTALL_DIR=$(DESTDIR)/usr/local
+endif
+#Useful to have symbolic links in the main library directory
+LINK_LIB_RDIR=lib
+#Actual copies of the library may be somewhere else in the lib tree, in case multiple versions/implementations are co-installed
+INSTALL_LIB_RDIR=$(LINK_LIB_RDIR)/metamorph
+VERSIONED_LIB_RDIR=metamorph$(VERSION_STR)
+
+MFLAGS := USE_CUDA=$(USE_CUDA) CUDA_LIB_DIR=$(CUDA_LIB_DIR) USE_OPENCL=$(USE_OPENCL) OPENCL_LIB_DIR=$(OPENCL_LIB_DIR) OPENCL_INCL_DIR=$(OPENCL_INCL_DIR) OPENCL_SINGLE_KERNEL_PROGS=$(OPENCL_SINGLE_KERNEL_PROGS) USE_OPENMP=$(USE_OPENMP) USE_MIC=$(USE_MIC) ICC_BIN=$(ICC_BIN) USE_TIMERS=$(USE_TIMERS) USE_MPI=$(USE_MPI) MPI_DIR=$(MPI_DIR) USE_FPGA=$(USE_FPGA) NVCC="$(NVCC)" MPICC="$(MPICC)" OPENMP_FLAGS="$(OPENMP_FLAGS)" OPENCL_FLAGS="$(OPENCL_FLAGS)" DESTDIR=$(DESTDIR) BASE_INSTALL_DIR=$(BASE_INSTALL_DIR) LINK_LIB_RDIR=$(LINK_LIB_RDIR) INSTALL_LIB_RDIR=$(INSTALL_LIB_RDIR) VERSIONED_LIB_DIR=$(VERSIONED_LIB_RDIR) $(MFLAGS)
 
 .PHONY: all
 all: $(BUILD_LIBS)
@@ -438,28 +460,6 @@ examples: torus_ex
 
 torus_ex:
 	cd $(MM_EX) && $(MAKE) $(MFLAGS) torus_reduce_test
-
-#Move things to where they should be based on Linux FHS, everything under /usr as it's non-essential
-#MetaCL --> /usr/bin/metaCL
-#libraries --> /usr/lib/libmm ln -s --> /usr/lib/metamorph/libmm... (These might also make sense for /usr/local since which you want depend on the hardware and drivers in the system)
-#headers --> /usr/include
-#documentation --> /usr/share/doc
-#OpenCL kernels? .cl and .aocx?? (These might make sense for /usr/local since which you want depend on the hardware in the system)
-#Example binaries?
-#Source-only examples?
-#Base install directory. On many systems, according to the FHS ths would be /usr/local since the libraries are likely machine-specific. However Debian saves that path for the sysadmin's tools and pushes you to /usr instead
-ifeq ($(OS),debian)
-BASE_INSTALL_DIR=$(DESTDIR)/usr
-else ifeq ($(OS),ubuntu)
-BASE_INSTALL_DIR=$(DESTDIR)/usr
-else
-BASE_INSTALL_DIR=$(DESTDIR)/usr/local
-endif
-#Useful to have symbolic links in the main library directory
-LINK_LIB_RDIR=lib
-#Actual copies of the library may be somewhere else in the lib tree, in case multiple versions/implementations are co-installed
-INSTALL_LIB_RDIR=$(LINK_LIB_RDIR)/metamorph
-VERSIONED_LIB_RDIR=metamorph$(VERSION_STR)
 
 #Install should only do what's supported according to the config and auto-detected packages
 #TODO add headers
@@ -515,8 +515,9 @@ install-backend-libraries: install-opencl-library install-cuda-library install-o
 install-opencl-all: install-opencl-library install-opencl-headers install-opencl-kernels
 
 .PHONY: install-opencl-library
-install-opencl-library: install-core-library $(BASE_INSTALL_DIR)/$(LINK_LIB_RDIR)/libmetamorph_opencl.so
+install-opencl-library: install-core-library $(BASE_INSTALL_DIR)/$(LINK_LIB_RDIR)/libmetamorph_opencl.so install-opencl-kernels
 
+#TODO Make this work generically with the FPGA backend via symlink
 $(BASE_INSTALL_DIR)/$(LINK_LIB_RDIR)/libmetamorph_opencl.so: $(BASE_INSTALL_DIR)/$(INSTALL_LIB_RDIR)/libmetamorph_opencl.so
 	@if [ -L $(BASE_INSTALL_DIR)/$(LINK_LIB_RDIR)/libmetamorph_opencl.so ]; then rm $(BASE_INSTALL_DIR)/$(LINK_LIB_RDIR)/libmetamorph_opencl.so; fi
 	ln -s ./metamorph/libmetamorph_opencl.so $(BASE_INSTALL_DIR)/$(LINK_LIB_RDIR)/libmetamorph_opencl.so
@@ -524,6 +525,11 @@ $(BASE_INSTALL_DIR)/$(LINK_LIB_RDIR)/libmetamorph_opencl.so: $(BASE_INSTALL_DIR)
 $(BASE_INSTALL_DIR)/$(INSTALL_LIB_RDIR)/libmetamorph_opencl.so: $(BASE_INSTALL_DIR)/$(INSTALL_LIB_RDIR) $(MM_LIB)/libmetamorph_opencl.so
 	@if [ -f $(BASE_INSTALL_DIR)/$(INSTALL_LIB_RDIR)/libmetamorph_opencl.so ]; then rm $(BASE_INSTALL_DIR)/$(INSTALL_LIB_RDIR)/libmetamorph_opencl.so; fi
 	cp $(MM_LIB)/libmetamorph_opencl.so $(BASE_INSTALL_DIR)/$(INSTALL_LIB_RDIR)/libmetamorph_opencl.so
+
+#TODO Make this work generically with the FPGA backend aocx(s)
+install-opencl-kernels: $(BASE_INSTALL_DIR)/$(INSTALL_LIB_RDIR) $(MM_DIR)/metamorph-backends/opencl-backend/metamorph_opencl.cl
+	@if [ -f $(BASE_INSTALL_DIR)/$(INSTALL_LIB_RDIR)/metamorph_opencl.cl ]; then rm $(BASE_INSTALL_DIR)/$(INSTALL_LIB_RDIR)/metamorph_opencl.cl; fi
+	cp $(MM_DIR)/metamorph-backends/opencl-backend/metamorph_opencl.cl $(BASE_INSTALL_DIR)/$(INSTALL_LIB_RDIR)/
 
 .PHONY: install-cuda-all
 install-cuda-all: install-cuda-library install-cuda-headers
@@ -661,8 +667,6 @@ install-profiling-headers: $(BASE_INSTALL_DIR)/include/metamorph_profiling.h
 $(BASE_INSTALL_DIR)/include/metamorph_profiling.h: $(BASE_INSTALL_DIR)/include include/metamorph_profiling.h
 	@if [ -f $(BASE_INSTALL_DIR)/include/metamorph_profiling.h ]; then rm $(BASE_INSTALL_DIR)/include/metamorph_profiling.h; fi
 	cp include/metamorph_profiling.h $(BASE_INSTALL_DIR)/include/
-
-install-opencl-kernels: 
 
 install-templates:
 
