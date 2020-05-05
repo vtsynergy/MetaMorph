@@ -258,12 +258,13 @@ int main(int argc, char **argv) {
   int ct;
   struct timeval start, end;
   G_TYPE zero = 0.0;
-  grid[0] = (ni < 4) ? 1 : (ni / 4), grid[1] = (nj < 4) ? 1 : (nj / 4),
-  grid[2] = (nk - 2) ? 1 : nk / 2; // Assume powers of 2, for simplicity
   block[0] = 4, block[1] = 4, block[2] = 2;
+  grid[0] = (ni / block[0]) + ((ni % block[0]) ? 1 : 0), grid[1] = (nj / block[1]) + ((nj % block[1]) ? 1 : 0), grid[2] = (nk / block[2]) + ((nk % block[2]) ? 1 : 0);
   array[0] = ni + 1, array[1] = nj, array[2] = nk;
   a_start[0] = a_start[1] = a_start[2] = 0;
   a_end[0] = ni - 1, a_end[1] = nj - 1, a_end[2] = nk - 1;
+  if (autoconfig) printf("Using auto-configured grid and block\n");
+  else printf("Using grid:[%lu][%lu][%lu] of blocks:[%lu]{%lu][%lu]\n", grid[0], grid[1], grid[2], block[0], block[1], block[2]);
 
   // MM: Face specs
   meta_face *send_face, *recv_face;
@@ -273,10 +274,10 @@ int main(int argc, char **argv) {
   // MM: Data-copy
 #ifndef USE_UNIFIED_MEMORY
   if (err = meta_copy_h2d(d_domain, domain, sizeof(G_TYPE) * (ni + 1) * nj * nk,
-                          false, NULL, NULL));
+                          false, NULL, NULL))
     fprintf(stderr, "ERROR Init d_domain failed: [%d]\n", err);
   if (err = meta_copy_h2d(d_domain2, domain2,
-                          sizeof(G_TYPE) * (ni + 1) * nj * nk, false, NULL, NULL));
+                          sizeof(G_TYPE) * (ni + 1) * nj * nk, false, NULL, NULL))
     fprintf(stderr, "ERROR Init dev_d3 failed: [%d]\n", err);
 #endif
 
