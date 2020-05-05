@@ -106,7 +106,7 @@ Architecture: all
 Suggests: metacl
 Depends: metamorph-opencl, metamorph-dev
 #(= ${binary:Version}), ${shlibs:Depends}, ${misc:Depends}
-Description: MetaMorph OpenCL Bacend Headers
+Description: MetaMorph OpenCL Backend Headers
  Header files to develop a new application using features specific to the OpenCL backend
 
 Package: metamorph-mpi-dev
