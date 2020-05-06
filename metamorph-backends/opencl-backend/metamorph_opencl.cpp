@@ -968,7 +968,7 @@ cl_int metaOpenCLInitStackFrame(metaOpenCLStackFrame **frame, cl_int device) {
     metaOpenCLQueryDevices();
   }
   // Abort if the requested device is out of bounds
-  if (device < -1 || device > num_devices) return CL_DEVICE_NOT_FOUND;
+  if (device < -1 || device >= num_devices) return CL_DEVICE_NOT_FOUND;
 
   // Hack to allow choose device to set mode to OpenCL, but still pick a default
   if (device == -1)
