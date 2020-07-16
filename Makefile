@@ -416,44 +416,48 @@ VERSIONED_LIB_RDIR=metamorph$(VERSION_STR)
 
 MFLAGS := USE_CUDA=$(USE_CUDA) CUDA_LIB_DIR=$(CUDA_LIB_DIR) USE_OPENCL=$(USE_OPENCL) OPENCL_LIB_DIR=$(OPENCL_LIB_DIR) OPENCL_INCL_DIR=$(OPENCL_INCL_DIR) OPENCL_SINGLE_KERNEL_PROGS=$(OPENCL_SINGLE_KERNEL_PROGS) USE_OPENMP=$(USE_OPENMP) USE_MIC=$(USE_MIC) ICC_BIN=$(ICC_BIN) USE_TIMERS=$(USE_TIMERS) USE_MPI=$(USE_MPI) MPI_DIR=$(MPI_DIR) USE_FPGA=$(USE_FPGA) NVCC="$(NVCC)" MPICC="$(MPICC)" OPENMP_FLAGS="$(OPENMP_FLAGS)" OPENCL_FLAGS="$(OPENCL_FLAGS)" DESTDIR=$(DESTDIR) BASE_INSTALL_DIR=$(BASE_INSTALL_DIR) LINK_LIB_RDIR=$(LINK_LIB_RDIR) INSTALL_LIB_RDIR=$(INSTALL_LIB_RDIR) VERSIONED_LIB_DIR=$(VERSIONED_LIB_RDIR) $(MFLAGS)
 
+METACL_FLAGS=
+ifdef CLANG_LIB_PATH
+METACL_FLAGS := CLANG_LIB_PATH=$(CLANG_LIB_PATH)
+endif
+
 .PHONY: all
 all: $(BUILD_LIBS)
 
 $(MM_LIB):
 	if [ ! -d $(MM_LIB) ]; then mkdir -p $(MM_LIB); fi
 
-$(MM_LIB)/libmetamorph.so: $(MM_LIB) $(MM_DEPS)
+$(MM_LIB)/libmetamorph.so: $(MM_DEPS) | $(MM_LIB)
 	$(CC) $(MM_DEPS) $(CC_FLAGS) $(INCLUDES) -L$(MM_LIB) $(MM_COMPONENTS) -o $(MM_LIB)/libmetamorph.so -ldl -shared -Wl,-soname,libmetamorph.so
 
-$(MM_LIB)/libmetamorph_profiling.so: $(MM_LIB) $(MM_CORE)/metamorph_profiling.c
+$(MM_LIB)/libmetamorph_profiling.so: $(MM_CORE)/metamorph_profiling.c | $(MM_LIB)
 	$(CC) $(MM_CORE)/metamorph_profiling.c $(CC_FLAGS) $(INCLUDES) -o $(MM_LIB)/libmetamorph_profiling.so -shared -Wl,-soname,libmetamorph_profiling.so
 
-$(MM_LIB)/libmetamorph_mpi.so: $(MM_LIB) $(MM_CORE)/metamorph_mpi.c
+$(MM_LIB)/libmetamorph_mpi.so: $(MM_CORE)/metamorph_mpi.c | $(MM_LIB)
 	$(MPICC) $(MM_CORE)/metamorph_mpi.c $(CC_FLAGS) $(INCLUDES) -I$(MPI_DIR)/include -L$(MPI_DIR)/lib -o $(MM_LIB)/libmetamorph_mpi.so -shared -Wl,-soname,libmetamorph_mpi.so
 
-$(MM_LIB)/libmetamorph_openmp.so: $(MM_LIB)	
+$(MM_LIB)/libmetamorph_openmp.so: | $(MM_LIB)
 	cd $(MM_MP) && $(MAKE) $(MFLAGS) libmetamorph_openmp.so
 
 #TODO Make this happen transparently to this file, create a symlink in the backend's makefile	
-$(MM_LIB)/libmetamorph_openmp_mic.so: $(MM_LIB)
+$(MM_LIB)/libmetamorph_openmp_mic.so: | $(MM_LIB)
 	cd $(MM_MP) && $(MAKE) $(MFLAGS) libmetamorph_openmp_mic.so
 
-$(MM_LIB)/libmetamorph_cuda.so: $(MM_LIB)
+$(MM_LIB)/libmetamorph_cuda.so: | $(MM_LIB)
 	cd $(MM_CU) && $(MAKE) $(MFLAGS) libmetamorph_cuda.so
 
-$(MM_LIB)/libmetamorph_opencl.so: $(MM_LIB)
+$(MM_LIB)/libmetamorph_opencl.so: | $(MM_LIB)
 	cd $(MM_CL) && $(MAKE) $(MFLAGS) libmetamorph_opencl.so
 
 #TODO Make this happen transparently to this file, create a symlink in the backend's makefile	
-$(MM_LIB)/libmetamorph_opencl_intelfpga.so: $(MM_LIB)
+$(MM_LIB)/libmetamorph_opencl_intelfpga.so: | $(MM_LIB)
 	cd $(MM_CL) && $(MAKE) $(MFLAGS) libmetamorph_opencl_intelfpga.so
 
 .PHONY: generators
 generators: $(MM_GEN_CL)/metaCL
 
-
 $(MM_GEN_CL)/metaCL:
-	cd $(MM_GEN_CL) && $(MAKE) metaCL
+	cd $(MM_GEN_CL) && $(MAKE) $(METACL_FLAGS) metaCL
 
 .PHONY: examples
 examples: torus_ex
