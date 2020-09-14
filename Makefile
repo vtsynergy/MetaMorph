@@ -464,7 +464,14 @@ torus_ex:
 #Install should only do what's supported according to the config and auto-detected packages
 #TODO add headers
 .PHONY: install
-install: all $(foreach target,$(BUILD_LIBS),$(subst $(MM_LIB),$(BASE_INSTALL_DIR)/$(LINK_LIB_RDIR),$(target))) install-metaCL
+install: all install-libraries install-headers install-metaCL
+
+#these variants support the "only what's configured" install targets
+.PHONY: install-libraries
+install-libraries: $(foreach target,$(BUILD_LIBS),$(subst $(MM_LIB),$(BASE_INSTALL_DIR)/$(LINK_LIB_RDIR),$(target)))
+
+.PHONY: install-headers
+install-headers: install-core-headers $(foreach target,$(BUILD_LIBS),$(subst .so,.h,$(subst libmetamorph,metamorph,$(subst $(MM_LIB),$(BASE_INSTALL_DIR)/include,$(target)))))
 
 #install all should try to do everything
 .PHONY: install-all
