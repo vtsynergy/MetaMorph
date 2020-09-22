@@ -62,9 +62,18 @@ endif
 ifeq ($(OS), debian)
 CLANG_LDFLAGS := -ltinfo -lz
 endif
+ifeq ($(OS),)
+CLANG_LDFLAGS := -lncurses
+endif
 #CLANG_LDFLAGS := `$(LLVM_BIN_PATH)/llvm-config --cxxflags`
 
-CLANG_LIBS := -L $(LLVM_BUILD_PATH)/lib \
+ifndef CLANG_LIB_PATH
+CLANG_LIB_PATH = $(LLVM_BULD_PATH)/lib
+.PHONY: $(CLANG_LIB_PATH)
+$(CLANG_LIB_PATH): | $(LLVM_BUILD_PATH)
+endif
+
+CLANG_LIBS := -L $(CLANG_LIB_PATH) \
 	-Wl,--start-group \
 	-lclangAST \
 	-lclangASTMatchers \
@@ -92,7 +101,7 @@ CLANG_LIBS := -L $(LLVM_BUILD_PATH)/lib \
 
 all: metaCL
 
-metaCL: metacl.cpp | $(LLVM_BUILD_PATH)
+metaCL: metacl.cpp | $(CLANG_LIB_PATH)
 	$(CXX) $(CXXFLAGS) $(CLANG_INCLUDES) metacl.cpp -o metaCL $(CLANG_LIBS) $(CLANG_LDFLAGS)
 
 
