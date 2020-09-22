@@ -774,7 +774,7 @@ void PrototypeHandler::run(const MatchFinder::MatchResult &Result) {
     } else {
       outerSizeName = "global_size", innerSizeName = "local_size";
       doxygenEnqueue += "\\param global_size a size_t[3] providing the global "
-                        "number of workitems in the X, Y, Z dimensions";
+                        "number of workitems in the X, Y, Z dimensions\n";
       doxygenEnqueue += "\\param local_size a size_t[3] providing the "
                         "workgroup size in the X, Y, Z dimensions";
     }
@@ -1215,15 +1215,15 @@ int populateOutputFiles() {
       *out_c << "extern cl_context meta_context;\n";
       *out_c << "extern cl_command_queue meta_queue;\n";
       *out_c << "extern cl_device_id meta_device;\n";
-    }
 
-    // Emit user-defined types in the header file
-    /// \todo TEST ensure we only get one copy of each in unified mode
-    // We use the fileCachePair output .h file as the key since we may be in
-    // unified mode but still want to get types from all input files
-    for (std::pair<QualType, std::string> t :
-         ImportedTypes[fileCachePair.second->outfile_h]) {
-      *out_h << t.second;
+      // Emit user-defined types in the header file
+      /// \todo TEST ensure we only get one copy of each in unified mode
+      // We use the fileCachePair output .h file as the key since we may be in
+      // unified mode but still want to get types from all input files
+      for (std::pair<QualType, std::string> t :
+           ImportedTypes[fileCachePair.second->outfile_h]) {
+        *out_h << t.second;
+      }
     }
 
     // Generate a space to place arguments (for each input file)
