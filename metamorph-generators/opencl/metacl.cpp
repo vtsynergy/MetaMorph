@@ -1086,7 +1086,8 @@ public:
     cache->runOnceInit += "    __metacl_" + outFile + "_current_frame->" +
                           file + "_progLen = metaOpenCLLoadProgramSource(\"" +
                           file + ".aocx\", &__metacl_" + outFile +
-                          "_current_frame->" + file + "_progSrc);\n";
+                          "_current_frame->" + file + "_progSrc, &__metacl_" +
+                          outFile + "_current_frame->" + file + "_progDir);\n";
     cache->runOnceInit += "    if (__metacl_" + outFile + "_current_frame->" +
                           file + "_progLen != -1)\n";
     cache->runOnceInit +=
@@ -1100,7 +1101,8 @@ public:
     cache->runOnceInit += "    __metacl_" + outFile + "_current_frame->" +
                           file + "_progLen = metaOpenCLLoadProgramSource(\"" +
                           file + ".cl\", &__metacl_" + outFile +
-                          "_current_frame->" + file + "_progSrc);\n";
+                          "_current_frame->" + file + "_progSrc, &__metacl_" +
+                          outFile + "_current_frame->" + file + "_progDir);\n";
     cache->runOnceInit += "    if (__metacl_" + outFile + "_current_frame->" +
                           file + "_progLen != -1)\n";
     cache->runOnceInit +=
@@ -1113,11 +1115,20 @@ public:
                           file + "_progLen != -1) {\n";
     cache->runOnceInit +=
         ERROR_CHECK("    ", "buildError", "OpenCL program creation error");
+    cache->runOnceInit += "    size_t args_sz = snprintf(NULL, 0, \"%s -I %s\", "
+                          "__metacl_" + file + "_custom_args ? __metacl_" + file +
+                          "_custom_args : \"\", __metacl_" + outFile +
+                          "_current_frame->" + file + "_progDir);\n";
+    cache->runOnceInit += "    char * build_args = (char*) calloc(args_sz + 1, "
+                          "sizeof(char));\n";
+    cache->runOnceInit += "    snprintf(build_args, args_sz + 1, \"%s -I %s\", "
+                          "__metacl_" + file + "_custom_args ? __metacl_" + file +
+                          "_custom_args : \"\", __metacl_" + outFile +
+                          "_current_frame->" + file + "_progDir);\n";
     cache->runOnceInit += "    buildError = clBuildProgram(__metacl_" +
                           outFile + "_current_frame->" + file +
-                          "_prog, 1, &meta_device, __metacl_" + file +
-                          "_custom_args ? __metacl_" + file +
-                          "_custom_args : \"\", NULL, NULL);\n";
+                          "_prog, 1, &meta_device, build_args, NULL, NULL);\n";
+    cache->runOnceInit += "    free(build_args);\n";
     cache->runOnceInit += "    if (buildError != CL_SUCCESS) {\n";
     cache->runOnceInit += "      size_t logsize = 0;\n";
     cache->runOnceInit +=
@@ -1146,6 +1157,8 @@ public:
         ERROR_CHECK("      ", "releaseError", "OpenCL program release error");
     cache->runOnceDeinit += "      free((char *)__metacl_" + outFile +
                             "_current_frame->" + file + "_progSrc);\n";
+    cache->runOnceDeinit += "      free((char *)__metacl_" + outFile +
+                            "_current_frame->" + file + "_progDir);\n";
     cache->runOnceDeinit += "      __metacl_" + outFile + "_current_frame->" +
                             file + "_progLen = 0;\n";
     cache->runOnceDeinit += "      __metacl_" + outFile + "_current_frame->" +
@@ -1265,6 +1278,7 @@ int populateOutputFiles() {
     /// \todo TODO support one-kernel-per-program convention?
     *out_h << "  const char * " << fileCachePair.first << "_progSrc;\n";
     *out_h << "  size_t " << fileCachePair.first << "_progLen;\n";
+    *out_h << "  const char * " << fileCachePair.first << "_progDir;\n";
     *out_h << "  cl_program " << fileCachePair.first << "_prog;\n";
     *out_h << "  cl_int " << fileCachePair.first << "_init;\n";
     // Add the kernel variables
