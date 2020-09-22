@@ -92,39 +92,40 @@ int metaOpenCLGetDeviceID(char *desired, cl_device_id *devices,
 void metaOpenCLQueryDevices() {
   int i;
   num_platforms = 0, num_devices = 0;
-  cl_uint temp_uint, temp_uint2;
+  cl_uint num_plat_devs;
   if (clGetPlatformIDs(0, NULL, &num_platforms) != CL_SUCCESS)
     printf("MetaMorph failed to query OpenCL platform count!\n");
   printf("MetaMorph: Number of OpenCL Platforms: %d\n", num_platforms);
 
   __meta_platforms_array =
-      (cl_platform_id *)malloc(sizeof(cl_platform_id) * (num_platforms + 1));
+      (cl_platform_id *)malloc(sizeof(cl_platform_id) * (num_platforms));
 
   if (clGetPlatformIDs(num_platforms, &__meta_platforms_array[0], NULL) !=
       CL_SUCCESS)
     printf("MetaMorph failed to get OpenCL platform IDs\n");
 
   for (i = 0; i < num_platforms; i++) {
-    temp_uint = 0;
+    num_plat_devs = 0;
     if (clGetDeviceIDs(__meta_platforms_array[i], CL_DEVICE_TYPE_ALL, 0, NULL,
-                       &temp_uint) != CL_SUCCESS)
+                       &num_plat_devs) != CL_SUCCESS)
       printf("MetaMorph failed to query OpenCL device count on platform %d!\n",
              i);
-    num_devices += temp_uint;
+    num_devices += num_plat_devs;
   }
-  printf("MetaMorph: Number of OpenCLDevices: %d\n", num_devices);
+  printf("MetaMorph: Number of OpenCL Devices: %d\n", num_devices);
 
   __meta_devices_array =
-      (cl_device_id *)malloc(sizeof(cl_device_id) * (num_devices + 1));
-  temp_uint = 0;
+      (cl_device_id *)malloc(sizeof(cl_device_id) * (num_devices));
+  int dev_offset = 0;
+  cl_uint devs_added = 0;
   for (i = 0; i < num_platforms; i++) {
     if (clGetDeviceIDs(__meta_platforms_array[i], CL_DEVICE_TYPE_ALL,
-                       num_devices, &__meta_devices_array[temp_uint],
-                       &temp_uint2) != CL_SUCCESS)
+                       num_devices-dev_offset, &__meta_devices_array[dev_offset],
+                       &devs_added) != CL_SUCCESS)
       printf("MetaMorph failed to query OpenCL device IDs on platform %d!\n",
              i);
-    temp_uint += temp_uint2;
-    temp_uint2 = 0;
+    dev_offset += devs_added;
+    devs_added = 0;
   }
 
   // TODO figure out somewhere else to put this, like a terminating callback or
