@@ -421,9 +421,13 @@ void metaOpenCLFallback();
  * else it will be concatenated onto the search paths
  * \param progSrc The address of a character pointer in which to return the
  * address of the complete NULL-terminated string that is read in
+ * \param foundFileDir The address of a character pointer in which to return
+ * the address of a string containing the directory the file was located in,
+ * after utilizing the METAMORPH_OCL_KERNEL_PATH. If NULL, the directory is
+ * discarded. 
  * \return The number of bytes read into progSrc, or -1 if the file is not found
  */
-size_t metaOpenCLLoadProgramSource(const char *filename, const char **progSrc);
+size_t metaOpenCLLoadProgramSource(const char *filename, const char **progSrc, const char **foundFileDir);
 
 /**
  * Initialize all the builtin kernels for the current frame.

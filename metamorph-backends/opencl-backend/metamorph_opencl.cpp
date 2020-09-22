@@ -134,7 +134,7 @@ void metaOpenCLQueryDevices() {
 // Returns the size of the first program with corresponding name found in
 // METAMORPH_OCL_KERNEL_PATH If none is found, returns -1. Client responsible for
 // handling non-existent kernels gracefully.
-size_t metaOpenCLLoadProgramSource(const char *filename, const char **progSrc) {
+size_t metaOpenCLLoadProgramSource(const char *filename, const char **progSrc, const char **foundFileDir) {
   // Construct the path string
   // environment variable + METAMORPH_OCL_KERNEL_PATH
   char *path = NULL;
@@ -161,6 +161,11 @@ size_t metaOpenCLLoadProgramSource(const char *filename, const char **progSrc) {
     char *abs_path = (char *)calloc(abs_path_sz + 1, sizeof(char));
     snprintf(abs_path, abs_path_sz + 1, "%s/%s", token, filename);
     f = fopen(abs_path, "r");
+    if (f != NULL && foundFileDir != NULL) {
+      size_t path_sz = snprintf(NULL, 0, "%s", token);
+      *foundFileDir = (const char *) calloc(path_sz +1, sizeof(char));
+      snprintf((char*)*foundFileDir, path_sz + 1, "%s", token);
+    }
     token = strtok(NULL, ":");
   }
   // TODO if none is found, how to handle? Don't need to crash the program, we
@@ -458,7 +463,8 @@ cl_int metaOpenCLBuildProgram(metaOpenCLStackFrame *frame) {
 #else
   if (frame->metaCLProgLen == 0) {
     frame->metaCLProgLen = metaOpenCLLoadProgramSource("metamorph_opencl.cl",
-                                                       &(frame->metaCLProgSrc));
+                                                       &(frame->metaCLProgSrc),
+                                                       NULL);
   }
   if (frame->metaCLProgLen != -1)
     frame->program_opencl_core =
