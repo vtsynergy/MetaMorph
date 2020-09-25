@@ -92,17 +92,19 @@ MetaMorph implements the offload/accelerator computation model, in which data is
 We recommend the use of pre-installed packages, which can be found at: https://vtsynergy.github.io/packages/. We will endeavour to keep this updated with major releases, as time allows. However, to leverage the newest features and bugfixes, a traditional make from this repository is also supported.
 
 Configuration is managed through the use of command-line Make variables. The Makefile will attempt to locate packages and tools necessary to build the relevant backends and automatically configure itself. `make all` and `make install` will use this auto-configuration. The following overrides are available to assist with configuration:
-*`DESTDIR` The root directory that `install` targets should place finished libraries, headers, and binaries into. By default assumed to be `/`, but can be placed in user-space for non-sudo installations
-*`USE_OPENMP=<TRUE/FALSE>` Explicitly enable or disable building the OpenMP backend
-*`USE_OPENCL=<TRUE/FALSE>` Explicitly enable or disable building the OpenCL backend
-*`OPENCL_LIB_DIR` The path to the libraries of an OpenCL installation, i.e. where `$(OPENCL_LIB_DIR)/libOpenCL.so` is located
-*`OPENCL_INCL_DIR` The path to the headers of an OpenCL installation, i.e. where `$(OPENCL_INCL_DIR)/CL/opencl.h` is located
-*`USE_CUDA=<TRUE/FALSE>` Explicitly enable or disable building the CUDA backend
-*`CUDA_LIB_DIR` The path to the root of a CUDA installation i.e. where `$(CUDA_LIB_DIR)/libcudart.so` and `$(CUDA_LIB_DIR)))/../bin/nvcc` are located
-*`USE_MPI=<TRUE/FALSE>` Explicitly enable or disable building the MPI Plugin
-*`MPI_DIR` The path to the root of an MPI installation, which provides MPI C compiler, i.e. where `$(MPI_DIR)/bin/mpicc` is located
-*`USE_TIMERS=<TRUE/FALSE>` Explicitly enable or disable building the Timing Plugin
-*`USE_FPGA=<BLANK/"INTEL">` **Work in progress, not needed for MetaCL-generated FPGA codes**. Whether to compile built-in kernels for FPGA **(Warning can be time-intensive)**
+
+* `DESTDIR` The root directory that `install` targets should place finished libraries, headers, and binaries into. By default assumed to be `/`, but can be placed in user-space for non-sudo installations
+* `USE_OPENMP=<TRUE/FALSE>` Explicitly enable or disable building the OpenMP backend
+* `USE_OPENCL=<TRUE/FALSE>` Explicitly enable or disable building the OpenCL backend
+* `OPENCL_LIB_DIR` The path to the libraries of an OpenCL installation, i.e. where `$(OPENCL_LIB_DIR)/libOpenCL.so` is located
+* `OPENCL_INCL_DIR` The path to the headers of an OpenCL installation, i.e. where `$(OPENCL_INCL_DIR)/CL/opencl.h` is located
+* `USE_CUDA=<TRUE/FALSE>` Explicitly enable or disable building the CUDA backend
+* `CUDA_LIB_DIR` The path to the root of a CUDA installation i.e. where `$(CUDA_LIB_DIR)/libcudart.so` and `$(CUDA_LIB_DIR)))/../bin/nvcc` are located
+* `USE_MPI=<TRUE/FALSE>` Explicitly enable or disable building the MPI Plugin
+* `MPI_DIR` The path to the root of an MPI installation, which provides MPI C compiler, i.e. where `$(MPI_DIR)/bin/mpicc` is located
+* `USE_TIMERS=<TRUE/FALSE>` Explicitly enable or disable building the Timing Plugin
+* `USE_FPGA=<BLANK/"INTEL">` **Work in progress, not needed for MetaCL-generated FPGA codes**. Whether to compile built-in kernels for FPGA **(Warning can be time-intensive)**
+
 Many of these overrides will not need to be specified if relevant library, header, and binary paths are correctly set in your `LIBRARY_PATH`, `CPATH`, and `PATH` variables, respectively.
 
 To build MetaCL, invoke the `make generators` target, which supports the following overrides to assist in locating a Clang installation:
