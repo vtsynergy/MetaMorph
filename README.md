@@ -108,7 +108,7 @@ Configuration is managed through the use of command-line Make variables. The Mak
 Many of these overrides will not need to be specified if relevant library, header, and binary paths are correctly set in your `LIBRARY_PATH`, `CPATH`, and `PATH` variables, respectively.
 
 To build MetaCL, invoke the `make generators` target, which supports the following overrides to assist in locating a Clang installation:
-*`CLANG_LIB_PATH` The path to the static Clang libraries (typically included with the `-dev` or `-devel` versions of `libClang`), i.e where `$(CLANG_LIB_PATH)/libclangTooling.a` is located
+* `CLANG_LIB_PATH` The path to the static Clang libraries (typically included with the `-dev` or `-devel` versions of `libClang`), i.e where `$(CLANG_LIB_PATH)/libclangTooling.a` is located
 
 
 
