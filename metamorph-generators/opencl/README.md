@@ -20,8 +20,13 @@ Contact Email:
 
 ## News & Updates
 
+Jun 10, 2020: Version 0.3b: Integration with packaged MetaMorph v0.3b
 Jan 15, 2020: Version 0.2b
 
+
+## Publications
+
+* "MetaCL: Automated 'Meta' OpenCL Code Generation for High-Level Synthesis on FPGA." Paul Sathre, Atharva Gondhalekar, Mohamed Hassan, Wu-chun Feng. In Proceedings of the 24th Annual IEEE High Performance Extreme Computing Conference (HPEC '20), Waltham, Massachusetts, USA, September 2020. 
 
 
 ## MetaCL Implementation
@@ -37,18 +42,28 @@ Thanks to Clang's robust and efficient design, MetaCL is able to run in seconds,
 	make
 	GNU C Library (glibc)
 	
-	Clang >= 6.0
+	Clang >= 6.0 (Tested with 6.0 and 10.0)
 	
 	MetaMorph
 	
 	MetaMorph OpenCL-backend
 		GNU GCC compiler (tested with gcc 4.5, 4.7.2, 4.8.2 and 4.9.2)
 		OpenCL libs
+		
+		
+##Installation
+
+Please follow the installation instructions in the top-level Makefile. The MetaCL autogenerator can run in a standalone fashion, but currently all generated codes require the MetaMorph OpenCL backend plugin to operate.
 
 
 ## Usage
 
 For detailed installation and usage instructions, please refer to the [MetaCL Tutorials](./docs/tutorials/README.md)
+
+Examples of invocation syntax can be found in the `metacl_module.c` make targets of https://github.com/vtsynergy/MetaCL-SNAP/blob/master/src/Makefile and https://github.com/vtsynergy/MetaCL-BabelStream/blob/master/OpenCL.make
+
+Esoterica:
+* On some non-systemwide Clang Installations, it is necessary to provide an additional header search directory (`-I <dir>`) to the Clang internal compiler (i.e. after the `--` that separates MetaCL options from Clang options). This must point to the directory that contains the Clang installation's copy of *their* OpenCL kernel headers (i.e. `/usr/lib/clang/6.0.1/include/opencl-c.h`) In the codes above this is captured in the `METACL_CFLAGS`, which are provided on the command line and would typically look like `METACL_CFLAGS="-I /usr/lib/clang/6.0.1/include" make -f OpenCL.make`. We hope to eliminate this requirement in a future release.
 
 
 ## License 
