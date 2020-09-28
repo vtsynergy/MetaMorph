@@ -120,7 +120,8 @@ void metaOpenCLQueryDevices() {
   cl_uint devs_added = 0;
   for (i = 0; i < num_platforms; i++) {
     if (clGetDeviceIDs(__meta_platforms_array[i], CL_DEVICE_TYPE_ALL,
-                       num_devices-dev_offset, &__meta_devices_array[dev_offset],
+                       num_devices - dev_offset,
+                       &__meta_devices_array[dev_offset],
                        &devs_added) != CL_SUCCESS)
       printf("MetaMorph failed to query OpenCL device IDs on platform %d!\n",
              i);
@@ -133,9 +134,10 @@ void metaOpenCLQueryDevices() {
 }
 
 // Returns the size of the first program with corresponding name found in
-// METAMORPH_OCL_KERNEL_PATH If none is found, returns -1. Client responsible for
-// handling non-existent kernels gracefully.
-size_t metaOpenCLLoadProgramSource(const char *filename, const char **progSrc, const char **foundFileDir) {
+// METAMORPH_OCL_KERNEL_PATH If none is found, returns -1. Client responsible
+// for handling non-existent kernels gracefully.
+size_t metaOpenCLLoadProgramSource(const char *filename, const char **progSrc,
+                                   const char **foundFileDir) {
   // Construct the path string
   // environment variable + METAMORPH_OCL_KERNEL_PATH
   char *path = NULL;
@@ -164,8 +166,8 @@ size_t metaOpenCLLoadProgramSource(const char *filename, const char **progSrc, c
     f = fopen(abs_path, "r");
     if (f != NULL && foundFileDir != NULL) {
       size_t path_sz = snprintf(NULL, 0, "%s", token);
-      *foundFileDir = (const char *) calloc(path_sz +1, sizeof(char));
-      snprintf((char*)*foundFileDir, path_sz + 1, "%s", token);
+      *foundFileDir = (const char *)calloc(path_sz + 1, sizeof(char));
+      snprintf((char *)*foundFileDir, path_sz + 1, "%s", token);
     }
     token = strtok(NULL, ":");
   }
@@ -277,7 +279,7 @@ cl_int metaOpenCLBuildProgram(metaOpenCLStackFrame *frame) {
 #define ENSURE_SRC(name)                                                       \
   if (frame->metaCLbinLen_##name == 0)                                         \
     frame->metaCLbinLen_##name = metaOpenCLLoadProgramSource(                  \
-        "metamorph_opencl_intelfpga_"##name ".aocx",                          \
+        "metamorph_opencl_intelfpga_"##name ".aocx",                           \
         &(frame->metaCLbin_##name));                                           \
   }                                                                            \
   if (frame->metaCLbinLen_##name != -1)                                        \
@@ -447,14 +449,15 @@ cl_int metaOpenCLBuildProgram(metaOpenCLStackFrame *frame) {
     frame->program_csr_ui =
         clCreateProgramWithSource(frame->context, 1, &(frame->metaCLProgSrc),
                                   &(frame->metaCLProgLen), NULL);
-    //		frame->program_crc_db = clCreateProgramWithSource(frame->context,
-    //1,&(frame->metaCLProgSrc), &(frame->metaCLProgLen), NULL);
-    //		frame->program_crc_fl = clCreateProgramWithSource(frame->context,
-    //1,&(frame->metaCLProgSrc), &(frame->metaCLProgLen), NULL);
-    //		frame->program_crc_ul = clCreateProgramWithSource(frame->context,
-    //1,&(frame->metaCLProgSrc), &(frame->metaCLProgLen), NULL);
-    //		frame->program_crc_in = clCreateProgramWithSource(frame->context,
-    //1,&(frame->metaCLProgSrc), &(frame->metaCLProgLen), NULL);
+    //		frame->program_crc_db =
+    // clCreateProgramWithSource(frame->context, 1,&(frame->metaCLProgSrc),
+    // &(frame->metaCLProgLen), NULL); 		frame->program_crc_fl =
+    // clCreateProgramWithSource(frame->context, 1,&(frame->metaCLProgSrc),
+    // &(frame->metaCLProgLen), NULL); 		frame->program_crc_ul =
+    // clCreateProgramWithSource(frame->context, 1,&(frame->metaCLProgSrc),
+    // &(frame->metaCLProgLen), NULL); 		frame->program_crc_in =
+    // clCreateProgramWithSource(frame->context, 1,&(frame->metaCLProgSrc),
+    // &(frame->metaCLProgLen), NULL);
     frame->program_crc_ui =
         clCreateProgramWithSource(frame->context, 1, &(frame->metaCLProgSrc),
                                   &(frame->metaCLProgLen), NULL);
@@ -463,9 +466,8 @@ cl_int metaOpenCLBuildProgram(metaOpenCLStackFrame *frame) {
 // it's just reading the source and the defines come in during build
 #else
   if (frame->metaCLProgLen == 0) {
-    frame->metaCLProgLen = metaOpenCLLoadProgramSource("metamorph_opencl.cl",
-                                                       &(frame->metaCLProgSrc),
-                                                       NULL);
+    frame->metaCLProgLen = metaOpenCLLoadProgramSource(
+        "metamorph_opencl.cl", &(frame->metaCLProgSrc), NULL);
   }
   if (frame->metaCLProgLen != -1)
     frame->program_opencl_core =
@@ -580,9 +582,9 @@ cl_int metaOpenCLBuildProgram(metaOpenCLStackFrame *frame) {
     fprintf(stderr, "Error in clCreateKernel for kernel_" #name " %d\n", ret);
 #endif
   //	ret |= metaOpenCLBuildSingleKernelProgram(frame,
-  //frame->program_reduce_db, "-D DOUBLE -D KERNEL_REDUCE");
+  // frame->program_reduce_db, "-D DOUBLE -D KERNEL_REDUCE");
   //	frame->kernel_reduce_db =
-  //clCreateKernel(frame->program_opencl_reduce_db, "kernel_reduce_db", &ret);
+  // clCreateKernel(frame->program_opencl_reduce_db, "kernel_reduce_db", &ret);
   BUILD_PROG_AND_KERNEL(reduce_db,
                         "-D SINGLE_KERNEL_PROGS -D DOUBLE -D KERNEL_REDUCE")
   BUILD_PROG_AND_KERNEL(reduce_fl,
@@ -661,10 +663,11 @@ cl_int metaOpenCLBuildProgram(metaOpenCLStackFrame *frame) {
   BUILD_PROG_AND_KERNEL(
       csr_ui, "-D SINGLE_KERNEL_PROGS -D UNSIGNED_INTEGER -D KERNEL_CSR")
   //	BUILD_PROG_AND_KERNEL(crc_db, "-D SINGLE_KERNEL_PROGS -D DOUBLE -D
-  //KERNEL_CRC") 	BUILD_PROG_AND_KERNEL(crc_fl, "-D SINGLE_KERNEL_PROGS -D FLOAT
-  //-D KERNEL_CRC") 	BUILD_PROG_AND_KERNEL(crc_ul, "-D SINGLE_KERNEL_PROGS -D
-  //UNSIGNED_LONG -D KERNEL_CRC") 	BUILD_PROG_AND_KERNEL(crc_in, "-D
-  //SINGLE_KERNEL_PROGS -D INTEGER -D KERNEL_CRC")
+  // KERNEL_CRC") 	BUILD_PROG_AND_KERNEL(crc_fl, "-D SINGLE_KERNEL_PROGS -D
+  // FLOAT -D KERNEL_CRC") 	BUILD_PROG_AND_KERNEL(crc_ul, "-D
+  // SINGLE_KERNEL_PROGS -D UNSIGNED_LONG -D KERNEL_CRC")
+  // BUILD_PROG_AND_KERNEL(crc_in, "-D SINGLE_KERNEL_PROGS -D INTEGER -D
+  // KERNEL_CRC")
   BUILD_PROG_AND_KERNEL(
       crc_ui, "-D SINGLE_KERNEL_PROGS -D UNSIGNED_INTEGER -D KERNEL_CRC")
 #endif
@@ -851,14 +854,33 @@ a_int meta_destroy_OpenCL() {
 a_int meta_get_state_OpenCL(cl_platform_id *platform, cl_device_id *device,
                             cl_context *context, cl_command_queue *queue) {
   metaOpenCLStackFrame *frame = metaOpenCLTopStackFrame();
-  if (platform != NULL)
-    *platform = frame->platform;
-  if (device != NULL)
-    *device = frame->device;
-  if (context != NULL)
-    *context = frame->context;
-  if (queue != NULL)
-    *queue = frame->queue;
+  if (platform != NULL) {
+    if (frame != NULL)
+      *platform = frame->platform;
+    else
+      *platform = NULL;
+  }
+  if (device != NULL) {
+    if (frame != NULL)
+      *device = frame->device;
+    else
+      *device = NULL;
+  }
+  if (context != NULL) {
+    if (frame != NULL)
+      *context = frame->context;
+    else
+      *context = NULL;
+  }
+  if (queue != NULL) {
+    if (frame != NULL)
+      *queue = frame->queue;
+    else
+      *queue = NULL;
+  }
+  if (frame != NULL)
+    free(frame); // The copy from Top
+
   return 0; // TODO real return code
 }
 
@@ -880,12 +902,49 @@ a_int meta_get_state_OpenCL(cl_platform_id *platform, cl_device_id *device,
  */
 a_int meta_set_state_OpenCL(cl_platform_id platform, cl_device_id device,
                             cl_context context, cl_command_queue queue) {
-  if (platform == NULL || device == NULL || context == NULL || queue == NULL) {
-    fprintf(
-        stderr,
-        "Error: meta_set_state_OpenCL requires a full frame specification!\n");
-    return -1;
+  metaOpenCLStackFrame *curr = metaOpenCLTopStackFrame();
+  if (platform == NULL) {
+#ifdef DEBUG
+    fprintf(stderr, "Warning: meta_set_state_OpenCL called with NULL platform, "
+                    "reusing current\n");
+#endif // DEBUG
+    if (curr != NULL)
+      platform = curr->platform;
+    else
+      platform = NULL;
   }
+  if (device == NULL) {
+#ifdef DEBUG
+    fprintf(stderr, "Warning: meta_set_state_OpenCL called with NULL device, "
+                    "reusing current\n");
+#endif // DEBUG
+    if (curr != NULL)
+      device = curr->device;
+    else
+      device = NULL;
+  }
+  if (context == NULL) {
+#ifdef DEBUG
+    fprintf(stderr, "Warning: meta_set_state_OpenCL called with NULL context, "
+                    "reusing current\n");
+#endif // DEBUG
+    if (curr != NULL)
+      context = curr->context;
+    else
+      context = NULL;
+  }
+  if (queue == NULL) {
+#ifdef DEBUG
+    fprintf(stderr, "Warning: meta_set_state_OpenCL called with NULL queue, "
+                    "reusing current\n");
+#endif // DEBUG
+    if (curr != NULL)
+      queue = curr->queue;
+    else
+      queue = NULL;
+  }
+  if (curr != NULL)
+    free(curr); // It's a copy
   // Make a frame
   metaOpenCLStackFrame *frame =
       (metaOpenCLStackFrame *)calloc(1, sizeof(metaOpenCLStackFrame));
@@ -975,7 +1034,8 @@ cl_int metaOpenCLInitStackFrame(metaOpenCLStackFrame **frame, cl_int device) {
     metaOpenCLQueryDevices();
   }
   // Abort if the requested device is out of bounds
-  if (device < -1 || device >= num_devices) return CL_DEVICE_NOT_FOUND;
+  if (device < -1 || device >= num_devices)
+    return CL_DEVICE_NOT_FOUND;
 
   // Hack to allow choose device to set mode to OpenCL, but still pick a default
   if (device == -1)
@@ -1270,17 +1330,17 @@ a_err metaOpenCLRegisterCallback(meta_event *event, meta_callback *call) {
 //	pop any stack nodes
 //	free any stack nodes
 //	implement any thread safety, frames should always be thread private,
-//only the stack should be shared, and all franes must be copied to or from
-//stack nodes using the hazard-aware copy methods. 	 (more specifically, copying a
-//frame to a node doesn't need to be hazard-aware, as the node cannot be shared
-//unless copied inside the hazard-aware metaOpenCLPushStackFrame. Pop, Top, and
-//copyStackNodeToFrame are all hazard aware and provide a thread-private copy
-//back to the caller.)
+// only the stack should be shared, and all franes must be copied to or from
+// stack nodes using the hazard-aware copy methods. 	 (more specifically,
+// copying a frame to a node doesn't need to be hazard-aware, as the node cannot
+// be shared unless copied inside the hazard-aware metaOpenCLPushStackFrame.
+// Pop, Top, and copyStackNodeToFrame are all hazard aware and provide a
+// thread-private copy back to the caller.)
 cl_int metaOpenCLDestroyStackFrame(metaOpenCLStackFrame *frame) {
   cl_int ret = CL_SUCCESS;
   // Since we always calloc the frames, if a kernel or program is uninitialized
-  // it will have a value of zero so we can simply safety check the release calls
-  // Release Kernels
+  // it will have a value of zero so we can simply safety check the release
+  // calls Release Kernels
   if (frame->kernel_reduce_db)
     clReleaseKernel(frame->kernel_reduce_db);
   if (frame->kernel_reduce_fl)
@@ -1861,7 +1921,8 @@ a_err opencl_dotProd(size_t (*grid_size)[3], size_t (*block_size)[3],
   if (meta_context == NULL)
     metaOpenCLFallback();
   metaOpenCLStackFrame *frame = metaOpenCLTopStackFrame();
-  if (frame->kernels_init != 1) {
+  if (frame != NULL && frame->kernels_init != 1) {
+    free(frame); // The copy from Top, since we're getting a new copy from Pop
     frame = metaOpenCLPopStackFrame();
     metaOpenCLBuildProgram(frame);
     metaOpenCLPushStackFrame(frame);
@@ -2012,7 +2073,8 @@ a_err opencl_reduce(size_t (*grid_size)[3], size_t (*block_size)[3], void *data,
   if (meta_context == NULL)
     metaOpenCLFallback();
   metaOpenCLStackFrame *frame = metaOpenCLTopStackFrame();
-  if (frame->kernels_init != 1) {
+  if (frame != NULL && frame->kernels_init != 1) {
+    free(frame); // The copy from Top, since we're getting a new copy from Pop
     frame = metaOpenCLPopStackFrame();
     metaOpenCLBuildProgram(frame);
     metaOpenCLPushStackFrame(frame);
@@ -2145,7 +2207,7 @@ cl_int opencl_transpose_face(size_t (*grid_size)[3], size_t (*block_size)[3],
   //	size_t grid[3] = {(*grid_size)[0]*(*block_size)[0],
   //(*grid_size)[1]*(*block_size)[1], (*block_size)[2]};
   // 	size_t block[3] = {(*block_size)[0], (*block_size)[1],
-  //(*block_size)[2]};\
+  //   (*block_size)[2]};\
 	//FIXME: make this smart enough to rescale the threadblock (and thus shared
   // memory - e.g. bank conflicts) w.r.t. double vs. float
   if (grid_size == NULL || block_size == NULL) {
@@ -2172,7 +2234,8 @@ cl_int opencl_transpose_face(size_t (*grid_size)[3], size_t (*block_size)[3],
   if (meta_context == NULL)
     metaOpenCLFallback();
   metaOpenCLStackFrame *frame = metaOpenCLTopStackFrame();
-  if (frame->kernels_init != 1) {
+  if (frame != NULL && frame->kernels_init != 1) {
+    free(frame); // The copy from Top, since we're getting a new copy from Pop
     frame = metaOpenCLPopStackFrame();
     metaOpenCLBuildProgram(frame);
     metaOpenCLPushStackFrame(frame);
@@ -2290,7 +2353,8 @@ cl_int opencl_pack_face(size_t (*grid_size)[3], size_t (*block_size)[3],
   if (meta_context == NULL)
     metaOpenCLFallback();
   metaOpenCLStackFrame *frame = metaOpenCLTopStackFrame();
-  if (frame->kernels_init != 1) {
+  if (frame != NULL && frame->kernels_init != 1) {
+    free(frame); // The copy from Top, since we're getting a new copy from Pop
     frame = metaOpenCLPopStackFrame();
     metaOpenCLBuildProgram(frame);
     metaOpenCLPushStackFrame(frame);
@@ -2330,7 +2394,8 @@ cl_int opencl_pack_face(size_t (*grid_size)[3], size_t (*block_size)[3],
     *((cl_event *)ret_event_c3->event_pl) = event_c3;
   // TODO update to use user-provided grid/block once multi-element per thread
   // scaling is added 	size_t grid[3] = {(*grid_size)[0]*(*block_size)[0],
-  //(*grid_size)[1]*(*block_size)[1], (*block_size)[2]}; 	size_t block[3] =
+  //(*grid_size)[1]*(*block_size)[1], (*block_size)[2]}; 	size_t block[3]
+  //=
   //{(*block_size)[0], (*block_size)[1], (*block_size)[2]};
   if (grid_size == NULL || block_size == NULL) {
     grid[0] = ((size + block[0] - 1) / block[0]) * block[0];
@@ -2478,7 +2543,8 @@ cl_int opencl_unpack_face(size_t (*grid_size)[3], size_t (*block_size)[3],
   if (meta_context == NULL)
     metaOpenCLFallback();
   metaOpenCLStackFrame *frame = metaOpenCLTopStackFrame();
-  if (frame->kernels_init != 1) {
+  if (frame != NULL && frame->kernels_init != 1) {
+    free(frame); // The copy from Top, since we're getting a new copy from Pop
     frame = metaOpenCLPopStackFrame();
     metaOpenCLBuildProgram(frame);
     metaOpenCLPushStackFrame(frame);
@@ -2518,7 +2584,8 @@ cl_int opencl_unpack_face(size_t (*grid_size)[3], size_t (*block_size)[3],
     *((cl_event *)ret_event_c3->event_pl) = event_c3;
   // TODO update to use user-provided grid/block once multi-element per thread
   // scaling is added 	size_t grid[3] = {(*grid_size)[0]*(*block_size)[0],
-  //(*grid_size)[1]*(*block_size)[1], (*block_size)[2]}; 	size_t block[3] =
+  //(*grid_size)[1]*(*block_size)[1], (*block_size)[2]}; 	size_t block[3]
+  //=
   //{(*block_size)[0], (*block_size)[1], (*block_size)[2]};
   if (grid_size == NULL || block_size == NULL) {
     grid[0] = ((size + block[0] - 1) / block[0]) * block[0];
@@ -2691,7 +2758,8 @@ cl_int opencl_stencil_3d7p(size_t (*grid_size)[3], size_t (*block_size)[3],
   if (meta_context == NULL)
     metaOpenCLFallback();
   metaOpenCLStackFrame *frame = metaOpenCLTopStackFrame();
-  if (frame->kernels_init != 1) {
+  if (frame != NULL && frame->kernels_init != 1) {
+    free(frame); // The copy from Top, since we're getting a new copy from Pop
     frame = metaOpenCLPopStackFrame();
     metaOpenCLBuildProgram(frame);
     metaOpenCLPushStackFrame(frame);
@@ -2822,7 +2890,8 @@ cl_int opencl_csr(size_t (*grid_size)[3], size_t (*block_size)[3],
   if (meta_context == NULL)
     metaOpenCLFallback();
   metaOpenCLStackFrame *frame = metaOpenCLTopStackFrame();
-  if (frame->kernels_init != 1) {
+  if (frame != NULL && frame->kernels_init != 1) {
+    free(frame); // The copy from Top, since we're getting a new copy from Pop
     frame = metaOpenCLPopStackFrame();
     metaOpenCLBuildProgram(frame);
     metaOpenCLPushStackFrame(frame);
@@ -2907,7 +2976,8 @@ cl_int opencl_crc(void *dev_input, int page_size, int num_words, int numpages,
   if (meta_context == NULL)
     metaOpenCLFallback();
   metaOpenCLStackFrame *frame = metaOpenCLTopStackFrame();
-  if (frame->kernels_init != 1) {
+  if (frame != NULL && frame->kernels_init != 1) {
+    free(frame); // The copy from Top, since we're getting a new copy from Pop
     frame = metaOpenCLPopStackFrame();
     metaOpenCLBuildProgram(frame);
     metaOpenCLPushStackFrame(frame);
