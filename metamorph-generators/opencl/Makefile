@@ -68,7 +68,7 @@ endif
 #CLANG_LDFLAGS := `$(LLVM_BIN_PATH)/llvm-config --cxxflags`
 
 ifndef CLANG_LIB_PATH
-CLANG_LIB_PATH = $(LLVM_BULD_PATH)/lib
+CLANG_LIB_PATH = $(LLVM_BUILD_PATH)/lib
 .PHONY: $(CLANG_LIB_PATH)
 $(CLANG_LIB_PATH): | $(LLVM_BUILD_PATH)
 endif
