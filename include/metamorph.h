@@ -41,16 +41,16 @@ extern "C" {
 // This needs to be here so that the back-ends can internally
 // switch between implementations for different primitive types
 typedef enum {
-  a_db = 0, // double
-  a_fl = 1, // float
-  a_lo = 2, // long
-  a_ul = 3, // unsigned long
-  a_in = 4, // int
-  a_ui = 5, // unsigned int
-  a_sh = 6, // short
-  a_us = 7, // unsigned short
-  a_ch = 8, // char
-  a_uc = 9  // unsigned char
+  meta_db = 0, // double
+  meta_fl = 1, // float
+  meta_lo = 2, // long
+  meta_ul = 3, // unsigned long
+  meta_in = 4, // int
+  meta_ui = 5, // unsigned int
+  meta_sh = 6, // short
+  meta_us = 7, // unsigned short
+  meta_ch = 8, // char
+  meta_uc = 9  // unsigned char
 } meta_type_id;
 size_t get_atype_size(meta_type_id type);
 
@@ -102,36 +102,36 @@ meta_face *make_slab_from_3d(int face, int ni, int nj, int nk, int thickness);
 /// \todo should generic "accelerator" types be typedefs, unions, ...?
 /// \todo implement generic accelerators types so an accelerator model can be chosen at runtime
 /** Optional typedef to ensure internal types have predictable size */
-typedef double a_double;
+typedef double meta_double;
 /** Optional typedef to ensure internal types have predictable size */
-typedef float a_float;
+typedef float meta_float;
 /** Optional typedef to ensure internal types have predictable size */
-typedef int a_int;
+typedef int meta_int;
 /** Optional typedef to ensure internal types have predictable size */
-typedef long a_long;
+typedef long meta_long;
 /** Optional typedef to ensure internal types have predictable size */
-typedef short a_short;
+typedef short meta_short;
 /** Optional typedef to ensure internal types have predictable size */
-typedef char a_char;
+typedef char meta_char;
 /** Optional typedef to ensure internal types have predictable size */
-typedef unsigned char a_uchar;
+typedef unsigned char meta_uchar;
 /** Optional typedef to ensure internal types have predictable size */
-typedef unsigned short a_ushort;
+typedef unsigned short meta_ushort;
 /** Optional typedef to ensure internal types have predictable size */
-typedef unsigned int a_uint;
+typedef unsigned int meta_uint;
 /** Optional typedef to ensure internal types have predictable size */
-typedef unsigned long a_ulong;
+typedef unsigned long meta_ulong;
 /** Typedef for internal error type */
-typedef int a_err;
+typedef int meta_err;
 /** Ensure a boolean type exists, use an existing one if possible */
 #if defined(__CUDACC__) || defined(__cplusplus) || defined(bool)
-typedef bool a_bool;
+typedef bool meta_bool;
 #else
-typedef enum boolean { false, true } a_bool;
+typedef enum boolean { false, true } meta_bool;
 #endif
 /** Define a standard type for specifying parameters of three or less dimensions
  */
-typedef size_t a_dim3[3];
+typedef size_t meta_dim3[3];
 
 #ifdef UNIMPLEMENTED
 /**
@@ -179,16 +179,16 @@ typedef enum {
   module_implements_mpi = 16,
   module_implements_fortran = 32,
   module_implements_general = 64 // general operations not related to a backend
-} a_module_implements_backend;
+} meta_module_implements_backend;
 
 /** Forward declaration of the module record structure */
-struct a_module_record;
+struct meta_module_record;
 /** External MetaMorph modules need a well-defined interface for sharing
  * information with the MetaMorph core putting it in a structure allows us to
  * abstract some of it from the user and more easily adapt it if needs adjust in
  * the future
  */
-typedef struct a_module_record {
+typedef struct meta_module_record {
   /** Function pointer to the initializer for the module, should not be NULL
    * This function must attempt to auto-register if not already known to
    * MetaMorph Once it is finished it must set the initialized state of the
@@ -216,17 +216,17 @@ typedef struct a_module_record {
    * (Currently re-registrations should be rejected and thus return the value of
    * record)
    */
-  struct a_module_record *(*module_registry_func)(
-      struct a_module_record *record);
+  struct meta_module_record *(*module_registry_func)(
+      struct meta_module_record *record);
   /** enum "bitfield" defining which backend(s) (or general) the module provides
    * implementations for, typically defaults to module_implements_none, but
    * could be module_uninitialized */
-  a_module_implements_backend implements;
+  meta_module_implements_backend implements;
   /** An initialized state boolean, set and unset during calls to the init and
    * deinit function pointers May be deprecated in light of the
    * module_uninitialized value that was introduced */
   char initialized; // = 0;
-} a_module_record;
+} meta_module_record;
 
 /**
  * A simple abstract type to store the type of event and a payload pointer
@@ -259,10 +259,10 @@ void meta_init();
  * \return the number of matched modules, regardless of how many were actually
  * storable in retRecords
  */
-int lookup_implementing_modules(a_module_record **retRecords,
+int lookup_implementing_modules(meta_module_record **retRecords,
                                 size_t szRetRecords,
-                                a_module_implements_backend signature,
-                                a_bool matchAny);
+                                meta_module_implements_backend signature,
+                                meta_bool matchAny);
 /**
  * Allow add-on modules to pass a pointer to their registration function to
  * metamorph-core, so that the core can then initialize and exchange the
@@ -271,12 +271,12 @@ int lookup_implementing_modules(a_module_record **retRecords,
  * explicitly call it if they wish to pay initialization costs outside the
  * critical application
  * \param module_registry_func The function implementing the registration
- * contract as specified in the a_module_record type
+ * contract as specified in the meta_module_record type
  * \return 0 if the module is successfully registered or was already registered,
  * -1 if the function pointer is NULL
  */
-a_err meta_register_module(
-    a_module_record *(*module_registry_func)(a_module_record *record));
+meta_err meta_register_module(
+    meta_module_record *(*module_registry_func)(meta_module_record *record));
 /**
  * Explicitly remove an external module from metamorph-core, causing it to
  * trigger any deconstruction code necessary to clean up the module Users *can*
@@ -284,12 +284,12 @@ a_err meta_register_module(
  * is implicitly called by the global MetaMorph constructor at program end on
  * any remaining modules
  * \param module_registry_func The function implementing the registration
- * contract as specified in the a_module_record type
+ * contract as specified in the meta_module_record type
  * \return 0 if the module was successfully or already deregistered, -1 if the
  * function pointer is NULL
  */
-a_err meta_deregister_module(
-    a_module_record *(*module_registry_func)(a_module_record *record));
+meta_err meta_deregister_module(
+    meta_module_record *(*module_registry_func)(meta_module_record *record));
 /**
  * Reinitialize all modules with a given implements_backend mask
  * It will reinitialize them using a binary AND of the mask and each module's
@@ -300,7 +300,7 @@ a_err meta_deregister_module(
  * \param module_type The mask of supported capabilitys
  * \return -1 if there are no known modules, 0 otherwise
  */
-a_err meta_reinitialize_modules(a_module_implements_backend module_type);
+meta_err meta_reinitialize_modules(meta_module_implements_backend module_type);
 /**
  * Allocate a MetaMorph buffer on the currently-active backend and device
  * In most cases the returned pointer should not be tampered with on the host as
@@ -311,7 +311,7 @@ a_err meta_reinitialize_modules(a_module_implements_backend module_type);
  * otherwise the results of the backend implementation, which is directly
  * castable to that backend's internal error type
  */
-a_err meta_alloc(void **ptr, size_t size);
+meta_err meta_alloc(void **ptr, size_t size);
 /**
  * Release a MetaMorph-allocated backend buffer that resides on the
  * currently-active backend
@@ -320,7 +320,7 @@ a_err meta_alloc(void **ptr, size_t size);
  * otherwise the results of the backend implementation, which is directly
  * castable to that backend's internal error type
  */
-a_err meta_free(void *ptr);
+meta_err meta_free(void *ptr);
 /**
  * Switch MetaMorph to the device with the provided ID on the provided backend
  * \param accel the ID of the desired device
@@ -329,7 +329,7 @@ a_err meta_free(void *ptr);
  * \todo unpack OpenCL platform from the uint's high short, and the device from
  * the low short
  */
-a_err meta_set_acc(int accel, meta_preferred_mode mode);
+meta_err meta_set_acc(int accel, meta_preferred_mode mode);
 /**
  * Get the currently-active backend mode and the in-use device's ID within it
  * \param accel The address in which to return the device's ID
@@ -338,7 +338,7 @@ a_err meta_set_acc(int accel, meta_preferred_mode mode);
  * \todo pack OpenCL platform into the uint's high short, and the device into
  * the low short
  */
-a_err meta_get_acc(int *accel, meta_preferred_mode *mode);
+meta_err meta_get_acc(int *accel, meta_preferred_mode *mode);
 /**
  * Checks that grid_size is a valid multiple of block_size, and that
  * both obey the bounds specified for the device/execution model currently in
@@ -350,7 +350,7 @@ a_err meta_get_acc(int *accel, meta_preferred_mode *mode);
  * \param block_size desired thread dimensions within each thread block
  * \return 0 on success or NOOP, -1 if there is a problem with the configuration
  */
-a_err meta_validate_worksize(a_dim3 *grid_size, a_dim3 *block_size);
+meta_err meta_validate_worksize(meta_dim3 *grid_size, meta_dim3 *block_size);
 /**
  * Flush does exactly what it sounds like - forces any outstanding work to be
  * finished before returning For now it handles flushing async kernels, and
@@ -358,7 +358,7 @@ a_err meta_validate_worksize(a_dim3 *grid_size, a_dim3 *block_size);
  * timer dumping as well, but that might not be ideal
  * \return 0 on success, -1 or the backend-specific error code otherwise
  */
-a_err meta_flush();
+meta_err meta_flush();
 
 /**
  * Simple initializer for an event that sets the mode to whatever we are
@@ -368,13 +368,13 @@ a_err meta_flush();
  * event
  * \return 0 on success, -1 or a backend-specific error code otherwise
  */
-a_err meta_init_event(meta_event *event);
+meta_err meta_init_event(meta_event *event);
 /**
  * Simple destructor that frees the backend-agnostic void* event payload
  * \param event The event to release the payload from
  * \return 0 on success, -1 or a backend-specific error code on failure
  */
-a_err meta_destroy_event(meta_event event);
+meta_err meta_destroy_event(meta_event event);
 
 /** Forward declaration of the structure used to contain backend-agnostic
  * MetaMorph callback objects */
@@ -415,7 +415,7 @@ typedef struct meta_callback {
  * otherwise the results of the backend implementation, which is directly
  * castable to that backend's internal error type
  */
-a_err meta_copy_h2d(void *dst, void *src, size_t size, a_bool async,
+meta_err meta_copy_h2d(void *dst, void *src, size_t size, meta_bool async,
                     meta_callback *call, meta_event *ret_event);
 /**
  * Wrapper for reads from the device
@@ -431,7 +431,7 @@ a_err meta_copy_h2d(void *dst, void *src, size_t size, a_bool async,
  * otherwise the results of the backend implementation, which is directly
  * castable to that backend's internal error type
  */
-a_err meta_copy_d2h(void *dst, void *src, size_t size, a_bool async,
+meta_err meta_copy_d2h(void *dst, void *src, size_t size, meta_bool async,
                     meta_callback *call, meta_event *ret_event);
 /**
  * Wrapper for on-device copies of MetaMorph-allocated buffers
@@ -448,7 +448,7 @@ a_err meta_copy_d2h(void *dst, void *src, size_t size, a_bool async,
  * otherwise the results of the backend implementation, which is directly
  * castable to that backend's internal error type
  */
-a_err meta_copy_d2d(void *dst, void *src, size_t size, a_bool async,
+meta_err meta_copy_d2d(void *dst, void *src, size_t size, meta_bool async,
                     meta_callback *call, meta_event *ret_event);
 /**
  * Wrapper to transpose a 2D array
@@ -470,9 +470,9 @@ a_err meta_copy_d2d(void *dst, void *src, size_t size, a_bool async,
  * \bug OpenCL return codes should not be binary OR'd, rather separately checked
  * and the last error returned
  */
-a_err meta_transpose_face(a_dim3 *grid_size, a_dim3 *block_size, void *indata,
-                          void *outdata, a_dim3 *arr_dim_xy,
-                          a_dim3 *tran_dim_xy, meta_type_id type, a_bool async,
+meta_err meta_transpose_face(meta_dim3 *grid_size, meta_dim3 *block_size, void *indata,
+                          void *outdata, meta_dim3 *arr_dim_xy,
+                          meta_dim3 *tran_dim_xy, meta_type_id type, meta_bool async,
                           meta_callback *call, meta_event *ret_event);
 /**
  * Wrapper for the face packing kernel
@@ -492,9 +492,9 @@ a_err meta_transpose_face(a_dim3 *grid_size, a_dim3 *block_size, void *indata,
  * \warning Implemented as a 1D kernel, Y and Z grid/block parameters will be ignored
 /// \todo fix frame->size to reflect face size
  */
-a_err meta_pack_face(a_dim3 *grid_size, a_dim3 *block_size, void *packed_buf,
+meta_err meta_pack_face(meta_dim3 *grid_size, meta_dim3 *block_size, void *packed_buf,
                      void *buf, meta_face *face, meta_type_id type,
-                     a_bool async, meta_callback *call,
+                     meta_bool async, meta_callback *call,
                      meta_event *ret_event_k1, meta_event *ret_event_c1,
                      meta_event *ret_event_c2, meta_event *ret_event_c3);
 /**
@@ -515,9 +515,9 @@ a_err meta_pack_face(a_dim3 *grid_size, a_dim3 *block_size, void *packed_buf,
  * \warning Implemented as a 1D kernel, Y and Z grid/block parameters will be ignored
 /// \todo fix frame->size to reflect face size
  */
-a_err meta_unpack_face(a_dim3 *grid_size, a_dim3 *block_size, void *packed_buf,
+meta_err meta_unpack_face(meta_dim3 *grid_size, meta_dim3 *block_size, void *packed_buf,
                        void *buf, meta_face *face, meta_type_id type,
-                       a_bool async, meta_callback *call,
+                       meta_bool async, meta_callback *call,
                        meta_event *ret_event_k1, meta_event *ret_event_c1,
                        meta_event *ret_event_c2, meta_event *ret_event_c3);
 /**
@@ -540,7 +540,7 @@ a_err meta_unpack_face(a_dim3 *grid_size, a_dim3 *block_size, void *packed_buf,
  * workgroups, assumed to be initialized before the kernel (a MetaMorph buffer
  * handle allocated on the currently-active backend and device)
  * \param type The supported MetaMorph data type that data1, data2, and
- * reduction_var contain (Currently: a_db, a_fl, a_ul, a_in, a_ui)
+ * reduction_var contain (Currently: meta_db, meta_fl, meta_ul, meta_in, meta_ui)
  * \param async Whether the kernel should be run asynchronously or blocking
  * \param call A callback to run when the transfer finishes, or NULL if none
  * \param ret_event The address of a meta_event with initialized backend payload
@@ -549,10 +549,10 @@ a_err meta_unpack_face(a_dim3 *grid_size, a_dim3 *block_size, void *packed_buf,
  * otherwise the results of the backend implementation, which is directly
  * castable to that backend's internal error type
  */
-a_err meta_dotProd(a_dim3 *grid_size, a_dim3 *block_size, void *data1,
-                   void *data2, a_dim3 *array_size, a_dim3 *array_start,
-                   a_dim3 *array_end, void *reduction_var, meta_type_id type,
-                   a_bool async, meta_callback *call, meta_event *ret_event);
+meta_err meta_dotProd(meta_dim3 *grid_size, meta_dim3 *block_size, void *data1,
+                   void *data2, meta_dim3 *array_size, meta_dim3 *array_start,
+                   meta_dim3 *array_end, void *reduction_var, meta_type_id type,
+                   meta_bool async, meta_callback *call, meta_event *ret_event);
 /**
  * Reduction sum of identically-shaped subregions of two identically-shaped 3D
  * arrays this kernel works for 3D data only.
@@ -571,7 +571,7 @@ a_err meta_dotProd(a_dim3 *grid_size, a_dim3 *block_size, void *data1,
  * workgroups, assumed to be initialized before the kernel (a MetaMorph buffer
  * handle allocated on the currently-active backend and device)
  * \param type The supported MetaMorph data type that data and reduction_var
- * contain (Currently: a_db, a_fl, a_ul, a_in, a_ui)
+ * contain (Currently: meta_db, meta_fl, meta_ul, meta_in, meta_ui)
  * \param async Whether the kernel should be run asynchronously or blocking
  * \param call A callback to run when the transfer finishes, or NULL if none
  * \param ret_event The address of a meta_event with initialized backend payload
@@ -580,9 +580,9 @@ a_err meta_dotProd(a_dim3 *grid_size, a_dim3 *block_size, void *data1,
  * otherwise the results of the backend implementation, which is directly
  * castable to that backend's internal error type
  */
-a_err meta_reduce(a_dim3 *grid_size, a_dim3 *block_size, void *data,
-                  a_dim3 *array_size, a_dim3 *array_start, a_dim3 *array_end,
-                  void *reduction_var, meta_type_id type, a_bool async,
+meta_err meta_reduce(meta_dim3 *grid_size, meta_dim3 *block_size, void *data,
+                  meta_dim3 *array_size, meta_dim3 *array_start, meta_dim3 *array_end,
+                  void *reduction_var, meta_type_id type, meta_bool async,
                   meta_callback *call, meta_event *ret_event);
 /**
  * Wrapper for the 3D 7-point stencil averaging kernel
@@ -609,9 +609,9 @@ a_err meta_reduce(a_dim3 *grid_size, a_dim3 *block_size, void *data,
  * otherwise the results of the backend implementation, which is directly
  * castable to that backend's internal error type
  */
-a_err meta_stencil_3d7p(a_dim3 *grid_size, a_dim3 *block_size, void *indata,
-                        void *outdata, a_dim3 *array_size, a_dim3 *array_start,
-                        a_dim3 *array_end, meta_type_id type, a_bool async,
+meta_err meta_stencil_3d7p(meta_dim3 *grid_size, meta_dim3 *block_size, void *indata,
+                        void *outdata, meta_dim3 *array_size, meta_dim3 *array_start,
+                        meta_dim3 *array_end, meta_type_id type, meta_bool async,
                         meta_callback *call, meta_event *ret_event);
 /**
  * Wrapper for the SPMV kernel for CSR sparse matrix format
@@ -626,7 +626,7 @@ a_err meta_stencil_3d7p(a_dim3 *grid_size, a_dim3 *block_size, void *indata,
  * \param x_loc The input vector to multiply A by
  * \param y_loc The output vector to sum into
  * \param type The supported MetaMorph data type that csr_ax, x_loc, and y_loc
- * contain (Currently: a_db, a_fl, a_ul, a_in, a_ui)
+ * contain (Currently: meta_db, meta_fl, meta_ul, meta_in, meta_ui)
  * \param async Whether the kernel should be run asynchronously or blocking
  * \param call A callback to run when the transfer finishes, or NULL if none
  * \param ret_event The address of a meta_event with initialized backend payload
@@ -637,9 +637,9 @@ a_err meta_stencil_3d7p(a_dim3 *grid_size, a_dim3 *block_size, void *indata,
  * \warning Y and Z dimensions are ignored
  * \todo FIXME Only exists for OpenCL backend
  */
-a_err meta_csr(a_dim3 *grid_size, a_dim3 *block_size, size_t global_size,
+meta_err meta_csr(meta_dim3 *grid_size, meta_dim3 *block_size, size_t global_size,
                void *csr_ap, void *csr_aj, void *csr_ax, void *x_loc,
-               void *y_loc, meta_type_id type, a_bool async,
+               void *y_loc, meta_type_id type, meta_bool async,
                meta_callback *call, meta_event *ret_event);
 /**
  * Wrapper for the cyclic redundancy check task kernel
@@ -652,7 +652,7 @@ a_err meta_csr(a_dim3 *grid_size, a_dim3 *block_size, size_t global_size,
  * \param numpages TODO
  * \param dev_output The result
  * \param type The supported MetaMorph data type that dev_input contains
- * (Currently: a_db, a_fl, a_ul, a_in, a_ui)
+ * (Currently: meta_db, meta_fl, meta_ul, meta_in, meta_ui)
  * \param async Whether the kernel should be run asynchronously or blocking
  * \param call A callback to run when the transfer finishes, or NULL if none
  * \param ret_event The address of a meta_event with initialized backend payload
@@ -664,9 +664,9 @@ a_err meta_csr(a_dim3 *grid_size, a_dim3 *block_size, size_t global_size,
  * int kernel
  * \todo FIXME Only exists for OpenCL backend
  */
-a_err meta_crc(a_dim3 *grid_size, a_dim3 *block_size, void *dev_input,
+meta_err meta_crc(meta_dim3 *grid_size, meta_dim3 *block_size, void *dev_input,
                int page_size, int num_words, int numpages, void *dev_output,
-               meta_type_id type, a_bool async, meta_callback *call,
+               meta_type_id type, meta_bool async, meta_callback *call,
                meta_event *ret_event);
 
 #ifdef __cplusplus

@@ -21,7 +21,7 @@ extern "C" {
 #endif
 
 /** Make sure we know what backends and plugins the MetaMorph core supports */
-extern a_module_implements_backend core_capability;
+extern meta_module_implements_backend core_capability;
 /** Reuse the function pointers from the profiling plugin if it's found */
 extern struct profiling_dyn_ptrs profiling_symbols;
 /** The globally-exposed cl_context for the most recently initialized OpenCL
@@ -810,7 +810,7 @@ void metaOpenCLFallback() {
  * \return The status of the teardown (FIXME: currently always succeeds with
  * zero)
  */
-a_int meta_destroy_OpenCL() {
+meta_int meta_destroy_OpenCL() {
   // Deregister all modules that ONLY implement OpenCL
   int numOCLModules, retModCount;
   // TODO If we ever make this threadsafe, the deregister function will protect
@@ -819,11 +819,11 @@ a_int meta_destroy_OpenCL() {
   // deregistration
   numOCLModules =
       lookup_implementing_modules(NULL, 0, module_implements_opencl, false);
-  a_module_record **oclModules =
-      (a_module_record **)calloc(sizeof(a_module_record *), numOCLModules);
+  meta_module_record **oclModules = (meta_module_record **)calloc(
+      sizeof(meta_module_record *), numOCLModules);
   retModCount = lookup_implementing_modules(oclModules, numOCLModules,
                                             module_implements_opencl, false);
-  a_err deregErr;
+  meta_err deregErr;
   for (; retModCount > 0; retModCount--) {
     deregErr = meta_deregister_module(
         oclModules[retModCount - 1]->module_registry_func);
@@ -851,7 +851,7 @@ a_int meta_destroy_OpenCL() {
  * \return the OpenCL error state for any necessary query operations (FIXME:
  * Currently fixed at CL_SUCCESS)
  */
-a_int meta_get_state_OpenCL(cl_platform_id *platform, cl_device_id *device,
+meta_int meta_get_state_OpenCL(cl_platform_id *platform, cl_device_id *device,
                             cl_context *context, cl_command_queue *queue) {
   metaOpenCLStackFrame *frame = metaOpenCLTopStackFrame();
   if (platform != NULL) {
@@ -900,7 +900,7 @@ a_int meta_get_state_OpenCL(cl_platform_id *platform, cl_device_id *device,
  * \return the OpenCL error state for any necessary query operations (FIXME:
  * Currently fixed at CL_SUCCESS)
  */
-a_int meta_set_state_OpenCL(cl_platform_id platform, cl_device_id device,
+meta_int meta_set_state_OpenCL(cl_platform_id platform, cl_device_id device,
                             cl_context context, cl_command_queue queue) {
   metaOpenCLStackFrame *curr = metaOpenCLTopStackFrame();
   if (platform == NULL) {
@@ -985,8 +985,8 @@ a_int meta_set_state_OpenCL(cl_platform_id platform, cl_device_id device,
 
 #ifdef DEPRECATED
 // getting a pointer to specific event
-a_err meta_get_event(char *qname, char *ename, cl_event **e) {
-  a_err ret;
+meta_err meta_get_event(char *qname, char *ename, cl_event **e) {
+  meta_err ret;
   metaTimerQueueFrame *frame =
       (metaTimerQueueFrame *)malloc(sizeof(metaTimerQueueFrame));
 
@@ -1086,8 +1086,8 @@ cl_int metaOpenCLInitStackFrame(metaOpenCLStackFrame **frame, cl_int device) {
  * sequentially) to use
  * \return the OpenCL error status of the underlying initialization API calls
  */
-a_err metaOpenCLInitByID(a_int id) {
-  a_err ret = CL_SUCCESS;
+meta_err metaOpenCLInitByID(meta_int id) {
+  meta_err ret = CL_SUCCESS;
   metaOpenCLStackFrame *frame;
   ret = metaOpenCLInitStackFrame(
       &frame, (cl_int)id); // no hazards, frames are thread-private
@@ -1109,7 +1109,7 @@ a_err metaOpenCLInitByID(a_int id) {
  * \param id The address in which to return the numerical ID
  * \return the OpenCL error status of any underlying OpenCL API calls
  */
-a_err metaOpenCLCurrDev(a_int *id) {
+meta_err metaOpenCLCurrDev(meta_int *id) {
   // Make sure some context exists..
   if (meta_context == NULL)
     metaOpenCLFallback();
@@ -1129,8 +1129,8 @@ a_err metaOpenCLCurrDev(a_int *id) {
  * each dimension
  * \return the OpenCL error status of any underlying OpenCL API calls.
  */
-a_err metaOpenCLMaxWorkSizes(a_dim3 *work_groups, a_dim3 *work_items) {
-  a_err ret = CL_SUCCESS;
+meta_err metaOpenCLMaxWorkSizes(meta_dim3 *work_groups, meta_dim3 *work_items) {
+  meta_err ret = CL_SUCCESS;
   // Make sure some context exists..
   if (meta_context == NULL)
     metaOpenCLFallback();
@@ -1176,8 +1176,8 @@ a_err metaOpenCLMaxWorkSizes(a_dim3 *work_groups, a_dim3 *work_items) {
  * Finish all outstanding OpenCL operations in the current queue
  * \return The result of clFinish
  */
-a_err metaOpenCLFlush() {
-  a_err ret = CL_SUCCESS;
+meta_err metaOpenCLFlush() {
+  meta_err ret = CL_SUCCESS;
   // Make sure some context exists..
   if (meta_context == NULL)
     metaOpenCLFallback();
@@ -1192,8 +1192,8 @@ a_err metaOpenCLFlush() {
  * newly-allocated cl_event
  * \return CL_SUCCESS if the allocation succeeded, CL_INVALID_EVENT otherwise
  */
-a_err metaOpenCLCreateEvent(void **ret_event) {
-  a_err ret = CL_SUCCESS;
+meta_err metaOpenCLCreateEvent(void **ret_event) {
+  meta_err ret = CL_SUCCESS;
   if (ret_event != NULL)
     *ret_event = malloc(sizeof(cl_event));
   else
@@ -1210,8 +1210,8 @@ a_err metaOpenCLCreateEvent(void **ret_event) {
  * CL_PROFILING_COMMAND_START time
  * \return the OpenCL error status reust of clGetEventProfilingInfo
  */
-a_err metaOpenCLEventStartTime(meta_event event, unsigned long *ret_time) {
-  a_err ret = CL_SUCCESS;
+meta_err metaOpenCLEventStartTime(meta_event event, unsigned long *ret_time) {
+  meta_err ret = CL_SUCCESS;
   if (event.mode == metaModePreferOpenCL && event.event_pl != NULL &&
       ret_time != NULL)
     ret = clGetEventProfilingInfo(*((cl_event *)event.event_pl),
@@ -1230,8 +1230,8 @@ a_err metaOpenCLEventStartTime(meta_event event, unsigned long *ret_time) {
  * CL_PROFILING_COMMAND_END time
  * \return the OpenCL error status reust of clGetEventProfilingInfo
  */
-a_err metaOpenCLEventEndTime(meta_event event, unsigned long *ret_time) {
-  a_err ret = CL_SUCCESS;
+meta_err metaOpenCLEventEndTime(meta_event event, unsigned long *ret_time) {
+  meta_err ret = CL_SUCCESS;
   if (event.mode == metaModePreferOpenCL && event.event_pl != NULL &&
       ret_time != NULL)
     ret = clGetEventProfilingInfo(*((cl_event *)event.event_pl),
@@ -1289,8 +1289,8 @@ void CL_CALLBACK metaOpenCLCallbackHelper(cl_event event, cl_int status,
  * if the status or data pointers are NULL, and CL_INVALID_EVENT if the event
  * pointer is NULL
  */
-a_err metaOpenCLExpandCallback(meta_callback call, cl_event *ret_event,
-                               cl_int *ret_status, void **ret_data) {
+meta_err metaOpenCLExpandCallback(meta_callback call, cl_event *ret_event,
+                                  cl_int *ret_status, void **ret_data) {
   if (call.backend_status == NULL || ret_status == NULL || ret_data == NULL)
     return CL_INVALID_VALUE;
   else if (ret_event == NULL)
@@ -1311,8 +1311,8 @@ a_err metaOpenCLExpandCallback(meta_callback call, cl_event *ret_event,
  * \return CL_INVALID_VALUE if the callback is improperly-created, otherwise the
  * result of clSetEventCallback
  */
-a_err metaOpenCLRegisterCallback(meta_event *event, meta_callback *call) {
-  a_err ret = CL_SUCCESS;
+meta_err metaOpenCLRegisterCallback(meta_event *event, meta_callback *call) {
+  meta_err ret = CL_SUCCESS;
   if (event == NULL || event->event_pl == NULL)
     ret = CL_INVALID_EVENT;
   else if (call == NULL || call->callback_func == NULL ||
@@ -1729,8 +1729,8 @@ meta_cl_device_vendor metaOpenCLDetectDevice(cl_device_id dev) {
  * \param size The number of bytes to allocate
  * \return the OpenCL error status of the clCreateBuffer call
  */
-a_err metaOpenCLAlloc(void **ptr, size_t size) {
-  a_err ret;
+meta_err metaOpenCLAlloc(void **ptr, size_t size) {
+  meta_err ret;
   // Make sure some context exists..
   if (meta_context == NULL)
     metaOpenCLFallback();
@@ -1745,8 +1745,8 @@ a_err metaOpenCLAlloc(void **ptr, size_t size) {
  * \param ptr The buffer to release (a cl_mem cast to a void *)
  * \return the result of clReleaseMemObject
  */
-a_err metaOpenCLFree(void *ptr) {
-  a_err ret;
+meta_err metaOpenCLFree(void *ptr) {
+  meta_err ret;
   // Make sure some context exists..
   if (meta_context == NULL)
     metaOpenCLFallback();
@@ -1766,9 +1766,9 @@ a_err metaOpenCLFree(void *ptr) {
  * payload in which to copy the cl_event corresponding to the write back to
  * \return the OpenCL error status of the wrapped clEnqueueWriteBuffer
  */
-a_err metaOpenCLWrite(void *dst, void *src, size_t size, a_bool async,
-                      meta_callback *call, meta_event *ret_event) {
-  a_err ret;
+meta_err metaOpenCLWrite(void *dst, void *src, size_t size, meta_bool async,
+                         meta_callback *call, meta_event *ret_event) {
+  meta_err ret;
   // Make sure some context exists..
   if (meta_context == NULL)
     metaOpenCLFallback();
@@ -1809,9 +1809,9 @@ a_err metaOpenCLWrite(void *dst, void *src, size_t size, a_bool async,
  * payload in which to copy the cl_event corresponding to the read back to
  * \return the OpenCL error status of the wrapped clEnqueueReadBuffer
  */
-a_err metaOpenCLRead(void *dst, void *src, size_t size, a_bool async,
-                     meta_callback *call, meta_event *ret_event) {
-  a_err ret;
+meta_err metaOpenCLRead(void *dst, void *src, size_t size, meta_bool async,
+                        meta_callback *call, meta_event *ret_event) {
+  meta_err ret;
   // Make sure some context exists..
   if (meta_context == NULL)
     metaOpenCLFallback();
@@ -1853,9 +1853,9 @@ a_err metaOpenCLRead(void *dst, void *src, size_t size, a_bool async,
  * payload in which to copy the cl_event corresponding to the copy back to
  * \return the OpenCL error status of the wrapped clEnqueueCopyBuffer
  */
-a_err metaOpenCLDevCopy(void *dst, void *src, size_t size, a_bool async,
-                        meta_callback *call, meta_event *ret_event) {
-  a_err ret;
+meta_err metaOpenCLDevCopy(void *dst, void *src, size_t size, meta_bool async,
+                           meta_callback *call, meta_event *ret_event) {
+  meta_err ret;
   // Make sure some context exists..
   if (meta_context == NULL)
     metaOpenCLFallback();
@@ -1886,12 +1886,12 @@ a_err metaOpenCLDevCopy(void *dst, void *src, size_t size, a_bool async,
   return ret;
 }
 
-a_err opencl_dotProd(size_t (*grid_size)[3], size_t (*block_size)[3],
-                     void *data1, void *data2, size_t (*array_size)[3],
-                     size_t (*arr_start)[3], size_t (*arr_end)[3],
-                     void *reduced_val, meta_type_id type, int async,
-                     meta_callback *call, meta_event *ret_event) {
-  a_err ret;
+meta_err opencl_dotProd(size_t (*grid_size)[3], size_t (*block_size)[3],
+                        void *data1, void *data2, size_t (*array_size)[3],
+                        size_t (*arr_start)[3], size_t (*arr_end)[3],
+                        void *reduced_val, meta_type_id type, int async,
+                        meta_callback *call, meta_event *ret_event) {
+  meta_err ret;
   cl_kernel kern;
   cl_int smem_len;
   size_t grid[3];
@@ -1929,23 +1929,23 @@ a_err opencl_dotProd(size_t (*grid_size)[3], size_t (*block_size)[3],
   }
 
   switch (type) {
-  case a_db:
+  case meta_db:
     kern = frame->kernel_dotProd_db;
     break;
 
-  case a_fl:
+  case meta_fl:
     kern = frame->kernel_dotProd_fl;
     break;
 
-  case a_ul:
+  case meta_ul:
     kern = frame->kernel_dotProd_ul;
     break;
 
-  case a_in:
+  case meta_in:
     kern = frame->kernel_dotProd_in;
     break;
 
-  case a_ui:
+  case meta_ui:
     kern = frame->kernel_dotProd_ui;
     break;
 
@@ -1980,23 +1980,23 @@ a_err opencl_dotProd(size_t (*grid_size)[3], size_t (*block_size)[3],
   ret |= clSetKernelArg(kern, 12, sizeof(cl_mem *), &reduced_val);
   ret |= clSetKernelArg(kern, 13, sizeof(cl_int), &smem_len);
   switch (type) {
-  case a_db:
+  case meta_db:
     ret |= clSetKernelArg(kern, 14, smem_len * sizeof(cl_double), NULL);
     break;
 
-  case a_fl:
+  case meta_fl:
     ret |= clSetKernelArg(kern, 14, smem_len * sizeof(cl_float), NULL);
     break;
 
-  case a_ul:
+  case meta_ul:
     ret |= clSetKernelArg(kern, 14, smem_len * sizeof(cl_ulong), NULL);
     break;
 
-  case a_in:
+  case meta_in:
     ret |= clSetKernelArg(kern, 14, smem_len * sizeof(cl_int), NULL);
     break;
 
-  case a_ui:
+  case meta_ui:
     ret |= clSetKernelArg(kern, 14, smem_len * sizeof(cl_uint), NULL);
     break;
 
@@ -2040,11 +2040,12 @@ a_err opencl_dotProd(size_t (*grid_size)[3], size_t (*block_size)[3],
   return (ret);
 }
 
-a_err opencl_reduce(size_t (*grid_size)[3], size_t (*block_size)[3], void *data,
-                    size_t (*array_size)[3], size_t (*arr_start)[3],
-                    size_t (*arr_end)[3], void *reduced_val, meta_type_id type,
-                    int async, meta_callback *call, meta_event *ret_event) {
-  a_err ret;
+meta_err opencl_reduce(size_t (*grid_size)[3], size_t (*block_size)[3],
+                       void *data, size_t (*array_size)[3],
+                       size_t (*arr_start)[3], size_t (*arr_end)[3],
+                       void *reduced_val, meta_type_id type, int async,
+                       meta_callback *call, meta_event *ret_event) {
+  meta_err ret;
   cl_kernel kern;
   cl_int smem_len;
   size_t grid[3];
@@ -2081,23 +2082,23 @@ a_err opencl_reduce(size_t (*grid_size)[3], size_t (*block_size)[3], void *data,
   }
 
   switch (type) {
-  case a_db:
+  case meta_db:
     kern = frame->kernel_reduce_db;
     break;
 
-  case a_fl:
+  case meta_fl:
     kern = frame->kernel_reduce_fl;
     break;
 
-  case a_ul:
+  case meta_ul:
     kern = frame->kernel_reduce_ul;
     break;
 
-  case a_in:
+  case meta_in:
     kern = frame->kernel_reduce_in;
     break;
 
-  case a_ui:
+  case meta_ui:
     kern = frame->kernel_reduce_ui;
     break;
 
@@ -2132,23 +2133,23 @@ a_err opencl_reduce(size_t (*grid_size)[3], size_t (*block_size)[3], void *data,
   ret |= clSetKernelArg(kern, 11, sizeof(cl_mem *), &reduced_val);
   ret |= clSetKernelArg(kern, 12, sizeof(cl_int), &smem_len);
   switch (type) {
-  case a_db:
+  case meta_db:
     ret |= clSetKernelArg(kern, 13, smem_len * sizeof(cl_double), NULL);
     break;
 
-  case a_fl:
+  case meta_fl:
     ret |= clSetKernelArg(kern, 13, smem_len * sizeof(cl_float), NULL);
     break;
 
-  case a_ul:
+  case meta_ul:
     ret |= clSetKernelArg(kern, 13, smem_len * sizeof(cl_ulong), NULL);
     break;
 
-  case a_in:
+  case meta_in:
     ret |= clSetKernelArg(kern, 13, smem_len * sizeof(cl_int), NULL);
     break;
 
-  case a_ui:
+  case meta_ui:
     ret |= clSetKernelArg(kern, 13, smem_len * sizeof(cl_uint), NULL);
     break;
 
@@ -2207,7 +2208,7 @@ cl_int opencl_transpose_face(size_t (*grid_size)[3], size_t (*block_size)[3],
   //	size_t grid[3] = {(*grid_size)[0]*(*block_size)[0],
   //(*grid_size)[1]*(*block_size)[1], (*block_size)[2]};
   // 	size_t block[3] = {(*block_size)[0], (*block_size)[1],
-  //   (*block_size)[2]};\
+  //     (*block_size)[2]};\
 	//FIXME: make this smart enough to rescale the threadblock (and thus shared
   // memory - e.g. bank conflicts) w.r.t. double vs. float
   if (grid_size == NULL || block_size == NULL) {
@@ -2242,23 +2243,23 @@ cl_int opencl_transpose_face(size_t (*grid_size)[3], size_t (*block_size)[3],
   }
 
   switch (type) {
-  case a_db:
+  case meta_db:
     kern = frame->kernel_transpose_2d_face_db;
     break;
 
-  case a_fl:
+  case meta_fl:
     kern = frame->kernel_transpose_2d_face_fl;
     break;
 
-  case a_ul:
+  case meta_ul:
     kern = frame->kernel_transpose_2d_face_ul;
     break;
 
-  case a_in:
+  case meta_in:
     kern = frame->kernel_transpose_2d_face_in;
     break;
 
-  case a_ui:
+  case meta_ui:
     kern = frame->kernel_transpose_2d_face_ui;
     break;
 
@@ -2278,23 +2279,23 @@ cl_int opencl_transpose_face(size_t (*grid_size)[3], size_t (*block_size)[3],
   ret |= clSetKernelArg(kern, 4, sizeof(cl_int), &(*tran_dim_xy)[0]);
   ret |= clSetKernelArg(kern, 5, sizeof(cl_int), &(*tran_dim_xy)[1]);
   switch (type) {
-  case a_db:
+  case meta_db:
     ret |= clSetKernelArg(kern, 6, smem_len * sizeof(cl_double), NULL);
     break;
 
-  case a_fl:
+  case meta_fl:
     ret |= clSetKernelArg(kern, 6, smem_len * sizeof(cl_float), NULL);
     break;
 
-  case a_ul:
+  case meta_ul:
     ret |= clSetKernelArg(kern, 6, smem_len * sizeof(cl_ulong), NULL);
     break;
 
-  case a_in:
+  case meta_in:
     ret |= clSetKernelArg(kern, 6, smem_len * sizeof(cl_int), NULL);
     break;
 
-  case a_ui:
+  case meta_ui:
     ret |= clSetKernelArg(kern, 6, smem_len * sizeof(cl_uint), NULL);
     break;
 
@@ -2425,23 +2426,23 @@ cl_int opencl_pack_face(size_t (*grid_size)[3], size_t (*block_size)[3],
   // return time for copying to constant memory and the kernel
 
   switch (type) {
-  case a_db:
+  case meta_db:
     kern = frame->kernel_pack_2d_face_db;
     break;
 
-  case a_fl:
+  case meta_fl:
     kern = frame->kernel_pack_2d_face_fl;
     break;
 
-  case a_ul:
+  case meta_ul:
     kern = frame->kernel_pack_2d_face_ul;
     break;
 
-  case a_in:
+  case meta_in:
     kern = frame->kernel_pack_2d_face_in;
     break;
 
-  case a_ui:
+  case meta_ui:
     kern = frame->kernel_pack_2d_face_ui;
     break;
 
@@ -2615,23 +2616,23 @@ cl_int opencl_unpack_face(size_t (*grid_size)[3], size_t (*block_size)[3],
   // return time for copying to constant memory and the kernel
 
   switch (type) {
-  case a_db:
+  case meta_db:
     kern = frame->kernel_unpack_2d_face_db;
     break;
 
-  case a_fl:
+  case meta_fl:
     kern = frame->kernel_unpack_2d_face_fl;
     break;
 
-  case a_ul:
+  case meta_ul:
     kern = frame->kernel_unpack_2d_face_ul;
     break;
 
-  case a_in:
+  case meta_in:
     kern = frame->kernel_unpack_2d_face_in;
     break;
 
-  case a_ui:
+  case meta_ui:
     kern = frame->kernel_unpack_2d_face_ui;
     break;
 
@@ -2766,23 +2767,23 @@ cl_int opencl_stencil_3d7p(size_t (*grid_size)[3], size_t (*block_size)[3],
   }
 
   switch (type) {
-  case a_db:
+  case meta_db:
     kern = frame->kernel_stencil_3d7p_db;
     break;
 
-  case a_fl:
+  case meta_fl:
     kern = frame->kernel_stencil_3d7p_fl;
     break;
 
-  case a_ul:
+  case meta_ul:
     kern = frame->kernel_stencil_3d7p_ul;
     break;
 
-  case a_in:
+  case meta_in:
     kern = frame->kernel_stencil_3d7p_in;
     break;
 
-  case a_ui:
+  case meta_ui:
     kern = frame->kernel_stencil_3d7p_ui;
     break;
 
@@ -2810,23 +2811,23 @@ cl_int opencl_stencil_3d7p(size_t (*grid_size)[3], size_t (*block_size)[3],
   ret |= clSetKernelArg(kern, 11, sizeof(cl_int), &iters);
   ret |= clSetKernelArg(kern, 12, sizeof(cl_int), &smem_len);
   switch (type) {
-  case a_db:
+  case meta_db:
     ret |= clSetKernelArg(kern, 13, smem_len * sizeof(cl_double), NULL);
     break;
 
-  case a_fl:
+  case meta_fl:
     ret |= clSetKernelArg(kern, 13, smem_len * sizeof(cl_float), NULL);
     break;
 
-  case a_ul:
+  case meta_ul:
     ret |= clSetKernelArg(kern, 13, smem_len * sizeof(cl_ulong), NULL);
     break;
 
-  case a_in:
+  case meta_in:
     ret |= clSetKernelArg(kern, 13, smem_len * sizeof(cl_int), NULL);
     break;
 
-  case a_ui:
+  case meta_ui:
     ret |= clSetKernelArg(kern, 13, smem_len * sizeof(cl_uint), NULL);
     break;
 
@@ -2897,19 +2898,19 @@ cl_int opencl_csr(size_t (*grid_size)[3], size_t (*block_size)[3],
     metaOpenCLPushStackFrame(frame);
   }
   switch (type) {
-  case a_db:
+  case meta_db:
     kern = frame->kernel_csr_db;
     break;
-  case a_fl:
+  case meta_fl:
     kern = frame->kernel_csr_fl;
     break;
-  case a_ul:
+  case meta_ul:
     kern = frame->kernel_csr_ul;
     break;
-  case a_in:
+  case meta_in:
     kern = frame->kernel_csr_in;
     break;
-  case a_ui:
+  case meta_ui:
     kern = frame->kernel_csr_ui;
     break;
   default:
@@ -2983,19 +2984,19 @@ cl_int opencl_crc(void *dev_input, int page_size, int num_words, int numpages,
     metaOpenCLPushStackFrame(frame);
   }
   switch (type) {
-  case a_db:
+  case meta_db:
     kern = frame->kernel_crc_ui;
     break;
-  case a_fl:
+  case meta_fl:
     kern = frame->kernel_crc_ui;
     break;
-  case a_ul:
+  case meta_ul:
     kern = frame->kernel_crc_ui;
     break;
-  case a_in:
+  case meta_in:
     kern = frame->kernel_crc_ui;
     break;
-  case a_ui:
+  case meta_ui:
     kern = frame->kernel_crc_ui;
     break;
   default:

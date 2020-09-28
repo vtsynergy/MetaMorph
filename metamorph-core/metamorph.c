@@ -36,18 +36,18 @@
 meta_preferred_mode run_mode = metaModePreferGeneric;
 
 /** Forward declaration of the internal module-management list type */
-struct a_module_record_listelem;
+struct meta_module_record_listelem;
 /** Implementation of the internal module-management list type for recording
  * known modules */
-typedef struct a_module_record_listelem {
+typedef struct meta_module_record_listelem {
   /** A pointer to the record for each module */
-  a_module_record *rec;
+  meta_module_record *rec;
   /** Th next module record */
-  struct a_module_record_listelem *next;
-} a_module_list;
+  struct meta_module_record_listelem *next;
+} meta_module_list;
 /** Maintain a global list of all modules currently known by the MetaMorph core
  */
-a_module_list global_modules = {NULL, NULL};
+meta_module_list global_modules = {NULL, NULL};
 /**
  * Internal: Check if a given module record is already known
  * \param record the record to check
@@ -55,12 +55,12 @@ a_module_list global_modules = {NULL, NULL};
  * false otherwise
  * \todo Make Hazard-aware
  */
-a_bool __module_registered(a_module_record *record) {
+meta_bool __module_registered(meta_module_record *record) {
   if (record == NULL)
     return false;
   if (global_modules.next == NULL)
     return false;
-  a_module_list *elem;
+  meta_module_list *elem;
   for (elem = global_modules.next; elem != NULL; elem = elem->next) {
     if (elem->rec == record)
       return true;
@@ -73,12 +73,12 @@ a_bool __module_registered(a_module_record *record) {
  * \return true iff added, false otherwise
  * \todo Make Hazard-aware
  */
-a_bool __record_module(a_module_record *record) {
+meta_bool __record_module(meta_module_record *record) {
   if (record == NULL)
     return false;
   if (__module_registered(record) != false)
     return false;
-  a_module_list *new_elem = (a_module_list *)malloc(sizeof(a_module_list));
+  meta_module_list *new_elem = (meta_module_list *)malloc(sizeof(meta_module_list));
   new_elem->rec = record;
   new_elem->next = NULL;
   // begin hazards
@@ -95,10 +95,10 @@ a_bool __record_module(a_module_record *record) {
  * \return true iff removed, false otherwise
  * \todo Make Hazard-aware
  */
-a_bool __remove_module(a_module_record *record) {
+meta_bool __remove_module(meta_module_record *record) {
   if (record == NULL)
     return false;
-  a_module_list *curr = global_modules.next, *prev = &global_modules;
+  meta_module_list *curr = global_modules.next, *prev = &global_modules;
   // begin hazards
   while (prev->next == curr && curr != NULL) {
     /// \todo Ensure curr w/ atomic CAS
@@ -114,12 +114,12 @@ a_bool __remove_module(a_module_record *record) {
   return false;
 }
 
-int lookup_implementing_modules(a_module_record **retRecords,
+int lookup_implementing_modules(meta_module_record **retRecords,
                                 size_t szRetRecords,
-                                a_module_implements_backend signature,
-                                a_bool matchAny) {
+                                meta_module_implements_backend signature,
+                                meta_bool matchAny) {
   int matches = 0, retIdx = 0;
-  a_module_list *elem = global_modules.next;
+  meta_module_list *elem = global_modules.next;
   for (; elem != NULL; elem = elem->next) {
     if (elem->rec != NULL &&
         (elem->rec->implements == signature ||
@@ -133,15 +133,15 @@ int lookup_implementing_modules(a_module_record **retRecords,
   }
   return matches;
 }
-a_err meta_register_module(
-    a_module_record *(*module_registry_func)(a_module_record *record)) {
+meta_err meta_register_module(
+    meta_module_record *(*module_registry_func)(meta_module_record *record)) {
   // Do nothing if they don't specify a pointer
   if (module_registry_func == NULL)
     return -1;
   // Each module contains a referency to it's own registry object
   // We can check if it's registered by calling the registry function with a
   // NULL record
-  a_module_record *existing = (*module_registry_func)(NULL);
+  meta_module_record *existing = (*module_registry_func)(NULL);
   // if there is an existing record, make sure we know about it
   if (existing != NULL) {
     __record_module(existing); // Don't need to check, __record_module will
@@ -152,9 +152,9 @@ a_err meta_register_module(
   }
   // It has not already been registered
 
-  a_module_record *new_record =
-      (a_module_record *)calloc(sizeof(a_module_record), 1);
-  a_module_record *returned = (*module_registry_func)(new_record);
+  meta_module_record *new_record =
+      (meta_module_record *)calloc(sizeof(meta_module_record), 1);
+  meta_module_record *returned = (*module_registry_func)(new_record);
   /// \todo make this threadsafe
   // If we trust that the registration function will only accept one registry,
   // then we just have to check that the one returned is the same as the one we
@@ -179,13 +179,13 @@ a_err meta_register_module(
   return 0;
 }
 
-a_err meta_deregister_module(
-    a_module_record *(*module_registry_func)(a_module_record *record)) {
+meta_err meta_deregister_module(
+    meta_module_record *(*module_registry_func)(meta_module_record *record)) {
   // If they gave us NULL, nothing to do
   if (module_registry_func == NULL)
     return -1;
   // Get the registration from the module
-  a_module_record *existing = (*module_registry_func)(NULL);
+  meta_module_record *existing = (*module_registry_func)(NULL);
   // If the module doesn't think it's registered, we can't do anything with it
   if (existing == NULL)
     return 0;
@@ -204,11 +204,11 @@ a_err meta_deregister_module(
   }
   /// \todo make threadsafe
   // Tell the module to forget itself
-  a_module_record *returned = (*module_registry_func)(existing);
+  meta_module_record *returned = (*module_registry_func)(existing);
   // Check that the module indeed thinks it's deregistered (to distinguish from
   // the multiple-registration case that also immediately returns the same
   // record)
-  a_module_record *double_check = (*module_registry_func)(NULL);
+  meta_module_record *double_check = (*module_registry_func)(NULL);
   if (returned == existing &&
       double_check == NULL) { // The module has forgotten its registration
     // Then deinitialize the module
@@ -220,10 +220,10 @@ a_err meta_deregister_module(
   return 0;
 }
 
-a_err meta_reinitialize_modules(a_module_implements_backend module_type) {
+meta_err meta_reinitialize_modules(meta_module_implements_backend module_type) {
   if (global_modules.next == NULL)
     return -1;
-  a_module_list *elem;
+  meta_module_list *elem;
   for (elem = global_modules.next; elem != NULL; elem = elem->next) {
     if (elem->rec != NULL && (elem->rec->implements & module_type) &&
         elem->rec->module_init != NULL)
@@ -233,7 +233,7 @@ a_err meta_reinitialize_modules(a_module_implements_backend module_type) {
 }
 
 // Make sure we can reference any dynamically-loaded capabilities
-extern a_module_implements_backend core_capability;
+extern meta_module_implements_backend core_capability;
 /** A global storage struct for handles for all the available backends and their
  * corresponding runtime libraries */
 extern struct backend_handles backends;
@@ -284,23 +284,23 @@ __attribute__((constructor(101))) void meta_init() {
  */
 size_t get_atype_size(meta_type_id type) {
   switch (type) {
-  case a_db:
+  case meta_db:
     return sizeof(double);
     break;
 
-  case a_fl:
+  case meta_fl:
     return sizeof(float);
     break;
 
-  case a_ul:
+  case meta_ul:
     return sizeof(unsigned long);
     break;
 
-  case a_in:
+  case meta_in:
     return sizeof(int);
     break;
 
-  case a_ui:
+  case meta_ui:
     return sizeof(unsigned int);
     break;
 
@@ -312,9 +312,9 @@ size_t get_atype_size(meta_type_id type) {
   }
 }
 
-a_err meta_alloc(void **ptr, size_t size) {
+meta_err meta_alloc(void **ptr, size_t size) {
   /// \todo: should always set ret to a value
-  a_err ret = 0;
+  meta_err ret = 0;
   switch (run_mode) {
   default:
   case metaModePreferGeneric:
@@ -357,9 +357,9 @@ a_err meta_alloc(void **ptr, size_t size) {
   return (ret);
 }
 
-a_err meta_free(void *ptr) {
+meta_err meta_free(void *ptr) {
   /// \todo: should always set ret to a value
-  a_err ret;
+  meta_err ret;
   switch (run_mode) {
   default:
   case metaModePreferGeneric:
@@ -402,9 +402,9 @@ a_err meta_free(void *ptr) {
   return (ret);
 }
 
-a_err meta_copy_h2d(void *dst, void *src, size_t size, a_bool async,
-                    meta_callback *call, meta_event *ret_event) {
-  a_err ret;
+meta_err meta_copy_h2d(void *dst, void *src, size_t size, meta_bool async,
+                       meta_callback *call, meta_event *ret_event) {
+  meta_err ret;
   switch (run_mode) {
   default:
   case metaModePreferGeneric:
@@ -451,10 +451,10 @@ a_err meta_copy_h2d(void *dst, void *src, size_t size, a_bool async,
   return (ret);
 }
 
-a_err meta_copy_d2h(void *dst, void *src, size_t size, a_bool async,
-                    // char * event_name, cl_event * wait,
-                    meta_callback *call, meta_event *ret_event) {
-  a_err ret;
+meta_err meta_copy_d2h(void *dst, void *src, size_t size, meta_bool async,
+                       // char * event_name, cl_event * wait,
+                       meta_callback *call, meta_event *ret_event) {
+  meta_err ret;
   switch (run_mode) {
   default:
   case metaModePreferGeneric:
@@ -500,9 +500,9 @@ a_err meta_copy_d2h(void *dst, void *src, size_t size, a_bool async,
   return (ret);
 }
 
-a_err meta_copy_d2d(void *dst, void *src, size_t size, a_bool async,
-                    meta_callback *call, meta_event *ret_event) {
-  a_err ret;
+meta_err meta_copy_d2d(void *dst, void *src, size_t size, meta_bool async,
+                       meta_callback *call, meta_event *ret_event) {
+  meta_err ret;
   switch (run_mode) {
   default:
   case metaModePreferGeneric:
@@ -548,8 +548,8 @@ a_err meta_copy_d2d(void *dst, void *src, size_t size, a_bool async,
   return (ret);
 }
 
-a_err meta_set_acc(int accel, meta_preferred_mode mode) {
-  a_err ret;
+meta_err meta_set_acc(int accel, meta_preferred_mode mode) {
+  meta_err ret;
   run_mode = mode;
   switch (run_mode) {
   default:
@@ -624,8 +624,8 @@ a_err meta_set_acc(int accel, meta_preferred_mode mode) {
   return (ret);
 }
 
-a_err meta_get_acc(int *accel, meta_preferred_mode *mode) {
-  a_err ret = 0;
+meta_err meta_get_acc(int *accel, meta_preferred_mode *mode) {
+  meta_err ret = 0;
   switch (run_mode) {
   default:
   case metaModePreferGeneric:
@@ -665,8 +665,8 @@ a_err meta_get_acc(int *accel, meta_preferred_mode *mode) {
   return (ret);
 }
 
-a_err meta_validate_worksize(a_dim3 *grid_size, a_dim3 *block_size) {
-  a_err ret;
+meta_err meta_validate_worksize(meta_dim3 *grid_size, meta_dim3 *block_size) {
+  meta_err ret;
   switch (run_mode) {
   default:
   case metaModePreferGeneric:
@@ -698,8 +698,8 @@ a_err meta_validate_worksize(a_dim3 *grid_size, a_dim3 *block_size) {
   return (ret);
 }
 
-a_err meta_flush() {
-  a_err ret = 0;
+meta_err meta_flush() {
+  meta_err ret = 0;
   switch (run_mode) {
   default:
   case metaModePreferGeneric:
@@ -746,8 +746,8 @@ a_err meta_flush() {
   return ret;
 }
 
-a_err meta_init_event(meta_event *event) {
-  a_err ret = 0;
+meta_err meta_init_event(meta_event *event) {
+  meta_err ret = 0;
   if (event == NULL)
     return -1;
   event->mode = run_mode;
@@ -793,8 +793,8 @@ a_err meta_init_event(meta_event *event) {
   return ret;
 }
 
-a_err meta_destroy_event(meta_event event) {
-  a_err ret = 0;
+meta_err meta_destroy_event(meta_event event) {
+  meta_err ret = 0;
   switch (run_mode) {
   default:
   case metaModePreferGeneric:
@@ -825,11 +825,12 @@ a_err meta_destroy_event(meta_event event) {
   return ret;
 }
 
-a_err meta_dotProd(a_dim3 *grid_size, a_dim3 *block_size, void *data1,
-                   void *data2, a_dim3 *array_size, a_dim3 *array_start,
-                   a_dim3 *array_end, void *reduction_var, meta_type_id type,
-                   a_bool async, meta_callback *call, meta_event *ret_event) {
-  a_err ret;
+meta_err meta_dotProd(meta_dim3 *grid_size, meta_dim3 *block_size, void *data1,
+                      void *data2, meta_dim3 *array_size,
+                      meta_dim3 *array_start, meta_dim3 *array_end,
+                      void *reduction_var, meta_type_id type, meta_bool async,
+                      meta_callback *call, meta_event *ret_event) {
+  meta_err ret;
 
   /// \todo FIXME? Consider adding a compiler flag "UNCHECKED_EXPLICIT" to streamline out sanity checks like this
   // Before we do anything, sanity check the start/end/size
@@ -963,11 +964,12 @@ a_err meta_dotProd(a_dim3 *grid_size, a_dim3 *block_size, void *data1,
   return (ret);
 }
 
-a_err meta_reduce(a_dim3 *grid_size, a_dim3 *block_size, void *data,
-                  a_dim3 *array_size, a_dim3 *array_start, a_dim3 *array_end,
-                  void *reduction_var, meta_type_id type, a_bool async,
-                  meta_callback *call, meta_event *ret_event) {
-  a_err ret;
+meta_err meta_reduce(meta_dim3 *grid_size, meta_dim3 *block_size, void *data,
+                     meta_dim3 *array_size, meta_dim3 *array_start,
+                     meta_dim3 *array_end, void *reduction_var,
+                     meta_type_id type, meta_bool async, meta_callback *call,
+                     meta_event *ret_event) {
+  meta_err ret;
 
   /// \todo FIXME? Consider adding a compiler flag "UNCHECKED_EXPLICIT" to streamline out sanity checks like this
   // Before we do anything, sanity check the start/end/size
@@ -1171,11 +1173,12 @@ meta_face *make_slab_from_3d(int face, int ni, int nj, int nk, int thickness) {
   return ret;
 }
 
-a_err meta_transpose_face(a_dim3 *grid_size, a_dim3 *block_size, void *indata,
-                          void *outdata, a_dim3 *arr_dim_xy,
-                          a_dim3 *tran_dim_xy, meta_type_id type, a_bool async,
-                          meta_callback *call, meta_event *ret_event) {
-  a_err ret;
+meta_err meta_transpose_face(meta_dim3 *grid_size, meta_dim3 *block_size,
+                             void *indata, void *outdata, meta_dim3 *arr_dim_xy,
+                             meta_dim3 *tran_dim_xy, meta_type_id type,
+                             meta_bool async, meta_callback *call,
+                             meta_event *ret_event) {
+  meta_err ret;
   /// \todo FIXME? Consider adding a compiler flag "UNCHECKED_EXPLICIT" to streamline out sanity checks like this
   // Before we do anything, sanity check that trans_dim_xy fits inside
   // arr_dim_xy
@@ -1251,12 +1254,12 @@ a_err meta_transpose_face(a_dim3 *grid_size, a_dim3 *block_size, void *indata,
   return (ret);
 }
 
-a_err meta_pack_face(a_dim3 *grid_size, a_dim3 *block_size, void *packed_buf,
-                     void *buf, meta_face *face, meta_type_id type,
-                     a_bool async, meta_callback *call,
-                     meta_event *ret_event_k1, meta_event *ret_event_c1,
-                     meta_event *ret_event_c2, meta_event *ret_event_c3) {
-  a_err ret;
+meta_err meta_pack_face(meta_dim3 *grid_size, meta_dim3 *block_size,
+                        void *packed_buf, void *buf, meta_face *face,
+                        meta_type_id type, meta_bool async, meta_callback *call,
+                        meta_event *ret_event_k1, meta_event *ret_event_c1,
+                        meta_event *ret_event_c2, meta_event *ret_event_c3) {
+  meta_err ret;
   /// \todo FIXME? Consider adding a compiler flag "UNCHECKED_EXPLICIT" to streamline out sanity checks like this
   // Before we do anything, sanity check that the face is set up
   if (face == NULL) {
@@ -1340,12 +1343,13 @@ a_err meta_pack_face(a_dim3 *grid_size, a_dim3 *block_size, void *packed_buf,
   return (ret);
 }
 
-a_err meta_unpack_face(a_dim3 *grid_size, a_dim3 *block_size, void *packed_buf,
-                       void *buf, meta_face *face, meta_type_id type,
-                       a_bool async, meta_callback *call,
-                       meta_event *ret_event_k1, meta_event *ret_event_c1,
-                       meta_event *ret_event_c2, meta_event *ret_event_c3) {
-  a_err ret;
+meta_err meta_unpack_face(meta_dim3 *grid_size, meta_dim3 *block_size,
+                          void *packed_buf, void *buf, meta_face *face,
+                          meta_type_id type, meta_bool async,
+                          meta_callback *call, meta_event *ret_event_k1,
+                          meta_event *ret_event_c1, meta_event *ret_event_c2,
+                          meta_event *ret_event_c3) {
+  meta_err ret;
   /// \todo FIXME? Consider adding a compiler flag "UNCHECKED_EXPLICIT" to streamline out sanity checks like this
   // Before we do anything, sanity check that the face is set up
   if (face == NULL) {
@@ -1419,11 +1423,12 @@ a_err meta_unpack_face(a_dim3 *grid_size, a_dim3 *block_size, void *packed_buf,
   return (ret);
 }
 
-a_err meta_stencil_3d7p(a_dim3 *grid_size, a_dim3 *block_size, void *indata,
-                        void *outdata, a_dim3 *array_size, a_dim3 *array_start,
-                        a_dim3 *array_end, meta_type_id type, a_bool async,
-                        meta_callback *call, meta_event *ret_event) {
-  a_err ret;
+meta_err meta_stencil_3d7p(meta_dim3 *grid_size, meta_dim3 *block_size,
+                           void *indata, void *outdata, meta_dim3 *array_size,
+                           meta_dim3 *array_start, meta_dim3 *array_end,
+                           meta_type_id type, meta_bool async,
+                           meta_callback *call, meta_event *ret_event) {
+  meta_err ret;
 
   /// \todo FIXME? Consider adding a compiler flag "UNCHECKED_EXPLICIT" to streamline out sanity checks like this
   // Before we do anything, sanity check the start/end/size
@@ -1557,11 +1562,11 @@ a_err meta_stencil_3d7p(a_dim3 *grid_size, a_dim3 *block_size, void *indata,
   return (ret);
 }
 
-a_err meta_csr(a_dim3 *grid_size, a_dim3 *block_size, size_t global_size,
-               void *csr_ap, void *csr_aj, void *csr_ax, void *x_loc,
-               void *y_loc, meta_type_id type, a_bool async,
-               meta_callback *call, meta_event *ret_event) {
-  a_err ret;
+meta_err meta_csr(meta_dim3 *grid_size, meta_dim3 *block_size,
+                  size_t global_size, void *csr_ap, void *csr_aj, void *csr_ax,
+                  void *x_loc, void *y_loc, meta_type_id type, meta_bool async,
+                  meta_callback *call, meta_event *ret_event) {
+  meta_err ret;
 
   switch (run_mode) {
   default:
@@ -1593,11 +1598,11 @@ a_err meta_csr(a_dim3 *grid_size, a_dim3 *block_size, size_t global_size,
   return (ret);
 }
 
-a_err meta_crc(a_dim3 *grid_size, a_dim3 *block_size, void *dev_input,
-               int page_size, int num_words, int numpages, void *dev_output,
-               meta_type_id type, a_bool async, meta_callback *call,
-               meta_event *ret_event) {
-  a_err ret;
+meta_err meta_crc(meta_dim3 *grid_size, meta_dim3 *block_size, void *dev_input,
+                  int page_size, int num_words, int numpages, void *dev_output,
+                  meta_type_id type, meta_bool async, meta_callback *call,
+                  meta_event *ret_event) {
+  meta_err ret;
 
   switch (run_mode) {
   default:

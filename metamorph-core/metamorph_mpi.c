@@ -28,10 +28,10 @@
 
 /** An internal state variable to ensure the request queue only gets initialized
  * once */
-a_bool __meta_mpi_initialized = false;
+meta_bool __meta_mpi_initialized = false;
 /** Need to reference the core capability to know whether it is initialized yet,
  * and if not, start it before the plugin */
-extern a_module_implements_backend core_capability;
+extern meta_module_implements_backend core_capability;
 /** If the profiling plugin is loaded, we will want to flush it before
  * meta_mpi_finalize so statistics get tagged with their rank information */
 extern struct profiling_dyn_ptrs profiling_symbols;
@@ -90,8 +90,8 @@ double internal_time = 0.0;
 // We provide a wrapper so that we both don't have to care which MPI library the
 // backend is built against for dlopen and don't have to know/care what
 // communicator the MPI plugin is using (if it changes in the future)
-a_err metaMPIRank(int *rank) {
-  a_err ret = 0;
+meta_err metaMPIRank(int *rank) {
+  meta_err ret = 0;
   int is_init, is_final; // MPI logical true = 1, false = 0
   MPI_Initialized(&is_init);
   MPI_Finalized(&is_final);
@@ -240,27 +240,27 @@ MPI_Datatype get_mpi_type(meta_type_id type, size_t *size) {
   size_t type_size;
   MPI_Datatype mpi_type;
   switch (type) {
-  case a_db:
+  case meta_db:
     type_size = sizeof(double);
     mpi_type = MPI_DOUBLE;
     break;
 
-  case a_fl:
+  case meta_fl:
     type_size = sizeof(float);
     mpi_type = MPI_FLOAT;
     break;
 
-  case a_ul:
+  case meta_ul:
     type_size = sizeof(unsigned long);
     mpi_type = MPI_UNSIGNED_LONG;
     break;
 
-  case a_in:
+  case meta_in:
     type_size = sizeof(int);
     mpi_type = MPI_INT;
     break;
 
-  case a_ui:
+  case meta_ui:
     type_size = sizeof(unsigned int);
     mpi_type = MPI_UNSIGNED;
     break;
@@ -307,7 +307,7 @@ void meta_mpi_finalize() {
   // pool_free doesn't ever dereference the provided pointer, so just calling it
   // on zero-length null pointers POOL_SIZE times, is guaranteed to clear it
   //(since they are specified as zero-length buffers, the pool logic prevents
-  //them from ever being dereferenced or freed)
+  // them from ever being dereferenced or freed)
   int i;
   for (i = 0; i < META_MPI_POOL_SIZE; i++)
     pool_free(NULL, 0, 1);
@@ -527,7 +527,7 @@ void sp_helper(request_record *sp_request) {
 void meta_mpi_packed_face_send(int dst_rank, void *packed_buf, size_t buf_leng,
                                int tag, MPI_Request *req, meta_type_id type,
                                int async) {
-  a_err error = 0;
+  meta_err error = 0;
   size_t type_size;
   MPI_Datatype mpi_type = get_mpi_type(type, &type_size);
   // If we have GPUDirect, simply copy the device buffer diectly
@@ -630,7 +630,7 @@ void rp_helper(request_record *rp_request) {
 void meta_mpi_packed_face_recv(int src_rank, void *packed_buf, size_t buf_leng,
                                int tag, MPI_Request *req, meta_type_id type,
                                int async) {
-  a_err error = 0;
+  meta_err error = 0;
   MPI_Status status;
   size_t type_size;
   MPI_Datatype mpi_type = get_mpi_type(type, &type_size);
@@ -748,7 +748,7 @@ void sap_helper(request_record *sap_request) {
 }
 
 // A wrapper that, provided a face, will pack it, then send it
-void meta_mpi_pack_and_send_face(a_dim3 *grid_size, a_dim3 *block_size,
+void meta_mpi_pack_and_send_face(meta_dim3 *grid_size, meta_dim3 *block_size,
                                  int dst_rank, meta_face *face, void *buf,
                                  void *packed_buf, int tag, MPI_Request *req,
                                  meta_type_id type, int async) {
@@ -763,8 +763,8 @@ void meta_mpi_pack_and_send_face(a_dim3 *grid_size, a_dim3 *block_size,
   size_t type_size;
   MPI_Datatype mpi_type = get_mpi_type(type, &type_size);
   // FIXME: remove this, and any associated frees, app is now responsible
-  a_err error = 0;
-  // a_err error = meta_alloc(&packed_buf, size*type_size);
+  meta_err error = 0;
+  // meta_err error = meta_alloc(&packed_buf, size*type_size);
   // call the device pack function
   // FIXME: add grid, block params
   // FIXME: Add proper callback-related functionality to allwo the pack and copy
@@ -905,7 +905,7 @@ void rap_helper(request_record *rap_request) {
 }
 
 // A wrapper that, provided a face, will receive a buffer, and unpack it
-void meta_mpi_recv_and_unpack_face(a_dim3 *grid_size, a_dim3 *block_size,
+void meta_mpi_recv_and_unpack_face(meta_dim3 *grid_size, meta_dim3 *block_size,
                                    int src_rank, meta_face *face, void *buf,
                                    void *packed_buf, int tag, MPI_Request *req,
                                    meta_type_id type, int async) {
@@ -920,27 +920,27 @@ void meta_mpi_recv_and_unpack_face(a_dim3 *grid_size, a_dim3 *block_size,
   size_t type_size;
   MPI_Datatype mpi_type;
   switch (type) {
-  case a_db:
+  case meta_db:
     type_size = sizeof(double);
     mpi_type = MPI_DOUBLE;
     break;
 
-  case a_fl:
+  case meta_fl:
     type_size = sizeof(float);
     mpi_type = MPI_FLOAT;
     break;
 
-  case a_ul:
+  case meta_ul:
     type_size = sizeof(unsigned long);
     mpi_type = MPI_UNSIGNED_LONG;
     break;
 
-  case a_in:
+  case meta_in:
     type_size = sizeof(int);
     mpi_type = MPI_INT;
     break;
 
-  case a_ui:
+  case meta_ui:
     type_size = sizeof(unsigned int);
     mpi_type = MPI_UNSIGNED;
     break;
@@ -952,8 +952,8 @@ void meta_mpi_recv_and_unpack_face(a_dim3 *grid_size, a_dim3 *block_size,
     break;
   }
   // FIXME: remove this and associated frees
-  a_err error = 0;
-  // a_err error = meta_alloc(&packed_buf, size*type_size);
+  meta_err error = 0;
+  // meta_err error = meta_alloc(&packed_buf, size*type_size);
   MPI_Status status; // FIXME: Should this be a function param?
 #ifdef WITH_MPI_GPU_DIRECT
   // GPUDirect version
@@ -971,11 +971,11 @@ void meta_mpi_recv_and_unpack_face(a_dim3 *grid_size, a_dim3 *block_size,
       rec->rap_rec.dev_buf = buf;
       rec->rap_rec.buf_size = size * type_size;
       if (grid_size != NULL)
-        memcpy(&(rec->rap_rec.grid_size), grid_size, sizeof(a_dim3));
+        memcpy(&(rec->rap_rec.grid_size), grid_size, sizeof(meta_dim3));
       else
         rec->rap_rec.grid_size[0] = NULL;
       if (block_size != NULL)
-        memcpy(&(rec->rap_rec.block_size), block_size, sizeof(a_dim3));
+        memcpy(&(rec->rap_rec.block_size), block_size, sizeof(meta_dim3));
       else
         rec->rap_rec.block_size[0] = NULL;
       rec->rap_rec.type = type;
@@ -1013,13 +1013,13 @@ void meta_mpi_recv_and_unpack_face(a_dim3 *grid_size, a_dim3 *block_size,
       rec->rap_rec.buf_size = size * type_size;
       // If they've provided a grid_size, copy it
       if (grid_size != NULL)
-        memcpy(&(rec->rap_rec.grid_size), grid_size, sizeof(a_dim3));
+        memcpy(&(rec->rap_rec.grid_size), grid_size, sizeof(meta_dim3));
       // Otherwise, set the x element to zero as a flag
       else
         rec->rap_rec.grid_size[0] = 0;
       // If they've provided a block_size, copy it
       if (block_size != NULL)
-        memcpy(&(rec->rap_rec.block_size), block_size, sizeof(a_dim3));
+        memcpy(&(rec->rap_rec.block_size), block_size, sizeof(meta_dim3));
       // Otherwise, set the x element to zero as a flag
       else
         rec->rap_rec.block_size[0] = 0;

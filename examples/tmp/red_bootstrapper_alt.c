@@ -28,27 +28,27 @@ size_t g_typesize;
 void set_type(meta_type_id type) {
 	char data_type[30];
 	switch (type) {
-	case a_db:
+	case meta_db:
 		g_typesize = sizeof(double);
 		strcpy(data_type, "Double");
 		break;
 
-	case a_fl:
+	case meta_fl:
 		g_typesize = sizeof(float);
 		strcpy(data_type, "Float");
 		break;
 
-	case a_ul:
+	case meta_ul:
 		g_typesize = sizeof(unsigned long);
 		strcpy(data_type, "Unsigned Long");
 		break;
 
-	case a_in:
+	case meta_in:
 		g_typesize = sizeof(int);
 		strcpy(data_type, "Integer");
 		break;
 
-	case a_ui:
+	case meta_ui:
 		g_typesize = sizeof(unsigned int);
 		strcpy(data_type, "Unsigned Integer");
 		break;
@@ -114,7 +114,7 @@ void data_initialize() {
 
 	switch (g_type) {
 	default:
-	case a_db: {
+	case meta_db: {
 		double * l_data3 = (double *) data3;
 #ifdef DATA4
 		double * l_data4 = (double *) data4;
@@ -146,7 +146,7 @@ void data_initialize() {
 	}
 		break;
 
-	case a_fl: {
+	case meta_fl: {
 		float * l_data3 = (float *) data3;
 #ifdef DATA4
 		float * l_data4 = (float *) data4;
@@ -178,7 +178,7 @@ void data_initialize() {
 	}
 		break;
 
-	case a_ul: {
+	case meta_ul: {
 		unsigned long * l_data3 = (unsigned long *) data3;
 #ifdef DATA4
 		unsigned long * l_data4 = (unsigned long *) data4;
@@ -210,7 +210,7 @@ void data_initialize() {
 	}
 		break;
 
-	case a_in: {
+	case meta_in: {
 		int * l_data3 = (int *) data3;
 #ifdef DATA4
 		int * l_data4 = (int *) data4;
@@ -242,7 +242,7 @@ void data_initialize() {
 	}
 		break;
 
-	case a_ui: {
+	case meta_ui: {
 		unsigned int * l_data3 = (unsigned int *) data3;
 #ifdef DATA4
 		unsigned int * l_data4 = (unsigned int *) data4;
@@ -385,8 +385,8 @@ void print_grid(double * grid) {
 
 int main(int argc, char **argv) {
 	int tx, ty, tz, gx, gy, gz, istat, i, l_type;
-	a_dim3 dimgrid, dimblock, dimarray, arr_start, arr_end; //TODO move into CUDA backend, replace with generic struct
-	a_dim3 trans_2d;
+	meta_dim3 dimgrid, dimblock, dimarray, arr_start, arr_end; //TODO move into CUDA backend, replace with generic struct
+	meta_dim3 trans_2d;
 	char args[32];
 
 	i = argc;
@@ -476,23 +476,23 @@ int main(int argc, char **argv) {
 	//printf("gy:\t%d\n", gy); //print *,"gy:",gy
 	//printf("gz:\t%d\n", gz); //print *,"gz:",gz
 	switch (g_type) {
-	case a_db:
+	case meta_db:
 		*(double*) zero = 0;
 		break;
 
-	case a_fl:
+	case meta_fl:
 		*(float*) zero = 0;
 		break;
 
-	case a_ul:
+	case meta_ul:
 		*(unsigned long*) zero = 0;
 		break;
 
-	case a_in:
+	case meta_in:
 		*(int *) zero = 0;
 		break;
 
-	case a_ui:
+	case meta_ui:
 		*(unsigned int *) zero = 0;
 		break;
 	}
@@ -539,7 +539,7 @@ int main(int argc, char **argv) {
 	istat = meta_copy_d2h(sum_dot_gpu, reduction, g_typesize, false);
 
 	switch (g_type) {
-	case a_db:
+	case meta_db:
 		printf("Test Dot-Product:\t%s\n\tExpect[%d] Returned[%f]\n",
 				(*(double*) sum_dot_gpu
 						== (double) ((ni - 2) * (nj - 2) * (nk - 2) * iters) ?
@@ -548,7 +548,7 @@ int main(int argc, char **argv) {
 				(*(double*) sum_dot_gpu)); //print *, "Test Reduction:",sum_dot_gpu
 		break;
 
-	case a_fl:
+	case meta_fl:
 		printf("Test Dot-Product:\t%s\n\tExpect[%d] Returned[%f]\n",
 				(*(float*) sum_dot_gpu
 						== (float) ((ni - 2) * (nj - 2) * (nk - 2) * iters) ?
@@ -557,7 +557,7 @@ int main(int argc, char **argv) {
 				(*(float*) sum_dot_gpu)); //print *, "Test Reduction:",sum_dot_gpu
 		break;
 
-	case a_ul:
+	case meta_ul:
 		printf("Test Dot-Product:\t%s\n\tExpect[%d] Returned[%ld]\n",
 				(*(unsigned long*) sum_dot_gpu
 						== (unsigned long) ((ni - 2) * (nj - 2) * (nk - 2)
@@ -567,7 +567,7 @@ int main(int argc, char **argv) {
 		printf("Test Dot-Product:\t%lu\n", *(unsigned long*) sum_dot_gpu); //print *, "Test Reduction:",sum_dot_gpu
 		break;
 
-	case a_in:
+	case meta_in:
 		printf("Test Dot-Product:\t%s\n\tExpect[%d] Returned[%d]\n",
 				(*(int*) sum_dot_gpu
 						== (int) ((ni - 2) * (nj - 2) * (nk - 2) * iters) ?
@@ -576,7 +576,7 @@ int main(int argc, char **argv) {
 		printf("Test Dot-Product:\t%d\n", *(int*) sum_dot_gpu); //print *, "Test Reduction:",sum_dot_gpu
 		break;
 
-	case a_ui:
+	case meta_ui:
 		printf("Test Dot-Product:\t%s\n\tExpect[%d] Returned[%d]\n",
 				(*(unsigned int*) sum_dot_gpu
 						== (unsigned int) ((ni - 2) * (nj - 2) * (nk - 2)
@@ -610,23 +610,23 @@ int main(int argc, char **argv) {
 	istat = meta_copy_d2h(sum_dot_gpu, reduction, g_typesize, false);
 #endif // KERNEL_REDUCE
 	switch (g_type) {
-	case a_db:
+	case meta_db:
 		printf("Test stencil_3d7p:\t%f\n", *(double*) sum_dot_gpu); //print *, "Test Reduction:",sum_dot_gpu
 		break;
 
-	case a_fl:
+	case meta_fl:
 		printf("Test stencil_3d7p:\t%f\n", *(float*) sum_dot_gpu); //print *, "Test Reduction:",sum_dot_gpu
 		break;
 
-	case a_ul:
+	case meta_ul:
 		printf("Test stencil_3d7p:\t%lu\n", *(unsigned long*) sum_dot_gpu); //print *, "Test Reduction:",sum_dot_gpu
 		break;
 
-	case a_in:
+	case meta_in:
 		printf("Test stencil_3d7p:\t%d\n", *(int*) sum_dot_gpu); //print *, "Test Reduction:",sum_dot_gpu
 		break;
 
-	case a_ui:
+	case meta_ui:
 		printf("Test Dot-Product:\t%d\n", *(unsigned int*) sum_dot_gpu); //print *, "Test Reduction:",sum_dot_gpu
 		break;
 	}

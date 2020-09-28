@@ -760,7 +760,7 @@ void PrototypeHandler::run(const MatchFinder::MatchResult &Result) {
     }
 
     // Construct the kernel enqueue code
-    /// \todo FIXME Once we have a good way of dealing with explicitly-typed kernels re-add the meta_type_id parameter TODO add a a_typeless type to metamorph's type enum
+    /// \todo FIXME Once we have a good way of dealing with explicitly-typed kernels re-add the meta_type_id parameter TODO add a meta_typeless type to metamorph's type enum
     //    doxygen += "\\param type the MetaMorph type of the function\n";
     // Add typical sizing parameters to the launch parameter list
     std::string outerSizeName, innerSizeName;
@@ -804,7 +804,7 @@ void PrototypeHandler::run(const MatchFinder::MatchResult &Result) {
 
     // Assemble the worksize checking code
     // Add pseudo auto-scaling safety code
-    sizeCheck += "  a_bool nullBlock = (" + innerSizeName + " != NULL && (*" +
+    sizeCheck += "  meta_bool nullBlock = (" + innerSizeName + " != NULL && (*" +
                  innerSizeName + ")[0] == 0 && (*" + innerSizeName +
                  ")[1] == 0 && (*" + innerSizeName + ")[2] == 0);\n";
     sizeCheck += "  size_t _global_size[3];\n";
@@ -1328,16 +1328,16 @@ int populateOutputFiles() {
       *out_h << "#ifdef __cplusplus\n";
       *out_h << "extern \"C\" {\n";
       *out_h << "#endif\n";
-      *out_h << "a_module_record * metacl_" << outFileName
-             << "_registry(a_module_record * record);\n";
-      *out_c << "a_module_record * metacl_" << outFileName
+      *out_h << "meta_module_record * metacl_" << outFileName
+             << "_registry(meta_module_record * record);\n";
+      *out_c << "meta_module_record * metacl_" << outFileName
              << "_registration = NULL;\n";
-      *out_c << "a_module_record * metacl_" << outFileName
-             << "_registry(a_module_record * record) {\n";
+      *out_c << "meta_module_record * metacl_" << outFileName
+             << "_registry(meta_module_record * record) {\n";
       *out_c << "  if (record == NULL) return metacl_" << outFileName
              << "_registration;\n";
-      *out_c << "  a_module_record * old_registration = metacl_" << outFileName
-             << "_registration;\n";
+      *out_c << "  meta_module_record * old_registration = metacl_"
+             << outFileName << "_registration;\n";
       *out_c << "  if (old_registration == NULL) {\n";
       *out_c << "    record->implements = module_implements_opencl;\n";
       *out_c << "    record->module_init = &metacl_" << outFileName
