@@ -1092,7 +1092,9 @@ public:
                           file + "_progLen != -1)\n";
     cache->runOnceInit +=
         "      __metacl_" + outFile + "_current_frame->" + file +
-        "_prog = clCreateProgramWithBinary(meta_context, 1, &meta_device, "
+        "_prog = clCreateProgramWithBinary(__metacl_" + outFile +
+        "_current_frame->context, 1, &__metacl_" + outFile +
+        "_current_frame->device, "
         "&__metacl_" +
         outFile + "_current_frame->" + file +
         "_progLen, (const unsigned char **)&__metacl_" + outFile +
@@ -1107,40 +1109,46 @@ public:
                           file + "_progLen != -1)\n";
     cache->runOnceInit +=
         "      __metacl_" + outFile + "_current_frame->" + file +
-        "_prog = clCreateProgramWithSource(meta_context, 1, &__metacl_" +
-        outFile + "_current_frame->" + file + "_progSrc, &__metacl_" + outFile +
+        "_prog = clCreateProgramWithSource(__metacl_" + outFile +
+        "_current_frame->context, 1, &__metacl_" + outFile +
+        "_current_frame->" + file + "_progSrc, &__metacl_" + outFile +
         "_current_frame->" + file + "_progLen, &buildError);\n";
     cache->runOnceInit += "  }\n";
     cache->runOnceInit += "  if (__metacl_" + outFile + "_current_frame->" +
                           file + "_progLen != -1) {\n";
     cache->runOnceInit +=
         ERROR_CHECK("    ", "buildError", "OpenCL program creation error");
-    cache->runOnceInit += "    size_t args_sz = snprintf(NULL, 0, \"%s -I %s\", "
-                          "__metacl_" + file + "_custom_args ? __metacl_" + file +
-                          "_custom_args : \"\", __metacl_" + outFile +
-                          "_current_frame->" + file + "_progDir);\n";
+    cache->runOnceInit +=
+        "    size_t args_sz = snprintf(NULL, 0, \"%s -I %s\", "
+        "__metacl_" +
+        file + "_custom_args ? __metacl_" + file +
+        "_custom_args : \"\", __metacl_" + outFile + "_current_frame->" + file +
+        "_progDir);\n";
     cache->runOnceInit += "    char * build_args = (char*) calloc(args_sz + 1, "
                           "sizeof(char));\n";
     cache->runOnceInit += "    snprintf(build_args, args_sz + 1, \"%s -I %s\", "
-                          "__metacl_" + file + "_custom_args ? __metacl_" + file +
+                          "__metacl_" +
+                          file + "_custom_args ? __metacl_" + file +
                           "_custom_args : \"\", __metacl_" + outFile +
                           "_current_frame->" + file + "_progDir);\n";
     cache->runOnceInit += "    buildError = clBuildProgram(__metacl_" +
                           outFile + "_current_frame->" + file +
-                          "_prog, 1, &meta_device, build_args, NULL, NULL);\n";
+                          "_prog, 1, &__metacl_" + outFile +
+                          "_current_frame->device, build_args, NULL, NULL);\n";
     cache->runOnceInit += "    free(build_args);\n";
     cache->runOnceInit += "    if (buildError != CL_SUCCESS) {\n";
     cache->runOnceInit += "      size_t logsize = 0;\n";
     cache->runOnceInit +=
         "      clGetProgramBuildInfo(__metacl_" + outFile + "_current_frame->" +
-        file +
-        "_prog, meta_device, CL_PROGRAM_BUILD_LOG, 0, NULL, &logsize);\n";
+        file + "_prog, __metacl_" + outFile +
+        "_current_frame->device, CL_PROGRAM_BUILD_LOG, 0, NULL, &logsize);\n";
     cache->runOnceInit += "      char * buildLog = (char *) "
                           "malloc(sizeof(char) * (logsize + 1));\n";
-    cache->runOnceInit +=
-        "      clGetProgramBuildInfo(__metacl_" + outFile + "_current_frame->" +
-        file +
-        "_prog, meta_device, CL_PROGRAM_BUILD_LOG, logsize, buildLog, NULL);\n";
+    cache->runOnceInit += "      clGetProgramBuildInfo(__metacl_" + outFile +
+                          "_current_frame->" + file + "_prog, __metacl_" +
+                          outFile +
+                          "_current_frame->device, CL_PROGRAM_BUILD_LOG, "
+                          "logsize, buildLog, NULL);\n";
     cache->runOnceInit +=
         ERROR_CHECK("      ", "buildError", "OpenCL program build error");
     cache->runOnceInit +=
@@ -1224,10 +1232,6 @@ int populateOutputFiles() {
       *out_c << "#include \"metamorph.h\"\n";
       *out_c << "#include \"metamorph_opencl.h\"\n";
       *out_c << "#include \"" + outFileName + ".h\"\n";
-      // Linker references for MetaMorph OpenCL variables (once per output)
-      *out_c << "extern cl_context meta_context;\n";
-      *out_c << "extern cl_command_queue meta_queue;\n";
-      *out_c << "extern cl_device_id meta_device;\n";
 
       // Emit user-defined types in the header file
       /// \todo TEST ensure we only get one copy of each in unified mode
@@ -1360,8 +1364,6 @@ int populateOutputFiles() {
              << "_registry);\n";
       *out_c << "    return;\n";
       *out_c << "  }\n";
-      // Ensure a MetaMorph OpenCL state exists
-      *out_c << "  if (meta_context == NULL) metaOpenCLFallback();\n";
       // Ensure a program/kernel storage frame is initialized
       *out_c << "  struct __metacl_" << outFileName
              << "_frame * new_frame = (struct __metacl_" << outFileName
@@ -1369,9 +1371,15 @@ int populateOutputFiles() {
              << "_frame));\n";
       *out_c << "  new_frame->next_frame = __metacl_" << outFileName
              << "_current_frame;\n";
-      *out_c << "  new_frame->device = meta_device;\n";
-      *out_c << "  new_frame->queue = meta_queue;\n";
-      *out_c << "  new_frame->context = meta_context;\n";
+      // Fill in the new frame directly from MetaMorph, then make sure it exists
+      *out_c << "  meta_get_state_OpenCL(NULL, &new_frame->device, "
+                "&new_frame->context, &new_frame->queue);\n";
+      // Ensure a MetaMorph OpenCL state exists
+      *out_c << "  if (new_frame->context == NULL) {\n";
+      *out_c << "    metaOpenCLFallback();\n";
+      *out_c << "    meta_get_state_OpenCL(NULL, &new_frame->device, "
+                "&new_frame->context, &new_frame->queue);\n";
+      *out_c << "  }\n";
       *out_c << "  __metacl_" << outFileName << "_current_frame = new_frame;\n";
       *out_c << "  meta_cl_device_vendor vendor = "
                 "metaOpenCLDetectDevice(new_frame->device);\n";
