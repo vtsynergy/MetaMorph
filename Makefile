@@ -617,9 +617,13 @@ $(BASE_INSTALL_DIR)/include:
 .PHONY: install-main-header
 install-main-header: $(BASE_INSTALL_DIR)/include/metamorph.h
 
-$(BASE_INSTALL_DIR)/include/metamorph.h: $(BASE_INSTALL_DIR)/include include/metamorph.h
+$(BASE_INSTALL_DIR)/include/metamorph.h: $(BASE_INSTALL_DIR)/include $(BASE_INSTALL_DIR)/include/metamorph_emulatable.h include/metamorph.h
 	@if [ -f $(BASE_INSTALL_DIR)/include/metamorph.h ]; then rm $(BASE_INSTALL_DIR)/include/metamorph.h; fi
 	cp include/metamorph.h $(BASE_INSTALL_DIR)/include/
+
+$(BASE_INSTALL_DIR)/include/metamorph_emulatable.h: $(BASE_INSTALL_DIR)/include include/metamorph_emulatable.h
+	@if [ -f $(BASE_INSTALL_DIR)/include/metamorph_emulatable.h ]; then rm $(BASE_INSTALL_DIR)/include/metamorph_emulatable.h; fi
+	cp include/metamorph_emulatable.h $(BASE_INSTALL_DIR)/include/
 
 .PHONY: install-dynSym-header
 install-dynSym-header: $(BASE_INSTALL_DIR)/include/metamorph_dynamic_symbols.h
@@ -645,9 +649,13 @@ install-backend-headers: install-opencl-headers install-cuda-headers install-ope
 .PHONY: install-opencl-headers
 install-opencl-headers: $(BASE_INSTALL_DIR)/include/metamorph_opencl.h
 
-$(BASE_INSTALL_DIR)/include/metamorph_opencl.h: $(BASE_INSTALL_DIR)/include metamorph-backends/opencl-backend/metamorph_opencl.h
+$(BASE_INSTALL_DIR)/include/metamorph_opencl.h: $(BASE_INSTALL_DIR)/include $(BASE_INSTALL_DIR)/include/metamorph_opencl_emulatable.h metamorph-backends/opencl-backend/metamorph_opencl.h
 	@if [ -f $(BASE_INSTALL_DIR)/include/metamorph_opencl.h ]; then rm $(BASE_INSTALL_DIR)/include/metamorph_opencl.h; fi
 	cp metamorph-backends/opencl-backend/metamorph_opencl.h $(BASE_INSTALL_DIR)/include/
+
+$(BASE_INSTALL_DIR)/include/metamorph_opencl_emulatable.h: $(BASE_INSTALL_DIR)/include metamorph-backends/opencl-backend/metamorph_opencl_emulatable.h
+	@if [ -f $(BASE_INSTALL_DIR)/include/metamorph_opencl_emulatable.h ]; then rm $(BASE_INSTALL_DIR)/include/metamorph_opencl_emulatable.h; fi
+	cp metamorph-backends/opencl-backend/metamorph_opencl_emulatable.h $(BASE_INSTALL_DIR)/include/
 
 .PHONY: install-cuda-headers
 install-cuda-headers: $(BASE_INSTALL_DIR)/include/metamorph_cuda.cuh
@@ -725,11 +733,13 @@ uninstall:
 	if [ -d $(BASE_INSTALL_DIR)/$(LINK_LIB_RDIR)/$(VERSIONED_LIB_RDIR) ]; then rmdir $(BASE_INSTALL_DIR)/$(LINK_LIB_RDIR)/$(VERSIONED_LIB_RDIR); fi
 	#Core headers
 	if [ -f $(BASE_INSTALL_DIR)/include/metamorph.h ]; then rm $(BASE_INSTALL_DIR)/include/metamorph.h; fi
+	if [ -f $(BASE_INSTALL_DIR)/include/metamorph_emulatable.h ]; then rm $(BASE_INSTALL_DIR)/include/metamorph_emulatable.h; fi
 	if [ -f $(BASE_INSTALL_DIR)/include/metamorph_dynamic_symbols.h ]; then rm $(BASE_INSTALL_DIR)/include/metamorph_dynamic_symbols.h; fi
 	if [ -f $(BASE_INSTALL_DIR)/include/metamorph_fortran_compat.h ]; then rm $(BASE_INSTALL_DIR)/include/metamorph_fortran_compat.h; fi
 	if [ -f $(BASE_INSTALL_DIR)/include/metamorph_fortran_header.F03 ]; then rm $(BASE_INSTALL_DIR)/include/metamorph_fortran_header.F03; fi
 	#Backend headers
 	if [ -f $(BASE_INSTALL_DIR)/include/metamorph_opencl.h ]; then rm $(BASE_INSTALL_DIR)/include/metamorph_opencl.h; fi
+	if [ -f $(BASE_INSTALL_DIR)/include/metamorph_opencl_emulatable.h ]; then rm $(BASE_INSTALL_DIR)/include/metamorph_opencl_emulatable.h; fi
 	if [ -f $(BASE_INSTALL_DIR)/include/metamorph_cuda.cuh ]; then rm $(BASE_INSTALL_DIR)/include/metamorph_cuda.cuh; fi
 	if [ -f $(BASE_INSTALL_DIR)/include/metamorph_openmp.h ]; then rm $(BASE_INSTALL_DIR)/include/metamorph_openmp.h; fi
 	#Plugin headers
