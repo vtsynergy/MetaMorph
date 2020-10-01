@@ -23,6 +23,16 @@
 #include "clang/Tooling/Tooling.h"
 #include "llvm/Support/raw_ostream.h"
 
+/** Linked files to export directly */
+extern "C" const char _binary_metamorph_emulatable_h_start[];
+extern "C" const char _binary_metamorph_emulatable_h_end[];
+extern "C" const char _binary_metamorph_opencl_emulatable_h_start[];
+extern "C" const char _binary_metamorph_opencl_emulatable_h_end[];
+extern "C" const char _binary_metamorph_shim_c_start[];
+extern "C" const char _binary_metamorph_shim_c_end[];
+extern "C" const char _binary_shim_dynamic_h_start[];
+extern "C" const char _binary_shim_dynamic_h_end[];
+
 using namespace clang;
 using namespace clang::ast_matchers;
 using namespace clang::tooling;
@@ -123,6 +133,36 @@ llvm::cl::opt<bool, false> OverwriteFiles(
                            /// false (try to replace a generated region of a
                            /// file, rather than the whole file)
     llvm::cl::cat(MetaCLCategory));
+/** The three support levels for MetaMorph, the historical default would be
+"required" 
+ * Explicitly assigned to support binary logic */
+enum MetaMorphLevel { metaMorphDisabled = 2, metaMorphOptional = 3, metaMorphRequired = 1 };
+/** A command line option to instruct MetaCL on whether the output code should
+REQUIREi MetaMorph and the OpenCL backend, support it as an OPTIONAL plugin but
+provide a non-MetaMorph fallback, or DISABLE MetaMorph aentirely and only use
+the fallback.
+ * The historical behavior is equivalent to REQUIRED, but OPTIONAL will be the
+default going forward
+ * \return An Option that can be queried for the enum value corresponding to the level of MetaMorph support needed
+*/
+llvm::cl::opt<MetaMorphLevel> UseMetaMorph(
+    "use-metamorph", /// < The option's name
+    llvm::cl::desc(
+        "The level of MetaMorph integration in the output application."),
+    llvm::cl::values(
+        clEnumValN(
+            metaMorphDisabled, "DISABLED",
+            "Do not interoperate with MetaMorph at all, generate a shim that "
+            "emulates the necessary functionality instead."),
+        clEnumValN(
+            metaMorphOptional, "OPTIONAL",
+            "Default: Generate a shim file that can emulate the necessary "
+            "MetaMorph functionality, but will attempt to dynamically-load "
+            "MetaMorph and use it first, if available."),
+        clEnumValN(metaMorphRequired, "REQUIRED",
+                        "Former Default: Require that MetaMorph is present at "
+                        "runtime and use it for all necessary functionality.")),
+    llvm::cl::init(metaMorphOptional), llvm::cl::cat(MetaCLCategory));
 
 /** The unified-output .c file's buffer */
 raw_ostream *unified_output_c = NULL;
@@ -1518,6 +1558,26 @@ int main(int argc, const char **argv) {
         UnifiedOutputFile.getValue() + ".c", error, llvm::sys::fs::F_None);
     unified_output_h = new llvm::raw_fd_ostream(
         UnifiedOutputFile.getValue() + ".h", error, llvm::sys::fs::F_None);
+  }
+  // If they want optional or disabled MetaMorph integration, create the headers and shim
+  if (UseMetaMorph.getValue() & metaMorphDisabled) { //By explicitly assigning the enum like a bitfield,both disabled and optional will evaluate true
+    std::error_code error;
+    raw_ostream *metamorph_h = new llvm::raw_fd_ostream("metamorph.h", error, llvm::sys::fs::F_None);
+    raw_ostream *metamorph_opencl_h = new llvm::raw_fd_ostream("metamorph_opencl.h", error, llvm::sys::fs::F_None);
+    raw_ostream *metamorph_shim_c = new llvm::raw_fd_ostream("metamorph_shim.c", error, llvm::sys::fs::F_None);
+    //If the support level is optional, inject the defines necessary to do the dynamic loading and binding
+    if (UseMetaMorph.getValue() == metaMorphOptional) {
+      //Do injection
+      metamorph_shim_c->write(_binary_shim_dynamic_h_start, _binary_shim_dynamic_h_end - _binary_shim_dynamic_h_start);
+      *metamorph_shim_c << "\n";
+    }
+    //Add the raw text from the linked objects directly to the output streams
+      metamorph_h->write(_binary_metamorph_emulatable_h_start, _binary_metamorph_emulatable_h_end - _binary_metamorph_emulatable_h_start);
+      metamorph_opencl_h->write(_binary_metamorph_opencl_emulatable_h_start, _binary_metamorph_opencl_emulatable_h_end - _binary_metamorph_opencl_emulatable_h_start);
+      metamorph_shim_c->write(_binary_metamorph_shim_c_start, _binary_metamorph_shim_c_end - _binary_metamorph_shim_c_start);
+      metamorph_h->flush();
+      metamorph_opencl_h->flush();
+      metamorph_shim_c->flush();
   }
   CompilationDatabase &CompDB = op.getCompilations();
   ClangTool Tool(CompDB, op.getSourcePathList());

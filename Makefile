@@ -457,7 +457,7 @@ $(MM_LIB)/libmetamorph_opencl_intelfpga.so: $(MM_LIB)
 generators: $(MM_GEN_CL)/metaCL
 
 
-$(MM_GEN_CL)/metaCL:
+$(MM_GEN_CL)/metaCL: $(MM_GEN_CL)/metacl.cpp
 	cd $(MM_GEN_CL) && $(MAKE) metaCL
 
 .PHONY: examples

@@ -101,7 +101,33 @@ CLANG_LIBS := -L $(CLANG_LIB_PATH) \
 
 all: metaCL
 
-metaCL: metacl.cpp | $(CLANG_LIB_PATH)
-	$(CXX) $(CXXFLAGS) $(CLANG_INCLUDES) metacl.cpp -o metaCL $(CLANG_LIBS) $(CLANG_LDFLAGS)
 
+TEXT_OBJS = metamorph_emulatable.o metamorph_opencl_emulatable.o metamorph_shim.o shim_dynamic.o
+BIN_ARCH = $(ARCH)
+metamorph_emulatable.o: ../../include/metamorph_emulatable.h
+	echo $(ARCH)
+	cp $< ./
+	ld -r -b binary -o $@ $(subst ../../include/,,$<)
+	#objcopy --input binary --output elf64-x86-64 --binary-architecture i386 $(subst ../../include/,,$<) $@
+	rm ./$(subst ../../include/,,$<)
+
+metamorph_opencl_emulatable.o: ../../metamorph-backends/opencl-backend/metamorph_opencl_emulatable.h
+	cp $< ./
+	ld -r -b binary -o $@ $(subst ../../metamorph-backends/opencl-backend/,,$<)
+	#objcopy --input binary --output elf64-x86-64 --binary-architecture i386 $(subst ../../metamorph-backends/opencl-backend/,,$<) $@
+	rm ./$(subst ../../metamorph-backends/opencl-backend/,,$<)
+
+metamorph_shim.o: metamorph_shim.c
+	ld -r -b binary -o $@ $<
+	#objcopy --input binary --output elf64-x86-64 --binary-architecture i386 $< $@
+
+shim_dynamic.o: shim_dynamic.h
+	ld -r -b binary -o $@ $<
+	#objcopy --input binary --output elf64-x86-64 --binary-architecture i386 $< $@
+
+metaCL: metacl.o $(TEXT_OBJS) | $(CLANG_LIB_PATH)
+	$(CXX) -o metaCL metacl.o $(TEXT_OBJS) $(CLANG_LIBS) $(CLANG_LDFLAGS)
+
+metacl.o: metacl.cpp
+	$(CXX) $(CXXFLAGS) $(CLANG_INCLUDES) metacl.cpp -c -o metacl.o
 
