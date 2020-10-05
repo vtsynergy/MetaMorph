@@ -134,9 +134,13 @@ llvm::cl::opt<bool, false> OverwriteFiles(
                            /// file, rather than the whole file)
     llvm::cl::cat(MetaCLCategory));
 /** The three support levels for MetaMorph, the historical default would be
-"required" 
+"required"
  * Explicitly assigned to support binary logic */
-enum MetaMorphLevel { metaMorphDisabled = 2, metaMorphOptional = 3, metaMorphRequired = 1 };
+enum MetaMorphLevel {
+  metaMorphDisabled = 2,
+  metaMorphOptional = 3,
+  metaMorphRequired = 1
+};
 /** A command line option to instruct MetaCL on whether the output code should
 REQUIREi MetaMorph and the OpenCL backend, support it as an OPTIONAL plugin but
 provide a non-MetaMorph fallback, or DISABLE MetaMorph aentirely and only use
@@ -160,8 +164,8 @@ llvm::cl::opt<MetaMorphLevel> UseMetaMorph(
             "MetaMorph functionality, but will attempt to dynamically-load "
             "MetaMorph and use it first, if available."),
         clEnumValN(metaMorphRequired, "REQUIRED",
-                        "Former Default: Require that MetaMorph is present at "
-                        "runtime and use it for all necessary functionality.")),
+                   "Former Default: Require that MetaMorph is present at "
+                   "runtime and use it for all necessary functionality.")),
     llvm::cl::init(metaMorphOptional), llvm::cl::cat(MetaCLCategory));
 
 /** The unified-output .c file's buffer */
@@ -844,9 +848,10 @@ void PrototypeHandler::run(const MatchFinder::MatchResult &Result) {
 
     // Assemble the worksize checking code
     // Add pseudo auto-scaling safety code
-    sizeCheck += "  meta_bool nullBlock = (" + innerSizeName + " != NULL && (*" +
-                 innerSizeName + ")[0] == 0 && (*" + innerSizeName +
-                 ")[1] == 0 && (*" + innerSizeName + ")[2] == 0);\n";
+    sizeCheck += "  meta_bool nullBlock = (" + innerSizeName +
+                 " != NULL && (*" + innerSizeName + ")[0] == 0 && (*" +
+                 innerSizeName + ")[1] == 0 && (*" + innerSizeName +
+                 ")[2] == 0);\n";
     sizeCheck += "  size_t _global_size[3];\n";
     if (work_group_size[3] == 0 && !singleWorkItem) {
       sizeCheck +=
@@ -1559,25 +1564,41 @@ int main(int argc, const char **argv) {
     unified_output_h = new llvm::raw_fd_ostream(
         UnifiedOutputFile.getValue() + ".h", error, llvm::sys::fs::F_None);
   }
-  // If they want optional or disabled MetaMorph integration, create the headers and shim
-  if (UseMetaMorph.getValue() & metaMorphDisabled) { //By explicitly assigning the enum like a bitfield,both disabled and optional will evaluate true
+  // If they want optional or disabled MetaMorph integration, create the headers
+  // and shim
+  if (UseMetaMorph.getValue() &
+      metaMorphDisabled) { // By explicitly assigning the enum like a
+                           // bitfield,both disabled and optional will evaluate
+                           // true
     std::error_code error;
-    raw_ostream *metamorph_h = new llvm::raw_fd_ostream("metamorph.h", error, llvm::sys::fs::F_None);
-    raw_ostream *metamorph_opencl_h = new llvm::raw_fd_ostream("metamorph_opencl.h", error, llvm::sys::fs::F_None);
-    raw_ostream *metamorph_shim_c = new llvm::raw_fd_ostream("metamorph_shim.c", error, llvm::sys::fs::F_None);
-    //If the support level is optional, inject the defines necessary to do the dynamic loading and binding
+    raw_ostream *metamorph_h =
+        new llvm::raw_fd_ostream("metamorph.h", error, llvm::sys::fs::F_None);
+    raw_ostream *metamorph_opencl_h = new llvm::raw_fd_ostream(
+        "metamorph_opencl.h", error, llvm::sys::fs::F_None);
+    raw_ostream *metamorph_shim_c = new llvm::raw_fd_ostream(
+        "metamorph_shim.c", error, llvm::sys::fs::F_None);
+    // If the support level is optional, inject the defines necessary to do the
+    // dynamic loading and binding
     if (UseMetaMorph.getValue() == metaMorphOptional) {
-      //Do injection
-      metamorph_shim_c->write(_binary_shim_dynamic_h_start, _binary_shim_dynamic_h_end - _binary_shim_dynamic_h_start);
+      // Do injection
+      metamorph_shim_c->write(_binary_shim_dynamic_h_start,
+                              _binary_shim_dynamic_h_end -
+                                  _binary_shim_dynamic_h_start);
       *metamorph_shim_c << "\n";
     }
-    //Add the raw text from the linked objects directly to the output streams
-      metamorph_h->write(_binary_metamorph_emulatable_h_start, _binary_metamorph_emulatable_h_end - _binary_metamorph_emulatable_h_start);
-      metamorph_opencl_h->write(_binary_metamorph_opencl_emulatable_h_start, _binary_metamorph_opencl_emulatable_h_end - _binary_metamorph_opencl_emulatable_h_start);
-      metamorph_shim_c->write(_binary_metamorph_shim_c_start, _binary_metamorph_shim_c_end - _binary_metamorph_shim_c_start);
-      metamorph_h->flush();
-      metamorph_opencl_h->flush();
-      metamorph_shim_c->flush();
+    // Add the raw text from the linked objects directly to the output streams
+    metamorph_h->write(_binary_metamorph_emulatable_h_start,
+                       _binary_metamorph_emulatable_h_end -
+                           _binary_metamorph_emulatable_h_start);
+    metamorph_opencl_h->write(_binary_metamorph_opencl_emulatable_h_start,
+                              _binary_metamorph_opencl_emulatable_h_end -
+                                  _binary_metamorph_opencl_emulatable_h_start);
+    metamorph_shim_c->write(_binary_metamorph_shim_c_start,
+                            _binary_metamorph_shim_c_end -
+                                _binary_metamorph_shim_c_start);
+    metamorph_h->flush();
+    metamorph_opencl_h->flush();
+    metamorph_shim_c->flush();
   }
   CompilationDatabase &CompDB = op.getCompilations();
   ClangTool Tool(CompDB, op.getSourcePathList());
