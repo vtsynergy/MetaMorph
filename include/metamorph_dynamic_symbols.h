@@ -19,12 +19,12 @@ struct backend_handles {
   void *openmp_lib_handle;
   /** Handle from dlopen for libmetamorph_opencl.so */
   void *opencl_be_handle;
-//  /** Handle from dlopen for libOpenCL.so */
-//  void *opencl_lib_handle;
+  //  /** Handle from dlopen for libOpenCL.so */
+  //  void *opencl_lib_handle;
   /** Handle from dlopen for libmetamorph_cuda.so */
   void *cuda_be_handle;
-//  /** Handle from dlopen for libcudart.so */
-//  void *cuda_lib_handle;
+  //  /** Handle from dlopen for libcudart.so */
+  //  void *cuda_lib_handle;
 };
 /** A storage strut for dynamically-loaded plugin library handles, not meant for
  * users but needs to be exposed to the backends */
@@ -65,13 +65,13 @@ struct cuda_dyn_ptrs {
   meta_err (*metaCUDAFree)(void *);
   /** Dynamically-loaded pointer to the CUDA device write function */
   meta_err (*metaCUDAWrite)(void *, void *, size_t, meta_bool, meta_callback *,
-                         meta_event *);
+                            meta_event *);
   /** Dynamically-loaded pointer to the CUDA device read function */
   meta_err (*metaCUDARead)(void *, void *, size_t, meta_bool, meta_callback *,
-                        meta_event *);
-  /** Dynamically-loaded pointer to the CUDA device copy function */
-  meta_err (*metaCUDADevCopy)(void *, void *, size_t, meta_bool, meta_callback *,
                            meta_event *);
+  /** Dynamically-loaded pointer to the CUDA device copy function */
+  meta_err (*metaCUDADevCopy)(void *, void *, size_t, meta_bool,
+                              meta_callback *, meta_event *);
   /** Dynamically-loaded pointer to the function to initialize the n-th CUDA
    * device*/
   meta_err (*metaCUDAInitByID)(meta_int);
@@ -95,30 +95,31 @@ struct cuda_dyn_ptrs {
   meta_err (*metaCUDARegisterCallback)(meta_callback);
   /** Dynamically-loaded pointer to the CUDA dot product function */
   meta_err (*cuda_dotProd)(size_t (*)[3], size_t (*)[3], void *, void *,
-                        size_t (*)[3], size_t (*)[3], size_t (*)[3], void *,
-                        meta_type_id, int, meta_callback *, meta_event *);
+                           size_t (*)[3], size_t (*)[3], size_t (*)[3], void *,
+                           meta_type_id, int, meta_callback *, meta_event *);
   /** Dynamically-loaded pointer to the CUDA reduction sum function */
   meta_err (*cuda_reduce)(size_t (*)[3], size_t (*)[3], void *, size_t (*)[3],
-                       size_t (*)[3], size_t (*)[3], void *, meta_type_id, int,
-                       meta_callback *, meta_event *);
+                          size_t (*)[3], size_t (*)[3], void *, meta_type_id,
+                          int, meta_callback *, meta_event *);
   /** Dynamically-loaded pointer to the CUDA face transpose function */
   meta_err (*cuda_transpose_face)(size_t (*)[3], size_t (*)[3], void *, void *,
-                               size_t (*)[3], size_t (*)[3], meta_type_id, int,
-                               meta_callback *, meta_event *);
+                                  size_t (*)[3], size_t (*)[3], meta_type_id,
+                                  int, meta_callback *, meta_event *);
   /** Dynamically-loaded pointer to the CUDA face packing function */
   meta_err (*cuda_pack_face)(size_t (*)[3], size_t (*)[3], void *, void *,
-                          meta_face *, int *, meta_type_id, int,
-                          meta_callback *, meta_event *, meta_event *,
-                          meta_event *, meta_event *);
+                             meta_face *, int *, meta_type_id, int,
+                             meta_callback *, meta_event *, meta_event *,
+                             meta_event *, meta_event *);
   /** Dynamically-loaded pointer to the CUDA face unpacking function */
   meta_err (*cuda_unpack_face)(size_t (*)[3], size_t (*)[3], void *, void *,
-                            meta_face *, int *, meta_type_id, int,
-                            meta_callback *, meta_event *, meta_event *,
-                            meta_event *, meta_event *);
+                               meta_face *, int *, meta_type_id, int,
+                               meta_callback *, meta_event *, meta_event *,
+                               meta_event *, meta_event *);
   /** Dynamically-loaded pointer to the CUDA jacobi stencil function */
   meta_err (*cuda_stencil_3d7p)(size_t (*)[3], size_t (*)[3], void *, void *,
-                             size_t (*)[3], size_t (*)[3], size_t (*)[3],
-                             meta_type_id, int, meta_callback *, meta_event *);
+                                size_t (*)[3], size_t (*)[3], size_t (*)[3],
+                                meta_type_id, int, meta_callback *,
+                                meta_event *);
 };
 
 /**
@@ -137,14 +138,14 @@ struct opencl_dyn_ptrs {
   /** Dynamically-loaded pointer to the OpenCL device free function */
   meta_err (*metaOpenCLFree)(void *);
   /** Dynamically-loaded pointer to the OpenCL device write function */
-  meta_err (*metaOpenCLWrite)(void *, void *, size_t, meta_bool, meta_callback *,
-                           meta_event *);
+  meta_err (*metaOpenCLWrite)(void *, void *, size_t, meta_bool,
+                              meta_callback *, meta_event *);
   /** Dynamically-loaded pointer to the OpenCL device read function */
   meta_err (*metaOpenCLRead)(void *, void *, size_t, meta_bool, meta_callback *,
-                          meta_event *);
-  /** Dynamically-loaded pointer to the OpenCL device copy function */
-  meta_err (*metaOpenCLDevCopy)(void *, void *, size_t, meta_bool, meta_callback *,
                              meta_event *);
+  /** Dynamically-loaded pointer to the OpenCL device copy function */
+  meta_err (*metaOpenCLDevCopy)(void *, void *, size_t, meta_bool,
+                                meta_callback *, meta_event *);
   /** Dynamically-loaded pointer to the OpenCL initializer by ID function */
   meta_err (*metaOpenCLInitByID)(meta_int);
   /** Dynamically-loaded pointer to the function to get the current OpenCL
@@ -162,38 +163,40 @@ struct opencl_dyn_ptrs {
   meta_err (*metaOpenCLRegisterCallback)(meta_callback);
   /** Dynamically-loaded pointer to the OpenCL dot product function */
   meta_err (*opencl_dotProd)(size_t (*)[3], size_t (*)[3], void *, void *,
-                          size_t (*)[3], size_t (*)[3], size_t (*)[3], void *,
-                          meta_type_id, int, meta_callback *, meta_event *);
+                             size_t (*)[3], size_t (*)[3], size_t (*)[3],
+                             void *, meta_type_id, int, meta_callback *,
+                             meta_event *);
   /** Dynamically-loaded pointer to the OpenCL sum reduction function */
   meta_err (*opencl_reduce)(size_t (*)[3], size_t (*)[3], void *, size_t (*)[3],
-                         size_t (*)[3], size_t (*)[3], void *, meta_type_id,
-                         int, meta_callback *, meta_event *);
+                            size_t (*)[3], size_t (*)[3], void *, meta_type_id,
+                            int, meta_callback *, meta_event *);
   /** Dynamically-loaded pointer to the OpenCL transpose function */
-  meta_err (*opencl_transpose_face)(size_t (*)[3], size_t (*)[3], void *, void *,
-                                 size_t (*)[3], size_t (*)[3], meta_type_id,
-                                 int, meta_callback *, meta_event *);
+  meta_err (*opencl_transpose_face)(size_t (*)[3], size_t (*)[3], void *,
+                                    void *, size_t (*)[3], size_t (*)[3],
+                                    meta_type_id, int, meta_callback *,
+                                    meta_event *);
   /** Dynamically-loaded pointer to the OpenCL Face packing function */
   meta_err (*opencl_pack_face)(size_t (*)[3], size_t (*)[3], void *, void *,
-                            meta_face *, int *, meta_type_id, int,
-                            meta_callback *, meta_event *, meta_event *,
-                            meta_event *, meta_event *);
+                               meta_face *, int *, meta_type_id, int,
+                               meta_callback *, meta_event *, meta_event *,
+                               meta_event *, meta_event *);
   /** Dynamically-loaded pointer to the OpenCL Face unpacking function */
   meta_err (*opencl_unpack_face)(size_t (*)[3], size_t (*)[3], void *, void *,
-                              meta_face *, int *, meta_type_id, int,
-                              meta_callback *, meta_event *, meta_event *,
-                              meta_event *, meta_event *);
+                                 meta_face *, int *, meta_type_id, int,
+                                 meta_callback *, meta_event *, meta_event *,
+                                 meta_event *, meta_event *);
   /** Dynamically-loaded pointer to the OpenCL Jacobi Stencil function */
   meta_err (*opencl_stencil_3d7p)(size_t (*)[3], size_t (*)[3], void *, void *,
-                               size_t (*)[3], size_t (*)[3], size_t (*)[3],
-                               meta_type_id, int, meta_callback *,
-                               meta_event *);
+                                  size_t (*)[3], size_t (*)[3], size_t (*)[3],
+                                  meta_type_id, int, meta_callback *,
+                                  meta_event *);
   /** Dynamically-loaded pointer to the OpenCL SPMV function */
   meta_err (*opencl_csr)(size_t (*)[3], size_t (*)[3], size_t, void *, void *,
-                      void *, void *, void *, meta_type_id, int,
-                      meta_callback *, meta_event *);
+                         void *, void *, void *, meta_type_id, int,
+                         meta_callback *, meta_event *);
   /** Dynamically-loaded pointer to the OpenCL CRC function */
   meta_err (*opencl_crc)(void *, int, int, int, void *, meta_type_id, int,
-                      meta_callback *, meta_event *);
+                         meta_callback *, meta_event *);
 };
 
 /**
@@ -206,14 +209,14 @@ struct openmp_dyn_ptrs {
   /** Dynamically-loaded pointer to the OpenMP free function */
   meta_err (*metaOpenMPFree)(void *);
   /** Dynamically-loaded pointer to the OpenMP host-to-device write function */
-  meta_err (*metaOpenMPWrite)(void *, void *, size_t, meta_bool, meta_callback *,
-                           meta_event *);
+  meta_err (*metaOpenMPWrite)(void *, void *, size_t, meta_bool,
+                              meta_callback *, meta_event *);
   /** Dynamically-loaded pointer to the OpenMP device-to-host read function */
   meta_err (*metaOpenMPRead)(void *, void *, size_t, meta_bool, meta_callback *,
-                          meta_event *);
-  /** Dynamically-loaded pointer to the OpenMP device-to-device copy function */
-  meta_err (*metaOpenMPDevCopy)(void *, void *, size_t, meta_bool, meta_callback *,
                              meta_event *);
+  /** Dynamically-loaded pointer to the OpenMP device-to-device copy function */
+  meta_err (*metaOpenMPDevCopy)(void *, void *, size_t, meta_bool,
+                                meta_callback *, meta_event *);
   /** Dynamically-loaded pointer to the function to finish any outstanding
    * OpenMP work */
   meta_err (*metaOpenMPFlush)();
@@ -226,32 +229,34 @@ struct openmp_dyn_ptrs {
   meta_err (*metaOpenMPRegisterCallback)(meta_callback *);
   /** Dynamically-loaded pointer to the OpenMP dot product function */
   meta_err (*openmp_dotProd)(size_t (*)[3], size_t (*)[3], void *, void *,
-                          size_t (*)[3], size_t (*)[3], size_t (*)[3], void *,
-                          meta_type_id, int, meta_callback *, meta_event *);
+                             size_t (*)[3], size_t (*)[3], size_t (*)[3],
+                             void *, meta_type_id, int, meta_callback *,
+                             meta_event *);
   /** Dynamically-loaded pointer to the OpenMP reduction sum function */
   meta_err (*openmp_reduce)(size_t (*)[3], size_t (*)[3], void *, size_t (*)[3],
-                         size_t (*)[3], size_t (*)[3], void *, meta_type_id,
-                         int, meta_callback *, meta_event *);
+                            size_t (*)[3], size_t (*)[3], void *, meta_type_id,
+                            int, meta_callback *, meta_event *);
   /** Dynamically-loaded pointer to the OpenMP transpose function */
-  meta_err (*openmp_transpose_face)(size_t (*)[3], size_t (*)[3], void *, void *,
-                                 size_t (*)[3], size_t (*)[3], meta_type_id,
-                                 int, meta_callback *, meta_event *);
+  meta_err (*openmp_transpose_face)(size_t (*)[3], size_t (*)[3], void *,
+                                    void *, size_t (*)[3], size_t (*)[3],
+                                    meta_type_id, int, meta_callback *,
+                                    meta_event *);
   /** Dynamically-loaded pointer to the OpenMP face packing function */
   meta_err (*openmp_pack_face)(size_t (*)[3], size_t (*)[3], void *, void *,
-                            meta_face *, int *, meta_type_id, int,
-                            meta_callback *, meta_event *, meta_event *,
-                            meta_event *, meta_event *);
+                               meta_face *, int *, meta_type_id, int,
+                               meta_callback *, meta_event *, meta_event *,
+                               meta_event *, meta_event *);
   /** Dynamically-loaded pointer to the OpenMP face unpacking function */
   meta_err (*openmp_unpack_face)(size_t (*)[3], size_t (*)[3], void *, void *,
-                              meta_face *, int *, meta_type_id, int,
-                              meta_callback *, meta_event *, meta_event *,
-                              meta_event *, meta_event *);
+                                 meta_face *, int *, meta_type_id, int,
+                                 meta_callback *, meta_event *, meta_event *,
+                                 meta_event *, meta_event *);
   /** Dynamically-loaded pointer to the OpenMP 3D &-point Jacobi stencil
    * function */
   meta_err (*openmp_stencil_3d7p)(size_t (*)[3], size_t (*)[3], void *, void *,
-                               size_t (*)[3], size_t (*)[3], size_t (*)[3],
-                               meta_type_id, int, meta_callback *,
-                               meta_event *);
+                                  size_t (*)[3], size_t (*)[3], size_t (*)[3],
+                                  meta_type_id, int, meta_callback *,
+                                  meta_event *);
 };
 
 #ifndef METAMORPH_PROFILING_H
@@ -265,9 +270,11 @@ struct profiling_dyn_ptrs {
   /** Pointer to function to flush all curently-held timing results */
   meta_err (*metaTimersFinish)();
   /** Pointer to function to create a new timer */
-  meta_err (*metaProfilingCreateTimer)(meta_timer **, meta_preferred_mode, size_t);
+  meta_err (*metaProfilingCreateTimer)(meta_timer **, meta_preferred_mode,
+                                       size_t);
   /** Pointer to function to enqueue the new timer */
-  meta_err (*metaProfilingEnqueueTimer)(meta_timer, metaProfilingBuiltinQueueType);
+  meta_err (*metaProfilingEnqueueTimer)(meta_timer,
+                                        metaProfilingBuiltinQueueType);
 };
 
 /**

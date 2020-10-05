@@ -261,7 +261,7 @@ extern struct mpi_dyn_ptrs mpi_symbols;
  * function that tears down dynamically-loaded backends and plugins in the
  * correct order
  */
-void meta_finalize() { meta_close_libs(); }
+__attribute__((destructor(101))) void meta_finalize() { meta_close_libs(); }
 /**
  * The MetaMorph constructor, its primary purpose is to search for any installed
  backends and plugins and load them
