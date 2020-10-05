@@ -431,10 +431,10 @@ $(MM_LIB)/libmetamorph.so: $(MM_LIB) $(MM_DEPS)
 	$(CC) $(MM_DEPS) $(CC_FLAGS) $(INCLUDES) -L$(MM_LIB) $(MM_COMPONENTS) -o $(MM_LIB)/libmetamorph.so -ldl -shared -Wl,-soname,libmetamorph.so
 
 $(MM_LIB)/libmetamorph_profiling.so: $(MM_LIB) $(MM_CORE)/metamorph_profiling.c
-	$(CC) $(MM_CORE)/metamorph_profiling.c $(CC_FLAGS) $(INCLUDES) -o $(MM_LIB)/libmetamorph_profiling.so -shared -Wl,-soname,libmetamorph_profiling.so
+	$(CC) $(MM_CORE)/metamorph_profiling.c $(CC_FLAGS) $(INCLUDES) -L $(MM_LIB) -lmetamorph -o $(MM_LIB)/libmetamorph_profiling.so -shared -Wl,-soname,libmetamorph_profiling.so
 
 $(MM_LIB)/libmetamorph_mpi.so: $(MM_LIB) $(MM_CORE)/metamorph_mpi.c
-	$(MPICC) $(MM_CORE)/metamorph_mpi.c $(CC_FLAGS) $(INCLUDES) -I$(MPI_DIR)/include -L$(MPI_DIR)/lib -o $(MM_LIB)/libmetamorph_mpi.so -shared -Wl,-soname,libmetamorph_mpi.so
+	$(MPICC) $(MM_CORE)/metamorph_mpi.c $(CC_FLAGS) $(INCLUDES) -I$(MPI_DIR)/include -L $(MM_LIB) -lmetamorph -L$(MPI_DIR)/lib -o $(MM_LIB)/libmetamorph_mpi.so -shared -Wl,-soname,libmetamorph_mpi.so
 
 $(MM_LIB)/libmetamorph_openmp.so: $(MM_LIB)	
 	cd $(MM_MP) && $(MAKE) $(MFLAGS) libmetamorph_openmp.so
@@ -457,7 +457,7 @@ $(MM_LIB)/libmetamorph_opencl_intelfpga.so: $(MM_LIB)
 generators: $(MM_GEN_CL)/metaCL
 
 
-$(MM_GEN_CL)/metaCL: $(MM_GEN_CL)/metacl.cpp
+$(MM_GEN_CL)/metaCL: $(MM_GEN_CL)/metacl.cpp $(MM_GEN_CL)/metamorph_shim.c $(MM_GEN_CL)/shim_dynamic.h include/metamorph_emulatable.h $(MM_CL)/metamorph_opencl_emulatable.h
 	cd $(MM_GEN_CL) && $(MAKE) metaCL
 
 .PHONY: examples
