@@ -848,11 +848,12 @@ meta_int meta_destroy_OpenCL() {
  * \param device Address in which the current cl_device_id should be returned
  * \param context Address in which the current cl_context should be returned
  * \param queue Address in which the current cl_command_queue should be returned
- * \return the OpenCL error state for any necessary query operations (FIXME:
- * Currently fixed at CL_SUCCESS)
+ * \return the device index the state matches (or num-devices if no exact match
+ * is found. For consistency with MetaCL emulation) (FIXME: Currently fixed at
+ * CL_SUCCESS)
  */
 meta_int meta_get_state_OpenCL(cl_platform_id *platform, cl_device_id *device,
-                            cl_context *context, cl_command_queue *queue) {
+                               cl_context *context, cl_command_queue *queue) {
   metaOpenCLStackFrame *frame = metaOpenCLTopStackFrame();
   if (platform != NULL) {
     if (frame != NULL)
@@ -901,7 +902,7 @@ meta_int meta_get_state_OpenCL(cl_platform_id *platform, cl_device_id *device,
  * Currently fixed at CL_SUCCESS)
  */
 meta_int meta_set_state_OpenCL(cl_platform_id platform, cl_device_id device,
-                            cl_context context, cl_command_queue queue) {
+                               cl_context context, cl_command_queue queue) {
   metaOpenCLStackFrame *curr = metaOpenCLTopStackFrame();
   if (platform == NULL) {
 #ifdef DEBUG
@@ -2208,7 +2209,7 @@ cl_int opencl_transpose_face(size_t (*grid_size)[3], size_t (*block_size)[3],
   //	size_t grid[3] = {(*grid_size)[0]*(*block_size)[0],
   //(*grid_size)[1]*(*block_size)[1], (*block_size)[2]};
   // 	size_t block[3] = {(*block_size)[0], (*block_size)[1],
-  //     (*block_size)[2]};\
+  //      (*block_size)[2]};\
 	//FIXME: make this smart enough to rescale the threadblock (and thus shared
   // memory - e.g. bank conflicts) w.r.t. double vs. float
   if (grid_size == NULL || block_size == NULL) {
