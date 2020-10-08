@@ -13,12 +13,12 @@
  * over the application-specific files that MetaCL generates to interface with
  * your kernels.
  */
-// The non-dynamic includes are preotected from duplication by header guards, we
+// The non-dynamic includes are protected from duplication by header guards, we
 // will need some types though
-#include "metamorph.h"
-#include "metamorph_opencl.h"
 #include <CL/opencl.h>
 #include <dlfcn.h>
+#include "metamorph.h"
+#include "metamorph_opencl.h"
 /** Try to load a symbol by name from a given library that already has a handle
  * \param lib A char const string with the library name for diagnostic
  * \param handle The handle from dlopen to look for the symbol in

@@ -13,10 +13,10 @@
  * over the application-specific files that MetaCL generates to interface with
  * your kernels.
  */
-#include "metamorph.h"
-#include "metamorph_opencl.h"
 #include <CL/opencl.h>
 #include <string.h>
+#include "metamorph.h"
+#include "metamorph_opencl.h"
 
 //-1 if uninitialized, [0-num_states) if found, num_states if set_state_OpenCL
 // didn't match anything in [0-num_states)
