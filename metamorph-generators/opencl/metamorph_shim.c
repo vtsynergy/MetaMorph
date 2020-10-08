@@ -15,7 +15,7 @@
  */
 #include "metamorph.h"
 #include "metamorph_opencl.h"
-#include <CL/cl.h>
+#include <CL/opencl.h>
 #include <string.h>
 
 //-1 if uninitialized, [0-num_states) if found, num_states if set_state_OpenCL

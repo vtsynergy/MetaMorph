@@ -17,7 +17,7 @@
 // will need some types though
 #include "metamorph.h"
 #include "metamorph_opencl.h"
-#include <CL/cl.h>
+#include <CL/opencl.h>
 #include <dlfcn.h>
 /** Try to load a symbol by name from a given library that already has a handle
  * \param lib A char const string with the library name for diagnostic
