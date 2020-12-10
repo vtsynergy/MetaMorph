@@ -8,8 +8,8 @@ OS = $(shell lsb_release -si)
 VER = $(shell lsb_release -sr)
 else
 #grep the /etc/*-release file instead
-OS = $(shell cat /etc/*-release | grep "^ID" | sed 's/^.*=//g')
-VER = $(shell cat /etc/*-release | grep "VERSION_ID" | sed 's/^.*=//g')
+OS = $(shell cat /etc/*-release | grep "^ID=" | sed 's/^.*=//g')
+VER = $(shell cat /etc/*-release | grep "^VERSION_ID=" | sed 's/^.*=//g')
 endif
 OS := $(shell echo $(OS) | tr '[:upper:]' '[:lower:]')
 endif
@@ -30,13 +30,14 @@ LLVM_INCLUDE_PATH :=
 #Since debian and ubuntu explicitly version their directories, just grab the last listed
 ifeq ($(OS), ubuntu)
 LLVM_INCLUDE_PATH := $(shell ls -d /usr/lib/llvm-*/include | tail -n1)
-else ifeq($(OS), debian)
+else ifeq ($(OS), debian)
 LLVM_INCLUDE_PATH := $(shell ls -d /usr/lib/llvm-*/include | tail -n1)
-else ifeq($(OS), centos)
+else ifeq ($(OS), centos)
+#The only ones new enough on Centos 7 would actually be in /opt/rh/llvm-toolset-<VERSION>/root/usr/include
 LLVM_INCLUDE_PATH := /usr/include/
-else ifeq($(OS), rhel)
+else ifeq ($(OS), rhel)
 LLVM_INCLUDE_PATH := /usr/include/
-else ifeq($(OS), fedora)
+else ifeq ($(OS), fedora)
 LLVM_INCLUDE_PATH := /usr/include/
 else
 $(error Unrecognized Operating system, must manually set LLVM_INCLUDE_PATH)
@@ -47,13 +48,13 @@ CLANG_INCLUDE_PATH :=
 #All of the ones we've tested use the same directory for package installs, but that may not be the case for manual installs, so they'll remain separate
 ifeq ($(OS), ubuntu)
 CLANG_INCLUDE_PATH := $(LLVM_INCLUDE_PATH)
-else ifeq($(OS), debian)
+else ifeq ($(OS), debian)
 CLANG_INCLUDE_PATH := $(LLVM_INCLUDE_PATH)
-else ifeq($(OS), centos)
+else ifeq ($(OS), centos)
 CLANG_INCLUDE_PATH := $(LLVM_INCLUDE_PATH)
-else ifeq($(OS), rhel)
+else ifeq ($(OS), rhel)
 CLANG_INCLUDE_PATH := $(LLVM_INCLUDE_PATH)
-else ifeq($(OS), fedora)
+else ifeq ($(OS), fedora)
 CLANG_INCLUDE_PATH := $(LLVM_INCLUDE_PATH)
 else
 $(error Unrecognized Operating system, must manually set CLANG_INCLUDE_PATH)
@@ -68,13 +69,13 @@ ifndef LLVM_LIBRARY_PATH
 LLVM_LIBRARY_PATH :=
 ifeq ($(OS), ubuntu)
 LLVM_LIBRARY_PATH := $(shell ls -d /usr/lib/llvm-*/lib | tail -n1)
-else ifeq($(OS), debian)
+else ifeq ($(OS), debian)
 LLVM_LIBRARY_PATH := $(shell ls -d /usr/lib/llvm-*/lib | tail -n1)
-else ifeq($(OS), centos)
+else ifeq ($(OS), centos)
 LLVM_LIBRARY_PATH := /usr/lib$(subst _,,$(subst x86,,$(ARCH)))/llvm
-else ifeq($(OS), rhel)
+else ifeq ($(OS), rhel)
 LLVM_LIBRARY_PATH := /usr/lib$(subst _,,$(subst x86,,$(ARCH)))/llvm
-else ifeq($(OS), fedora)
+else ifeq ($(OS), fedora)
 LLVM_LIBRARY_PATH := /usr/lib$(subst _,,$(subst x86,,$(ARCH)))
 else
 $(error Unrecognized Operating system, must manually set LLVM_LIBRARY_PATH)
@@ -85,13 +86,13 @@ CLANG_LIBRARY_PATH :=
 #All of the ones we've tested use the same directory for package installs, but that may not be the case for manual installs, so they'll remain separate
 ifeq ($(OS), ubuntu)
 CLANG_LIBRARY_PATH := $(LLVM_LIBRARY_PATH)
-else ifeq($(OS), debian)
+else ifeq ($(OS), debian)
 CLANG_LIBRARY_PATH := $(LLVM_LIBRARY_PATH)
-else ifeq($(OS), centos)
+else ifeq ($(OS), centos)
 CLANG_LIBRARY_PATH := $(LLVM_LIBRARY_PATH)
-else ifeq($(OS), rhel)
+else ifeq ($(OS), rhel)
 CLANG_LIBRARY_PATH := $(LLVM_LIBRARY_PATH)
-else ifeq($(OS), fedora)
+else ifeq ($(OS), fedora)
 CLANG_LIBRARY_PATH := $(LLVM_LIBRARY_PATH)
 else
 $(error Unrecognized Operating system, must manually set CLANG_LIBRARY_PATH)
