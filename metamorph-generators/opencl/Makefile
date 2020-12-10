@@ -158,17 +158,11 @@ CLANG_LIBS := $(CLANG_LIBS) \
 	-Wl,--end-group \
 	-lpthread
 ##Append any additional dependencies
-#ifeq ($(OS), ubuntu)
-#ifeq ($(VER), 18.04)
-#CLANG_LDFLAGS := -ltinfo -lz
-#endif
-#endif
-#ifeq ($(OS), debian)
-#CLANG_LDFLAGS := -ltinfo -lz
-#endif
-#ifeq ($(OS),)
-#CLANG_LDFLAGS := -lncurses
-#endif
+ifeq ($(OS), ubuntu)
+CLANG_LIBS := $(CLANG_LIBS) -lz -lncurses
+else ifeq ($(OS), debian)
+CLANG_LIBS := $(CLANG_LIBS) -lz -lncurses
+endif
 
 all: metaCL
 
