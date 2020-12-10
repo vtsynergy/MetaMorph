@@ -3,7 +3,7 @@ ARCH :=
 VER :=
 ifeq ($(shell uname),Linux)
 ARCH = $(shell uname -m)#| sed 's/x86_//;s/i[3-6]86/32/')
-ifneq (, $(shell which lsb_release))
+ifneq (, $(shell which lsb_release 2>/dev/null))
 OS = $(shell lsb_release -si)
 VER = $(shell lsb_release -sr)
 else
@@ -14,7 +14,11 @@ endif
 OS := $(shell echo $(OS) | tr '[:upper:]' '[:lower:]')
 endif
 #Function to test that a necessary file exists
-CHECK_FILE_EXISTS = $(if $(shell test -e $(path)/$(filename)  && echo -n yes),,"Cannot find $(path)/$(filename)\n")
+define NEWLINE
+
+
+endef
+CHECK_FILE_EXISTS = $(if $(shell test -e $(path)/$(filename)  && echo -n yes),,Cannot find $(path)/$(filename)$(NEWLINE))
 
 #TODO In the long run these should be exposed to the user
 CXX := g++
@@ -87,7 +91,7 @@ path = $(LLVM_INCLUDE_PATH)
 MISSING_HEADERS := $(foreach filename, $(LLVM_REQD_INCLUDES), $(CHECK_FILE_EXISTS))
 path = $(CLANG_INCLUDE_PATH)
 MISSING_HEADERS := $(MISSING_HEADERS) $(foreach filename, $(CLANG_REQD_INCLUDES), $(CHECK_FILE_EXISTS))
-ifneq ($(MISSING_HEADERS),)
+ifneq ($(strip $(MISSING_HEADERS)),)
  $(error $(MISSING_HEADERS))
 endif
 #Construct the include line
@@ -153,8 +157,8 @@ LLVM_LIBRARY_PATH := $(shell ls -d /usr/lib/llvm-*/lib | tail -n1)
 else ifeq ($(OS), centos)
 LLVM_LIBRARY_PATH := /usr/lib$(subst _,,$(subst x86,,$(ARCH)))/llvm
 path = $(LLVM_LIBRARY_PATH)
- ifneq ($(foreach filename, $(foreach shortname, $(LLVM_REQD_LIBS), lib$(shortname)$(LIB_EXT)), $(CHECK_FILE_EXISTS)i),)
-  TOOLSET_PATH := $(shell ls -d /opt/rh/llvm-toolset-*/root/usr/include | tail -n1)
+ ifneq ($(foreach filename, $(foreach shortname, $(LLVM_REQD_LIBS), lib$(shortname)$(LIB_EXT)), $(CHECK_FILE_EXISTS)),)
+  TOOLSET_PATH := $(shell ls -d /opt/rh/llvm-toolset-*/root/usr/lib$(subst _,,$(subst x86,,$(ARCH))) | tail -n1)
   ifneq ($(TOOLSET_PATH),)
    LLVM_LIBRARY_PATH := $(TOOLSET_PATH)
   endif
@@ -162,8 +166,8 @@ path = $(LLVM_LIBRARY_PATH)
 else ifeq ($(OS), rhel)
 LLVM_LIBRARY_PATH := /usr/lib$(subst _,,$(subst x86,,$(ARCH)))/llvm
 path = $(LLVM_LIBRARY_PATH)
- ifneq ($(foreach filename, $(foreach shortname, $(LLVM_REQD_LIBS), lib$(shortname)$(LIB_EXT)), $(CHECK_FILE_EXISTS)i),)
-  TOOLSET_PATH := $(shell ls -d /opt/rh/llvm-toolset-*/root/usr/include | tail -n1)
+ ifneq ($(foreach filename, $(foreach shortname, $(LLVM_REQD_LIBS), lib$(shortname)$(LIB_EXT)), $(CHECK_FILE_EXISTS)),)
+  TOOLSET_PATH := $(shell ls -d /opt/rh/llvm-toolset-*/root/usr/lib$(subst _,,$(subst x86,,$(ARCH))) | tail -n1)
   ifneq ($(TOOLSET_PATH),)
    LLVM_LIBRARY_PATH := $(TOOLSET_PATH)
   endif
@@ -196,7 +200,7 @@ path = $(LLVM_LIBRARY_PATH)
 MISSING_LIBS := $(foreach filename, $(foreach shortname, $(LLVM_REQD_LIBS), lib$(shortname)$(LIB_EXT)), $(CHECK_FILE_EXISTS))
 path = $(CLANG_LIBRARY_PATH)
 MISSING_LIBS := $(MISSING_LIBS) $(foreach filename, $(foreach shortname, $(CLANG_REQD_LIBS), lib$(shortname)$(LIB_EXT)), $(CHECK_FILE_EXISTS))
-ifneq ($(MISSING_LIBS),)
+ifneq ($(strip $(MISSING_LIBS)),)
  $(error $(MISSING_LIBS))
 endif
 #Construct the link line

@@ -32,12 +32,16 @@ OS :=
 ARCH :=
 VER :=
 ifeq ($(shell uname),Linux)
-ifneq (, $(shell which lsb_release))
-OS = $(shell lsb_release -si)
-OS := $(shell echo $(OS) | tr '[:upper:]' '[:lower:]')
 ARCH = $(shell uname -m)#| sed 's/x86_//;s/i[3-6]86/32/')
+ifneq (, $(shell which lsb_release 2>/dev/null))
+OS = $(shell lsb_release -si)
 VER = $(shell lsb_release -sr)
+else
+#grep the /etc/*-release file instead
+OS = $(shell cat /etc/*-release | grep "^ID=" | sed 's/^.*=//g')
+VER = $(shell cat /etc/*-release | grep "^VERSION_ID=" | sed 's/^.*=//g')
 endif
+OS := $(shell echo $(OS) | tr '[:upper:]' '[:lower:]')
 endif
 #check if 64-bit libs should be used
 ifeq ($(shell arch),x86_64)
@@ -72,7 +76,7 @@ endif
 #CHECK for an MPI environment
 ifndef MPI_DIR
 #attempt to autodetect
-ifneq ($(shell which mpicc),)
+ifneq ($(shell which mpicc 2>/dev/null),)
 MPI_DIR=$(patsubst %/bin/mpicc,%,$(shell which mpicc))
 else
 MPI_DIR=
@@ -105,7 +109,7 @@ endif
 
 #Ensure CUDA environment
 ifndef CUDA_LIB_DIR #Autodetect a cuda installation
-ifeq ($(shell which nvcc),)
+ifeq ($(shell which nvcc 2>/dev/null),)
 #none found
 CUDA_LIB_DIR=
 else
