@@ -2,12 +2,16 @@ OS :=
 ARCH :=
 VER :=
 ifeq ($(shell uname),Linux)
+ARCH = $(shell uname -m)#| sed 's/x86_//;s/i[3-6]86/32/')
 ifneq (, $(shell which lsb_release))
 OS = $(shell lsb_release -si)
-OS := $(shell echo $(OS) | tr '[:upper:]' '[:lower:]')
-ARCH = $(shell uname -m)#| sed 's/x86_//;s/i[3-6]86/32/')
 VER = $(shell lsb_release -sr)
+else
+#grep the /etc/*-release file instead
+OS = $(shell cat /etc/*-release | grep "^ID" | sed 's/^.*=//g')
+VER = $(shell cat /etc/*-release | grep "VERSION_ID" | sed 's/^.*=//g')
 endif
+OS := $(shell echo $(OS) | tr '[:upper:]' '[:lower:]')
 endif
 #Function to test that a necessary file exists
 CHECK_FILE_EXISTS = $(if $(shell test -e $(path)/$(filename)  && echo -n yes),,"Cannot find $(path)/$(filename)\n")
@@ -19,24 +23,79 @@ CXXFLAGS := -O2 -std=c++11 -fno-rtti
 #These can all be manually set to override which llvm/clang is used, otherwise we'll attempt to set a default
 #Centos 7 has the clang headers in /usr/include/clang/AST/Attr.h etc
 #so does Fedora 31
-#Debian 9 has them in /usr/include/llvm-<VERSION>/include/clang/AST/Attr.h
+#Debian 9 has them in /usr/lib/llvm-<VERSION>/include/clang/AST/Attr.h
 #so does Ubuntu 18.04
 ifndef LLVM_INCLUDE_PATH
 LLVM_INCLUDE_PATH :=
+#Since debian and ubuntu explicitly version their directories, just grab the last listed
+ifeq ($(OS), ubuntu)
+LLVM_INCLUDE_PATH := $(shell ls -d /usr/lib/llvm-*/include | tail -n1)
+else ifeq($(OS), debian)
+LLVM_INCLUDE_PATH := $(shell ls -d /usr/lib/llvm-*/include | tail -n1)
+else ifeq($(OS), centos)
+LLVM_INCLUDE_PATH := /usr/include/
+else ifeq($(OS), rhel)
+LLVM_INCLUDE_PATH := /usr/include/
+else ifeq($(OS), fedora)
+LLVM_INCLUDE_PATH := /usr/include/
+else
+$(error Unrecognized Operating system, must manually set LLVM_INCLUDE_PATH)
 endif
-ifndef LLVM_LIBRARY_PATH
-LLVM_LIBRARY_PATH :=
+endif
+ifndef CLANG_INCLUDE_PATH
+CLANG_INCLUDE_PATH :=
+#All of the ones we've tested use the same directory for package installs, but that may not be the case for manual installs, so they'll remain separate
+ifeq ($(OS), ubuntu)
+CLANG_INCLUDE_PATH := $(LLVM_INCLUDE_PATH)
+else ifeq($(OS), debian)
+CLANG_INCLUDE_PATH := $(LLVM_INCLUDE_PATH)
+else ifeq($(OS), centos)
+CLANG_INCLUDE_PATH := $(LLVM_INCLUDE_PATH)
+else ifeq($(OS), rhel)
+CLANG_INCLUDE_PATH := $(LLVM_INCLUDE_PATH)
+else ifeq($(OS), fedora)
+CLANG_INCLUDE_PATH := $(LLVM_INCLUDE_PATH)
+else
+$(error Unrecognized Operating system, must manually set CLANG_INCLUDE_PATH)
+endif
 endif
 #Centos 7 has the clang libraries in /usr/lib64/clang-private/libclangASTMatchers.so, or with llvm-static /usr/lib64/llvm/libclangASTMatchers.a
 # I think we need the static ones though
 #Fedora 31 has them in /usr/lib64/libclangASTMatchers.a
 #Debian 9 has them in /usr/lib/llvm-<VERISON>/lib/libclangASTMatchers.a
 #so does Ubuntu 18.04
-ifndef CLANG_INCLUDE_PATH
-CLANG_INCLUDE_PATH :=
+ifndef LLVM_LIBRARY_PATH
+LLVM_LIBRARY_PATH :=
+ifeq ($(OS), ubuntu)
+LLVM_LIBRARY_PATH := $(shell ls -d /usr/lib/llvm-*/lib | tail -n1)
+else ifeq($(OS), debian)
+LLVM_LIBRARY_PATH := $(shell ls -d /usr/lib/llvm-*/lib | tail -n1)
+else ifeq($(OS), centos)
+LLVM_LIBRARY_PATH := /usr/lib$(subst _,,$(subst x86,,$(ARCH)))/llvm
+else ifeq($(OS), rhel)
+LLVM_LIBRARY_PATH := /usr/lib$(subst _,,$(subst x86,,$(ARCH)))/llvm
+else ifeq($(OS), fedora)
+LLVM_LIBRARY_PATH := /usr/lib$(subst _,,$(subst x86,,$(ARCH)))
+else
+$(error Unrecognized Operating system, must manually set LLVM_LIBRARY_PATH)
+endif
 endif
 ifndef CLANG_LIBRARY_PATH
 CLANG_LIBRARY_PATH :=
+#All of the ones we've tested use the same directory for package installs, but that may not be the case for manual installs, so they'll remain separate
+ifeq ($(OS), ubuntu)
+CLANG_LIBRARY_PATH := $(LLVM_LIBRARY_PATH)
+else ifeq($(OS), debian)
+CLANG_LIBRARY_PATH := $(LLVM_LIBRARY_PATH)
+else ifeq($(OS), centos)
+CLANG_LIBRARY_PATH := $(LLVM_LIBRARY_PATH)
+else ifeq($(OS), rhel)
+CLANG_LIBRARY_PATH := $(LLVM_LIBRARY_PATH)
+else ifeq($(OS), fedora)
+CLANG_LIBRARY_PATH := $(LLVM_LIBRARY_PATH)
+else
+$(error Unrecognized Operating system, must manually set CLANG_LIBRARY_PATH)
+endif
 endif
 
 #Required header files
@@ -85,27 +144,30 @@ MISSING_LIBS := $(foreach filename, $(foreach shortname, $(LLVM_REQD_LIBS), lib$
 path = $(CLANG_LIBRARY_PATH)
 MISSING_LIBS := $(MISSING_LIBS) $(foreach filename, $(foreach shortname, $(CLANG_REQD_LIBS), lib$(shortname).a), $(CHECK_FILE_EXISTS))
 #Construct the link line
+#Add directories
 CLANG_LIBS := -L$(CLANG_LIBRARY_PATH)
 ifneq ($(LLVM_LIBRARY_PATH), $(CLANG_LIBRARY_PATH))
 CLANG_LIBS := $(CLANG_LIBS) -L$(LLVM_LIBRARY_PATH)
 endif
+#Add libraries with a link group to address circular dependencies
 CLANG_LIBS := $(CLANG_LIBS) \
 	-Wl,--start-group \
         $(foreach lib, $(LLVM_REQD_LIBS), -l$(lib)) \
         $(foreach lib, $(CLANG_REQD_LIBS), -l$(lib)) \
 	-Wl,--end-group \
 	-lpthread
-ifeq ($(OS), ubuntu)
-ifeq ($(VER), 18.04)
-CLANG_LDFLAGS := -ltinfo -lz
-endif
-endif
-ifeq ($(OS), debian)
-CLANG_LDFLAGS := -ltinfo -lz
-endif
-ifeq ($(OS),)
-CLANG_LDFLAGS := -lncurses
-endif
+##Append any additional dependencies
+#ifeq ($(OS), ubuntu)
+#ifeq ($(VER), 18.04)
+#CLANG_LDFLAGS := -ltinfo -lz
+#endif
+#endif
+#ifeq ($(OS), debian)
+#CLANG_LDFLAGS := -ltinfo -lz
+#endif
+#ifeq ($(OS),)
+#CLANG_LDFLAGS := -lncurses
+#endif
 
 all: metaCL
 
