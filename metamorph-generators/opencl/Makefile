@@ -129,7 +129,11 @@ CLANG_REQD_SHARED_LIBS := clang \
 	clangASTMatchers \
 	clangTooling \
 	clangBasic \
-	clangFrontend \
+	clangFrontend
+ifeq ($(OS), fedora) #On 31 at least
+ CLANG_REQD_SHARED_LIBS := $(CLANG_REQD_SHARED_LIBS) \
+	 clangSerialization
+endif
 #Choose static or shared libs
 ifdef METACL_LINK_STATIC
 METACL_LINK_STATIC := $(shell echo $(METACL_LINK_STATIC) | tr '[:upper:]' '[:lower:]')

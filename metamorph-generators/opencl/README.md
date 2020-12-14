@@ -15,11 +15,12 @@ Authors:
 Contact Email: 
 	sath6220_at_vt.edu	
 
-(c) Virginia Polytechnic Institute and State University, 2018-2020.
+(c) Virginia Polytechnic Institute and State University, 2018-2021.
 
 
 ## News & Updates
 
+Jan 13, 2021: Versopm 0.3.1b: MetaCL with Standalone Interface support
 Jun 10, 2020: Version 0.3b: Integration with packaged MetaMorph v0.3b
 Jan 15, 2020: Version 0.2b
 
@@ -39,16 +40,47 @@ Thanks to Clang's robust and efficient design, MetaCL is able to run in seconds,
 
 ## Dependencies
 
-	make
-	GNU C Library (glibc)
-	
-	Clang >= 6.0 (Tested with 6.0 and 10.0)
-	
-	MetaMorph
-	
-	MetaMorph OpenCL-backend
-		GNU GCC compiler (tested with gcc 4.5, 4.7.2, 4.8.2 and 4.9.2)
-		OpenCL libs
+For interface generation:
+* make
+* GNU C Library (glibc)
+* GNU GCC compiler with support for C++11)
+* Clang >= 6.0 (Tested with 6.0, 6.0.1, 7.0, 9.0.1 and 10.0)
+
+For compiling, linking, and executing program based on the auto-generated interface:
+* MetaMorph (IFF `--use-metamorph` is set to `REQUIRED`, optional or unused with `OPTIONAL` or `DISABLED`, respectively)
+* MetaMorph OpenCL-backend (IFF `--use-metamorph=REQUIRED`)
+* OpenCL headers, library, device(s)
+
+The following Linux distributions have been tested, and should be supported based on what's available in their standard package managers. No additional configuration should be necessary unless things have been placed in non-standard locations by your system administrator or by a module/collections manager.
+### Debian
+#### 9
+TODO
+
+### Ubuntu
+#### 18.04
+TODO
+
+### Centos
+#### 7
+Presuming the use of the yum package manager, the following are needed:
+* group "Development Tools"
+* `centos-release-scl`
+* `llvm-toolset-7.0-llvm-devel`
+* `llvm-toolset-7.0-clang-devel`
+
+Make should auto-detect the `/opt` directories the LLVM 7.0 Toolset packages are installed to. A Shared library build is the only option, as there are no Clang static libraries provided by the `llvm-toolset-7.0-llvm-static` package, nor is there an equivalent `clang-static` package.
+
+### Fedora
+#### 31
+Presuming the use of the yum package manager, the following are needed:
+* group "Development Tools"
+* `llvm-devel`
+* `clang-devel`
+
+Make should auto-detect the headers and libraries in their standard `/usr` subdirectories. A Shared library build is the only option, as there are no Clang static libraries provided by the `llvm-static` package, nor is there an equivalent `clang-static` package.
+
+#### Other Linux / Clang+LLVM from source
+TODO
 		
 		
 ##Installation
