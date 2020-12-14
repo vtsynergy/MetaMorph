@@ -20,6 +20,14 @@ CHECK_FILE_EXISTS = $(if $(shell test -e $(path)/$(filename)  && echo -n yes),,"
 CXX := g++
 CXXFLAGS := -O2 -std=c++11 -fno-rtti
 
+
+#Required header files
+LLVM_REQD_INCLUDES := llvm/Support/raw_ostream.h
+CLANG_REQD_INCLUDES := clang/AST/Attr.h \
+	clang/ASTMatchers/ASTMatchFinder.h \
+	clang/ASTMatchers/ASTMatchers.h \
+	clang/Tooling/CommonOptionsParser.h \
+	clang/Tooling/Tooling.h
 #These can all be manually set to override which llvm/clang is used, otherwise we'll attempt to set a default
 #Centos 7 has the clang headers in /usr/include/clang/AST/Attr.h etc
 #so does Fedora 31
@@ -33,10 +41,24 @@ LLVM_INCLUDE_PATH := $(shell ls -d /usr/lib/llvm-*/include | tail -n1)
 else ifeq ($(OS), debian)
 LLVM_INCLUDE_PATH := $(shell ls -d /usr/lib/llvm-*/include | tail -n1)
 else ifeq ($(OS), centos)
-#The only ones new enough on Centos 7 would actually be in /opt/rh/llvm-toolset-<VERSION>/root/usr/include
+#The only ones new enough to actually use on Centos 7 would actually be in /opt/rh/llvm-toolset-<VERSION>/root/usr/include
 LLVM_INCLUDE_PATH := /usr/include/
+path = $(LLVM_INCLUDE_PATH)
+ ifneq ($(foreach filename, $(LLVM_REQD_INCLUDES), $(CHECK_FILE_EXISTS)),)
+  TOOLSET_PATH := $(shell ls -d /opt/rh/llvm-toolset-*/root/usr/include | tail -n1)
+  ifneq ($(TOOLSET_PATH),)
+   LLVM_INCLUDE_PATH := $(TOOLSET_PATH)
+  endif
+ endif
 else ifeq ($(OS), rhel)
 LLVM_INCLUDE_PATH := /usr/include/
+path = $(LLVM_INCLUDE_PATH)
+ ifneq ($(foreach filename, $(LLVM_REQD_INCLUDES), $(CHECK_FILE_EXISTS)),)
+  TOOLSET_PATH := $(shell ls -d /opt/rh/llvm-toolset-*/root/usr/include | tail -n1)
+  ifneq ($(TOOLSET_PATH),)
+   LLVM_INCLUDE_PATH := $(TOOLSET_PATH)
+  endif
+ endif
 else ifeq ($(OS), fedora)
 LLVM_INCLUDE_PATH := /usr/include/
 else
@@ -60,6 +82,63 @@ else
 $(error Unrecognized Operating system, must manually set CLANG_INCLUDE_PATH)
 endif
 endif
+#Validate all the headers exist
+path = $(LLVM_INCLUDE_PATH)
+MISSING_HEADERS := $(foreach filename, $(LLVM_REQD_INCLUDES), $(CHECK_FILE_EXISTS))
+path = $(CLANG_INCLUDE_PATH)
+MISSING_HEADERS := $(MISSING_HEADERS) $(foreach filename, $(CLANG_REQD_INCLUDES), $(CHECK_FILE_EXISTS))
+ifneq ($(MISSING_HEADERS),)
+ $(error $(MISSING_HEADERS))
+endif
+#Construct the include line
+CLANG_INCLUDES := -I$(CLANG_INCLUDE_PATH)
+ifneq ($(LLVM_INCLUDE_PATH), $(CLANG_INCLUDE_PATH))
+CLANG_INCLUDES := $(CLANG_INCLUDES) -I$(LLVM_INCLUDE_PATH)
+endif
+
+#Required static libraries
+LLVM_REQD_STATIC_LIBS := LLVMOption \
+	LLVMSupport \
+	LLVMBitReader \
+	LLVMMC \
+	LLVMMCParser \
+	LLVMCore \
+	LLVMBinaryFormat \
+	LLVMProfileData
+CLANG_REQD_STATIC_LIBS := clangAST \
+	clangASTMatchers \
+	clangTooling \
+	clangBasic \
+	clangDriver \
+	clangFrontend \
+	clangFrontendTool \
+	clangLex \
+	clangSema \
+	clangSerialization \
+	clangParse \
+	clangEdit \
+	clangAnalysis
+#Required shared libraries
+LLVM_REQD_SHARED_LIBS := LLVM
+CLANG_REQD_SHARED_LIBS := clang \
+	clangAST \
+	clangASTMatchers \
+	clangTooling \
+	clangBasic \
+	clangFrontend \
+#Choose static or shared libs
+ifdef METACL_LINK_STATIC
+METACL_LINK_STATIC := $(shell echo $(METACL_LINK_STATIC) | tr '[:upper:]' '[:lower:]')
+endif
+ifeq ($(METACL_LINK_STATIC), true)
+ LLVM_REQD_LIBS := $(LLVM_REQD_STATIC_LIBS)
+ CLANG_REQD_LIBS := $(CLANG_REQD_STATIC_LIBS)
+ LIB_EXT := .a
+else
+ LLVM_REQD_LIBS := $(LLVM_REQD_SHARED_LIBS)
+ CLANG_REQD_LIBS := $(CLANG_REQD_SHARED_LIBS)
+ LIB_EXT := .so
+endif
 #Centos 7 has the clang libraries in /usr/lib64/clang-private/libclangASTMatchers.so, or with llvm-static /usr/lib64/llvm/libclangASTMatchers.a
 # I think we need the static ones though
 #Fedora 31 has them in /usr/lib64/libclangASTMatchers.a
@@ -73,8 +152,22 @@ else ifeq ($(OS), debian)
 LLVM_LIBRARY_PATH := $(shell ls -d /usr/lib/llvm-*/lib | tail -n1)
 else ifeq ($(OS), centos)
 LLVM_LIBRARY_PATH := /usr/lib$(subst _,,$(subst x86,,$(ARCH)))/llvm
+path = $(LLVM_LIBRARY_PATH)
+ ifneq ($(foreach filename, $(foreach shortname, $(LLVM_REQD_LIBS), lib$(shortname)$(LIB_EXT)), $(CHECK_FILE_EXISTS)i),)
+  TOOLSET_PATH := $(shell ls -d /opt/rh/llvm-toolset-*/root/usr/include | tail -n1)
+  ifneq ($(TOOLSET_PATH),)
+   LLVM_LIBRARY_PATH := $(TOOLSET_PATH)
+  endif
+ endif
 else ifeq ($(OS), rhel)
 LLVM_LIBRARY_PATH := /usr/lib$(subst _,,$(subst x86,,$(ARCH)))/llvm
+path = $(LLVM_LIBRARY_PATH)
+ ifneq ($(foreach filename, $(foreach shortname, $(LLVM_REQD_LIBS), lib$(shortname)$(LIB_EXT)), $(CHECK_FILE_EXISTS)i),)
+  TOOLSET_PATH := $(shell ls -d /opt/rh/llvm-toolset-*/root/usr/include | tail -n1)
+  ifneq ($(TOOLSET_PATH),)
+   LLVM_LIBRARY_PATH := $(TOOLSET_PATH)
+  endif
+ endif
 else ifeq ($(OS), fedora)
 LLVM_LIBRARY_PATH := /usr/lib$(subst _,,$(subst x86,,$(ARCH)))
 else
@@ -98,57 +191,19 @@ else
 $(error Unrecognized Operating system, must manually set CLANG_LIBRARY_PATH)
 endif
 endif
-
-#Required header files
-LLVM_REQD_INCLUDES := llvm/Support/raw_ostream.h
-CLANG_REQD_INCLUDES := clang/AST/Attr.h \
-	clang/ASTMatchers/ASTMatchFinder.h \
-	clang/ASTMatchers/ASTMatchers.h \
-	clang/Tooling/CommonOptionsParser.h \
-	clang/Tooling/Tooling.h
-#Validate all the headers exist
-path = $(LLVM_INCLUDE_PATH)
-MISSING_HEADERS := $(foreach filename, $(LLVM_REQD_INCLUDES), $(CHECK_FILE_EXISTS))
-path = $(CLANG_INCLUDE_PATH)
-MISSING_HEADERS := $(MISSING_HEADERS) $(foreach filename, $(CLANG_REQD_INCLUDES), $(CHECK_FILE_EXISTS))
-#Construct the include line
-CLANG_INCLUDES := -I$(CLANG_INCLUDE_PATH)
-ifneq ($(LLVM_INCLUDE_PATH), $(CLANG_INCLUDE_PATH))
-CLANG_INCLUDES := $(CLANG_INCLUDES) -I$(LLVM_INCLUDE_PATH)
-endif
-
-#Required static libraries
-LLVM_REQD_LIBS := LLVMOption \
-	LLVMSupport \
-	LLVMBitReader \
-	LLVMMC \
-	LLVMMCParser \
-	LLVMCore \
-	LLVMBinaryFormat \
-	LLVMProfileData
-CLANG_REQD_LIBS := clangAST \
-	clangASTMatchers \
-	clangTooling \
-	clangBasic \
-	clangDriver \
-	clangFrontend \
-	clangFrontendTool \
-	clangLex \
-	clangSema \
-	clangSerialization \
-	clangParse \
-	clangEdit \
-	clangAnalysis
 #Validate all the libraries exist
 path = $(LLVM_LIBRARY_PATH)
-MISSING_LIBS := $(foreach filename, $(foreach shortname, $(LLVM_REQD_LIBS), lib$(shortname).a), $(CHECK_FILE_EXISTS))
+MISSING_LIBS := $(foreach filename, $(foreach shortname, $(LLVM_REQD_LIBS), lib$(shortname)$(LIB_EXT)), $(CHECK_FILE_EXISTS))
 path = $(CLANG_LIBRARY_PATH)
-MISSING_LIBS := $(MISSING_LIBS) $(foreach filename, $(foreach shortname, $(CLANG_REQD_LIBS), lib$(shortname).a), $(CHECK_FILE_EXISTS))
+MISSING_LIBS := $(MISSING_LIBS) $(foreach filename, $(foreach shortname, $(CLANG_REQD_LIBS), lib$(shortname)$(LIB_EXT)), $(CHECK_FILE_EXISTS))
+ifneq ($(MISSING_LIBS),)
+ $(error $(MISSING_LIBS))
+endif
 #Construct the link line
 #Add directories
-CLANG_LIBS := -L$(CLANG_LIBRARY_PATH)
+CLANG_LIBS := -L$(CLANG_LIBRARY_PATH) -Wl,-rpath=$(CLANG_LIBRARY_PATH),-rpath-link=$(CLANG_LIBRARY_PATH)
 ifneq ($(LLVM_LIBRARY_PATH), $(CLANG_LIBRARY_PATH))
-CLANG_LIBS := $(CLANG_LIBS) -L$(LLVM_LIBRARY_PATH)
+CLANG_LIBS := $(CLANG_LIBS) -L$(LLVM_LIBRARY_PATH) -Wl,-rpath=$(LLVM_LIBRARY_PATH),-rpath-link=$(LLVM_LIBRARY_PATH)
 endif
 #Add libraries with a link group to address circular dependencies
 CLANG_LIBS := $(CLANG_LIBS) \
@@ -188,7 +243,5 @@ metaCL: metacl.o $(TEXT_OBJS) | $(CLANG_LIB_PATH)
 	$(CXX) -o metaCL metacl.o $(TEXT_OBJS) $(CLANG_LIBS) $(CLANG_LDFLAGS)
 
 metacl.o: metacl.cpp
-	@echo $(MISSING_HEADERS)
-	@echo $(MISSING_LIBS)
 	$(CXX) $(CXXFLAGS) $(CLANG_INCLUDES) metacl.cpp -c -o metacl.o
 
