@@ -20,9 +20,9 @@ Contact Email:
 
 ## News & Updates
 
-Jan 13, 2021: Versopm 0.3.1b: MetaCL with Standalone Interface support
-Jun 10, 2020: Version 0.3b: Integration with packaged MetaMorph v0.3b
-Jan 15, 2020: Version 0.2b
+* Jan 13, 2021: Version 0.3.1b: MetaCL with Standalone Interface support
+* Jun 10, 2020: Version 0.3b: Integration with packaged MetaMorph v0.3b
+* Jan 15, 2020: Version 0.2b
 
 
 ## Publications
@@ -47,7 +47,8 @@ For building MetaCL
 * Clang >= 6.0 (Tested with 6.0, 6.0.1, 7.0, 9.0.1 and 10.0)
 
 For interface generation:
-* Clang >= 6.0 (Tested with 6.0, 6.0.1, 7.0, 9.0.1 and 10.0) (IFF *not* compiled with `METACL_LINK_STATIC=true`)
+* Clang >= 6.0 libraries (Tested with 6.0, 6.0.1, 7.0, 9.0.1 and 10.0) (IFF *not* compiled with `METACL_LINK_STATIC=true`)
+* Clang OpenCL kernel builting header: `opencl-c.h` needed when invoking metaCL
 
 For compiling, linking, and executing program based on the auto-generated interface:
 * MetaMorph (IFF `--use-metamorph` is set to `REQUIRED`, otherwise treated as optional or unused with `OPTIONAL` or `DISABLED`, respectively)
@@ -99,7 +100,7 @@ TODO
 		
 ##Installation
 
-Please follow the installation instructions in the top-level Makefile. The MetaCL autogenerator can run in a standalone fashion, but currently all generated codes require the MetaMorph OpenCL backend plugin to operate.
+Please follow the installation instructions in the top-level Makefile.
 
 
 ## Usage
@@ -108,11 +109,16 @@ For detailed installation and usage instructions, please refer to the [MetaCL Tu
 
 Examples of invocation syntax can be found in the `metacl_module.c` make targets of https://github.com/vtsynergy/MetaCL-SNAP/blob/master/src/Makefile and https://github.com/vtsynergy/MetaCL-BabelStream/blob/master/OpenCL.make
 
-Esoterica:
+#### Esoterica:
 * On some non-systemwide Clang Installations, it is necessary to provide an additional header search directory (`-I <dir>`) to the Clang internal compiler (i.e. after the `--` that separates MetaCL options from Clang options). This must point to the directory that contains the Clang installation's copy of *their* OpenCL kernel headers (i.e. `/usr/lib/clang/6.0.1/include/opencl-c.h`) In the codes above this is captured in the `METACL_CFLAGS`, which are provided on the command line and would typically look like `METACL_CFLAGS="-I /usr/lib/clang/6.0.1/include" make -f OpenCL.make`. We hope to eliminate this requirement in a future release.
 
 
 ## License 
 
+MetaCL, the *static* portions of the MetaMorph API it uses and produces (i.e. `metamorph.h` and `metamorph_opencl.h`), and the *static* emulation shims it produces to support `--use-metamorph=OPTIONAL` (i.e. `shim_dynamic.h`) and `--use-metamorph=DISABLED` (i.e. `metamorph_shim.c`), are governed by the same license as MetaMorph proper.
 Please refer to MetaMorph's included [LICENSE](../../LICENSE) file.
+
+The use of MetaCL extends *no* copyright whatsover to *your* code. (i.e. any `.cl` kernel(s) provided as input, as well as the *dynamic* output files that bear the names and signatures of *your* inputs, structs and kernel functions.) But no warranty is provided for such dynamically-generated code.
+
+Our goal is to allow you as much flexibility with your generated code, while retaing access to the shared utility functions for the widest audience possible. If you have any questions about these terms, or need alternate licensing options, please contact us.
 
