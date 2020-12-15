@@ -29,6 +29,15 @@ ifeq ($(OS), ubuntu)
  else
   CXXFLAGS := $(CXXFLAGS) -std=c++11
  endif
+else ifeq ($(OS), debian)
+ ifeq ($(VER), testing)
+  $(warning "Debian version $(VER)")
+  CXXFLAGS := $(CXXFLAGS) -std=c++14
+ else ifeq ($(shell expr $(VER) \> 10), 1)
+  CXXFLAGS := $(CXXFLAGS) -std=c++14
+ else
+  CXXFLAGS := $(CXXFLAGS) -std=c++11
+ endif
 else
  CXXFLAGS := $(CXXFLAGS) -std=c++11
 endif
@@ -119,6 +128,20 @@ LLVM_REQD_STATIC_LIBS := LLVMOption \
 ifeq ($(OS), ubuntu)
  ifeq ($(shell expr $(VER) \>= 20.04), 1)
 #Technically these are LLVM-10 requirements, might need to eventually add LLVM/Clang version detection that is separate from OS
+  LLVM_REQD_STATIC_LIBS := $(LLVM_REQD_STATIC_LIBS) \
+	LLVMRemarks \
+	LLVMFrontendOpenMP \
+	LLVMBitstreamReader \
+	LLVMDemangle
+ endif
+else ifeq ($(OS), debian)
+ ifeq ($(VER), testing)
+  LLVM_REQD_STATIC_LIBS := $(LLVM_REQD_STATIC_LIBS) \
+	LLVMRemarks \
+	LLVMFrontendOpenMP \
+	LLVMBitstreamReader \
+	LLVMDemangle
+ else ifeq ($(shell expr $(VER) \> 10), 1)
   LLVM_REQD_STATIC_LIBS := $(LLVM_REQD_STATIC_LIBS) \
 	LLVMRemarks \
 	LLVMFrontendOpenMP \

@@ -399,7 +399,11 @@ std::string importTypeDependencies(QualType type, ASTContext &Context,
                                        .getSingleStepDesugaredType(Context))
                   ->getDecl()
                   ->getTypedefNameForAnonDecl()
+#if (LLVM_VERSION_MAJOR < 11)
                   ->getName();
+#else
+                  ->getName().str();
+#endif
           // This first branch deals with a singular typedef that defines
           // multiple types pointing to the same anonymous struct, all but the
           // first will be generated as separate decls
