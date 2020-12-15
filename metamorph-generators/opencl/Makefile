@@ -23,26 +23,9 @@ CHECK_FILE_EXISTS = $(if $(shell test -e $(path)/$(filename)  && echo -n yes),,C
 #TODO In the long run these should be exposed to the user
 CXX := g++
 CXXFLAGS := -O2 -fno-rtti
-ifeq ($(OS), ubuntu)
- ifeq ($(shell expr $(VER) \>= 20.04), 1)
-  CXXFLAGS := $(CXXFLAGS) -std=c++14
- else
-  CXXFLAGS := $(CXXFLAGS) -std=c++11
- endif
-else ifeq ($(OS), debian)
- ifeq ($(VER), testing)
-  $(warning "Debian version $(VER)")
-  CXXFLAGS := $(CXXFLAGS) -std=c++14
- else ifeq ($(shell expr $(VER) \> 10), 1)
-  CXXFLAGS := $(CXXFLAGS) -std=c++14
- else
-  CXXFLAGS := $(CXXFLAGS) -std=c++11
- endif
-else
- CXXFLAGS := $(CXXFLAGS) -std=c++11
-endif
 #Required header files
-LLVM_REQD_INCLUDES := llvm/Support/raw_ostream.h
+LLVM_REQD_INCLUDES := llvm/Support/raw_ostream.h \
+	llvm/Config/llvm-config.h
 CLANG_REQD_INCLUDES := clang/AST/Attr.h \
 	clang/ASTMatchers/ASTMatchFinder.h \
 	clang/ASTMatchers/ASTMatchers.h \
@@ -64,7 +47,7 @@ else ifeq ($(OS), centos)
 #The only ones new enough to actually use on Centos 7 would actually be in /opt/rh/llvm-toolset-<VERSION>/root/usr/include
 LLVM_INCLUDE_PATH := /usr/include/
 path = $(LLVM_INCLUDE_PATH)
- ifneq ($(foreach filename, $(LLVM_REQD_INCLUDES), $(CHECK_FILE_EXISTS)),)
+ ifneq ($(strip $(foreach filename, $(LLVM_REQD_INCLUDES), $(CHECK_FILE_EXISTS))),)
   TOOLSET_PATH := $(shell ls -d /opt/rh/llvm-toolset-*/root/usr/include | tail -n1)
   ifneq ($(TOOLSET_PATH),)
    LLVM_INCLUDE_PATH := $(TOOLSET_PATH)
@@ -73,7 +56,7 @@ path = $(LLVM_INCLUDE_PATH)
 else ifeq ($(OS), rhel)
 LLVM_INCLUDE_PATH := /usr/include/
 path = $(LLVM_INCLUDE_PATH)
- ifneq ($(foreach filename, $(LLVM_REQD_INCLUDES), $(CHECK_FILE_EXISTS)),)
+ ifneq ($(strip $(foreach filename, $(LLVM_REQD_INCLUDES), $(CHECK_FILE_EXISTS))),)
   TOOLSET_PATH := $(shell ls -d /opt/rh/llvm-toolset-*/root/usr/include | tail -n1)
   ifneq ($(TOOLSET_PATH),)
    LLVM_INCLUDE_PATH := $(TOOLSET_PATH)
@@ -115,6 +98,14 @@ CLANG_INCLUDES := -I$(CLANG_INCLUDE_PATH)
 ifneq ($(LLVM_INCLUDE_PATH), $(CLANG_INCLUDE_PATH))
 CLANG_INCLUDES := $(CLANG_INCLUDES) -I$(LLVM_INCLUDE_PATH)
 endif
+#Parse the version of LLVM/Clang that is being used from the llvm/Config directory
+LLVM_MAJOR_VER := $(shell grep -r LLVM_VERSION_MAJOR $(LLVM_INCLUDE_PATH)/llvm/Config/ | sed 's/.* \([0-9]\+\)$$/\1/g')
+#Adapt the CXXFLAGS to the LLVM/Clang version
+ifeq ($(shell expr $(LLVM_MAJOR_VER) \>= 10), 1)
+  CXXFLAGS := $(CXXFLAGS) -std=c++14
+else
+  CXXFLAGS := $(CXXFLAGS) -std=c++11
+endif
 
 #Required static libraries
 LLVM_REQD_STATIC_LIBS := LLVMOption \
@@ -125,30 +116,13 @@ LLVM_REQD_STATIC_LIBS := LLVMOption \
 	LLVMCore \
 	LLVMBinaryFormat \
 	LLVMProfileData
-ifeq ($(OS), ubuntu)
- ifeq ($(shell expr $(VER) \>= 20.04), 1)
-#Technically these are LLVM-10 requirements, might need to eventually add LLVM/Clang version detection that is separate from OS
+ifeq ($(shell expr $(LLVM_MAJOR_VER) \>= 10), 1)
   LLVM_REQD_STATIC_LIBS := $(LLVM_REQD_STATIC_LIBS) \
 	LLVMRemarks \
 	LLVMFrontendOpenMP \
 	LLVMBitstreamReader \
 	LLVMDemangle
- endif
-else ifeq ($(OS), debian)
- ifeq ($(VER), testing)
-  LLVM_REQD_STATIC_LIBS := $(LLVM_REQD_STATIC_LIBS) \
-	LLVMRemarks \
-	LLVMFrontendOpenMP \
-	LLVMBitstreamReader \
-	LLVMDemangle
- else ifeq ($(shell expr $(VER) \> 10), 1)
-  LLVM_REQD_STATIC_LIBS := $(LLVM_REQD_STATIC_LIBS) \
-	LLVMRemarks \
-	LLVMFrontendOpenMP \
-	LLVMBitstreamReader \
-	LLVMDemangle
- endif
-endif
+  endif
 CLANG_REQD_STATIC_LIBS := clangAST \
 	clangASTMatchers \
 	clangTooling \
@@ -164,15 +138,44 @@ CLANG_REQD_STATIC_LIBS := clangAST \
 	clangAnalysis
 #Required shared libraries
 LLVM_REQD_SHARED_LIBS := LLVM
-CLANG_REQD_SHARED_LIBS := clang \
+CLANG_REQD_SHARED_LIBS := clang
+ifeq ($(OS), centos)
+ ifeq ($(shell expr $(VER) \< 8), 1)
+  CLANG_REQD_SHARED_LIBS := $(CLANG_REQD_SHARED_LIBS) \
 	clangAST \
 	clangASTMatchers \
 	clangTooling \
 	clangBasic \
 	clangFrontend
-ifeq ($(OS), fedora) #On 31 at least
- CLANG_REQD_SHARED_LIBS := $(CLANG_REQD_SHARED_LIBS) \
+ else
+  CLANG_REQD_SHARED_LIBS := $(CLANG_REQD_SHARED_LIBS) \
+	clang-cpp
+ endif
+else ifeq ($(OS), rhel)
+ ifeq ($(shell expr $(VER) \< 8), 1)
+  CLANG_REQD_SHARED_LIBS := $(CLANG_REQD_SHARED_LIBS) \
+	clangAST \
+	clangASTMatchers \
+	clangTooling \
+	clangBasic \
+	clangFrontend
+ else
+  CLANG_REQD_SHARED_LIBS := $(CLANG_REQD_SHARED_LIBS) \
+	clang-cpp
+ endif
+else ifeq ($(OS), fedora) #On 31 at least
+ ifeq ($(shell expr $(VER) \< 32), 1)
+  CLANG_REQD_SHARED_LIBS := $(CLANG_REQD_SHARED_LIBS) \
+	clangAST \
+	clangASTMatchers \
+	clangTooling \
+	clangBasic \
+	clangFrontend \
 	clangSerialization
+ else
+  CLANG_REQD_SHARED_LIBS := $(CLANG_REQD_SHARED_LIBS) \
+	clang-cpp
+ endif
 endif
 #Choose static or shared libs
 #Debian apt packages only support static linking, their libclang.so is missing a ton of symbols
@@ -207,18 +210,24 @@ LLVM_LIBRARY_PATH := $(shell ls -d /usr/lib/llvm-*/lib | tail -n1)
 else ifeq ($(OS), debian)
 LLVM_LIBRARY_PATH := $(shell ls -d /usr/lib/llvm-*/lib | tail -n1)
 else ifeq ($(OS), centos)
-LLVM_LIBRARY_PATH := /usr/lib$(subst _,,$(subst x86,,$(ARCH)))/llvm
+LLVM_LIBRARY_PATH := /usr/lib$(subst _,,$(subst x86,,$(ARCH)))
+ ifeq ($(shell expr $(VER) \< 8), 1)
+  LLVM_LIBRARY_PATH := $(LLVM_LIBRARY_PATH)/llvm
+ endif
 path = $(LLVM_LIBRARY_PATH)
- ifneq ($(foreach filename, $(foreach shortname, $(LLVM_REQD_LIBS), lib$(shortname)$(LIB_EXT)), $(CHECK_FILE_EXISTS)),)
+ ifneq ($(strip $(foreach filename, $(foreach shortname, $(LLVM_REQD_LIBS), lib$(shortname)$(LIB_EXT)), $(CHECK_FILE_EXISTS))),)
   TOOLSET_PATH := $(shell ls -d /opt/rh/llvm-toolset-*/root/usr/lib$(subst _,,$(subst x86,,$(ARCH))) | tail -n1)
   ifneq ($(TOOLSET_PATH),)
    LLVM_LIBRARY_PATH := $(TOOLSET_PATH)
   endif
  endif
 else ifeq ($(OS), rhel)
-LLVM_LIBRARY_PATH := /usr/lib$(subst _,,$(subst x86,,$(ARCH)))/llvm
+LLVM_LIBRARY_PATH := /usr/lib$(subst _,,$(subst x86,,$(ARCH)))
+ ifeq ($(shell expr $(VER) \< 8), 1)
+  LLVM_LIBRARY_PATH := $(LLVM_LIBRARY_PATH)/llvm
+ endif
 path = $(LLVM_LIBRARY_PATH)
- ifneq ($(foreach filename, $(foreach shortname, $(LLVM_REQD_LIBS), lib$(shortname)$(LIB_EXT)), $(CHECK_FILE_EXISTS)),)
+ ifneq ($(strip $(foreach filename, $(foreach shortname, $(LLVM_REQD_LIBS), lib$(shortname)$(LIB_EXT)), $(CHECK_FILE_EXISTS))),)
   TOOLSET_PATH := $(shell ls -d /opt/rh/llvm-toolset-*/root/usr/lib$(subst _,,$(subst x86,,$(ARCH))) | tail -n1)
   ifneq ($(TOOLSET_PATH),)
    LLVM_LIBRARY_PATH := $(TOOLSET_PATH)
