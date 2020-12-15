@@ -1237,8 +1237,13 @@ public:
       llvm::errs() << error_c.message() << error_h.message();
     }
 
+#if (__cplusplus >= 201402L)
+    return std::make_unique<KernelASTConsumer>(&CI, cache->outfile_c,
+                                                cache->outfile_h, file);
+#else
     return llvm::make_unique<KernelASTConsumer>(&CI, cache->outfile_c,
                                                 cache->outfile_h, file);
+#endif
   }
 
 private:

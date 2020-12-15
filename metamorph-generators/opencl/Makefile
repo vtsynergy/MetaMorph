@@ -22,9 +22,16 @@ CHECK_FILE_EXISTS = $(if $(shell test -e $(path)/$(filename)  && echo -n yes),,C
 
 #TODO In the long run these should be exposed to the user
 CXX := g++
-CXXFLAGS := -O2 -std=c++11 -fno-rtti
-
-
+CXXFLAGS := -O2 -fno-rtti
+ifeq ($(OS), ubuntu)
+ ifeq ($(shell expr $(VER) \>= 20.04), 1)
+  CXXFLAGS := $(CXXFLAGS) -std=c++14
+ else
+  CXXFLAGS := $(CXXFLAGS) -std=c++11
+ endif
+else
+ CXXFLAGS := $(CXXFLAGS) -std=c++11
+endif
 #Required header files
 LLVM_REQD_INCLUDES := llvm/Support/raw_ostream.h
 CLANG_REQD_INCLUDES := clang/AST/Attr.h \
@@ -109,6 +116,16 @@ LLVM_REQD_STATIC_LIBS := LLVMOption \
 	LLVMCore \
 	LLVMBinaryFormat \
 	LLVMProfileData
+ifeq ($(OS), ubuntu)
+ ifeq ($(shell expr $(VER) \>= 20.04), 1)
+#Technically these are LLVM-10 requirements, might need to eventually add LLVM/Clang version detection that is separate from OS
+  LLVM_REQD_STATIC_LIBS := $(LLVM_REQD_STATIC_LIBS) \
+	LLVMRemarks \
+	LLVMFrontendOpenMP \
+	LLVMBitstreamReader \
+	LLVMDemangle
+ endif
+endif
 CLANG_REQD_STATIC_LIBS := clangAST \
 	clangASTMatchers \
 	clangTooling \

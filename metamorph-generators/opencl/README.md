@@ -48,6 +48,7 @@ For building MetaCL
 
 For interface generation:
 * Clang >= 6.0 libraries (Tested with 6.0, 6.0.1, 7.0, 9.0.1 and 10.0) (IFF *not* compiled with `METACL_LINK_STATIC=true`)
+    * Note: In our testing, Clang 10 requires C++14 support and some additional LLVM libraries when linking statically
 * Clang OpenCL kernel builting header: `opencl-c.h` needed when invoking metaCL
 
 For compiling, linking, and executing program based on the auto-generated interface:
@@ -58,28 +59,27 @@ For compiling, linking, and executing program based on the auto-generated interf
 The following Linux distributions have been tested, and should be supported based on what's available in their standard package managers. No additional configuration should be necessary unless things have been placed in non-standard locations by your system administrator or by a module/collections manager.
 
 ### Debian
-#### 9
+#### 9 / 10
 Presuming the use of the apt package manger, the following are needed:
 * `build-essential`
 * `libclang-<version>-dev` (`7` was tested for the 0.3.1b release)
 * `llvm-<version>-dev` (must match the version of libclang used)
 * `zlib1g-dev`
-* `libncurses-dev`
+* `libncurses-dev` (in 10+, this is now correctly marked as a dependency of `llvm-7-dev` and should be installed automatically)
 
 ### Ubuntu
-#### 18.04
+#### 18.04, 20.04
 Presuming the use of the apt package manger, the following are needed:
 * `build-essential`
-* `libclang-<version>-dev` (`7` was tested for the 0.3.1b release)
+* `libclang-<version>-dev` (`7` on 18.04 and `10` on 20.04 were tested for the 0.3.1b release)
 * `llvm-<version>-dev` (must match the version of libclang used)
 * `zlib1g-dev`
-* `libncurses-dev`
+* `libncurses-dev` (in 20.04+, this is now correctly marked as a dependency of `llvm-10-dev` and should be installed automatically)`
 
 ### Centos
 #### 7
 Presuming the use of the yum package manager, the following are needed:
 * group "Development Tools"
-* `centos-release-scl`
 * `llvm-toolset-7.0-llvm-devel`
 * `llvm-toolset-7.0-clang-devel`
 
