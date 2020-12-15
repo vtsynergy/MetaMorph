@@ -132,12 +132,20 @@ CLANG_REQD_SHARED_LIBS := clang \
 	clangFrontend
 ifeq ($(OS), fedora) #On 31 at least
  CLANG_REQD_SHARED_LIBS := $(CLANG_REQD_SHARED_LIBS) \
-	 clangSerialization
+	clangSerialization
 endif
 #Choose static or shared libs
+#Debian apt packages only support static linking, their libclang.so is missing a ton of symbols
 ifdef METACL_LINK_STATIC
 METACL_LINK_STATIC := $(shell echo $(METACL_LINK_STATIC) | tr '[:upper:]' '[:lower:]')
+else
+ ifeq ($(OS), debian)
+  METACL_LINK_STATIC := true
+ else ifeq ($(OS), ubuntu)
+  METACL_LINK_STATIC := true
+ endif
 endif
+
 ifeq ($(METACL_LINK_STATIC), true)
  LLVM_REQD_LIBS := $(LLVM_REQD_STATIC_LIBS)
  CLANG_REQD_LIBS := $(CLANG_REQD_STATIC_LIBS)

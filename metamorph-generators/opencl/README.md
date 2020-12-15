@@ -40,25 +40,39 @@ Thanks to Clang's robust and efficient design, MetaCL is able to run in seconds,
 
 ## Dependencies
 
-For interface generation:
+For building MetaCL
 * make
 * GNU C Library (glibc)
 * GNU GCC compiler with support for C++11)
 * Clang >= 6.0 (Tested with 6.0, 6.0.1, 7.0, 9.0.1 and 10.0)
 
+For interface generation:
+* Clang >= 6.0 (Tested with 6.0, 6.0.1, 7.0, 9.0.1 and 10.0) (IFF *not* compiled with `METACL_LINK_STATIC=true`)
+
 For compiling, linking, and executing program based on the auto-generated interface:
-* MetaMorph (IFF `--use-metamorph` is set to `REQUIRED`, optional or unused with `OPTIONAL` or `DISABLED`, respectively)
+* MetaMorph (IFF `--use-metamorph` is set to `REQUIRED`, otherwise treated as optional or unused with `OPTIONAL` or `DISABLED`, respectively)
 * MetaMorph OpenCL-backend (IFF `--use-metamorph=REQUIRED`)
 * OpenCL headers, library, device(s)
 
 The following Linux distributions have been tested, and should be supported based on what's available in their standard package managers. No additional configuration should be necessary unless things have been placed in non-standard locations by your system administrator or by a module/collections manager.
+
 ### Debian
 #### 9
-TODO
+Presuming the use of the apt package manger, the following are needed:
+* `build-essential`
+* `libclang-<version>-dev` (`7` was tested for the 0.3.1b release)
+* `llvm-<version>-dev` (must match the version of libclang used)
+* `zlib1g-dev`
+* `libncurses-dev`
 
 ### Ubuntu
 #### 18.04
-TODO
+Presuming the use of the apt package manger, the following are needed:
+* `build-essential`
+* `libclang-<version>-dev` (`7` was tested for the 0.3.1b release)
+* `llvm-<version>-dev` (must match the version of libclang used)
+* `zlib1g-dev`
+* `libncurses-dev`
 
 ### Centos
 #### 7
