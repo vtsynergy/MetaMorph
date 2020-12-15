@@ -44,11 +44,11 @@ For building MetaCL
 * make
 * GNU C Library (glibc)
 * GNU GCC compiler with support for C++11)
-* Clang >= 6.0 (Tested with 6.0, 6.0.1, 7.0, 9.0.1 and 10.0)
+* Clang >= 6.0 (Tested with 6.0, 6.0.1, 7.0, 9.0.1, 10.0, and 11)
 
 For interface generation:
 * Clang >= 6.0 libraries (Tested with 6.0, 6.0.1, 7.0, 9.0.1 and 10.0) (IFF *not* compiled with `METACL_LINK_STATIC=true`)
-    * Note: In our testing, Clang 10 requires C++14 support and some additional LLVM libraries when linking statically
+    * Note: In our testing, Clang >=10 requires C++14 support and some additional LLVM libraries when linking statically, which should be automatically detected by the Makefile
 * Clang OpenCL kernel builting header: `opencl-c.h` needed when invoking metaCL
 
 For compiling, linking, and executing program based on the auto-generated interface:
@@ -59,13 +59,13 @@ For compiling, linking, and executing program based on the auto-generated interf
 The following Linux distributions have been tested, and should be supported based on what's available in their standard package managers. No additional configuration should be necessary unless things have been placed in non-standard locations by your system administrator or by a module/collections manager.
 
 ### Debian
-#### 9 / 10
+#### 9 / 10 / testing (11)
 Presuming the use of the apt package manger, the following are needed:
 * `build-essential`
-* `libclang-<version>-dev` (`7` was tested for the 0.3.1b release)
+* `libclang-<version>-dev` (`7` was tested for the 0.3.1b release on debian 9 and 10, `11` was tested for Debian testing)
 * `llvm-<version>-dev` (must match the version of libclang used)
 * `zlib1g-dev`
-* `libncurses-dev` (in 10+, this is now correctly marked as a dependency of `llvm-7-dev` and should be installed automatically)
+* `libncurses-dev` (in 10+, this is now correctly marked as a dependency of `llvm-dev` and should be installed automatically)
 
 ### Ubuntu
 #### 18.04, 20.04
@@ -74,7 +74,7 @@ Presuming the use of the apt package manger, the following are needed:
 * `libclang-<version>-dev` (`7` on 18.04 and `10` on 20.04 were tested for the 0.3.1b release)
 * `llvm-<version>-dev` (must match the version of libclang used)
 * `zlib1g-dev`
-* `libncurses-dev` (in 20.04+, this is now correctly marked as a dependency of `llvm-10-dev` and should be installed automatically)`
+* `libncurses-dev` (in 20.04+, this is now correctly marked as a dependency of `llvm-dev` and should be installed automatically)`
 
 ### Centos
 #### 7
@@ -85,8 +85,15 @@ Presuming the use of the yum package manager, the following are needed:
 
 Make should auto-detect the `/opt` directories the LLVM 7.0 Toolset packages are installed to. A Shared library build is the only option, as there are no Clang static libraries provided by the `llvm-toolset-7.0-llvm-static` package, nor is there an equivalent `clang-static` package.
 
+#### 8
+* group "Development Tools"
+* `llvm-devel` (Clang 10 tested)
+* `clang-devel` (Clang 10 tested)
+
+Make should auto-detect the headers and libraries in their standard `/usr` subdirectories. A Shared library build is the only option, as there are no Clang static libraries provided by the `llvm-static` package, nor is there an equivalent `clang-static` package.
+
 ### Fedora
-#### 31
+#### 31 /32
 Presuming the use of the yum package manager, the following are needed:
 * group "Development Tools"
 * `llvm-devel`
@@ -94,9 +101,13 @@ Presuming the use of the yum package manager, the following are needed:
 
 Make should auto-detect the headers and libraries in their standard `/usr` subdirectories. A Shared library build is the only option, as there are no Clang static libraries provided by the `llvm-static` package, nor is there an equivalent `clang-static` package.
 
-#### Other Linux / Clang+LLVM from source
-TODO
-		
+#### Other Linux / Alternative Clang+LLVM location(s)
+The following manual overrides must be set during `make`. (They will be respected for all the above distributions, but are *optional*)
+* `METACL_LINK_STATIC=**false**/true`: Whether to link against the static LLVM/Clang libraries or the shared. (Defaults to shared.)
+* `LLVM_INCLUDE_PATH`: Path to a directory containing the `llvm/Support/`, `llvm/Config/`, etc. header directories.
+* `LLVM_LIBRARY_PATH`: Path to a directory containing the `libLLVM.so/.a`, etc. libraries.
+* `CLANG_INCLUDE_PATH`: Path to a directory containing the `clang/Tooling/`, `clang/ASTMatchers/`, etc. header directories. (Does not need to be set if it's the same as `LLVM_INCLUDE_PATH`.)
+* `CLANG_LIBRARY_PATH`: Path to a directory containing the `libclang.so/.a`, etc. libraries. (Does not need to be set if it's the same as `LLVM_LIBRARY_PATH`.)
 		
 ##Installation
 
