@@ -68,7 +68,7 @@ Presuming the use of the apt package manger, the following are needed:
 * `libncurses-dev` (in 10+, this is now correctly marked as a dependency of `llvm-dev` and should be installed automatically)
 
 ### Ubuntu
-#### 18.04, 20.04
+#### 18.04 / 20.04
 Presuming the use of the apt package manger, the following are needed:
 * `build-essential`
 * `libclang-<version>-dev` (`7` on 18.04 and `10` on 20.04 were tested for the 0.3.1b release)
