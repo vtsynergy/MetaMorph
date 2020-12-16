@@ -134,11 +134,11 @@ MetaCL generates an enqueue call (`Task` or `NDRange` depending on kernel requir
 
 ## Replace existing global and local worksizes with MetaCL's dim3 types
 **REQUIRED**
-MetaCL kernel wrappers around NDRange kernels require the work dimensionality be set during invocation using the MetaMorph a_dim3 type, (an array of 3 size_t elements). Unused dimensions should be set to 1. If you wish to take advantage of OpenCL's automatic local sizing (i.e. a NULL localSize), simply set all three local dimensions to zero. If either size is NULL, then a single work group will be enqueued, using the size specified in either a `reqd_work_group_size` or `work_group_size_hint` attribute, or falling back to MetaMorph's compiled default 3D workgroup size.
+MetaCL kernel wrappers around NDRange kernels require the work dimensionality be set during invocation using the MetaMorph meta_dim3 type, (an array of 3 size_t elements). Unused dimensions should be set to 1. If you wish to take advantage of OpenCL's automatic local sizing (i.e. a NULL localSize), simply set all three local dimensions to zero. If either size is NULL, then a single work group will be enqueued, using the size specified in either a `reqd_work_group_size` or `work_group_size_hint` attribute, or falling back to MetaMorph's compiled default 3D workgroup size.
 
 If you have enabled the `cuda-grid-block` MetaCL option, then you should instead specify your worksizes using the the grid-of-blocks notation (i.e. "CUDA-style"), **not** the global/local notation. The grid dimensionality can easily be derived from the global and local size as below:
 ```C
-a_dim3 grid, block;
+meta_dim3 grid, block;
 block[0] = localSize[0]; block[1] = localSize[1]; block[2] = localSize[2];
 grid[0] = (globalSize[0]/localSize[0]) + (globalSize[0] % localSize[0] > 0) ? 1 : 0;
 grid[1] = (globalSize[1]/localSize[1]) + (globalSize[1] % localSize[1] > 0) ? 1 : 0;

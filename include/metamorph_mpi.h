@@ -90,9 +90,9 @@ typedef struct {
   /** The device staging buffer */
   void *dev_packed_buf;
   /** The grid size to use for the eventual unpacking kernel */
-  a_dim3 grid_size;
+  meta_dim3 grid_size;
   /** The block size to use for the eventual unpacking kernel */
-  a_dim3 block_size;
+  meta_dim3 block_size;
   /** The data type to use for the eventual unpacking kernel */
   meta_type_id type;
   /** The face to eventually unpack the buffer to */
@@ -276,7 +276,7 @@ void sap_helper(request_record *sap_request);
  * \param rank An address to return the rank in
  * \return the status of MPI_Comm_rank if MPI is not shut down yet, -1 otherwise
  */
-a_err metaMPIRank(int *rank);
+meta_err metaMPIRank(int *rank);
 /**
  * Get the MPI data type
  * \param type the MetaMorph type to re-interpret
@@ -345,7 +345,7 @@ void meta_mpi_packed_face_recv(int src_rank, void *packed_buf, size_t buf_leng,
  * pack kernel, device-to-host transfer, and process-to-process transfer), or
  * not
  */
-void meta_mpi_pack_and_send_face(a_dim3 *grid_size, a_dim3 *block_size,
+void meta_mpi_pack_and_send_face(meta_dim3 *grid_size, meta_dim3 *block_size,
                                  int dst_rank, meta_face *face, void *buf,
                                  void *packed_buf, int tag, MPI_Request *req,
                                  meta_type_id type, int async);
@@ -370,7 +370,7 @@ void meta_mpi_pack_and_send_face(a_dim3 *grid_size, a_dim3 *block_size,
  * \param async Whether the transfer should be performed asynchronously (and
  * process-to-process, and host-to-device), or not
  */
-void meta_mpi_recv_and_unpack_face(a_dim3 *grid_size, a_dim3 *block_size,
+void meta_mpi_recv_and_unpack_face(meta_dim3 *grid_size, meta_dim3 *block_size,
                                    int src_rank, meta_face *face, void *buf,
                                    void *packed_buf, int tag, MPI_Request *req,
                                    meta_type_id type, int async);

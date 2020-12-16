@@ -39,23 +39,23 @@ size_t g_typesize;
 //Sets the benchmark's global configuration for one of the supported data types
 void set_type(meta_type_id type) {
 	switch (type) {
-	case a_db:
+	case meta_db:
 		g_typesize = sizeof(double);
 		break;
 
-	case a_fl:
+	case meta_fl:
 		g_typesize = sizeof(float);
 		break;
 
-	case a_ul:
+	case meta_ul:
 		g_typesize = sizeof(unsigned long);
 		break;
 
-	case a_in:
+	case meta_in:
 		g_typesize = sizeof(int);
 		break;
 
-	case a_ui:
+	case meta_ui:
 		g_typesize = sizeof(unsigned int);
 		break;
 
@@ -104,7 +104,7 @@ void data_initialize(int ni, int nj, int nk) {
 	int i, j, k;
 	switch (g_type) {
 	default:
-	case a_db: {
+	case meta_db: {
 		double *l_data3 = (double *) data3;
 		for (i = ni - 1; i >= 0; i--) {
 			for (j = nj - 1; j >= 0; j--) {
@@ -122,7 +122,7 @@ void data_initialize(int ni, int nj, int nk) {
 	}
 		break;
 
-	case a_fl: {
+	case meta_fl: {
 		float *l_data3 = (float *) data3;
 		for (i = ni - 1; i >= 0; i--) {
 			for (j = nj - 1; j >= 0; j--) {
@@ -139,7 +139,7 @@ void data_initialize(int ni, int nj, int nk) {
 	}
 		break;
 
-	case a_ul: {
+	case meta_ul: {
 		unsigned long *l_data3 = (unsigned long *) data3;
 		for (i = ni - 1; i >= 0; i--) {
 			for (j = nj - 1; j >= 0; j--) {
@@ -156,7 +156,7 @@ void data_initialize(int ni, int nj, int nk) {
 	}
 		break;
 
-	case a_in: {
+	case meta_in: {
 		int *l_data3 = (int *) data3;
 		for (i = ni - 1; i >= 0; i--) {
 			for (j = nj - 1; j >= 0; j--) {
@@ -173,7 +173,7 @@ void data_initialize(int ni, int nj, int nk) {
 	}
 		break;
 
-	case a_ui: {
+	case meta_ui: {
 		unsigned int *l_data3 = (unsigned int *) data3;
 		for (i = ni - 1; i >= 0; i--) {
 			for (j = nj - 1; j >= 0; j--) {
@@ -219,7 +219,7 @@ int check_face_sum(void * sum, int a, int b, int c) {
 	printf("CHECK: %d %d %d\n", a, b, c);
 	int ret = 0;
 	switch (g_type) {
-	case a_db:
+	case meta_db:
 		if (SUM_FACE(a,b,c) != *(double *) sum) {
 			fprintf(stderr,
 					"Error: sum doesn't match!\n\tExpected: [%f]\t Returned: [%f]\n",
@@ -227,7 +227,7 @@ int check_face_sum(void * sum, int a, int b, int c) {
 			ret = -1;
 		}
 		break;
-	case a_fl:
+	case meta_fl:
 		if (SUM_FACE(a,b,c) != *(float *) sum) {
 			fprintf(stderr,
 					"Error: sum doesn't match!\n\tExpected: [%f]\t Returned: [%f]\n",
@@ -235,7 +235,7 @@ int check_face_sum(void * sum, int a, int b, int c) {
 			ret = -1;
 		}
 		break;
-	case a_ul:
+	case meta_ul:
 		if (SUM_FACE(a,b,c) != (float) (*(unsigned long *) sum)) {
 			fprintf(stderr,
 					"Error: sum doesn't match!\n\tExpected: [%f]\t Returned: [%lu]\n",
@@ -243,7 +243,7 @@ int check_face_sum(void * sum, int a, int b, int c) {
 			ret = -1;
 		}
 		break;
-	case a_in:
+	case meta_in:
 		if (SUM_FACE(a,b,c) != (float) (*(int *) sum)) {
 			fprintf(stderr,
 					"Error: sum doesn't match!\n\tExpected: [%f]\t Returned: [%d]\n",
@@ -251,7 +251,7 @@ int check_face_sum(void * sum, int a, int b, int c) {
 			ret = -1;
 		}
 		break;
-	case a_ui:
+	case meta_ui:
 		if (SUM_FACE(a,b,c) != (float) (*(unsigned int *) sum)) {
 			fprintf(stderr,
 					"Error: sum doesn't match!\n\tExpected: [%f]\t Returned: [%d]\n",
@@ -306,7 +306,7 @@ meta_face * make_face(int face, int ni, int nj, int nk) {
 	return make_slab2d_from_3d(face, ni, nj, nk, 1);
 }
 
-void check_dims(a_dim3 dim, a_dim3 s, a_dim3 e) {
+void check_dims(meta_dim3 dim, meta_dim3 s, meta_dim3 e) {
 	printf(
 			"Integrity check dim(%ld, %ld, %ld) start(%ld, %ld, %ld) end(%ld, %ld, %ld)\n",
 			dim[0], dim[1], dim[2], s[0], s[1], s[2], e[0], e[1], e[2]);
@@ -358,7 +358,7 @@ int main(int argc, char **argv) {
 	a_bool async, autoconfig;
 	meta_face * face_spec;
 
-	a_dim3 dimgrid_red, dimblock_red, dimgrid_tr_red, dimarray_3d, arr_start,
+	meta_dim3 dimgrid_red, dimblock_red, dimgrid_tr_red, dimarray_3d, arr_start,
 			arr_end, dim_array2d, start_2d, end_2d, trans_dim, rtrans_dim;
 	if (i < 11) {
 		printf(
@@ -392,23 +392,23 @@ int main(int argc, char **argv) {
 	sum_gpu = malloc(g_typesize);
 	zero = malloc(g_typesize);
 	switch (g_type) {
-	case a_db:
+	case meta_db:
 		*(double*) zero = 0;
 		break;
 
-	case a_fl:
+	case meta_fl:
 		*(float*) zero = 0;
 		break;
 
-	case a_ul:
+	case meta_ul:
 		*(unsigned long*) zero = 0;
 		break;
 
-	case a_in:
+	case meta_in:
 		*(int *) zero = 0;
 		break;
 
-	case a_ui:
+	case meta_ui:
 		*(unsigned int *) zero = 0;
 		break;
 	}
@@ -453,7 +453,7 @@ int main(int argc, char **argv) {
 			a_err ret = meta_reduce(autoconfig ? NULL : &dimgrid_red,
 					autoconfig ? NULL : &dimblock_red, dev_data3, &dimarray_3d,
 					&arr_start, &arr_end, reduction, g_type, async);
-			//a_dim3 testgrid, testblock;
+			//meta_dim3 testgrid, testblock;
 			//testgrid[0] = testgrid[1] = testgrid[2] = 1;
 			//testblock[0] = 16;
 			//testblock[1] = 8;
@@ -474,7 +474,7 @@ int main(int argc, char **argv) {
 									0)) ? "FAILED" : "PASSED");
 
 			//pack the face
-			//TODO set a_dim3 structs once the internal implementation respects them
+			//TODO set meta_dim3 structs once the internal implementation respects them
 			face_spec = make_face(face_id, ni, nj, nk);
 			ret = meta_pack_face(NULL, NULL, dev_face[face_id], dev_data3,
 					face_spec, g_type, async);
@@ -607,7 +607,7 @@ int main(int argc, char **argv) {
 // which means there's either a failure in the SP helper or the RP helper
 
 			//receive and unpack the face
-			//TODO set a_dim3 structs - i believe these are fine
+			//TODO set meta_dim3 structs - i believe these are fine
 			//TODO set the face_spec - believe these are fine
 			ret = meta_mpi_recv_and_unpack_face(
 					autoconfig ? NULL : &dimgrid_red,
@@ -709,7 +709,7 @@ int main(int argc, char **argv) {
 									0)) ? "FAILED" : "PASSED");
 
 			//unpack it, reduce/test the sum again
-			//TODO set a_dim3 structs - these should be fine until the lib respects user provided ones
+			//TODO set meta_dim3 structs - these should be fine until the lib respects user provided ones
 			ret = meta_unpack_face(autoconfig ? NULL : &dimgrid_red,
 					autoconfig ? NULL : &dimblock_red, dev_face[face_id],
 					dev_data3, face_spec, g_type, async);

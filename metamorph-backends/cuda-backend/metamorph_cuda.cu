@@ -4,8 +4,8 @@
 
 #include <stdio.h>
 
-#include "metamorph_dynamic_symbols.h"
 #include "metamorph_cuda.cuh"
+#include "metamorph_dynamic_symbols.h"
 
 /** Reuse the function pointers from the profiling plugin if it's found */
 extern struct profiling_dyn_ptrs profiling_symbols;
@@ -126,7 +126,8 @@ __device__ void block_reduction(T *psum, int tid, int len_) {
    }*/
 }
 
-/** This atomicAdd implementation is no longer needed and will cause errors on compute capability >= 6.x, so macro guard it */
+/** This atomicAdd implementation is no longer needed and will cause errors on
+ * compute capability >= 6.x, so macro guard it */
 /** Implementation of double atomicAdd from CUDA Programming Guide: Appendix
  * B.12.
  * \param address the read-write address
@@ -725,11 +726,13 @@ __global__ void kernel_stencil_3d7p_v4(const T * __restrict__ ind, T * __restric
 }
 #endif
 
-a_err metaCUDAAlloc(void **ptr, size_t size) { return cudaMalloc(ptr, size); }
-a_err metaCUDAFree(void *ptr) { return cudaFree(ptr); }
-a_err metaCUDAWrite(void *dst, void *src, size_t size, a_bool async,
-                    meta_callback *call, meta_event *ret_event) {
-  a_err ret = cudaSuccess;
+meta_err metaCUDAAlloc(void **ptr, size_t size) {
+  return cudaMalloc(ptr, size);
+}
+meta_err metaCUDAFree(void *ptr) { return cudaFree(ptr); }
+meta_err metaCUDAWrite(void *dst, void *src, size_t size, meta_bool async,
+                       meta_callback *call, meta_event *ret_event) {
+  meta_err ret = cudaSuccess;
   cudaEvent_t *events = NULL;
   if (ret_event != NULL && ret_event->mode == metaModePreferCUDA &&
       ret_event->event_pl != NULL) {
@@ -768,9 +771,9 @@ a_err metaCUDAWrite(void *dst, void *src, size_t size, a_bool async,
   // TODO if we do event copy, assign it back to the callbnack/ret_event here
   return ret;
 }
-a_err metaCUDARead(void *dst, void *src, size_t size, a_bool async,
-                   meta_callback *call, meta_event *ret_event) {
-  a_err ret = cudaSuccess;
+meta_err metaCUDARead(void *dst, void *src, size_t size, meta_bool async,
+                      meta_callback *call, meta_event *ret_event) {
+  meta_err ret = cudaSuccess;
   cudaEvent_t *events = NULL;
   if (ret_event != NULL && ret_event->mode == metaModePreferCUDA &&
       ret_event->event_pl != NULL) {
@@ -809,9 +812,9 @@ a_err metaCUDARead(void *dst, void *src, size_t size, a_bool async,
   // TODO if we do event copy, assign it back to the callbnack/ret_event here
   return ret;
 }
-a_err metaCUDADevCopy(void *dst, void *src, size_t size, a_bool async,
-                      meta_callback *call, meta_event *ret_event) {
-  a_err ret = cudaSuccess;
+meta_err metaCUDADevCopy(void *dst, void *src, size_t size, meta_bool async,
+                         meta_callback *call, meta_event *ret_event) {
+  meta_err ret = cudaSuccess;
   cudaEvent_t *events = NULL;
   if (ret_event != NULL && ret_event->mode == metaModePreferCUDA &&
       ret_event->event_pl != NULL) {
@@ -850,8 +853,8 @@ a_err metaCUDADevCopy(void *dst, void *src, size_t size, a_bool async,
   // TODO if we do event copy, assign it back to the callbnack/ret_event here
   return ret;
 }
-a_err metaCUDAInitByID(a_int accel) {
-  a_err ret = cudaSetDevice(accel);
+meta_err metaCUDAInitByID(meta_int accel) {
+  meta_err ret = cudaSetDevice(accel);
   // Because of how CUDA destructs stuff automatically, we need to force MM to
   // destruct before them (for profiling, any other forced flushes), which
   // requires registering it with atexit *after* CUDA does, and cudaSetDevice is
@@ -860,14 +863,14 @@ a_err metaCUDAInitByID(a_int accel) {
   atexit(meta_finalize);
   return ret;
 }
-a_err metaCUDACurrDev(a_int *accel) { return cudaGetDevice(accel); }
-a_err metaCUDAMaxWorkSizes(a_dim3 *grid, a_dim3 *block) {
+meta_err metaCUDACurrDev(meta_int *accel) { return cudaGetDevice(accel); }
+meta_err metaCUDAMaxWorkSizes(meta_dim3 *grid, meta_dim3 *block) {
   fprintf(stderr, "metaCUDAMaxWorkSizes unimplemented\n");
   return -1;
 }
-a_err metaCUDAFlush() { return cudaThreadSynchronize(); }
-a_err metaCUDACreateEvent(void **ret_event) {
-  a_err ret = cudaSuccess;
+meta_err metaCUDAFlush() { return cudaThreadSynchronize(); }
+meta_err metaCUDACreateEvent(void **ret_event) {
+  meta_err ret = cudaSuccess;
   if (ret_event != NULL) {
     *ret_event = malloc(sizeof(cudaEvent_t) * 2);
     ret = cudaEventCreate(&((cudaEvent_t *)(*ret_event))[0]);
@@ -877,8 +880,8 @@ a_err metaCUDACreateEvent(void **ret_event) {
   return ret;
 }
 
-a_err metaCUDADestroyEvent(void *event) {
-  a_err ret = cudaSuccess;
+meta_err metaCUDADestroyEvent(void *event) {
+  meta_err ret = cudaSuccess;
   if (event != NULL) {
     ret = cudaEventDestroy(((cudaEvent_t *)event)[0]);
     ret |= cudaEventDestroy(((cudaEvent_t *)event)[1]);
@@ -888,8 +891,8 @@ a_err metaCUDADestroyEvent(void *event) {
   return ret;
 }
 
-a_err metaCUDAEventElapsedTime(float *ret_ms, meta_event event) {
-  a_err ret = cudaSuccess;
+meta_err metaCUDAEventElapsedTime(float *ret_ms, meta_event event) {
+  meta_err ret = cudaSuccess;
   if (ret_ms != NULL && event.event_pl != NULL) {
     cudaEvent_t *events = (cudaEvent_t *)event.event_pl;
     ret = cudaEventElapsedTime(ret_ms, events[0], events[1]);
@@ -921,8 +924,8 @@ void CUDART_CB metaCUDACallbackHelper(cudaStream_t stream, cudaError_t status,
   (payload->callback_func)((meta_callback *)data);
 }
 
-a_err metaCUDAExpandCallback(meta_callback call, cudaStream_t *ret_stream,
-                             cudaError_t *ret_status, void **ret_data) {
+meta_err metaCUDAExpandCallback(meta_callback call, cudaStream_t *ret_stream,
+                                cudaError_t *ret_status, void **ret_data) {
   if (call.backend_status == NULL || ret_status == NULL || ret_data == NULL ||
       ret_stream == NULL)
     return cudaErrorInvalidValue;
@@ -931,8 +934,8 @@ a_err metaCUDAExpandCallback(meta_callback call, cudaStream_t *ret_stream,
   (*ret_data) = call.data_payload;
   return cudaSuccess;
 }
-a_err metaCUDARegisterCallback(meta_callback *call) {
-  a_err ret = cudaSuccess;
+meta_err metaCUDARegisterCallback(meta_callback *call) {
+  meta_err ret = cudaSuccess;
   if (call == NULL || call->callback_func == NULL || call->data_payload == NULL)
     ret = cudaErrorInvalidValue;
   else {
@@ -941,11 +944,12 @@ a_err metaCUDARegisterCallback(meta_callback *call) {
   return ret;
 }
 
-a_err cuda_dotProd(size_t (*grid_size)[3], size_t (*block_size)[3], void *data1,
-                   void *data2, size_t (*array_size)[3], size_t (*arr_start)[3],
-                   size_t (*arr_end)[3], void *reduced_val, meta_type_id type,
-                   int async, meta_callback *call, meta_event *ret_event) {
-  a_err ret = cudaSuccess;
+meta_err cuda_dotProd(size_t (*grid_size)[3], size_t (*block_size)[3],
+                      void *data1, void *data2, size_t (*array_size)[3],
+                      size_t (*arr_start)[3], size_t (*arr_end)[3],
+                      void *reduced_val, meta_type_id type, int async,
+                      meta_callback *call, meta_event *ret_event) {
+  meta_err ret = cudaSuccess;
   size_t smem_len;
   dim3 grid;
   dim3 block;
@@ -986,7 +990,7 @@ a_err cuda_dotProd(size_t (*grid_size)[3], size_t (*block_size)[3], void *data1,
     cudaEventRecord(events[0], 0);
   }
   switch (type) {
-  case a_db:
+  case meta_db:
     kernel_dotProd<double><<<grid, block, smem_len * sizeof(double)>>>(
         (double *)data1, (double *)data2, (*array_size)[0], (*array_size)[1],
         (*array_size)[2], (*arr_start)[0], (*arr_start)[1], (*arr_start)[2],
@@ -994,7 +998,7 @@ a_err cuda_dotProd(size_t (*grid_size)[3], size_t (*block_size)[3], void *data1,
         (double *)reduced_val, smem_len);
     break;
 
-  case a_fl:
+  case meta_fl:
     kernel_dotProd<float><<<grid, block, smem_len * sizeof(float)>>>(
         (float *)data1, (float *)data2, (*array_size)[0], (*array_size)[1],
         (*array_size)[2], (*arr_start)[0], (*arr_start)[1], (*arr_start)[2],
@@ -1002,7 +1006,7 @@ a_err cuda_dotProd(size_t (*grid_size)[3], size_t (*block_size)[3], void *data1,
         (float *)reduced_val, smem_len);
     break;
 
-  case a_ul:
+  case meta_ul:
     kernel_dotProd<unsigned long long>
         <<<grid, block, smem_len * sizeof(unsigned long long)>>>(
             (unsigned long long *)data1, (unsigned long long *)data2,
@@ -1012,7 +1016,7 @@ a_err cuda_dotProd(size_t (*grid_size)[3], size_t (*block_size)[3], void *data1,
             (unsigned long long *)reduced_val, smem_len);
     break;
 
-  case a_in:
+  case meta_in:
     kernel_dotProd<int><<<grid, block, smem_len * sizeof(int)>>>(
         (int *)data1, (int *)data2, (*array_size)[0], (*array_size)[1],
         (*array_size)[2], (*arr_start)[0], (*arr_start)[1], (*arr_start)[2],
@@ -1020,7 +1024,7 @@ a_err cuda_dotProd(size_t (*grid_size)[3], size_t (*block_size)[3], void *data1,
         smem_len);
     break;
 
-  case a_ui:
+  case meta_ui:
     kernel_dotProd<unsigned int>
         <<<grid, block, smem_len * sizeof(unsigned int)>>>(
             (unsigned int *)data1, (unsigned int *)data2, (*array_size)[0],
@@ -1051,11 +1055,12 @@ a_err cuda_dotProd(size_t (*grid_size)[3], size_t (*block_size)[3], void *data1,
   return (ret);
 }
 
-a_err cuda_reduce(size_t (*grid_size)[3], size_t (*block_size)[3], void *data,
-                  size_t (*array_size)[3], size_t (*arr_start)[3],
-                  size_t (*arr_end)[3], void *reduced_val, meta_type_id type,
-                  int async, meta_callback *call, meta_event *ret_event) {
-  a_err ret = cudaSuccess;
+meta_err cuda_reduce(size_t (*grid_size)[3], size_t (*block_size)[3],
+                     void *data, size_t (*array_size)[3],
+                     size_t (*arr_start)[3], size_t (*arr_end)[3],
+                     void *reduced_val, meta_type_id type, int async,
+                     meta_callback *call, meta_event *ret_event) {
+  meta_err ret = cudaSuccess;
   size_t smem_len;
   dim3 grid;
   dim3 block;
@@ -1097,7 +1102,7 @@ a_err cuda_reduce(size_t (*grid_size)[3], size_t (*block_size)[3], void *data,
   // printf("CUDA Config: grid(%d, %d, %d) block(%d, %d, %d) iters %d\n",
   // grid.x, grid.y, grid.z, block.x, block.y, block.z, iters);
   switch (type) {
-  case a_db:
+  case meta_db:
 
     kernel_reduction3<double><<<grid, block, smem_len * sizeof(double)>>>(
         (double *)data, (*array_size)[0], (*array_size)[1], (*array_size)[2],
@@ -1105,14 +1110,14 @@ a_err cuda_reduce(size_t (*grid_size)[3], size_t (*block_size)[3], void *data,
         (*arr_end)[1], (*arr_end)[2], iters, (double *)reduced_val, smem_len);
     break;
 
-  case a_fl:
+  case meta_fl:
     kernel_reduction3<float><<<grid, block, smem_len * sizeof(float)>>>(
         (float *)data, (*array_size)[0], (*array_size)[1], (*array_size)[2],
         (*arr_start)[0], (*arr_start)[1], (*arr_start)[2], (*arr_end)[0],
         (*arr_end)[1], (*arr_end)[2], iters, (float *)reduced_val, smem_len);
     break;
 
-  case a_ul:
+  case meta_ul:
     kernel_reduction3<unsigned long long>
         <<<grid, block, smem_len * sizeof(unsigned long long)>>>(
             (unsigned long long *)data, (*array_size)[0], (*array_size)[1],
@@ -1121,14 +1126,14 @@ a_err cuda_reduce(size_t (*grid_size)[3], size_t (*block_size)[3], void *data,
             (unsigned long long *)reduced_val, smem_len);
     break;
 
-  case a_in:
+  case meta_in:
     kernel_reduction3<int><<<grid, block, smem_len * sizeof(int)>>>(
         (int *)data, (*array_size)[0], (*array_size)[1], (*array_size)[2],
         (*arr_start)[0], (*arr_start)[1], (*arr_start)[2], (*arr_end)[0],
         (*arr_end)[1], (*arr_end)[2], iters, (int *)reduced_val, smem_len);
     break;
 
-  case a_ui:
+  case meta_ui:
     kernel_reduction3<unsigned int>
         <<<grid, block, smem_len * sizeof(unsigned int)>>>(
             (unsigned int *)data, (*array_size)[0], (*array_size)[1],
@@ -1159,12 +1164,12 @@ a_err cuda_reduce(size_t (*grid_size)[3], size_t (*block_size)[3], void *data,
   return (ret);
 }
 
-a_err cuda_transpose_face(size_t (*grid_size)[3], size_t (*block_size)[3],
-                          void *indata, void *outdata, size_t (*arr_dim_xy)[3],
-                          size_t (*tran_dim_xy)[3], meta_type_id type,
-                          int async, meta_callback *call,
-                          meta_event *ret_event) {
-  a_err ret = cudaSuccess;
+meta_err cuda_transpose_face(size_t (*grid_size)[3], size_t (*block_size)[3],
+                             void *indata, void *outdata,
+                             size_t (*arr_dim_xy)[3], size_t (*tran_dim_xy)[3],
+                             meta_type_id type, int async, meta_callback *call,
+                             meta_event *ret_event) {
+  meta_err ret = cudaSuccess;
   size_t smem_len;
   dim3 grid, block;
   /// \todo FIXME: make this smart enough to rescale the threadblock (and thus shared memory - e.g. bank conflicts) w.r. double vs. float
@@ -1202,32 +1207,32 @@ a_err cuda_transpose_face(size_t (*grid_size)[3], size_t (*block_size)[3],
     cudaEventRecord(events[0], 0);
   }
   switch (type) {
-  case a_db:
+  case meta_db:
     kernel_transpose_2d<double><<<grid, block, smem_len * sizeof(double)>>>(
         (double *)outdata, (double *)indata, (*arr_dim_xy)[0], (*arr_dim_xy)[1],
         (*tran_dim_xy)[0], (*tran_dim_xy)[1]);
     break;
 
-  case a_fl:
+  case meta_fl:
     kernel_transpose_2d<float><<<grid, block, smem_len * sizeof(float)>>>(
         (float *)outdata, (float *)indata, (*arr_dim_xy)[0], (*arr_dim_xy)[1],
         (*tran_dim_xy)[0], (*tran_dim_xy)[1]);
     break;
 
-  case a_ul:
+  case meta_ul:
     kernel_transpose_2d<unsigned long>
         <<<grid, block, smem_len * sizeof(unsigned long)>>>(
             (unsigned long *)outdata, (unsigned long *)indata, (*arr_dim_xy)[0],
             (*arr_dim_xy)[1], (*tran_dim_xy)[0], (*tran_dim_xy)[1]);
     break;
 
-  case a_in:
+  case meta_in:
     kernel_transpose_2d<int><<<grid, block, smem_len * sizeof(int)>>>(
         (int *)outdata, (int *)indata, (*arr_dim_xy)[0], (*arr_dim_xy)[1],
         (*tran_dim_xy)[0], (*tran_dim_xy)[1]);
     break;
 
-  case a_ui:
+  case meta_ui:
     kernel_transpose_2d<unsigned int>
         <<<grid, block, smem_len * sizeof(unsigned int)>>>(
             (unsigned int *)outdata, (unsigned int *)indata, (*arr_dim_xy)[0],
@@ -1255,13 +1260,13 @@ a_err cuda_transpose_face(size_t (*grid_size)[3], size_t (*block_size)[3],
   return (ret);
 }
 
-a_err cuda_pack_face(size_t (*grid_size)[3], size_t (*block_size)[3],
-                     void *packed_buf, void *buf, meta_face *face,
-                     int *remain_dim, meta_type_id type, int async,
-                     meta_callback *call, meta_event *ret_event_k1,
-                     meta_event *ret_event_c1, meta_event *ret_event_c2,
-                     meta_event *ret_event_c3) {
-  a_err ret = cudaSuccess;
+meta_err cuda_pack_face(size_t (*grid_size)[3], size_t (*block_size)[3],
+                        void *packed_buf, void *buf, meta_face *face,
+                        int *remain_dim, meta_type_id type, int async,
+                        meta_callback *call, meta_event *ret_event_k1,
+                        meta_event *ret_event_c1, meta_event *ret_event_c2,
+                        meta_event *ret_event_c3) {
+  meta_err ret = cudaSuccess;
   size_t smem_size;
   dim3 grid, block;
   //	dim3 grid = dim3((*grid_size)[0], (*grid_size)[1], 1);
@@ -1383,35 +1388,35 @@ a_err cuda_pack_face(size_t (*grid_size)[3], size_t (*block_size)[3],
     cudaEventRecord(events_k1[0], 0);
   }
   switch (type) {
-  case a_db:
+  case meta_db:
     kernel_pack<double><<<grid, block, smem_size>>>(
         (double *)packed_buf, (double *)buf,
         face->size[0] * face->size[1] * face->size[2], face->start,
         face->count);
     break;
 
-  case a_fl:
+  case meta_fl:
     kernel_pack<float><<<grid, block, smem_size>>>(
         (float *)packed_buf, (float *)buf,
         face->size[0] * face->size[1] * face->size[2], face->start,
         face->count);
     break;
 
-  case a_ul:
+  case meta_ul:
     kernel_pack<unsigned long><<<grid, block, smem_size>>>(
         (unsigned long *)packed_buf, (unsigned long *)buf,
         face->size[0] * face->size[1] * face->size[2], face->start,
         face->count);
     break;
 
-  case a_in:
+  case meta_in:
     kernel_pack<int><<<grid, block, smem_size>>>((int *)packed_buf, (int *)buf,
                                                  face->size[0] * face->size[1] *
                                                      face->size[2],
                                                  face->start, face->count);
     break;
 
-  case a_ui:
+  case meta_ui:
     kernel_pack<unsigned int><<<grid, block, smem_size>>>(
         (unsigned int *)packed_buf, (unsigned int *)buf,
         face->size[0] * face->size[1] * face->size[2], face->start,
@@ -1445,13 +1450,13 @@ a_err cuda_pack_face(size_t (*grid_size)[3], size_t (*block_size)[3],
   return (ret);
 }
 
-a_err cuda_unpack_face(size_t (*grid_size)[3], size_t (*block_size)[3],
-                       void *packed_buf, void *buf, meta_face *face,
-                       int *remain_dim, meta_type_id type, int async,
-                       meta_callback *call, meta_event *ret_event_k1,
-                       meta_event *ret_event_c1, meta_event *ret_event_c2,
-                       meta_event *ret_event_c3) {
-  a_err ret = cudaSuccess;
+meta_err cuda_unpack_face(size_t (*grid_size)[3], size_t (*block_size)[3],
+                          void *packed_buf, void *buf, meta_face *face,
+                          int *remain_dim, meta_type_id type, int async,
+                          meta_callback *call, meta_event *ret_event_k1,
+                          meta_event *ret_event_c1, meta_event *ret_event_c2,
+                          meta_event *ret_event_c3) {
+  meta_err ret = cudaSuccess;
   size_t smem_size;
   dim3 grid, block;
   // TODO: Update to actually use user-provided grid/block once
@@ -1579,35 +1584,35 @@ a_err cuda_unpack_face(size_t (*grid_size)[3], size_t (*block_size)[3],
     cudaEventRecord(events_k1[0], 0);
   }
   switch (type) {
-  case a_db:
+  case meta_db:
     kernel_unpack<double><<<grid, block, smem_size>>>(
         (double *)packed_buf, (double *)buf,
         face->size[0] * face->size[1] * face->size[2], face->start,
         face->count);
     break;
 
-  case a_fl:
+  case meta_fl:
     kernel_unpack<float><<<grid, block, smem_size>>>(
         (float *)packed_buf, (float *)buf,
         face->size[0] * face->size[1] * face->size[2], face->start,
         face->count);
     break;
 
-  case a_ul:
+  case meta_ul:
     kernel_unpack<unsigned long><<<grid, block, smem_size>>>(
         (unsigned long *)packed_buf, (unsigned long *)buf,
         face->size[0] * face->size[1] * face->size[2], face->start,
         face->count);
     break;
 
-  case a_in:
+  case meta_in:
     kernel_unpack<int><<<grid, block, smem_size>>>(
         (int *)packed_buf, (int *)buf,
         face->size[0] * face->size[1] * face->size[2], face->start,
         face->count);
     break;
 
-  case a_ui:
+  case meta_ui:
     kernel_unpack<unsigned int><<<grid, block, smem_size>>>(
         (unsigned int *)packed_buf, (unsigned int *)buf,
         face->size[0] * face->size[1] * face->size[2], face->start,
@@ -1642,12 +1647,12 @@ a_err cuda_unpack_face(size_t (*grid_size)[3], size_t (*block_size)[3],
   return (ret);
 }
 
-a_err cuda_stencil_3d7p(size_t (*grid_size)[3], size_t (*block_size)[3],
-                        void *indata, void *outdata, size_t (*array_size)[3],
-                        size_t (*arr_start)[3], size_t (*arr_end)[3],
-                        meta_type_id type, int async, meta_callback *call,
-                        meta_event *ret_event) {
-  a_err ret = cudaSuccess;
+meta_err cuda_stencil_3d7p(size_t (*grid_size)[3], size_t (*block_size)[3],
+                           void *indata, void *outdata, size_t (*array_size)[3],
+                           size_t (*arr_start)[3], size_t (*arr_end)[3],
+                           meta_type_id type, int async, meta_callback *call,
+                           meta_event *ret_event) {
+  meta_err ret = cudaSuccess;
   size_t smem_len;
   dim3 grid;
   dim3 block;
@@ -1689,21 +1694,21 @@ a_err cuda_stencil_3d7p(size_t (*grid_size)[3], size_t (*block_size)[3],
     cudaEventRecord(events[0], 0);
   }
   switch (type) {
-  case a_db:
+  case meta_db:
     kernel_stencil_3d7p<double><<<grid, block, smem_len * sizeof(double)>>>(
         (double *)indata, (double *)outdata, (*array_size)[0], (*array_size)[1],
         (*array_size)[2], (*arr_start)[0], (*arr_start)[1], (*arr_start)[2],
         (*arr_end)[0], (*arr_end)[1], (*arr_end)[2], iters, smem_len);
     break;
 
-  case a_fl:
+  case meta_fl:
     kernel_stencil_3d7p<float><<<grid, block, smem_len * sizeof(float)>>>(
         (float *)indata, (float *)outdata, (*array_size)[0], (*array_size)[1],
         (*array_size)[2], (*arr_start)[0], (*arr_start)[1], (*arr_start)[2],
         (*arr_end)[0], (*arr_end)[1], (*arr_end)[2], iters, smem_len);
     break;
 
-  case a_ul:
+  case meta_ul:
     kernel_stencil_3d7p<unsigned long long>
         <<<grid, block, smem_len * sizeof(unsigned long long)>>>(
             (unsigned long long *)indata, (unsigned long long *)outdata,
@@ -1712,14 +1717,14 @@ a_err cuda_stencil_3d7p(size_t (*grid_size)[3], size_t (*block_size)[3],
             (*arr_end)[1], (*arr_end)[2], iters, smem_len);
     break;
 
-  case a_in:
+  case meta_in:
     kernel_stencil_3d7p<int><<<grid, block, smem_len * sizeof(int)>>>(
         (int *)indata, (int *)outdata, (*array_size)[0], (*array_size)[1],
         (*array_size)[2], (*arr_start)[0], (*arr_start)[1], (*arr_start)[2],
         (*arr_end)[0], (*arr_end)[1], (*arr_end)[2], iters, smem_len);
     break;
 
-  case a_ui:
+  case meta_ui:
     kernel_stencil_3d7p<unsigned int>
         <<<grid, block, smem_len * sizeof(unsigned int)>>>(
             (unsigned int *)indata, (unsigned int *)outdata, (*array_size)[0],

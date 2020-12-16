@@ -27,7 +27,7 @@
 /** The OpenCL type corresponding to G_TYPE */
 #define CL_G_TYPE cl_double
 /** The MetaMorph type corresponding to G_TYPE */
-#define M_TYPE a_db
+#define M_TYPE meta_db
 /** The MPI type corresponding to G_TYPE */
 #define MPI_TYPE MPI_DOUBLE
 #elif defined(FLOAT)
@@ -36,7 +36,7 @@
 /** The OpenCL type corresponding to G_TYPE */
 #define CL_G_TYPE cl_float
 /** The MetaMorph type corresponding to G_TYPE */
-#define M_TYPE a_fl
+#define M_TYPE meta_fl
 /** The MPI type corresponding to G_TYPE */
 #define MPI_TYPE MPI_FLOAT
 #elif defined(UNSIGNED_LONG)
@@ -45,7 +45,7 @@
 /** The OpenCL type corresponding to G_TYPE */
 #define CL_G_TYPE cl_ulong
 /** The MetaMorph type corresponding to G_TYPE */
-#define M_TYPE a_ul
+#define M_TYPE meta_ul
 /** The MPI type corresponding to G_TYPE */
 #define MPI_TYPE MPI_UNSIGNED_LONG
 #elif defined(INTEGER)
@@ -54,7 +54,7 @@
 /** The OpenCL type corresponding to G_TYPE */
 #define CL_G_TYPE cl_int
 /** The MetaMorph type corresponding to G_TYPE */
-#define M_TYPE a_in
+#define M_TYPE meta_in
 /** The MPI type corresponding to G_TYPE */
 #define MPI_TYPE MPI_INT
 #elif defined(UNISGNED_INTEGER)
@@ -63,7 +63,7 @@
 /** The OpenCL type corresponding to G_TYPE */
 #define CL_G_TYPE cl_uint
 /** The MetaMorph type corresponding to G_TYPE */
-#define M_TYPE a_ui
+#define M_TYPE meta_ui
 /** The MPI type corresponding to G_TYPE */
 #define MPI_TYPE MPI_UNSIGNED
 #else
@@ -72,7 +72,7 @@
 /** The OpenCL type corresponding to G_TYPE */
 #define CL_G_TYPE cl_double
 /** The MetaMorph type corresponding to G_TYPE */
-#define M_TYPE a_db
+#define M_TYPE meta_db
 /** The MPI type corresponding to G_TYPE */
 #define MPI_TYPE MPI_DOUBLE
 #endif
@@ -115,15 +115,15 @@ G_TYPE global_sum;
 /** Reused error value */
 a_err err;
 /** Reused thread grid struct */
-a_dim3 grid;
+meta_dim3 grid;
 /** Reused thread block struct */
-a_dim3 block;
+meta_dim3 block;
 /** Size of the data arrays */
-a_dim3 array;
+meta_dim3 array;
 /** Start offsets in the data arrays */
-a_dim3 a_start;
+meta_dim3 a_start;
 /** End offsets in the data arrays */
-a_dim3 a_end;
+meta_dim3 a_end;
 
 /** Create two buffers of size (ni+1)*nj*nk */
 void data_allocate() {

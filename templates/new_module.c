@@ -92,7 +92,7 @@ void my_module_deinit() {
 }
 
 
-//The module must have a registration function that takes in a a_module_record * and returns an a_module_record *
+//The module must have a registration function that takes in a meta_module_record * and returns an meta_module_record *
 // (If multiple registrations (for different devices/backends/optimizations/etc) are eventually allowed, it may be changeable by other internal methods.
 // Regardless, this is the only function that tells MetaMorph-core this module exists)
 a_module_record * my_metamorph_module_registry(a_module_record * record) {
@@ -100,7 +100,7 @@ a_module_record * my_metamorph_module_registry(a_module_record * record) {
   if (record == NULL) return my_module_registration;
   //If the registry function receives a non-NULL pointer and is not already registered, we either register, re-register, or de-register depending on the current registration
   //TODO Eventually this will be required to be done thread-safely
-  a_module_record * old_registration = my_module_registration;
+  meta_module_record * old_registration = my_module_registration;
   //If the current record is NULL, for all intents and purposes this is the first time the module is registered
   if (old_registration == NULL) {
     my_module_registration = record; //Update our reference
@@ -134,7 +134,7 @@ a_module_record * my_metamorph_module_registry(a_module_record * record) {
 }
 
 //All functions in the module must support lazy registration (and thus initialization)
-void my_module_kernel_function_wrapper(a_dim3 grid, a_dim3 block) {
+void my_module_kernel_function_wrapper(meta_dim3 grid, meta_dim3 block) {
   //If the module isn't registered, ensure it is
   if (my_module_registration == NULL) meta_register_module(&my_metamorph_module_registry);
   //If somehow the module is registered but not initialized (which shouldn't be possible), initialize it

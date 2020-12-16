@@ -11,7 +11,7 @@ struct plugin_handles plugins = {NULL};
 struct profiling_dyn_ptrs profiling_symbols = {NULL};
 struct mpi_dyn_ptrs mpi_symbols = {NULL};
 // Globally-set capability flag
-a_module_implements_backend core_capability = module_uninitialized;
+meta_module_implements_backend core_capability = module_uninitialized;
 
 void meta_load_libs() {
   if (core_capability != module_uninitialized)

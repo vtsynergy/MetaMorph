@@ -28,7 +28,7 @@ G_TYPE r_val;
 G_TYPE global_sum;
 	a_err err;
 	void * dev_d3, *dev_d3_op,  *result, *dev_sendbuf, *dev_recvbuf;
-	a_dim3 grid, block, array, a_start, a_end, a_start2, a_end2;
+	meta_dim3 grid, block, array, a_start, a_end, a_start2, a_end2;
 void init(int rank, int comm_size) {
 	#ifdef WITH_CUDA
 	if (rank == 0) meta_set_acc(0, metaModePreferCUDA);
@@ -223,27 +223,27 @@ int main(int argc, char **argv) {
 	#if defined(DOUBLE)
 		#ifdef INTEROP
 		//set up async recv and unpack
-		err = meta_mpi_recv_and_unpack_face(autoconfig ? NULL : &grid, autoconfig ? NULL : &block, (rank+comm_sz-1)%comm_sz, recv_face, dev_d3, dev_recvbuf, ct, &request, a_db, 1);
+		err = meta_mpi_recv_and_unpack_face(autoconfig ? NULL : &grid, autoconfig ? NULL : &block, (rank+comm_sz-1)%comm_sz, recv_face, dev_d3, dev_recvbuf, ct, &request, meta_db, 1);
 		//pack and send
-		err = meta_mpi_pack_and_send_face(autoconfig ? NULL : &grid, autoconfig ? NULL : &block, (rank+1)%comm_sz, send_face, dev_d3, dev_sendbuf, ct, &request, a_db, 0);
+		err = meta_mpi_pack_and_send_face(autoconfig ? NULL : &grid, autoconfig ? NULL : &block, (rank+1)%comm_sz, send_face, dev_d3, dev_sendbuf, ct, &request, meta_db, 0);
 		#else
 		if(rank !=0 ) //my west neighbour is rank-1
-		err = meta_mpi_recv_and_unpack_face(autoconfig ? NULL : &grid, autoconfig ? NULL : &block, (rank-1), recv_face, dev_d3, dev_recvbuf, ct, &request, a_db, 1);
+		err = meta_mpi_recv_and_unpack_face(autoconfig ? NULL : &grid, autoconfig ? NULL : &block, (rank-1), recv_face, dev_d3, dev_recvbuf, ct, &request, meta_db, 1);
 
 		if(rank != comm_size-1 ) //my east neighbor is rank+1
-		err = meta_mpi_pack_and_send_face(autoconfig ? NULL : &grid, autoconfig ? NULL : &block, rank+1, send_face, dev_d3, dev_sendbuf, ct, &request, a_db, 0);
+		err = meta_mpi_pack_and_send_face(autoconfig ? NULL : &grid, autoconfig ? NULL : &block, rank+1, send_face, dev_d3, dev_sendbuf, ct, &request, meta_db, 0);
 		#endif
 	#elif defined(FLOAT)
 		#ifdef INTEROP
 		//set up async recv and unpack
-		err = meta_mpi_recv_and_unpack_face(autoconfig ? NULL : &grid, autoconfig ? NULL : &block, (rank+comm_sz-1)%comm_sz, recv_face, dev_d3, dev_recvbuf, ct, &request, a_fl, 1);
+		err = meta_mpi_recv_and_unpack_face(autoconfig ? NULL : &grid, autoconfig ? NULL : &block, (rank+comm_sz-1)%comm_sz, recv_face, dev_d3, dev_recvbuf, ct, &request, meta_fl, 1);
 		//pack and send
-		err = meta_mpi_pack_and_send_face(autoconfig ? NULL : &grid, autoconfig ? NULL : &block, (rank+1)%comm_sz, send_face, dev_d3, dev_sendbuf, ct, &request, a_fl, 0);
+		err = meta_mpi_pack_and_send_face(autoconfig ? NULL : &grid, autoconfig ? NULL : &block, (rank+1)%comm_sz, send_face, dev_d3, dev_sendbuf, ct, &request, meta_fl, 0);
 		#else
 		if(rank !=0 ) //my west neighbour is rank-1
-		err = meta_mpi_recv_and_unpack_face(autoconfig ? NULL : &grid, autoconfig ? NULL : &block, (rank+comm_sz-1)%comm_sz, recv_face, dev_d3, dev_recvbuf, ct, &request, a_fl, 1);
+		err = meta_mpi_recv_and_unpack_face(autoconfig ? NULL : &grid, autoconfig ? NULL : &block, (rank+comm_sz-1)%comm_sz, recv_face, dev_d3, dev_recvbuf, ct, &request, meta_fl, 1);
 		if(rank != comm_size-1 ) //my east neighbor is rank+1
-		err = meta_mpi_pack_and_send_face(autoconfig ? NULL : &grid, autoconfig ? NULL : &block, (rank+1)%comm_sz, send_face, dev_d3, dev_sendbuf, ct, &request, a_fl, 0);
+		err = meta_mpi_pack_and_send_face(autoconfig ? NULL : &grid, autoconfig ? NULL : &block, (rank+1)%comm_sz, send_face, dev_d3, dev_sendbuf, ct, &request, meta_fl, 0);
 		#endif
 	#else
 		#error Unsupported G_TYPE, must be double or float
@@ -258,18 +258,18 @@ int main(int argc, char **argv) {
 #endif	
 
 	#if defined(DOUBLE)
-	    meta_stencil_3d7p(autoconfig ? NULL: &grid, autoconfig ? NULL : &block, dev_d3, dev_d3_op, &array, &a_start, &a_end, a_db, false);
+	    meta_stencil_3d7p(autoconfig ? NULL: &grid, autoconfig ? NULL : &block, dev_d3, dev_d3_op, &array, &a_start, &a_end, meta_db, false);
 	    meta_copy_d2d(dev_d3, dev_d3_op, sizeof(G_TYPE)*(ni+2)*(nj+2)*(nk+2), false);
 	    meta_copy_h2d(result, &zero, sizeof(G_TYPE), true);
-		meta_reduce(autoconfig ? NULL: &grid, autoconfig ? NULL : &block, dev_d3, &array, &a_start2, &a_end2, result, a_db, true);
+		meta_reduce(autoconfig ? NULL: &grid, autoconfig ? NULL : &block, dev_d3, &array, &a_start2, &a_end2, result, meta_db, true);
 		meta_copy_d2h(&r_val, result, sizeof(G_TYPE), false);
 		//mpi reduce
 		MPI_Reduce(&r_val, &global_sum, 1, MPI_DOUBLE, MPI_SUM, 0, MPI_COMM_WORLD);
 	#elif defined(FLOAT)
-	    meta_stencil_3d7p(autoconfig ? NULL: &grid, autoconfig ? NULL : &block, dev_d3, dev_d3_op, &array, &a_start, &a_end, a_fl, false);
+	    meta_stencil_3d7p(autoconfig ? NULL: &grid, autoconfig ? NULL : &block, dev_d3, dev_d3_op, &array, &a_start, &a_end, meta_fl, false);
 	    meta_copy_d2d(dev_d3, dev_d3_op, sizeof(G_TYPE)*(ni+2)*(nj+2)*(nk+2), false);
 	    meta_copy_h2d(result, &zero, sizeof(G_TYPE), true);
-		meta_reduce(autoconfig ? NULL: &grid, autoconfig ? NULL : &block, dev_d3, &array, &a_start2, &a_end2, result, a_fl, true);
+		meta_reduce(autoconfig ? NULL: &grid, autoconfig ? NULL : &block, dev_d3, &array, &a_start2, &a_end2, result, meta_fl, true);
 		meta_copy_d2h(&r_val, result, sizeof(G_TYPE), true);
 		//mpi reduce
 		MPI_Reduce(&r_val, &global_sum, 1, MPI_FLOAT, MPI_SUM, 0, MPI_COMM_WORLD);

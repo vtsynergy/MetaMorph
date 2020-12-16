@@ -129,7 +129,7 @@ ifeq ($(OPENCL_SINGLE_KERNEL_PROGS),TRUE)
 endif
 
 libmetamorph_opencl.so:
-	g++ metamorph_opencl.cpp $(OPT_LVL) $(L_FLAGS) $(INCLUDES) -I$(OPENCL_INCL_DIR) -L$(OPENCL_LIB_DIR) -lOpenCL -o $(MM_LIB)/libmetamorph_opencl.so $(CL_DEFS) $(OPENCL_FLAGS) -shared -Wl,-soname,libmetamorph_opencl.so -DMETAMORPH_OCL_KERNEL_PATH=\"$(subst $(DESTDIR),,$(BASE_INSTALL_DIR)/$(INSTALL_LIB_RDIR)):$(MM_LIB):.\"
+	g++ metamorph_opencl.cpp $(OPT_LVL) $(L_FLAGS) -I . $(INCLUDES) -I$(OPENCL_INCL_DIR) -L$(OPENCL_LIB_DIR) -L $(MM_LIB) -lmetamorph -lOpenCL -o $(MM_LIB)/libmetamorph_opencl.so $(CL_DEFS) $(OPENCL_FLAGS) -shared -Wl,-soname,libmetamorph_opencl.so -DMETAMORPH_OCL_KERNEL_PATH=\"$(subst $(DESTDIR),,$(BASE_INSTALL_DIR)/$(INSTALL_LIB_RDIR)):$(MM_LIB):.\"
 
 libmetamorph_opencl_intelfpga.so: $(FPGA_DEPS)
 	g++ metamorph_opencl.cpp $(OPT_LVL) $(L_FLAGS) $(INCLUDES) $(FPGA_DEF) $(AOCL_COMPILE_CONFIG) $(FPGA_LIB) -I$(OPENCL_INCL_DIR) -L$(OPENCL_LIB_DIR) -lOpenCL -o $(MM_LIB)/libmetamorph_opencl_intelfpga.so -D __OPENCLCC__ $(OPENCL_FLAGS) -shared -Wl,-soname,libmetamorph_opencl_intelfpga.so -DMETAMORPH_OCL_KERNEL_PATH=\"$(shell pwd | sed 's/ /\\ /g'):$(MM_LIB):.\"

@@ -28,14 +28,14 @@ extern "C" {
  * \param size The number of bytes to allocate
  * \return -1 if the allocation failed, 0 if it succeeded
  */
-a_err metaOpenMPAlloc(void **ptr, size_t size);
+meta_err metaOpenMPAlloc(void **ptr, size_t size);
 /**
  * Wrapper function around free/_mm_free to release a MetaMorph-allocated OpenMP
  * buffer
  * \param ptr The buffer to release
  * \return always returns 0 (success)
  */
-a_err metaOpenMPFree(void *ptr);
+meta_err metaOpenMPFree(void *ptr);
 /**
  * A wrapper for a OpenMP host-to-device copy
  * \param dst The destination buffer, a buffer allocated in MetaMorph's
@@ -50,7 +50,7 @@ a_err metaOpenMPFree(void *ptr);
  * \return 0 on success
  * \todo FIXME implement OpenMP error codes
  */
-a_err metaOpenMPWrite(void *dst, void *src, size_t size, a_bool async,
+meta_err metaOpenMPWrite(void *dst, void *src, size_t size, meta_bool async,
                       meta_callback *call, meta_event *ret_event);
 /**
  * A wrapper for a OpenMP device-to-host copy
@@ -66,7 +66,7 @@ a_err metaOpenMPWrite(void *dst, void *src, size_t size, a_bool async,
  * \return 0 on success
  * \todo FIXME implement OpenMP error codes
  */
-a_err metaOpenMPRead(void *dst, void *src, size_t size, a_bool async,
+meta_err metaOpenMPRead(void *dst, void *src, size_t size, meta_bool async,
                      meta_callback *call, meta_event *ret_event);
 /**
  * A wrapper for a OpenMP device-to-device copy
@@ -83,7 +83,7 @@ a_err metaOpenMPRead(void *dst, void *src, size_t size, a_bool async,
  * \return 0 on success
  * \todo FIXME implement OpenMP error codes
  */
-a_err metaOpenMPDevCopy(void *dst, void *src, size_t size, a_bool async,
+meta_err metaOpenMPDevCopy(void *dst, void *src, size_t size, meta_bool async,
                         meta_callback *call, meta_event *ret_event);
 /**
  * Finish all outstanding OpenMP operations
@@ -91,7 +91,7 @@ a_err metaOpenMPDevCopy(void *dst, void *src, size_t size, a_bool async,
  * synchronously
  * \return 0 on success
  */
-a_err metaOpenMPFlush();
+meta_err metaOpenMPFlush();
 /**
  * Just a small wrapper around an openmpEvent allocator to keep the real
  * datatype exclusively inside the OpenMP backend
@@ -100,14 +100,14 @@ a_err metaOpenMPFlush();
  * \return 0 on success, -1 if the pointer is NULL
  * \todo FIXME Implement OpenMP error codes
  */
-a_err metaOpenMPCreateEvent(void **ret_event);
+meta_err metaOpenMPCreateEvent(void **ret_event);
 /**
  * Just a small wrapper around a openmpEvent destructor to keep the real
  * datatype exclusively inside the OpenMP backend
  * \param event The address of the openmpEvent[2] to destroy
  * \return 0 on success, -1 if the pointer is already NULL
  */
-a_err metaOpenMPDestroyEvent(void *event);
+meta_err metaOpenMPDestroyEvent(void *event);
 /**
  * A simple wrapper to get the elapsed time of a meta_event containing two
  * openmpEvents
@@ -117,7 +117,7 @@ a_err metaOpenMPDestroyEvent(void *event);
  * \return 0 on success, -1 of either the return pointer or the event payload is
  * NULL
  */
-a_err metaOpenMPEventElapsedTime(float *ret_ms, meta_event event);
+meta_err metaOpenMPEventElapsedTime(float *ret_ms, meta_event event);
 /**
  * Internal function to register a meta_callback with the OpenMP backend
  * \param call the meta_callback payload that should be invoked and filled when
@@ -125,7 +125,7 @@ a_err metaOpenMPEventElapsedTime(float *ret_ms, meta_event event);
  * \return 0 after returning from call
  * \bug \todo FIXME right now this doesn't register, it directly runs the function since callbacks are registered after running the kernel and all OpenMP kernels currently run synchronously
  */
-a_err metaOpenMPRegisterCallback(meta_callback *call);
+meta_err metaOpenMPRegisterCallback(meta_callback *call);
 
 /**
  * Dot-product of identically-shaped subregions of two identically-shaped 3D
@@ -148,7 +148,7 @@ a_err metaOpenMPRegisterCallback(meta_callback *call);
  * workgroups, assumed to be initialized before the kernel (an OpenMP buffer
  * residing on the currently-active device)
  * \param type The supported MetaMorph data type that data1, data2, and
- * reduced_val contain (Currently: a_db, a_fl, a_ul, a_in, a_ui)
+ * reduced_val contain (Currently: meta_db, meta_fl, meta_ul, meta_in, meta_ui)
  * \param async Whether the kernel should be run asynchronously or blocking
  * (Currently NOOP, all OpenMP operations run synchronously)
  * \param call Register a callback to be automatically invoked when the kernel
@@ -158,7 +158,7 @@ a_err metaOpenMPRegisterCallback(meta_callback *call);
  * \return 0 on success
  * \todo implement OpenMP error codes
  */
-a_err openmp_dotProd(size_t (*grid_size)[3], size_t (*block_size)[3],
+meta_err openmp_dotProd(size_t (*grid_size)[3], size_t (*block_size)[3],
                      void *data1, void *data2, size_t (*array_size)[3],
                      size_t (*arr_start)[3], size_t (*arr_end)[3],
                      void *reduction_var, meta_type_id type, int async,
@@ -182,7 +182,7 @@ a_err openmp_dotProd(size_t (*grid_size)[3], size_t (*block_size)[3],
  * workgroups, assumed to be initialized before the kernel (an OpenMP buffer
  * residing on the currently-active device)
  * \param type The supported MetaMorph data type that data1, data2, and
- * reduced_val contain (Currently: a_db, a_fl, a_ul, a_in, a_ui)
+ * reduced_val contain (Currently: meta_db, meta_fl, meta_ul, meta_in, meta_ui)
  * \param async Whether the kernel should be run asynchronously or blocking
  * (Currently NOOP, all OpenMP operations run synchronously)
  * \param call Register a callback to be automatically invoked when the kernel
@@ -192,7 +192,7 @@ a_err openmp_dotProd(size_t (*grid_size)[3], size_t (*block_size)[3],
  * \return 0 on success
  * \todo implement OpenMP error codes
  */
-a_err openmp_reduce(size_t (*grid_size)[3], size_t (*block_size)[3], void *data,
+meta_err openmp_reduce(size_t (*grid_size)[3], size_t (*block_size)[3], void *data,
                     size_t (*array_size)[3], size_t (*arr_start)[3],
                     size_t (*arr_end)[3], void *reduction_var,
                     meta_type_id type, int async, meta_callback *call,
@@ -218,7 +218,7 @@ a_err openmp_reduce(size_t (*grid_size)[3], size_t (*block_size)[3], void *data,
  * \return 0 on success
  * \todo implement OpenMP error codes
  */
-a_err openmp_transpose_face(size_t (*grid_size)[3], size_t (*block_size)[3],
+meta_err openmp_transpose_face(size_t (*grid_size)[3], size_t (*block_size)[3],
                             void *indata, void *outdata,
                             size_t (*arr_dim_xy)[3], size_t (*tran_dim_xy)[3],
                             meta_type_id type, int async, meta_callback *call,
@@ -259,7 +259,7 @@ a_err openmp_transpose_face(size_t (*grid_size)[3], size_t (*block_size)[3],
  * \warning Implemented as a 1D kernel, Y and Z grid/block parameters will be
  * ignored
  */
-a_err openmp_pack_face(size_t (*grid_size)[3], size_t (*block_size)[3],
+meta_err openmp_pack_face(size_t (*grid_size)[3], size_t (*block_size)[3],
                        void *packed_buf, void *buf, meta_face *face,
                        int *remain_dim, meta_type_id type, int async,
                        meta_callback *call, meta_event *ret_event_k1,
@@ -301,7 +301,7 @@ a_err openmp_pack_face(size_t (*grid_size)[3], size_t (*block_size)[3],
  * \warning Implemented as a 1D kernel, Y and Z grid/block parameters will be
  * ignored
  */
-a_err openmp_unpack_face(size_t (*grid_size)[3], size_t (*block_size)[3],
+meta_err openmp_unpack_face(size_t (*grid_size)[3], size_t (*block_size)[3],
                          void *packed_buf, void *buf, meta_face *face,
                          int *remain_dim, meta_type_id type, int async,
                          meta_callback *call, meta_event *ret_event_k1,
@@ -335,7 +335,7 @@ a_err openmp_unpack_face(size_t (*grid_size)[3], size_t (*block_size)[3],
  * \return 0 on success
  * \todo implement OpenMP error codes
  */
-a_err openmp_stencil_3d7p(size_t (*grid_size)[3], size_t (*block_size)[3],
+meta_err openmp_stencil_3d7p(size_t (*grid_size)[3], size_t (*block_size)[3],
                           void *indata, void *outdata, size_t (*array_size)[3],
                           size_t (*arr_start)[3], size_t (*arr_end)[3],
                           meta_type_id type, int async, meta_callback *call,

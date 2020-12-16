@@ -1416,28 +1416,28 @@ int omp_dotProd(size_t (*grid_size)[3], size_t (*block_size)[3], void *data1,
   // ignore grid_size, block_size, async
 
   switch (type) {
-  case a_db:
+  case meta_db:
     omp_dotProd_kernel_db((double *)data1, (double *)data2, array_size,
                           arr_start, arr_end, (double *)reduction_var);
     break;
 
-  case a_fl:
+  case meta_fl:
     omp_dotProd_kernel_fl((float *)data1, (float *)data2, array_size, arr_start,
                           arr_end, (float *)reduction_var);
     break;
 
-  case a_ul:
+  case meta_ul:
     omp_dotProd_kernel_ul((unsigned long *)data1, (unsigned long *)data2,
                           array_size, arr_start, arr_end,
                           (unsigned long *)reduction_var);
     break;
 
-  case a_in:
+  case meta_in:
     omp_dotProd_kernel_in((int *)data1, (int *)data2, array_size, arr_start,
                           arr_end, (int *)reduction_var);
     break;
 
-  case a_ui:
+  case meta_ui:
     omp_dotProd_kernel_ui((unsigned int *)data1, (unsigned int *)data2,
                           array_size, arr_start, arr_end,
                           (unsigned int *)reduction_var);
@@ -1462,27 +1462,27 @@ int omp_reduce(size_t (*grid_size)[3], size_t (*block_size)[3], void *data,
   // ignore grid_size, block_size, async
 
   switch (type) {
-  case a_db:
+  case meta_db:
     omp_reduce_kernel_db((double *)data, array_size, arr_start, arr_end,
                          (double *)reduction_var);
     break;
 
-  case a_fl:
+  case meta_fl:
     omp_reduce_kernel_fl((float *)data, array_size, arr_start, arr_end,
                          (float *)reduction_var);
     break;
 
-  case a_ul:
+  case meta_ul:
     omp_reduce_kernel_ul((unsigned long *)data, array_size, arr_start, arr_end,
                          (unsigned long *)reduction_var);
     break;
 
-  case a_in:
+  case meta_in:
     omp_reduce_kernel_in((int *)data, array_size, arr_start, arr_end,
                          (int *)reduction_var);
     break;
 
-  case a_ui:
+  case meta_ui:
     omp_reduce_kernel_ui((unsigned int *)data, array_size, arr_start, arr_end,
                          (unsigned int *)reduction_var);
     break;
@@ -1505,28 +1505,28 @@ int omp_transpose_face(size_t (*grid_size)[3], size_t (*block_size)[3],
   // ignore grid_size, block_size, async
 
   switch (type) {
-  case a_db:
+  case meta_db:
     omp_transpose_face_kernel_db((double *)indata, (double *)outdata,
                                  arr_dim_xy, tran_dim_xy);
     break;
 
-  case a_fl:
+  case meta_fl:
     omp_transpose_face_kernel_fl((float *)indata, (float *)outdata, arr_dim_xy,
                                  tran_dim_xy);
     break;
 
-  case a_ul:
+  case meta_ul:
     omp_transpose_face_kernel_ul((unsigned long *)indata,
                                  (unsigned long *)outdata, arr_dim_xy,
                                  tran_dim_xy);
     break;
 
-  case a_in:
+  case meta_in:
     omp_transpose_face_kernel_in((int *)indata, (int *)outdata, arr_dim_xy,
                                  tran_dim_xy);
     break;
 
-  case a_ui:
+  case meta_ui:
     omp_transpose_face_kernel_ui((unsigned int *)indata,
                                  (unsigned int *)outdata, arr_dim_xy,
                                  tran_dim_xy);
@@ -1549,26 +1549,26 @@ int omp_pack_face(size_t (*grid_size)[3], size_t (*block_size)[3],
   // ignore grid_size, BLOCK_size, async
 
   switch (type) {
-  case a_db:
+  case meta_db:
     omp_pack_face_kernel_db((double *)packed_buf, (double *)buf, face,
                             remain_dim);
     break;
 
-  case a_fl:
+  case meta_fl:
     omp_pack_face_kernel_fl((float *)packed_buf, (float *)buf, face,
                             remain_dim);
     break;
 
-  case a_ul:
+  case meta_ul:
     omp_pack_face_kernel_ul((unsigned long *)packed_buf, (unsigned long *)buf,
                             face, remain_dim);
     break;
 
-  case a_in:
+  case meta_in:
     omp_pack_face_kernel_in((int *)packed_buf, (int *)buf, face, remain_dim);
     break;
 
-  case a_ui:
+  case meta_ui:
     omp_pack_face_kernel_ui((unsigned int *)packed_buf, (unsigned int *)buf,
                             face, remain_dim);
     break;
@@ -1590,26 +1590,26 @@ int omp_unpack_face(size_t (*grid_size)[3], size_t (*block_size)[3],
   // ignore grid_size, BLOCK_size, async
 
   switch (type) {
-  case a_db:
+  case meta_db:
     omp_unpack_face_kernel_db((double *)packed_buf, (double *)buf, face,
                               remain_dim);
     break;
 
-  case a_fl:
+  case meta_fl:
     omp_unpack_face_kernel_fl((float *)packed_buf, (float *)buf, face,
                               remain_dim);
     break;
 
-  case a_ul:
+  case meta_ul:
     omp_unpack_face_kernel_ul((unsigned long *)packed_buf, (unsigned long *)buf,
                               face, remain_dim);
     break;
 
-  case a_in:
+  case meta_in:
     omp_unpack_face_kernel_in((int *)packed_buf, (int *)buf, face, remain_dim);
     break;
 
-  case a_ui:
+  case meta_ui:
     omp_unpack_face_kernel_ui((unsigned int *)packed_buf, (unsigned int *)buf,
                               face, remain_dim);
     break;
@@ -1632,28 +1632,28 @@ int omp_stencil_3d7p(size_t (*grid_size)[3], size_t (*block_size)[3],
   // ignore grid_size, block_size, async
 
   switch (type) {
-  case a_db:
+  case meta_db:
     omp_stencil_3d7p_kernel_db((double *)indata, (double *)outdata, array_size,
                                arr_start, arr_end);
     break;
 
-  case a_fl:
+  case meta_fl:
     omp_stencil_3d7p_kernel_fl((float *)indata, (float *)outdata, array_size,
                                arr_start, arr_end);
     break;
 
-  case a_ul:
+  case meta_ul:
     omp_stencil_3d7p_kernel_ul((unsigned long *)indata,
                                (unsigned long *)outdata, array_size, arr_start,
                                arr_end);
     break;
 
-  case a_in:
+  case meta_in:
     omp_stencil_3d7p_kernel_in((int *)indata, (int *)outdata, array_size,
                                arr_start, arr_end);
     break;
 
-  case a_ui:
+  case meta_ui:
     omp_stencil_3d7p_kernel_ui((unsigned int *)indata, (unsigned int *)outdata,
                                array_size, arr_start, arr_end);
     break;

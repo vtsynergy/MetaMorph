@@ -12,14 +12,14 @@
 metaTimerQueue metaBuiltinQueues[queue_count];
 /** Maintain a state variable that tells whether the profiling queues have been
  * initialized for use */
-a_bool __meta_timers_initialized = false;
+meta_bool __meta_timers_initialized = false;
 /** Must be aware of what backends are available */
 extern struct backend_handles backends;
 /** Must be aware of what plugins are available, currently only leverage MPI
  * rank information */
 extern struct plugin_handles plugins;
 /** Make sure we know what the core supports */
-extern a_module_implements_backend core_capability;
+extern meta_module_implements_backend core_capability;
 
 /**
  * Struct to hold CUDA wrapper function pointers that are only relevant to
@@ -28,7 +28,7 @@ extern a_module_implements_backend core_capability;
 struct cuda_dyn_ptrs_profiling {
   /** Dynamically-loaded pointer to the function to read the elapsed time of a
    * meta_event that contains two cudaEvent_ts */
-  a_err (*metaCUDAEventElapsedTime)(float *, meta_event);
+  meta_err (*metaCUDAEventElapsedTime)(float *, meta_event);
 };
 /** A global storage struct for profiling-specific functions from the CUDA
  * backend, if it is loaded */
@@ -40,10 +40,10 @@ struct cuda_dyn_ptrs_profiling cuda_timing_funcs = {NULL};
 struct opencl_dyn_ptrs_profiling {
   /** Dynamically-loaded pointer to the function to read the start time of a
    * meta_event containing a cl_event */
-  a_err (*metaOpenCLEventStartTime)(meta_event, unsigned long *);
+  meta_err (*metaOpenCLEventStartTime)(meta_event, unsigned long *);
   /** Dynamically-loaded pointer to the function to read the end time of a
    * meta_event containing a cl_event */
-  a_err (*metaOpenCLEventEndTime)(meta_event, unsigned long *);
+  meta_err (*metaOpenCLEventEndTime)(meta_event, unsigned long *);
 };
 /** A global storage struct for profiling-specific functions from the OpenCL
  * backend, if it is loaded */
@@ -55,7 +55,7 @@ struct opencl_dyn_ptrs_profiling opencl_timing_funcs = {NULL};
 struct openmp_dyn_ptrs_profiling {
   /** Dynamically-loaded pointer to the function to read the elapsed time of a
    * meta_event that contains two openmpEvents */
-  a_err (*metaOpenMPEventElapsedTime)(float *, meta_event);
+  meta_err (*metaOpenMPEventElapsedTime)(float *, meta_event);
 };
 /** A global storage struct for profiling-specific functions from the OpenMP
  * backend, if it is loaded */
@@ -67,7 +67,7 @@ struct openmp_dyn_ptrs_profiling openmp_timing_funcs = {NULL};
 struct mpi_dyn_ptrs_profiling {
   /** Dynamically-loaded pointer to the function to safely get the current
    * process' MPI Rank to add to profiling information */
-  a_err (*metaMPIRank)(int *);
+  meta_err (*metaMPIRank)(int *);
 };
 /** A global storage struct for profiling-specific functions from the MPI
  * plugin, if it is loaded */
@@ -76,8 +76,8 @@ struct mpi_dyn_ptrs_profiling mpi_timing_funcs = {NULL};
 #ifdef DEPRECATED
 // TODO Paul:Understand and condense this function, if possible, consider
 // renaming
-a_err cl_get_event_node(metaTimerQueue *queue, char *ename,
-                        metaTimerQueueFrame **frame) {
+meta_err cl_get_event_node(metaTimerQueue *queue, char *ename,
+                           metaTimerQueueFrame **frame) {
   printf("searching for event : %s\n", ename);
   metaTimerQueueNode *temp;
   metaTimerQueueNode *temp2;
@@ -153,9 +153,9 @@ a_err cl_get_event_node(metaTimerQueue *queue, char *ename,
 }
 #endif // DEPRECATED
 
-a_err metaProfilingCreateTimer(meta_timer **ret_timer, meta_preferred_mode mode,
-                               size_t size) {
-  a_err ret = 0;
+meta_err metaProfilingCreateTimer(meta_timer **ret_timer,
+                                  meta_preferred_mode mode, size_t size) {
+  meta_err ret = 0;
   if (ret_timer != NULL) {
 
     meta_timer *timer = (meta_timer *)calloc(1, sizeof(meta_timer));
@@ -168,9 +168,10 @@ a_err metaProfilingCreateTimer(meta_timer **ret_timer, meta_preferred_mode mode,
     ret = -1;
   return ret;
 }
-a_err metaProfilingEnqueueTimer(meta_timer timer,
-                                metaProfilingBuiltinQueueType type) {
-  // a_err metaTimerEnqueue(metaTimerQueueFrame * frame, metaTimerQueue * queue)
+meta_err metaProfilingEnqueueTimer(meta_timer timer,
+                                   metaProfilingBuiltinQueueType type) {
+  // meta_err metaTimerEnqueue(metaTimerQueueFrame * frame, metaTimerQueue *
+  // queue)
   // {
   if (!__meta_timers_initialized)
     metaTimersInit();
@@ -217,7 +218,7 @@ a_err metaProfilingEnqueueTimer(meta_timer timer,
  * \todo FIXME implement proper error codes
  * \todo Make Hazard aware
  */
-a_err metaTimerDequeue(meta_timer *ret_timer, metaTimerQueue *queue) {
+meta_err metaTimerDequeue(meta_timer *ret_timer, metaTimerQueue *queue) {
   if (!__meta_timers_initialized)
     metaTimersInit();
   // TODO add a check to make sure the caller actually allocated the frame
@@ -398,7 +399,7 @@ __attribute__((constructor(104))) void metaTimersInit() {
  * \todo FIXME needs to handle bad return codes
  */
 void flushWorker(metaTimerQueue *queue, int level) {
-  a_err ret;
+  meta_err ret;
   meta_timer *timer = (meta_timer *)malloc(sizeof(meta_timer));
   int val;
   unsigned long start, end, count = 0;
@@ -492,7 +493,7 @@ void flushWorker(metaTimerQueue *queue, int level) {
   printf("Profiling event time for %s = %f\n", queue->name, time);
 }
 
-a_err metaTimersFlush() {
+meta_err metaTimersFlush() {
   // Basically, just run through all the builtin queues,
   // dequeuing each element and tallying it up
   // This is where we need METAMORPH_TIMER_LEVEL
@@ -544,7 +545,7 @@ a_err metaTimersFlush() {
   return 0;
 }
 
-a_err metaTimersFinish() {
+meta_err metaTimersFinish() {
 
   // first, make sure everything is flushed.
   if (__meta_timers_initialized)

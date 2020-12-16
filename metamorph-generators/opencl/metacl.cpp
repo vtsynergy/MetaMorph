@@ -1,18 +1,25 @@
 /** \file
  *
  * \brief An OpenCL host-code boilerplate and interface generator
- * \copyright 2018-2019 Virginia Tech
+ * \copyright 2018-2021 Virginia Tech
  *
- * <a href="../../LICENSE">Please see license information in the main MetaMorph
- * repository</a>
+ *   This library is free software; you can redistribute it and/or modify it under the terms of the GNU Lesser General Public License as published by the Free Software Foundation; either version 2.1 of the License, or (at your option) any later version.
+ *
+ *   This library is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU Lesser General Public License for more details.
+
+ *   You should have received a copy of the GNU Lesser General Public License along with this library; if not, write to the Free Software Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA 02111-1307 USA 
+ *
+ * A copy of the current license terms may be obtained from https://github.com/vtsynergy/MetaMorph/blob/master/LICENSE
+ *
  *
  * MetaCL
  * A tool to consume OpenCL kernel files and produce MetaMorph-compatible
  * host-side wrappers for the contained kernels.
  *
- * ALPHA/Prototype software, no warranty expressed or implied.
+ * BETA/Prototype software, no warranty expressed or implied.
  *
  * \author Paul Sathre
+ * \author Atharva Gondhalekar
  *
  */
 
@@ -22,6 +29,16 @@
 #include "clang/Tooling/CommonOptionsParser.h"
 #include "clang/Tooling/Tooling.h"
 #include "llvm/Support/raw_ostream.h"
+
+/** Linked files to export directly */
+extern "C" const char _binary_metamorph_emulatable_h_start[];
+extern "C" const char _binary_metamorph_emulatable_h_end[];
+extern "C" const char _binary_metamorph_opencl_emulatable_h_start[];
+extern "C" const char _binary_metamorph_opencl_emulatable_h_end[];
+extern "C" const char _binary_metamorph_shim_c_start[];
+extern "C" const char _binary_metamorph_shim_c_end[];
+extern "C" const char _binary_shim_dynamic_h_start[];
+extern "C" const char _binary_shim_dynamic_h_end[];
 
 using namespace clang;
 using namespace clang::ast_matchers;
@@ -123,6 +140,40 @@ llvm::cl::opt<bool, false> OverwriteFiles(
                            /// false (try to replace a generated region of a
                            /// file, rather than the whole file)
     llvm::cl::cat(MetaCLCategory));
+/** The three support levels for MetaMorph, the historical default would be
+"required"
+ * Explicitly assigned to support binary logic */
+enum MetaMorphLevel {
+  metaMorphDisabled = 2,
+  metaMorphOptional = 3,
+  metaMorphRequired = 1
+};
+/** A command line option to instruct MetaCL on whether the output code should
+REQUIREi MetaMorph and the OpenCL backend, support it as an OPTIONAL plugin but
+provide a non-MetaMorph fallback, or DISABLE MetaMorph aentirely and only use
+the fallback.
+ * The historical behavior is equivalent to REQUIRED, but OPTIONAL will be the
+default going forward
+ * \return An Option that can be queried for the enum value corresponding to the level of MetaMorph support needed
+*/
+llvm::cl::opt<MetaMorphLevel> UseMetaMorph(
+    "use-metamorph", /// < The option's name
+    llvm::cl::desc(
+        "The level of MetaMorph integration in the output application."),
+    llvm::cl::values(
+        clEnumValN(
+            metaMorphDisabled, "DISABLED",
+            "Do not interoperate with MetaMorph at all, generate a shim that "
+            "emulates the necessary functionality instead."),
+        clEnumValN(
+            metaMorphOptional, "OPTIONAL",
+            "Default: Generate a shim file that can emulate the necessary "
+            "MetaMorph functionality, but will attempt to dynamically-load "
+            "MetaMorph and use it first, if available."),
+        clEnumValN(metaMorphRequired, "REQUIRED",
+                   "Former Default: Require that MetaMorph is present at "
+                   "runtime and use it for all necessary functionality.")),
+    llvm::cl::init(metaMorphOptional), llvm::cl::cat(MetaCLCategory));
 
 /** The unified-output .c file's buffer */
 raw_ostream *unified_output_c = NULL;
@@ -348,7 +399,11 @@ std::string importTypeDependencies(QualType type, ASTContext &Context,
                                        .getSingleStepDesugaredType(Context))
                   ->getDecl()
                   ->getTypedefNameForAnonDecl()
+#if (LLVM_VERSION_MAJOR < 11)
                   ->getName();
+#else
+                  ->getName().str();
+#endif
           // This first branch deals with a singular typedef that defines
           // multiple types pointing to the same anonymous struct, all but the
           // first will be generated as separate decls
@@ -760,7 +815,7 @@ void PrototypeHandler::run(const MatchFinder::MatchResult &Result) {
     }
 
     // Construct the kernel enqueue code
-    /// \todo FIXME Once we have a good way of dealing with explicitly-typed kernels re-add the meta_type_id parameter TODO add a a_typeless type to metamorph's type enum
+    /// \todo FIXME Once we have a good way of dealing with explicitly-typed kernels re-add the meta_type_id parameter TODO add a meta_typeless type to metamorph's type enum
     //    doxygen += "\\param type the MetaMorph type of the function\n";
     // Add typical sizing parameters to the launch parameter list
     std::string outerSizeName, innerSizeName;
@@ -774,7 +829,7 @@ void PrototypeHandler::run(const MatchFinder::MatchResult &Result) {
     } else {
       outerSizeName = "global_size", innerSizeName = "local_size";
       doxygenEnqueue += "\\param global_size a size_t[3] providing the global "
-                        "number of workitems in the X, Y, Z dimensions";
+                        "number of workitems in the X, Y, Z dimensions\n";
       doxygenEnqueue += "\\param local_size a size_t[3] providing the "
                         "workgroup size in the X, Y, Z dimensions";
     }
@@ -804,9 +859,10 @@ void PrototypeHandler::run(const MatchFinder::MatchResult &Result) {
 
     // Assemble the worksize checking code
     // Add pseudo auto-scaling safety code
-    sizeCheck += "  a_bool nullBlock = (" + innerSizeName + " != NULL && (*" +
-                 innerSizeName + ")[0] == 0 && (*" + innerSizeName +
-                 ")[1] == 0 && (*" + innerSizeName + ")[2] == 0);\n";
+    sizeCheck += "  meta_bool nullBlock = (" + innerSizeName +
+                 " != NULL && (*" + innerSizeName + ")[0] == 0 && (*" +
+                 innerSizeName + ")[1] == 0 && (*" + innerSizeName +
+                 ")[2] == 0);\n";
     sizeCheck += "  size_t _global_size[3];\n";
     if (work_group_size[3] == 0 && !singleWorkItem) {
       sizeCheck +=
@@ -1086,12 +1142,15 @@ public:
     cache->runOnceInit += "    __metacl_" + outFile + "_current_frame->" +
                           file + "_progLen = metaOpenCLLoadProgramSource(\"" +
                           file + ".aocx\", &__metacl_" + outFile +
-                          "_current_frame->" + file + "_progSrc);\n";
+                          "_current_frame->" + file + "_progSrc, &__metacl_" +
+                          outFile + "_current_frame->" + file + "_progDir);\n";
     cache->runOnceInit += "    if (__metacl_" + outFile + "_current_frame->" +
                           file + "_progLen != -1)\n";
     cache->runOnceInit +=
         "      __metacl_" + outFile + "_current_frame->" + file +
-        "_prog = clCreateProgramWithBinary(meta_context, 1, &meta_device, "
+        "_prog = clCreateProgramWithBinary(__metacl_" + outFile +
+        "_current_frame->context, 1, &__metacl_" + outFile +
+        "_current_frame->device, "
         "&__metacl_" +
         outFile + "_current_frame->" + file +
         "_progLen, (const unsigned char **)&__metacl_" + outFile +
@@ -1100,36 +1159,52 @@ public:
     cache->runOnceInit += "    __metacl_" + outFile + "_current_frame->" +
                           file + "_progLen = metaOpenCLLoadProgramSource(\"" +
                           file + ".cl\", &__metacl_" + outFile +
-                          "_current_frame->" + file + "_progSrc);\n";
+                          "_current_frame->" + file + "_progSrc, &__metacl_" +
+                          outFile + "_current_frame->" + file + "_progDir);\n";
     cache->runOnceInit += "    if (__metacl_" + outFile + "_current_frame->" +
                           file + "_progLen != -1)\n";
     cache->runOnceInit +=
         "      __metacl_" + outFile + "_current_frame->" + file +
-        "_prog = clCreateProgramWithSource(meta_context, 1, &__metacl_" +
-        outFile + "_current_frame->" + file + "_progSrc, &__metacl_" + outFile +
+        "_prog = clCreateProgramWithSource(__metacl_" + outFile +
+        "_current_frame->context, 1, &__metacl_" + outFile +
+        "_current_frame->" + file + "_progSrc, &__metacl_" + outFile +
         "_current_frame->" + file + "_progLen, &buildError);\n";
     cache->runOnceInit += "  }\n";
     cache->runOnceInit += "  if (__metacl_" + outFile + "_current_frame->" +
                           file + "_progLen != -1) {\n";
     cache->runOnceInit +=
         ERROR_CHECK("    ", "buildError", "OpenCL program creation error");
+    cache->runOnceInit +=
+        "    size_t args_sz = snprintf(NULL, 0, \"%s -I %s\", "
+        "__metacl_" +
+        file + "_custom_args ? __metacl_" + file +
+        "_custom_args : \"\", __metacl_" + outFile + "_current_frame->" + file +
+        "_progDir);\n";
+    cache->runOnceInit += "    char * build_args = (char*) calloc(args_sz + 1, "
+                          "sizeof(char));\n";
+    cache->runOnceInit += "    snprintf(build_args, args_sz + 1, \"%s -I %s\", "
+                          "__metacl_" +
+                          file + "_custom_args ? __metacl_" + file +
+                          "_custom_args : \"\", __metacl_" + outFile +
+                          "_current_frame->" + file + "_progDir);\n";
     cache->runOnceInit += "    buildError = clBuildProgram(__metacl_" +
                           outFile + "_current_frame->" + file +
-                          "_prog, 1, &meta_device, __metacl_" + file +
-                          "_custom_args ? __metacl_" + file +
-                          "_custom_args : \"\", NULL, NULL);\n";
+                          "_prog, 1, &__metacl_" + outFile +
+                          "_current_frame->device, build_args, NULL, NULL);\n";
+    cache->runOnceInit += "    free(build_args);\n";
     cache->runOnceInit += "    if (buildError != CL_SUCCESS) {\n";
     cache->runOnceInit += "      size_t logsize = 0;\n";
     cache->runOnceInit +=
         "      clGetProgramBuildInfo(__metacl_" + outFile + "_current_frame->" +
-        file +
-        "_prog, meta_device, CL_PROGRAM_BUILD_LOG, 0, NULL, &logsize);\n";
+        file + "_prog, __metacl_" + outFile +
+        "_current_frame->device, CL_PROGRAM_BUILD_LOG, 0, NULL, &logsize);\n";
     cache->runOnceInit += "      char * buildLog = (char *) "
                           "malloc(sizeof(char) * (logsize + 1));\n";
-    cache->runOnceInit +=
-        "      clGetProgramBuildInfo(__metacl_" + outFile + "_current_frame->" +
-        file +
-        "_prog, meta_device, CL_PROGRAM_BUILD_LOG, logsize, buildLog, NULL);\n";
+    cache->runOnceInit += "      clGetProgramBuildInfo(__metacl_" + outFile +
+                          "_current_frame->" + file + "_prog, __metacl_" +
+                          outFile +
+                          "_current_frame->device, CL_PROGRAM_BUILD_LOG, "
+                          "logsize, buildLog, NULL);\n";
     cache->runOnceInit +=
         ERROR_CHECK("      ", "buildError", "OpenCL program build error");
     cache->runOnceInit +=
@@ -1146,6 +1221,8 @@ public:
         ERROR_CHECK("      ", "releaseError", "OpenCL program release error");
     cache->runOnceDeinit += "      free((char *)__metacl_" + outFile +
                             "_current_frame->" + file + "_progSrc);\n";
+    cache->runOnceDeinit += "      free((char *)__metacl_" + outFile +
+                            "_current_frame->" + file + "_progDir);\n";
     cache->runOnceDeinit += "      __metacl_" + outFile + "_current_frame->" +
                             file + "_progLen = 0;\n";
     cache->runOnceDeinit += "      __metacl_" + outFile + "_current_frame->" +
@@ -1164,8 +1241,13 @@ public:
       llvm::errs() << error_c.message() << error_h.message();
     }
 
+#if (__cplusplus >= 201402L)
+    return std::make_unique<KernelASTConsumer>(&CI, cache->outfile_c,
+                                                cache->outfile_h, file);
+#else
     return llvm::make_unique<KernelASTConsumer>(&CI, cache->outfile_c,
                                                 cache->outfile_h, file);
+#endif
   }
 
 private:
@@ -1211,19 +1293,15 @@ int populateOutputFiles() {
       *out_c << "#include \"metamorph.h\"\n";
       *out_c << "#include \"metamorph_opencl.h\"\n";
       *out_c << "#include \"" + outFileName + ".h\"\n";
-      // Linker references for MetaMorph OpenCL variables (once per output)
-      *out_c << "extern cl_context meta_context;\n";
-      *out_c << "extern cl_command_queue meta_queue;\n";
-      *out_c << "extern cl_device_id meta_device;\n";
-    }
 
-    // Emit user-defined types in the header file
-    /// \todo TEST ensure we only get one copy of each in unified mode
-    // We use the fileCachePair output .h file as the key since we may be in
-    // unified mode but still want to get types from all input files
-    for (std::pair<QualType, std::string> t :
-         ImportedTypes[fileCachePair.second->outfile_h]) {
-      *out_h << t.second;
+      // Emit user-defined types in the header file
+      /// \todo TEST ensure we only get one copy of each in unified mode
+      // We use the fileCachePair output .h file as the key since we may be in
+      // unified mode but still want to get types from all input files
+      for (std::pair<QualType, std::string> t :
+           ImportedTypes[fileCachePair.second->outfile_h]) {
+        *out_h << t.second;
+      }
     }
 
     // Generate a space to place arguments (for each input file)
@@ -1265,6 +1343,7 @@ int populateOutputFiles() {
     /// \todo TODO support one-kernel-per-program convention?
     *out_h << "  const char * " << fileCachePair.first << "_progSrc;\n";
     *out_h << "  size_t " << fileCachePair.first << "_progLen;\n";
+    *out_h << "  const char * " << fileCachePair.first << "_progDir;\n";
     *out_h << "  cl_program " << fileCachePair.first << "_prog;\n";
     *out_h << "  cl_int " << fileCachePair.first << "_init;\n";
     // Add the kernel variables
@@ -1310,16 +1389,16 @@ int populateOutputFiles() {
       *out_h << "#ifdef __cplusplus\n";
       *out_h << "extern \"C\" {\n";
       *out_h << "#endif\n";
-      *out_h << "a_module_record * metacl_" << outFileName
-             << "_registry(a_module_record * record);\n";
-      *out_c << "a_module_record * metacl_" << outFileName
+      *out_h << "meta_module_record * metacl_" << outFileName
+             << "_registry(meta_module_record * record);\n";
+      *out_c << "meta_module_record * metacl_" << outFileName
              << "_registration = NULL;\n";
-      *out_c << "a_module_record * metacl_" << outFileName
-             << "_registry(a_module_record * record) {\n";
+      *out_c << "meta_module_record * metacl_" << outFileName
+             << "_registry(meta_module_record * record) {\n";
       *out_c << "  if (record == NULL) return metacl_" << outFileName
              << "_registration;\n";
-      *out_c << "  a_module_record * old_registration = metacl_" << outFileName
-             << "_registration;\n";
+      *out_c << "  meta_module_record * old_registration = metacl_"
+             << outFileName << "_registration;\n";
       *out_c << "  if (old_registration == NULL) {\n";
       *out_c << "    record->implements = module_implements_opencl;\n";
       *out_c << "    record->module_init = &metacl_" << outFileName
@@ -1346,8 +1425,6 @@ int populateOutputFiles() {
              << "_registry);\n";
       *out_c << "    return;\n";
       *out_c << "  }\n";
-      // Ensure a MetaMorph OpenCL state exists
-      *out_c << "  if (meta_context == NULL) metaOpenCLFallback();\n";
       // Ensure a program/kernel storage frame is initialized
       *out_c << "  struct __metacl_" << outFileName
              << "_frame * new_frame = (struct __metacl_" << outFileName
@@ -1355,9 +1432,15 @@ int populateOutputFiles() {
              << "_frame));\n";
       *out_c << "  new_frame->next_frame = __metacl_" << outFileName
              << "_current_frame;\n";
-      *out_c << "  new_frame->device = meta_device;\n";
-      *out_c << "  new_frame->queue = meta_queue;\n";
-      *out_c << "  new_frame->context = meta_context;\n";
+      // Fill in the new frame directly from MetaMorph, then make sure it exists
+      *out_c << "  meta_get_state_OpenCL(NULL, &new_frame->device, "
+                "&new_frame->context, &new_frame->queue);\n";
+      // Ensure a MetaMorph OpenCL state exists
+      *out_c << "  if (new_frame->context == NULL) {\n";
+      *out_c << "    metaOpenCLFallback();\n";
+      *out_c << "    meta_get_state_OpenCL(NULL, &new_frame->device, "
+                "&new_frame->context, &new_frame->queue);\n";
+      *out_c << "  }\n";
       *out_c << "  __metacl_" << outFileName << "_current_frame = new_frame;\n";
       *out_c << "  meta_cl_device_vendor vendor = "
                 "metaOpenCLDetectDevice(new_frame->device);\n";
@@ -1496,6 +1579,42 @@ int main(int argc, const char **argv) {
         UnifiedOutputFile.getValue() + ".c", error, llvm::sys::fs::F_None);
     unified_output_h = new llvm::raw_fd_ostream(
         UnifiedOutputFile.getValue() + ".h", error, llvm::sys::fs::F_None);
+  }
+  // If they want optional or disabled MetaMorph integration, create the headers
+  // and shim
+  if (UseMetaMorph.getValue() &
+      metaMorphDisabled) { // By explicitly assigning the enum like a
+                           // bitfield,both disabled and optional will evaluate
+                           // true
+    std::error_code error;
+    raw_ostream *metamorph_h =
+        new llvm::raw_fd_ostream("metamorph.h", error, llvm::sys::fs::F_None);
+    raw_ostream *metamorph_opencl_h = new llvm::raw_fd_ostream(
+        "metamorph_opencl.h", error, llvm::sys::fs::F_None);
+    raw_ostream *metamorph_shim_c = new llvm::raw_fd_ostream(
+        "metamorph_shim.c", error, llvm::sys::fs::F_None);
+    // If the support level is optional, inject the defines necessary to do the
+    // dynamic loading and binding
+    if (UseMetaMorph.getValue() == metaMorphOptional) {
+      // Do injection
+      metamorph_shim_c->write(_binary_shim_dynamic_h_start,
+                              _binary_shim_dynamic_h_end -
+                                  _binary_shim_dynamic_h_start);
+      *metamorph_shim_c << "\n";
+    }
+    // Add the raw text from the linked objects directly to the output streams
+    metamorph_h->write(_binary_metamorph_emulatable_h_start,
+                       _binary_metamorph_emulatable_h_end -
+                           _binary_metamorph_emulatable_h_start);
+    metamorph_opencl_h->write(_binary_metamorph_opencl_emulatable_h_start,
+                              _binary_metamorph_opencl_emulatable_h_end -
+                                  _binary_metamorph_opencl_emulatable_h_start);
+    metamorph_shim_c->write(_binary_metamorph_shim_c_start,
+                            _binary_metamorph_shim_c_end -
+                                _binary_metamorph_shim_c_start);
+    metamorph_h->flush();
+    metamorph_opencl_h->flush();
+    metamorph_shim_c->flush();
   }
   CompilationDatabase &CompDB = op.getCompilations();
   ClangTool Tool(CompDB, op.getSourcePathList());

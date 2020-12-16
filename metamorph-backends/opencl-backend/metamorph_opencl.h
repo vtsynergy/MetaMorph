@@ -2,27 +2,14 @@
  * Exposed OpenCL backend functions, defines, and data structures
  */
 
+#include <metamorph_opencl_emulatable.h>
+
 /** OpenCL Back-End **/
-#ifndef METAMORPH_OPENCL_BACKEND_H
-#define METAMORPH_OPENCL_BACKEND_H
+#ifndef METAMORPH_OPENCL_H
+#define METAMORPH_OPENCL_H
 
 #ifndef METAMORPH_H
-#include "../../include/metamorph.h"
-#endif
-
-#ifndef METAMORPH_OCL_DEFAULT_BLOCK_3D
-/** Default 3D workgroup dimension */
-#define METAMORPH_OCL_DEFAULT_BLOCK_3D                                         \
-  { 16, 8, 1 }
-#endif
-#ifndef METAMORPH_OCL_DEFAULT_BLOCK_2D
-/** Default 2D workgroup dimension */
-#define METAMORPH_OCL_DEFAULT_BLOCK_2D                                         \
-  { 16, 8 }
-#endif
-#ifndef METAMORPH_OCL_DEFAULT_BLOCK_1D
-/** Default 1D workgroup dimension */
-#define METAMORPH_OCL_DEFAULT_BLOCK_1D 16
+#include <metamorph.h>
 #endif
 
 #ifndef METAMORPH_OCL_KERNEL_PATH
@@ -42,25 +29,6 @@ extern "C" {
 extern cl_context meta_context;
 extern cl_command_queue meta_queue;
 extern cl_device_id meta_device;
-/** This is a simple enum to store important details about the type of device
- * and which vendor is providing the implementation Currently ontly used to
- * check for Altera/IntelFPGA at runtime to load .aocx files rather than .cl
- */
-typedef enum meta_cl_device_vendor {
-  meta_cl_device_vendor_unknown = 0,
-  meta_cl_device_vendor_nvidia = 1,
-  meta_cl_device_vendor_amd_appsdk = 2,
-  meta_cl_device_vendor_amd_rocm = 3,
-  meta_cl_device_vendor_intel = 4,
-  meta_cl_device_vendor_intelfpga = 5,
-  meta_cl_device_vendor_xilinx = 6,
-  meta_cl_device_vendor_pocl = 7,
-  meta_cl_device_vendor_mask = (1 << 8) - 1,
-  meta_cl_device_is_cpu = (1 << 8),
-  meta_cl_device_is_gpu = (1 << 9),
-  meta_cl_device_is_accel = (1 << 10),
-  meta_cl_device_is_default = (1 << 11)
-} meta_cl_device_vendor;
 
 /**
  * \brief The struct for managing an entire device/queue's OpenCL state
@@ -402,29 +370,6 @@ cl_int metaOpenCLDestroyStackFrame(metaOpenCLStackFrame *frame);
  */
 cl_int metaOpenCLInitStackFrameDefault(metaOpenCLStackFrame **frame);
 
-// Stub: make sure some device exists
-void metaOpenCLFallback();
-
-/**
- * \brief Load a specified OpenCL kernel implementation
- *
- * Attempts to load the OpenCL kernel implementation specified by filename with
- * a configurable search path. If the environment variable
- * METAMORPH_OCL_KERNEL_PATH is set (syntax like a regular path variable
- * \<dir1\>:\<dir2\>:...\<dirN\>), scan through those directories in order for
- * the specified filename. If not set or not found, then scan through the
- * compile-time configure directories. If still not found, emit a warning to
- * stderr and return a -1 program length
- * \param filename a pointer to a NULL-terminated string with the desired
- * filename
- * \warning the filename should be specified *without* any path information or
- * else it will be concatenated onto the search paths
- * \param progSrc The address of a character pointer in which to return the
- * address of the complete NULL-terminated string that is read in
- * \return The number of bytes read into progSrc, or -1 if the file is not found
- */
-size_t metaOpenCLLoadProgramSource(const char *filename, const char **progSrc);
-
 /**
  * Initialize all the builtin kernels for the current frame.
  * Separate from frame initialization to omit the cost for modules which do not
@@ -432,14 +377,6 @@ size_t metaOpenCLLoadProgramSource(const char *filename, const char **progSrc);
  * \return an OpenCL error code if anything went wrong, otherwise CL_SUCCESS
  */
 cl_int metaOpenCLInitCoreKernels();
-
-/**
- * Given a device, query the OpenCL API to detect the vendor and type of device
- * and store it in our representation
- * \param dev The device to query
- * \return The encoded device information
- */
-meta_cl_device_vendor metaOpenCLDetectDevice(cl_device_id dev);
 
 // Some OpenCL implementations (may) not provide the CL_CALLBACK convention
 #ifndef CL_CALLBACK
@@ -449,35 +386,30 @@ meta_cl_device_vendor metaOpenCLDetectDevice(cl_device_id dev);
     // Note that they are really only meant to support the dynamic backend
     // loading, users should either use the API-agnositic top-level version, or
     // the runtime-specific, not these shims
-    a_err metaOpenCLAlloc(void **ptr, size_t size);
-a_err metaOpenCLFree(void *prt);
-a_err metaOpenCLWrite(void *dst, void *src, size_t size, a_bool async,
-                      meta_callback *call, meta_event *ret_event);
-a_err metaOpenCLRead(void *dst, void *src, size_t size, a_bool async,
-                     meta_callback *call, meta_event *ret_event);
-a_err metaOpenCLDevCopy(void *dst, void *src, size_t size, a_bool async,
+    meta_err metaOpenCLAlloc(void **ptr, size_t size);
+meta_err metaOpenCLFree(void *prt);
+meta_err metaOpenCLWrite(void *dst, void *src, size_t size, meta_bool async,
+                         meta_callback *call, meta_event *ret_event);
+meta_err metaOpenCLRead(void *dst, void *src, size_t size, meta_bool async,
                         meta_callback *call, meta_event *ret_event);
-a_err metaOpenCLInitByID(a_int id);
-a_err metaOpenCLCurrDev(a_int *id);
-a_err metaOpenCLMaxWorkSizes(a_dim3 *work_groups, a_dim3 *work_items);
-a_err metaOpenCLFlush();
-a_err metaOpenCLCreateEvent(void **);
+meta_err metaOpenCLDevCopy(void *dst, void *src, size_t size, meta_bool async,
+                           meta_callback *call, meta_event *ret_event);
+meta_err metaOpenCLInitByID(meta_int id);
+meta_err metaOpenCLCurrDev(meta_int *id);
+meta_err metaOpenCLMaxWorkSizes(meta_dim3 *work_groups, meta_dim3 *work_items);
+meta_err metaOpenCLFlush();
+meta_err metaOpenCLCreateEvent(void **);
 // timing function wrappers
-a_err metaOpenCLEventStartTime(meta_event event, unsigned long *ret_time);
-a_err metaOpenCLEventEndTime(meta_event event, unsigned long *ret_time);
-a_err metaOpenCLRegisterCallback(meta_event *, meta_callback *);
+meta_err metaOpenCLEventStartTime(meta_event event, unsigned long *ret_time);
+meta_err metaOpenCLEventEndTime(meta_event event, unsigned long *ret_time);
+meta_err metaOpenCLRegisterCallback(meta_event *, meta_callback *);
 // Might not expose this since it presumes the payload is a meta_callback
 void CL_CALLBACK metaOpenCLCallbackHelper(cl_event, cl_int, void *);
-a_err metaOpenCLExpandCallback(meta_callback, cl_event *, cl_int *, void **);
-// share meta_context with with existing software
-a_int meta_get_state_OpenCL(cl_platform_id *platform, cl_device_id *device,
-                            cl_context *context, cl_command_queue *queue);
-a_int meta_set_state_OpenCL(cl_platform_id platform, cl_device_id device,
-                            cl_context context, cl_command_queue queue);
+meta_err metaOpenCLExpandCallback(meta_callback, cl_event *, cl_int *, void **);
 
 #ifdef DEPRECATED
 // getting a pointer to specific event
-a_err meta_get_event(char *qname, char *ename, cl_event **e);
+meta_err meta_get_event(char *qname, char *ename, cl_event **e);
 #endif // DEPRECATED
 
 /**
@@ -500,7 +432,7 @@ a_err meta_get_event(char *qname, char *ename, cl_event **e);
  * workgroups, assumed to be initialized before the kernel (a cl_mem residing on
  * the currently-active context)
  * \param type The supported MetaMorph data type that data1, data2, and
- * reduced_val contain (Currently: a_db, a_fl, a_ul, a_in, a_ui)
+ * reduced_val contain (Currently: meta_db, meta_fl, meta_ul, meta_in, meta_ui)
  * \param async Whether the kernel should be run asynchronously or blocking
  * \param call Register a callback to be automatically invoked when the kernel
  * finishes, or NULL if none
@@ -534,7 +466,7 @@ cl_int opencl_dotProd(size_t (*grid_size)[3], size_t (*block_size)[3],
  * workgroups, assumed to be initialized before the kernel (a cl_mem residing on
  * the currently-active context)
  * \param type The supported MetaMorph data type that data1, data2, and
- * reduced_val contain (Currently: a_db, a_fl, a_ul, a_in, a_ui)
+ * reduced_val contain (Currently: meta_db, meta_fl, meta_ul, meta_in, meta_ui)
  * \param async Whether the kernel should be run asynchronously or blocking
  * \param call Register a callback to be automatically invoked when the kernel
  * finishes, or NULL if none
@@ -704,7 +636,7 @@ cl_int opencl_stencil_3d7p(size_t (*grid_size)[3], size_t (*block_size)[3],
  * \param x_loc The input vector to multiply A by
  * \param y_loc The output vector to sum into
  * \param type The supported MetaMorph data type that data1, data2, and
- * reduced_val contain (Currently: a_db, a_fl, a_ul, a_in, a_ui)
+ * reduced_val contain (Currently: meta_db, meta_fl, meta_ul, meta_in, meta_ui)
  * \param async Whether the kernel should be run asynchronously or blocking
  * \param call Register a callback to be automatically invoked when the kernel
  * finishes, or NULL if none
@@ -727,7 +659,7 @@ cl_int opencl_csr(size_t (*grid_size)[3], size_t (*block_size)[3],
  * \param numpages TODO
  * \param dev_output The result
  * \param type The supported MetaMorph data type that dev_input contains
- * (Currently: a_db, a_fl, a_ul, a_in, a_ui)
+ * (Currently: meta_db, meta_fl, meta_ul, meta_in, meta_ui)
  * \param async Whether the kernel should be run asynchronously or blocking
  * \param call Register a callback to be automatically invoked when the kernel
  * finishes, or NULL if none
@@ -753,4 +685,4 @@ cl_int opencl_crc(void *dev_input, int page_size, int num_words, int numpages,
 }
 #endif
 
-#endif // METAMORPH_OPENCL_BACKEND_H
+#endif // METAMORPH_OPENCL_H

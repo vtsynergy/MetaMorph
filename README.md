@@ -1,6 +1,8 @@
-# MetaMorph Beta Release (0.2b)
+# MetaMorph Beta Release (0.3b)
 
-This is the second public beta release of our library framework for interoperable kernels on multi- and many-core Clusters, namely MetaMorph. This release introduces the new OpenCL generator "MetaCL", which given a set of OpenCL kernel implementation files will automatically produce a MetaMorph-compatible simplified host wrapper API. This API abstracts the vast majority of OpenCL program and kernel management boilerplate, and in many cases offers a significant productivity boost to host programming at low runtime cost. For additional information see the [MetaCL Readme](./metamorph-generators/opencl/README.md).
+This is the third public beta release of our library framework for interoperable kernels on multi- and many-core Clusters, namely MetaMorph. This release refactors the internal library interaction model to a plugin-based architecture. This refactoring is designed to further support modular installs and allow individual binary packages to be leveraged without build-time knowledge of the available backends. User code may still enforce a hard dependency on a specific backend, but applications using only the core API should now be able to execute on any machine that has at least one backend installed.
+
+The prior release (v0.2b) provided the new OpenCL generator "MetaCL", which given a set of OpenCL kernel implementation files will automatically produce a MetaMorph-compatible simplified host wrapper API. This API abstracts the vast majority of OpenCL program and kernel management boilerplate, and in many cases offers a significant productivity boost to host programming at low runtime cost. For additional information see the [MetaCL Readme](./metamorph-generators/opencl/README.md).
 
 Since this release is a work-in-progress academic prototype, you may to face issues. Should you encounter any, please open a GitHub issue with details of your environnment and a minimal working example. MetaMorph will incorporate additional HPC kernels (e.g. sorting, dynamic programming, n-body) and run-time services developed by the Synergy Laboratory @ Virginia Tech (http://synergy.cs.vt.edu/). Email the authors for more details. 
 
@@ -29,11 +31,14 @@ Contact Email:
 
 ## News & Updates
 
-Jan 15, 2020: Version 0.2b
+Jun 10, 2020: Version 0.3b: Plugin-based dynamically loaded refactoring
+Jan 15, 2020: Version 0.2b: Introduction of the MetaCL: OpenCL Kernel Interface Autogenerator
 Nov 12, 2016: Version 0.1b
 
 
 ## Publications
+
+* "MetaCL: Automated 'Meta' OpenCL Code Generation for High-Level Synthesis on FPGA." Paul Sathre, Atharva Gondhalekar, Mohamed Hassan, Wu-chun Feng. In Proceedings of the 24th Annual IEEE High Performance Extreme Computing Conference (HPEC '20), Waltham, Massachusetts, USA, September 2020. 
 
 * “MetaMorph: A Library Framework for Interoperable Kernels on Multi- and Many-core Clusters.“ Ahmed E. Helal, Paul Sathre, Wu-chun Feng. In Proceedings of the IEEE/ACM International Conference for High Performance Computing, Networking, Storage and Analysis (SC|16), Salt Lake City, Utah, USA, November 2016.
 
@@ -77,16 +82,46 @@ MetaMorph implements the offload/accelerator computation model, in which data is
 	OpenCL-backend
 		GNU GCC compiler (tested with gcc 4.5, 4.7.2, 4.8.2 and 4.9.2)
 		OpenCL libs
+		
+	MetaCL
+		Clang and libClang >= 6.0 (static libraries)
+		
+		
+## Installation
+
+We recommend the use of pre-installed packages, which can be found at: https://vtsynergy.github.io/packages/. We will endeavour to keep this updated with major releases, as time allows. However, to leverage the newest features and bugfixes, a traditional make from this repository is also supported.
+
+Configuration is managed through the use of command-line Make variables. The Makefile will attempt to locate packages and tools necessary to build the relevant backends and automatically configure itself. `make all` and `make install` will use this auto-configuration. The following overrides are available to assist with configuration:
+
+* `DESTDIR` The root directory that `install` targets should place finished libraries, headers, and binaries into. By default assumed to be `/`, but can be placed in user-space for non-sudo installations
+* `USE_OPENMP=<TRUE/FALSE>` Explicitly enable or disable building the OpenMP backend
+* `USE_OPENCL=<TRUE/FALSE>` Explicitly enable or disable building the OpenCL backend
+* `OPENCL_LIB_DIR` The path to the libraries of an OpenCL installation, i.e. where `$(OPENCL_LIB_DIR)/libOpenCL.so` is located
+* `OPENCL_INCL_DIR` The path to the headers of an OpenCL installation, i.e. where `$(OPENCL_INCL_DIR)/CL/opencl.h` is located
+* `USE_CUDA=<TRUE/FALSE>` Explicitly enable or disable building the CUDA backend
+* `CUDA_LIB_DIR` The path to the root of a CUDA installation i.e. where `$(CUDA_LIB_DIR)/libcudart.so` and `$(CUDA_LIB_DIR)))/../bin/nvcc` are located
+* `USE_MPI=<TRUE/FALSE>` Explicitly enable or disable building the MPI Plugin
+* `MPI_DIR` The path to the root of an MPI installation, which provides MPI C compiler, i.e. where `$(MPI_DIR)/bin/mpicc` is located
+* `USE_TIMERS=<TRUE/FALSE>` Explicitly enable or disable building the Timing Plugin
+* `USE_FPGA=<BLANK/"INTEL">` **Work in progress, not needed for MetaCL-generated FPGA codes**. Whether to compile built-in kernels for FPGA **(Warning can be time-intensive)**
+
+Many of these overrides will not need to be specified if relevant library, header, and binary paths are correctly set in your `LIBRARY_PATH`, `CPATH`, and `PATH` variables, respectively.
+
+To build MetaCL, invoke the `make generators` target, which supports the following overrides to assist in locating a Clang installation:
+* `CLANG_LIB_PATH` The path to the static Clang libraries (typically included with the `-dev` or `-devel` versions of `libClang`), i.e where `$(CLANG_LIB_PATH)/libclangTooling.a` is located
+
+
 
 
 ## Usage
 
 * Set the root directories (MPICH_DIR and MM_DIR) in the top-level Makefile.
-* To build the library with all the supported backends: $make metamorph_all.  
+* To build the library with all the supported backends: `make metamorph_all`.  
 * You may build the library with one or more backends using the additional make targets.
 * To build the examples: $make examples. 
 * Include metamorph/lib into the LD_LIBRARY_PATH environment variable.
 * Change the working directory to metamorph/examples and run the executables using the app-specific options. 
+* The OpenCL backend supports a configurable search path for kernel implementations, which can be assigned to the `METAMORPH_OCL_KERNEL_PATH` environment variable. Multiple directories are delimited with `:`, like a typical Unix PATH variable.
 
 
 ## License 

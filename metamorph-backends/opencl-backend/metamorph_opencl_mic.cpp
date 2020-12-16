@@ -145,7 +145,7 @@ cl_int metaOpenCLBuildProgram(metaOpenCLStackFrame *frame) {
         "-I . -D TRANSPOSE_TILE_DIM=(%d) -D TRANSPOSE_TILE_BLOCK_ROWS=(%d)",
         TRANSPOSE_TILE_DIM, TRANSPOSE_TILE_BLOCK_ROWS);
     //	ret |= clBuildProgram(frame->program_opencl_core, 1, &(frame->device),
-    //args, NULL, NULL);
+    // args, NULL, NULL);
   }
   ret |= clBuildProgram(frame->program_opencl_core, 1, &(frame->device), args,
                         NULL, NULL);
@@ -494,12 +494,12 @@ cl_int metaOpenCLInitStackFrame(metaOpenCLStackFrame **frame, cl_int device) {
 //	free any stack nodes
 //	free program source
 //	implement any thread safety, frames should always be thread private,
-//only the stack should be shared, and all franes must be copied to or from
-//stack nodes using the hazard-aware copy methods. 	 (more specifically, copying a
-//frame to a node doesn't need to be hazard-aware, as the node cannot be shared
-//unless copied inside the hazard-aware metaOpenCLPushStackFrame. Pop, Top, and
-//copyStackNodeToFrame are all hazard aware and provide a thread-private copy
-//back to the caller.)
+// only the stack should be shared, and all franes must be copied to or from
+// stack nodes using the hazard-aware copy methods. 	 (more specifically,
+// copying a frame to a node doesn't need to be hazard-aware, as the node cannot
+// be shared unless copied inside the hazard-aware metaOpenCLPushStackFrame. Pop,
+// Top, and copyStackNodeToFrame are all hazard aware and provide a
+// thread-private copy back to the caller.)
 cl_int metaOpenCLDestroyStackFrame(metaOpenCLStackFrame *frame) {
 
   // Release Kernels
@@ -653,23 +653,23 @@ cl_int opencl_dotProd(size_t (*grid_size)[3], size_t (*block_size)[3],
   metaOpenCLStackFrame *frame = metaOpenCLTopStackFrame();
 
   switch (type) {
-  case a_db:
+  case meta_db:
     kern = frame->kernel_dotProd_db;
     break;
 
-  case a_fl:
+  case meta_fl:
     kern = frame->kernel_dotProd_fl;
     break;
 
-  case a_ul:
+  case meta_ul:
     kern = frame->kernel_dotProd_ul;
     break;
 
-  case a_in:
+  case meta_in:
     kern = frame->kernel_dotProd_in;
     break;
 
-  case a_ui:
+  case meta_ui:
     kern = frame->kernel_dotProd_ui;
     break;
 
@@ -701,23 +701,23 @@ cl_int opencl_dotProd(size_t (*grid_size)[3], size_t (*block_size)[3],
   ret |= clSetKernelArg(kern, 12, sizeof(cl_mem *), &reduced_val);
   ret |= clSetKernelArg(kern, 13, sizeof(cl_int), &smem_len);
   switch (type) {
-  case a_db:
+  case meta_db:
     ret |= clSetKernelArg(kern, 14, smem_len * sizeof(cl_double), NULL);
     break;
 
-  case a_fl:
+  case meta_fl:
     ret |= clSetKernelArg(kern, 14, smem_len * sizeof(cl_float), NULL);
     break;
 
-  case a_ul:
+  case meta_ul:
     ret |= clSetKernelArg(kern, 14, smem_len * sizeof(cl_ulong), NULL);
     break;
 
-  case a_in:
+  case meta_in:
     ret |= clSetKernelArg(kern, 14, smem_len * sizeof(cl_int), NULL);
     break;
 
-  case a_ui:
+  case meta_ui:
     ret |= clSetKernelArg(kern, 14, smem_len * sizeof(cl_uint), NULL);
     break;
 
@@ -774,23 +774,23 @@ cl_int opencl_reduce(size_t (*grid_size)[3], size_t (*block_size)[3],
   metaOpenCLStackFrame *frame = metaOpenCLTopStackFrame();
 
   switch (type) {
-  case a_db:
+  case meta_db:
     kern = frame->kernel_reduce_db;
     break;
 
-  case a_fl:
+  case meta_fl:
     kern = frame->kernel_reduce_fl;
     break;
 
-  case a_ul:
+  case meta_ul:
     kern = frame->kernel_reduce_ul;
     break;
 
-  case a_in:
+  case meta_in:
     kern = frame->kernel_reduce_in;
     break;
 
-  case a_ui:
+  case meta_ui:
     kern = frame->kernel_reduce_ui;
     break;
 
@@ -822,23 +822,23 @@ cl_int opencl_reduce(size_t (*grid_size)[3], size_t (*block_size)[3],
   ret |= clSetKernelArg(kern, 11, sizeof(cl_mem *), &reduced_val);
   ret |= clSetKernelArg(kern, 12, sizeof(cl_int), &smem_len);
   switch (type) {
-  case a_db:
+  case meta_db:
     ret |= clSetKernelArg(kern, 13, smem_len * sizeof(cl_double), NULL);
     break;
 
-  case a_fl:
+  case meta_fl:
     ret |= clSetKernelArg(kern, 13, smem_len * sizeof(cl_float), NULL);
     break;
 
-  case a_ul:
+  case meta_ul:
     ret |= clSetKernelArg(kern, 13, smem_len * sizeof(cl_ulong), NULL);
     break;
 
-  case a_in:
+  case meta_in:
     ret |= clSetKernelArg(kern, 13, smem_len * sizeof(cl_int), NULL);
     break;
 
-  case a_ui:
+  case meta_ui:
     ret |= clSetKernelArg(kern, 13, smem_len * sizeof(cl_uint), NULL);
     break;
 
@@ -876,7 +876,7 @@ cl_int opencl_transpose_face(size_t (*grid_size)[3], size_t (*block_size)[3],
   //	size_t grid[3] = {(*grid_size)[0]*(*block_size)[0],
   //(*grid_size)[1]*(*block_size)[1], (*block_size)[2]};
   // 	size_t block[3] = {(*block_size)[0], (*block_size)[1],
-  //(*block_size)[2]};\
+  // (*block_size)[2]};\
 	//FIXME: make this smart enough to rescale the threadblock (and thus shared
   // memory - e.g. bank conflicts) w.r.t. double vs. float
   if (grid_size == NULL || block_size == NULL) {
@@ -902,23 +902,23 @@ cl_int opencl_transpose_face(size_t (*grid_size)[3], size_t (*block_size)[3],
   metaOpenCLStackFrame *frame = metaOpenCLTopStackFrame();
 
   switch (type) {
-  case a_db:
+  case meta_db:
     kern = frame->kernel_transpose_2d_face_db;
     break;
 
-  case a_fl:
+  case meta_fl:
     kern = frame->kernel_transpose_2d_face_fl;
     break;
 
-  case a_ul:
+  case meta_ul:
     kern = frame->kernel_transpose_2d_face_ul;
     break;
 
-  case a_in:
+  case meta_in:
     kern = frame->kernel_transpose_2d_face_in;
     break;
 
-  case a_ui:
+  case meta_ui:
     kern = frame->kernel_transpose_2d_face_ui;
     break;
 
@@ -935,23 +935,23 @@ cl_int opencl_transpose_face(size_t (*grid_size)[3], size_t (*block_size)[3],
   ret |= clSetKernelArg(kern, 4, sizeof(cl_int), &(*tran_dim_xy)[0]);
   ret |= clSetKernelArg(kern, 5, sizeof(cl_int), &(*tran_dim_xy)[1]);
   switch (type) {
-  case a_db:
+  case meta_db:
     ret |= clSetKernelArg(kern, 6, smem_len * sizeof(cl_double), NULL);
     break;
 
-  case a_fl:
+  case meta_fl:
     ret |= clSetKernelArg(kern, 6, smem_len * sizeof(cl_float), NULL);
     break;
 
-  case a_ul:
+  case meta_ul:
     ret |= clSetKernelArg(kern, 6, smem_len * sizeof(cl_ulong), NULL);
     break;
 
-  case a_in:
+  case meta_in:
     ret |= clSetKernelArg(kern, 6, smem_len * sizeof(cl_int), NULL);
     break;
 
-  case a_ui:
+  case meta_ui:
     ret |= clSetKernelArg(kern, 6, smem_len * sizeof(cl_uint), NULL);
     break;
 
@@ -999,7 +999,8 @@ cl_int opencl_pack_face(size_t (*grid_size)[3], size_t (*block_size)[3],
                               event_c3);
   // TODO update to use user-provided grid/block once multi-element per thread
   // scaling is added 	size_t grid[3] = {(*grid_size)[0]*(*block_size)[0],
-  //(*grid_size)[1]*(*block_size)[1], (*block_size)[2]}; 	size_t block[3] =
+  //(*grid_size)[1]*(*block_size)[1], (*block_size)[2]}; 	size_t block[3]
+  //=
   //{(*block_size)[0], (*block_size)[1], (*block_size)[2]};
   if (grid_size == NULL || block_size == NULL) {
     grid[0] = ((size + block[0] - 1) / block[0]) * block[0];
@@ -1029,23 +1030,23 @@ cl_int opencl_pack_face(size_t (*grid_size)[3], size_t (*block_size)[3],
   // return time for copying to constant memory and the kernel
 
   switch (type) {
-  case a_db:
+  case meta_db:
     kern = frame->kernel_pack_2d_face_db;
     break;
 
-  case a_fl:
+  case meta_fl:
     kern = frame->kernel_pack_2d_face_fl;
     break;
 
-  case a_ul:
+  case meta_ul:
     kern = frame->kernel_pack_2d_face_ul;
     break;
 
-  case a_in:
+  case meta_in:
     kern = frame->kernel_pack_2d_face_in;
     break;
 
-  case a_ui:
+  case meta_ui:
     kern = frame->kernel_pack_2d_face_ui;
     break;
 
@@ -1114,7 +1115,8 @@ cl_int opencl_unpack_face(size_t (*grid_size)[3], size_t (*block_size)[3],
                               event_c3);
   // TODO update to use user-provided grid/block once multi-element per thread
   // scaling is added 	size_t grid[3] = {(*grid_size)[0]*(*block_size)[0],
-  //(*grid_size)[1]*(*block_size)[1], (*block_size)[2]}; 	size_t block[3] =
+  //(*grid_size)[1]*(*block_size)[1], (*block_size)[2]}; 	size_t block[3]
+  //=
   //{(*block_size)[0], (*block_size)[1], (*block_size)[2]};
   if (grid_size == NULL || block_size == NULL) {
     grid[0] = ((size + block[0] - 1) / block[0]) * block[0];
@@ -1144,23 +1146,23 @@ cl_int opencl_unpack_face(size_t (*grid_size)[3], size_t (*block_size)[3],
   // return time for copying to constant memory and the kernel
 
   switch (type) {
-  case a_db:
+  case meta_db:
     kern = frame->kernel_unpack_2d_face_db;
     break;
 
-  case a_fl:
+  case meta_fl:
     kern = frame->kernel_unpack_2d_face_fl;
     break;
 
-  case a_ul:
+  case meta_ul:
     kern = frame->kernel_unpack_2d_face_ul;
     break;
 
-  case a_in:
+  case meta_in:
     kern = frame->kernel_unpack_2d_face_in;
     break;
 
-  case a_ui:
+  case meta_ui:
     kern = frame->kernel_unpack_2d_face_ui;
     break;
 
@@ -1238,23 +1240,23 @@ cl_int opencl_stencil_3d7p(size_t (*grid_size)[3], size_t (*block_size)[3],
   metaOpenCLStackFrame *frame = metaOpenCLTopStackFrame();
 
   switch (type) {
-  case a_db:
+  case meta_db:
     kern = frame->kernel_stencil_3d7p_db;
     break;
 
-  case a_fl:
+  case meta_fl:
     kern = frame->kernel_stencil_3d7p_fl;
     break;
 
-  case a_ul:
+  case meta_ul:
     kern = frame->kernel_stencil_3d7p_ul;
     break;
 
-  case a_in:
+  case meta_in:
     kern = frame->kernel_stencil_3d7p_in;
     break;
 
-  case a_ui:
+  case meta_ui:
     kern = frame->kernel_stencil_3d7p_ui;
     break;
 
@@ -1279,23 +1281,23 @@ cl_int opencl_stencil_3d7p(size_t (*grid_size)[3], size_t (*block_size)[3],
   ret |= clSetKernelArg(kern, 11, sizeof(cl_int), &iters);
   ret |= clSetKernelArg(kern, 12, sizeof(cl_int), &smem_len);
   switch (type) {
-  case a_db:
+  case meta_db:
     ret |= clSetKernelArg(kern, 13, smem_len * sizeof(cl_double), NULL);
     break;
 
-  case a_fl:
+  case meta_fl:
     ret |= clSetKernelArg(kern, 13, smem_len * sizeof(cl_float), NULL);
     break;
 
-  case a_ul:
+  case meta_ul:
     ret |= clSetKernelArg(kern, 13, smem_len * sizeof(cl_ulong), NULL);
     break;
 
-  case a_in:
+  case meta_in:
     ret |= clSetKernelArg(kern, 13, smem_len * sizeof(cl_int), NULL);
     break;
 
-  case a_ui:
+  case meta_ui:
     ret |= clSetKernelArg(kern, 13, smem_len * sizeof(cl_uint), NULL);
     break;
 

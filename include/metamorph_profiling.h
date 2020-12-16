@@ -96,7 +96,7 @@ typedef struct metaTimerQueue {
  * etc.)
  * \return -1 if the return pointer is NULL, otherwise 0
  */
-a_err metaProfilingCreateTimer(meta_timer **ret_timer, meta_preferred_mode mode,
+meta_err metaProfilingCreateTimer(meta_timer **ret_timer, meta_preferred_mode mode,
                                size_t size);
 /**
  * Take a copy of the frame and insert it on to the selected queue.
@@ -107,11 +107,11 @@ a_err metaProfilingCreateTimer(meta_timer **ret_timer, meta_preferred_mode mode,
  * \todo FIXME, implement a real set of error return codes
  * \todo Make Hazard aware
  */
-a_err metaProfilingEnqueueTimer(meta_timer timer,
+meta_err metaProfilingEnqueueTimer(meta_timer timer,
                                 metaProfilingBuiltinQueueType type);
 
 #ifdef DEPRECATED
-a_err cl_get_event_node(metaTimerQueue *queue, char *ename,
+meta_err cl_get_event_node(metaTimerQueue *queue, char *ename,
                         metaTimerQueueFrame **frame);
 #endif // DEPRECATED
 /**
@@ -132,7 +132,7 @@ __attribute__((constructor(104))) void metaTimersInit();
  * \return hardcoded to zero
  * \todo Implement proper error codes
  */
-a_err metaTimersFlush();
+meta_err metaTimersFlush();
 /**
  * Flush and destroy the profiling infrastructure
  * \return hardcoded to zero
@@ -140,7 +140,7 @@ a_err metaTimersFlush();
  * \bug FIXME: Doesn't currently destroy anything, it's just a wrapper around
  * flush that then sets the initialization state to false
  */
-a_err metaTimersFinish();
+meta_err metaTimersFinish();
 
 /** Wrap the initializer for Fortran ISO_C_BINDINGS */
 void meta_timers_init_c_();
