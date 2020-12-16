@@ -480,7 +480,7 @@ install: all install-libraries install-headers install-metaCL
 install-libraries: $(foreach target,$(BUILD_LIBS),$(subst $(MM_LIB),$(BASE_INSTALL_DIR)/$(LINK_LIB_RDIR),$(target)))
 
 .PHONY: install-headers
-install-headers: install-core-headers $(subst metamorph_cuda.h, metamorph_cuda.cuh, $(foreach target,$(BUILD_LIBS),$(subst .so,.h,$(subst libmetamorph,metamorph,$(subst $(MM_LIB),$(BASE_INSTALL_DIR)/include,$(target))))))
+install-headers: install-core-headers $(subst metamorph_cuda.h,metamorph_cuda.cuh,$(foreach target,$(BUILD_LIBS),$(subst .so,.h,$(subst libmetamorph,metamorph,$(subst $(MM_LIB),$(BASE_INSTALL_DIR)/include,$(target))))))
 
 #install all should try to do everything
 .PHONY: install-all
