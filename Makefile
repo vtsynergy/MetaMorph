@@ -6,7 +6,7 @@
 #Manually update package version information
 #Use origin for a stronger "not-defined" check, and a defined but empty variable still returns true to ifdef
 ifeq ($(origin VERSION),undefined)
-VERSION=0.3b-rc1
+VERSION=0.3.1b-rc1
 endif
 
 #define version_less

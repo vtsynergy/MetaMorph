@@ -103,11 +103,13 @@ Make should auto-detect the headers and libraries in their standard `/usr` subdi
 
 #### Other Linux / Alternative Clang+LLVM location(s)
 The following manual overrides must be set during `make`. (They will be respected for all the above distributions, but are *optional*)
-* `METACL_LINK_STATIC=**false**/true`: Whether to link against the static LLVM/Clang libraries or the shared. (Defaults to shared.)
+* `METACL_LINK_STATIC=false/true`: Whether to link against the static LLVM/Clang libraries or the shared. (Defaults to shared.)
 * `LLVM_INCLUDE_PATH`: Path to a directory containing the `llvm/Support/`, `llvm/Config/`, etc. header directories.
 * `LLVM_LIBRARY_PATH`: Path to a directory containing the `libLLVM.so/.a`, etc. libraries.
 * `CLANG_INCLUDE_PATH`: Path to a directory containing the `clang/Tooling/`, `clang/ASTMatchers/`, etc. header directories. (Does not need to be set if it's the same as `LLVM_INCLUDE_PATH`.)
 * `CLANG_LIBRARY_PATH`: Path to a directory containing the `libclang.so/.a`, etc. libraries. (Does not need to be set if it's the same as `LLVM_LIBRARY_PATH`.)
+
+These should be set during the make invocation, i.e. on the command-line as so: `METACL_LINK_STATIC=true LLVM_INCLUDE_PATH=/path/to/userspace/llvm/include LLVM_LIBRARY_PATH=/path/to/userspace/llvm/lib make generators`
 		
 ##Installation
 
