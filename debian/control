@@ -132,8 +132,8 @@ Package: metacl
 Section: devel
 Architecture: any
 Multi-Arch: same
-Depends: libclang-common-6.0-dev
-Build-Depends: libclang-6.0-dev, zlib1g-dev
+Depends: libclang-common-dev
+Build-Depends: libclang-dev, zlib1g-dev
 Enhances: metamorph-opencl, metamorph-opencl-dev
 #Depends: clang 6.0.1 (= ${binary:Version}), ${misc:Depends} libclang-6.0-dev, zlib1g-dev
 #Need to suggest the metamorph-dev and metamorph-opencl-dev. (They are required to compile/run the resulting application, but not to just run metaCL)

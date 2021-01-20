@@ -1,5 +1,5 @@
-metamorph (0.3-1) UNRELEASED; urgency=low
+metamorph (0.3.1-1) UNRELEASED; urgency=low
 
-  * Initial release
+  * First release candidate for upstream v0.3.1b
 
- -- Paul Sathre <sath6220@cs.vt.edu>  Wed, 2 Apr 2020 13:11:03 -0500
+ -- Paul Sathre <sath6220@cs.vt.edu>  Wed, 16 Dec 2020 15:45:58 -0500
