@@ -103,12 +103,12 @@
 !> @param end_y Index in data1 and data2 of the last element in the Y dimension
 !> @param end_z Index in data1 and data2 of the last element in the Z dimension
 !> @param reduction_var The final scalar dot product value, a Metamorph-allocated buffer on the current device (a MetaMorph void * handle)
-!> @param a_type The MetaMorph data type to interpret the data arrays as
+!> @param meta_type The MetaMorph data type to interpret the data arrays as
 !> @param async Whether the kernel should be run asynchronously or blocking
 !> @return The error status of the underlying meta_dotProd call
       function meta_dotprod_c(grid_x, grid_y, grid_z, block_x, block_y,&
       & block_z, data1, data2, size_x, size_y, size_z, start_x, start_y&
-      &, start_z, end_x, end_y, end_z, reduction_var, a_type, async)
+      &, start_z, end_x, end_y, end_z, reduction_var, meta_type, async)
       use ISO_C_BINDING
       integer (C_INT) :: meta_dotprod_c
       integer (C_SIZE_T) :: grid_x, grid_y, grid_z
@@ -118,7 +118,7 @@
       integer (C_SIZE_T) :: start_x, start_y, start_z
       integer (C_SIZE_T) :: end_x, end_y, end_z
       type (C_PTR), VALUE :: reduction_var
-      integer (C_INT), VALUE :: a_type
+      integer (C_INT), VALUE :: meta_type
       integer (C_INT) :: async
       end function meta_dotprod_c
       end interface
@@ -143,12 +143,12 @@
 !> @param end_y Index in data of the last element in the Y dimension
 !> @param end_z Index in data of the last element in the Z dimension
 !> @param reduction_var The final scalar reduction sum value, a Metamorph-allocated buffer on the current device (a MetaMorph void * handle)
-!> @param a_type The MetaMorph data type to interpret the data arrays as
+!> @param meta_type The MetaMorph data type to interpret the data arrays as
 !> @param async Whether the kernel should be run asynchronously or blocking
 !> @return The error status of the underlying meta_reduce call
       function meta_reduce_c(grid_x, grid_y, grid_z, block_x, block_y,&
       & block_z, data, size_x, size_y, size_z, start_x, start_y&
-      &, start_z, end_x, end_y, end_z, reduction_var, a_type, async)
+      &, start_z, end_x, end_y, end_z, reduction_var, meta_type, async)
       use ISO_C_BINDING
       integer (C_INT) :: meta_reduce_c
       integer (C_SIZE_T) :: grid_x, grid_y, grid_z
@@ -158,7 +158,7 @@
       integer (C_SIZE_T) :: start_x, start_y, start_z
       integer (C_SIZE_T) :: end_x, end_y, end_z
       type (C_PTR), VALUE :: reduction_var
-      integer (C_INT), VALUE :: a_type
+      integer (C_INT), VALUE :: meta_type
       integer (C_INT) :: async
       end function meta_reduce_c
       end interface

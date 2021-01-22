@@ -43,8 +43,8 @@ inline float hadd_ps(__m256 a) {
 
 #endif
 
-a_err metaOpenMPAlloc(void **ptr, size_t size) {
-  a_err ret = 0;
+meta_err metaOpenMPAlloc(void **ptr, size_t size) {
+  meta_err ret = 0;
 #ifdef ALIGNED_MEMORY
   *ptr = (void *)_mm_malloc(size, ALIGNED_MEMORY_PAGE);
 #else
@@ -54,7 +54,7 @@ a_err metaOpenMPAlloc(void **ptr, size_t size) {
     ret = -1;
   return ret;
 }
-a_err metaOpenMPFree(void *ptr) {
+meta_err metaOpenMPFree(void *ptr) {
 #ifdef ALIGNED_MEMORY
   _mm_free(ptr);
 #else
@@ -62,9 +62,9 @@ a_err metaOpenMPFree(void *ptr) {
 #endif
   return 0;
 }
-a_err metaOpenMPWrite(void *dst, void *src, size_t size, a_bool async,
+meta_err metaOpenMPWrite(void *dst, void *src, size_t size, meta_bool async,
                       meta_callback *call, meta_event *ret_event) {
-  a_err ret = 0;
+  meta_err ret = 0;
   openmpEvent *events = NULL;
   if (ret_event != NULL && ret_event->mode == metaModePreferOpenMP &&
       ret_event->event_pl != NULL)
@@ -98,9 +98,9 @@ a_err metaOpenMPWrite(void *dst, void *src, size_t size, a_bool async,
     (*(profiling_symbols.metaProfilingEnqueueTimer))(*timer, c_H2D);
   return ret;
 }
-a_err metaOpenMPRead(void *dst, void *src, size_t size, a_bool async,
+meta_err metaOpenMPRead(void *dst, void *src, size_t size, meta_bool async,
                      meta_callback *call, meta_event *ret_event) {
-  a_err ret = 0;
+  meta_err ret = 0;
   openmpEvent *events = NULL;
   if (ret_event != NULL && ret_event->mode == metaModePreferOpenMP &&
       ret_event->event_pl != NULL)
@@ -134,9 +134,9 @@ a_err metaOpenMPRead(void *dst, void *src, size_t size, a_bool async,
     (*(profiling_symbols.metaProfilingEnqueueTimer))(*timer, c_D2H);
   return ret;
 }
-a_err metaOpenMPDevCopy(void *dst, void *src, size_t size, a_bool async,
+meta_err metaOpenMPDevCopy(void *dst, void *src, size_t size, meta_bool async,
                         meta_callback *call, meta_event *ret_event) {
-  a_err ret = 0;
+  meta_err ret = 0;
   openmpEvent *events = NULL;
   if (ret_event != NULL && ret_event->mode == metaModePreferOpenMP &&
       ret_event->event_pl != NULL)
@@ -181,31 +181,31 @@ a_err metaOpenMPDevCopy(void *dst, void *src, size_t size, a_bool async,
     (*(profiling_symbols.metaProfilingEnqueueTimer))(*timer, c_D2D);
   return ret;
 }
-a_err metaOpenMPFlush() {
-  a_err ret = 0;
+meta_err metaOpenMPFlush() {
+  meta_err ret = 0;
 // FIXME: When the OpenMP backend actually supports async (via futures or
 // OpenMP 4.0, whatever, make this a proper flush like the other backends
 #pragma omp barrier
   return ret;
 }
-a_err metaOpenMPCreateEvent(void **ret_event) {
-  a_err ret = 0;
+meta_err metaOpenMPCreateEvent(void **ret_event) {
+  meta_err ret = 0;
   if (ret_event != NULL) {
     *ret_event = calloc(2, sizeof(openmpEvent));
   } else
     ret = -1;
   return ret;
 }
-a_err metaOpenMPDestroyEvent(void *event) {
-  a_err ret = 0;
+meta_err metaOpenMPDestroyEvent(void *event) {
+  meta_err ret = 0;
   if (event != NULL) {
     free(event);
   } else
     ret = -1;
   return ret;
 }
-a_err metaOpenMPEventElapsedTime(float *ret_ms, meta_event event) {
-  a_err ret = 0;
+meta_err metaOpenMPEventElapsedTime(float *ret_ms, meta_event event) {
+  meta_err ret = 0;
   if (ret_ms != NULL && event.event_pl != NULL) {
     openmpEvent *events = (openmpEvent *)event.event_pl;
     *ret_ms = ((events[1].tv_sec - events[0].tv_sec) * 1000.0) +
@@ -215,7 +215,7 @@ a_err metaOpenMPEventElapsedTime(float *ret_ms, meta_event event) {
   return ret;
 }
 
-a_err metaOpenMPRegisterCallback(meta_callback *call) {
+meta_err metaOpenMPRegisterCallback(meta_callback *call) {
   // FIXME: Implement async "callback"
   if (call != NULL) {
     (call->callback_func)(call);
@@ -1893,7 +1893,7 @@ void omp_stencil_3d7p_kernel_ui(unsigned int *indata, unsigned int *outdata,
   }
 }
 
-a_err openmp_dotProd(size_t (*grid_size)[3], size_t (*block_size)[3],
+meta_err openmp_dotProd(size_t (*grid_size)[3], size_t (*block_size)[3],
                      void *data1, void *data2, size_t (*array_size)[3],
                      size_t (*arr_start)[3], size_t (*arr_end)[3],
                      void *reduction_var, meta_type_id type, int async,
@@ -1924,28 +1924,28 @@ a_err openmp_dotProd(size_t (*grid_size)[3], size_t (*block_size)[3],
   // ignore grid_size, block_size, async
 
   switch (type) {
-  case a_db:
+  case meta_db:
     omp_dotProd_kernel_db((double *)data1, (double *)data2, array_size,
                           arr_start, arr_end, (double *)reduction_var);
     break;
 
-  case a_fl:
+  case meta_fl:
     omp_dotProd_kernel_fl((float *)data1, (float *)data2, array_size, arr_start,
                           arr_end, (float *)reduction_var);
     break;
 
-  case a_ul:
+  case meta_ul:
     omp_dotProd_kernel_ul((unsigned long *)data1, (unsigned long *)data2,
                           array_size, arr_start, arr_end,
                           (unsigned long *)reduction_var);
     break;
 
-  case a_in:
+  case meta_in:
     omp_dotProd_kernel_in((int *)data1, (int *)data2, array_size, arr_start,
                           arr_end, (int *)reduction_var);
     break;
 
-  case a_ui:
+  case meta_ui:
     omp_dotProd_kernel_ui((unsigned int *)data1, (unsigned int *)data2,
                           array_size, arr_start, arr_end,
                           (unsigned int *)reduction_var);
@@ -1969,7 +1969,7 @@ a_err openmp_dotProd(size_t (*grid_size)[3], size_t (*block_size)[3],
   return (ret);
 }
 
-a_err openmp_reduce(size_t (*grid_size)[3], size_t (*block_size)[3], void *data,
+meta_err openmp_reduce(size_t (*grid_size)[3], size_t (*block_size)[3], void *data,
                     size_t (*array_size)[3], size_t (*arr_start)[3],
                     size_t (*arr_end)[3], void *reduction_var,
                     meta_type_id type, int async, meta_callback *call,
@@ -2000,27 +2000,27 @@ a_err openmp_reduce(size_t (*grid_size)[3], size_t (*block_size)[3], void *data,
   // ignore grid_size, block_size, async
 
   switch (type) {
-  case a_db:
+  case meta_db:
     omp_reduce_kernel_db((double *)data, array_size, arr_start, arr_end,
                          (double *)reduction_var);
     break;
 
-  case a_fl:
+  case meta_fl:
     omp_reduce_kernel_fl((float *)data, array_size, arr_start, arr_end,
                          (float *)reduction_var);
     break;
 
-  case a_ul:
+  case meta_ul:
     omp_reduce_kernel_ul((unsigned long *)data, array_size, arr_start, arr_end,
                          (unsigned long *)reduction_var);
     break;
 
-  case a_in:
+  case meta_in:
     omp_reduce_kernel_in((int *)data, array_size, arr_start, arr_end,
                          (int *)reduction_var);
     break;
 
-  case a_ui:
+  case meta_ui:
     omp_reduce_kernel_ui((unsigned int *)data, array_size, arr_start, arr_end,
                          (unsigned int *)reduction_var);
     break;
@@ -2044,7 +2044,7 @@ a_err openmp_reduce(size_t (*grid_size)[3], size_t (*block_size)[3], void *data,
   return (ret);
 }
 
-a_err openmp_transpose_face(size_t (*grid_size)[3], size_t (*block_size)[3],
+meta_err openmp_transpose_face(size_t (*grid_size)[3], size_t (*block_size)[3],
                             void *indata, void *outdata,
                             size_t (*arr_dim_xy)[3], size_t (*tran_dim_xy)[3],
                             meta_type_id type, int async, meta_callback *call,
@@ -2074,25 +2074,25 @@ a_err openmp_transpose_face(size_t (*grid_size)[3], size_t (*block_size)[3],
   // ignore grid_size, block_size, async
 
   switch (type) {
-  case a_db:
+  case meta_db:
     omp_transpose_face_kernel_db((double *)indata, (double *)outdata,
                                  arr_dim_xy);
     break;
 
-  case a_fl:
+  case meta_fl:
     omp_transpose_face_kernel_fl((float *)indata, (float *)outdata, arr_dim_xy);
     break;
 
-  case a_ul:
+  case meta_ul:
     omp_transpose_face_kernel_ul((unsigned long *)indata,
                                  (unsigned long *)outdata, arr_dim_xy);
     break;
 
-  case a_in:
+  case meta_in:
     omp_transpose_face_kernel_in((int *)indata, (int *)outdata, arr_dim_xy);
     break;
 
-  case a_ui:
+  case meta_ui:
     omp_transpose_face_kernel_ui((unsigned int *)indata,
                                  (unsigned int *)outdata, arr_dim_xy);
     break;
@@ -2115,7 +2115,7 @@ a_err openmp_transpose_face(size_t (*grid_size)[3], size_t (*block_size)[3],
   return (ret);
 }
 
-a_err openmp_pack_face(size_t (*grid_size)[3], size_t (*block_size)[3],
+meta_err openmp_pack_face(size_t (*grid_size)[3], size_t (*block_size)[3],
                        void *packed_buf, void *buf, meta_face *face,
                        int *remain_dim, meta_type_id type, int async,
                        meta_callback *call, meta_event *ret_event_k1,
@@ -2197,26 +2197,26 @@ a_err openmp_pack_face(size_t (*grid_size)[3], size_t (*block_size)[3],
   // ignore grid_size, BLOCK_size, async
 
   switch (type) {
-  case a_db:
+  case meta_db:
     omp_pack_face_kernel_db((double *)packed_buf, (double *)buf, face,
                             remain_dim);
     break;
 
-  case a_fl:
+  case meta_fl:
     omp_pack_face_kernel_fl((float *)packed_buf, (float *)buf, face,
                             remain_dim);
     break;
 
-  case a_ul:
+  case meta_ul:
     omp_pack_face_kernel_ul((unsigned long *)packed_buf, (unsigned long *)buf,
                             face, remain_dim);
     break;
 
-  case a_in:
+  case meta_in:
     omp_pack_face_kernel_in((int *)packed_buf, (int *)buf, face, remain_dim);
     break;
 
-  case a_ui:
+  case meta_ui:
     omp_pack_face_kernel_ui((unsigned int *)packed_buf, (unsigned int *)buf,
                             face, remain_dim);
     break;
@@ -2243,7 +2243,7 @@ a_err openmp_pack_face(size_t (*grid_size)[3], size_t (*block_size)[3],
   return (ret);
 }
 
-a_err openmp_unpack_face(size_t (*grid_size)[3], size_t (*block_size)[3],
+meta_err openmp_unpack_face(size_t (*grid_size)[3], size_t (*block_size)[3],
                          void *packed_buf, void *buf, meta_face *face,
                          int *remain_dim, meta_type_id type, int async,
                          meta_callback *call, meta_event *ret_event_k1,
@@ -2324,26 +2324,26 @@ a_err openmp_unpack_face(size_t (*grid_size)[3], size_t (*block_size)[3],
   // ignore grid_size, BLOCK_size, async
 
   switch (type) {
-  case a_db:
+  case meta_db:
     omp_unpack_face_kernel_db((double *)packed_buf, (double *)buf, face,
                               remain_dim);
     break;
 
-  case a_fl:
+  case meta_fl:
     omp_unpack_face_kernel_fl((float *)packed_buf, (float *)buf, face,
                               remain_dim);
     break;
 
-  case a_ul:
+  case meta_ul:
     omp_unpack_face_kernel_ul((unsigned long *)packed_buf, (unsigned long *)buf,
                               face, remain_dim);
     break;
 
-  case a_in:
+  case meta_in:
     omp_unpack_face_kernel_in((int *)packed_buf, (int *)buf, face, remain_dim);
     break;
 
-  case a_ui:
+  case meta_ui:
     omp_unpack_face_kernel_ui((unsigned int *)packed_buf, (unsigned int *)buf,
                               face, remain_dim);
     break;
@@ -2371,7 +2371,7 @@ a_err openmp_unpack_face(size_t (*grid_size)[3], size_t (*block_size)[3],
   return (ret);
 }
 
-a_err openmp_stencil_3d7p(size_t (*grid_size)[3], size_t (*block_size)[3],
+meta_err openmp_stencil_3d7p(size_t (*grid_size)[3], size_t (*block_size)[3],
                           void *indata, void *outdata, size_t (*array_size)[3],
                           size_t (*arr_start)[3], size_t (*arr_end)[3],
                           meta_type_id type, int async, meta_callback *call,
@@ -2402,28 +2402,28 @@ a_err openmp_stencil_3d7p(size_t (*grid_size)[3], size_t (*block_size)[3],
   // ignore grid_size, block_size, async
 
   switch (type) {
-  case a_db:
+  case meta_db:
     omp_stencil_3d7p_kernel_db((double *)indata, (double *)outdata, array_size,
                                arr_start, arr_end);
     break;
 
-  case a_fl:
+  case meta_fl:
     omp_stencil_3d7p_kernel_fl((float *)indata, (float *)outdata, array_size,
                                arr_start, arr_end);
     break;
 
-  case a_ul:
+  case meta_ul:
     omp_stencil_3d7p_kernel_ul((unsigned long *)indata,
                                (unsigned long *)outdata, array_size, arr_start,
                                arr_end);
     break;
 
-  case a_in:
+  case meta_in:
     omp_stencil_3d7p_kernel_in((int *)indata, (int *)outdata, array_size,
                                arr_start, arr_end);
     break;
 
-  case a_ui:
+  case meta_ui:
     omp_stencil_3d7p_kernel_ui((unsigned int *)indata, (unsigned int *)outdata,
                                array_size, arr_start, arr_end);
     break;

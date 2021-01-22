@@ -28,13 +28,13 @@ extern "C" {
  * \param size The number of bytes to allocate
  * \return the CUDA error status of the cudaMalloc call
  */
-a_err metaCUDAAlloc(void **ptr, size_t size);
+meta_err metaCUDAAlloc(void **ptr, size_t size);
 /**
  * Wrapper function around cudaFree to release a MetaMorph-allocated CUDA buffer
  * \param ptr The buffer to release
  * \return the result of cudaFree
  */
-a_err metaCUDAFree(void *ptr);
+meta_err metaCUDAFree(void *ptr);
 /**
  * A wrapper for a CUDA host-to-device copy
  * \param dst The destination buffer, a buffer allocated in MetaMorph's
@@ -47,8 +47,8 @@ a_err metaCUDAFree(void *ptr);
  * payload in which to copy the cudaEvent_ts corresponding to the write back to
  * \return the CUDA error status of the wrapped cudaMemcpy/Async
  */
-a_err metaCUDAWrite(void *dst, void *src, size_t size, a_bool async,
-                    meta_callback *call, meta_event *ret_event);
+meta_err metaCUDAWrite(void *dst, void *src, size_t size, meta_bool async,
+                       meta_callback *call, meta_event *ret_event);
 /**
  * A wrapper for a CUDA device-to-host copy
  * \param dst The destination buffer, a host memory region
@@ -61,8 +61,8 @@ a_err metaCUDAWrite(void *dst, void *src, size_t size, a_bool async,
  * payload in which to copy the cudaEvent_ts corresponding to the read back to
  * \return the CUDA error status of the wrapped clMemcpy/Async
  */
-a_err metaCUDARead(void *dst, void *src, size_t size, a_bool async,
-                   meta_callback *call, meta_event *ret_event);
+meta_err metaCUDARead(void *dst, void *src, size_t size, meta_bool async,
+                      meta_callback *call, meta_event *ret_event);
 /**
  * A wrapper for a CUDA device-to-device copy
  * \param dst The destination buffer, a CUDA buffer allocated in MetaMorph's
@@ -76,20 +76,20 @@ a_err metaCUDARead(void *dst, void *src, size_t size, a_bool async,
  * payload in which to copy the cudaEvent_ts corresponding to the read back to
  * \return the CUDA error status of the wrapped clMemcpy/Async
  */
-a_err metaCUDADevCopy(void *dst, void *src, size_t size, a_bool async,
-                      meta_callback *call, meta_event *ret_event);
+meta_err metaCUDADevCopy(void *dst, void *src, size_t size, meta_bool async,
+                         meta_callback *call, meta_event *ret_event);
 /**
  * Initialize The n-th CUDA device and switch to using it
  * \param accel Which device to use
  * \return the CUDA error status of the underlying cudaSetDevice call
  */
-a_err metaCUDAInitByID(a_int accel);
+meta_err metaCUDAInitByID(meta_int accel);
 /**
  * Get the index of the currently-utilized CUDA device
  * \param accel The address in which to return the numerical ID
  * \return the CUDA error status of the underlying cudaGetDevice call
  */
-a_err metaCUDACurrDev(a_int *accel);
+meta_err metaCUDACurrDev(meta_int *accel);
 /**
  * Check whether the requested work sizes will fit on the current CUDA device
  * \param grid The requested number of work groups in each dimension
@@ -98,12 +98,12 @@ a_err metaCUDACurrDev(a_int *accel);
  * \return the CUDA error status of any underlying CUDA API calls.
  * \bug FIXME Implement
  */
-a_err metaCUDAMaxWorkSizes(a_dim3 *grid, a_dim3 *block);
+meta_err metaCUDAMaxWorkSizes(meta_dim3 *grid, meta_dim3 *block);
 /**
  * Finish all outstanding CUDA operations
  * \return The result of cudaThreadSynchronize
  */
-a_err metaCUDAFlush();
+meta_err metaCUDAFlush();
 /**
  * Just a small wrapper around a cudaEvent_t allocator to keep the real datatype
  * exclusively inside the CUDA backend
@@ -112,7 +112,7 @@ a_err metaCUDAFlush();
  * \return cudaErrorInvalid value if ret_event is NULL, otherwise the binary OR
  * of the two cudaEventCreate calls' error codes
  */
-a_err metaCUDACreateEvent(void **ret_event);
+meta_err metaCUDACreateEvent(void **ret_event);
 /**
  * Just a small wrapper around a cudaEvent_t destructor to keep the real
  * datatype exclusively inside the CUDA backend
@@ -120,7 +120,7 @@ a_err metaCUDACreateEvent(void **ret_event);
  * \return cudaErrorInvalid value if event is NULL, otherwise the binary OR of
  * the two cudaEventDestroy calls' error codes
  */
-a_err metaCUDADestroyEvent(void *event);
+meta_err metaCUDADestroyEvent(void *event);
 /**
  * A simple wrapper to get the elapsed time of a meta_event containing two
  * cudaEvent_ts
@@ -130,7 +130,7 @@ a_err metaCUDADestroyEvent(void *event);
  * \return cudaErrorInvalidValue if either the return pointer or event payload
  * is NULL, otherwise the status of the cudaEventElapsedTime call
  */
-a_err metaCUDAEventElapsedTime(float *ret_ms, meta_event event);
+meta_err metaCUDAEventElapsedTime(float *ret_ms, meta_event event);
 /**
  * An internal function that can generically be generically registered as a CUDA
  * callback which in turn triggers the data payload's meta_callback This is just
@@ -155,8 +155,8 @@ void CUDART_CB metaCUDACallbackHelper(cudaStream_t stream, cudaError_t status,
  * \return cudaSuccess if the payload was successfully unpacked, or
  * cudaErrorInvalidValue if the stream, status or data pointers are NULL
  */
-a_err metaCUDAExpandCallback(meta_callback call, cudaStream_t *ret_stream,
-                             cudaError_t *ret_status, void **ret_data);
+meta_err metaCUDAExpandCallback(meta_callback call, cudaStream_t *ret_stream,
+                                cudaError_t *ret_status, void **ret_data);
 /**
  * Internal function to register a meta_callback with the CUDA backend via the
  * metaCUDACallbackHelper
@@ -165,7 +165,7 @@ a_err metaCUDAExpandCallback(meta_callback call, cudaStream_t *ret_stream,
  * \return cudaErrorInvalidValue if the callback is improperly-created,
  * otherwise the result of cudaStreamAddCallback
  */
-a_err metaCUDARegisterCallback(meta_callback *call);
+meta_err metaCUDARegisterCallback(meta_callback *call);
 /**
  * Dot-product of identically-shaped subregions of two identically-shaped 3D
  * arrays this kernel works for 3D data only.
@@ -185,7 +185,7 @@ a_err metaCUDARegisterCallback(meta_callback *call);
  * workgroups, assumed to be initialized before the kernel (a CUDA buffer
  * residing on the currently-active device)
  * \param type The supported MetaMorph data type that data1, data2, and
- * reduced_val contain (Currently: a_db, a_fl, a_ul, a_in, a_ui)
+ * reduced_val contain (Currently: meta_db, meta_fl, meta_ul, meta_in, meta_ui)
  * \param async Whether the kernel should be run asynchronously or blocking
  * \param call Register a callback to be automatically invoked when the kernel
  * finishes, or NULL if none
@@ -194,10 +194,11 @@ a_err metaCUDARegisterCallback(meta_callback *call);
  * \return cudaSucces if kernel is launched synchronously, otherwise the result
  * of cudaThreadSynchronize
  */
-a_err cuda_dotProd(size_t (*grid_size)[3], size_t (*block_size)[3], void *data1,
-                   void *data2, size_t (*array_size)[3], size_t (*arr_start)[3],
-                   size_t (*arr_end)[3], void *reduced_val, meta_type_id type,
-                   int async, meta_callback *call, meta_event *ret_event);
+meta_err cuda_dotProd(size_t (*grid_size)[3], size_t (*block_size)[3],
+                      void *data1, void *data2, size_t (*array_size)[3],
+                      size_t (*arr_start)[3], size_t (*arr_end)[3],
+                      void *reduced_val, meta_type_id type, int async,
+                      meta_callback *call, meta_event *ret_event);
 /**
  * Sum Reduction of subregion of a 3D array
  * this kernel works for 3D data only.
@@ -214,7 +215,7 @@ a_err cuda_dotProd(size_t (*grid_size)[3], size_t (*block_size)[3], void *data1,
  * assumed to be initialized before the kernel (a CUDA buffer residing on the
  * currently-active device)
  * \param type The supported MetaMorph data type that data1, data2, and
- * reduced_val contain (Currently: a_db, a_fl, a_ul, a_in, a_ui)
+ * reduced_val contain (Currently: meta_db, meta_fl, meta_ul, meta_in, meta_ui)
  * \param async Whether the kernel should be run asynchronously or blocking
  * \param call Register a callback to be automatically invoked when the kernel
  * finishes, or NULL if none
@@ -223,10 +224,11 @@ a_err cuda_dotProd(size_t (*grid_size)[3], size_t (*block_size)[3], void *data1,
  * \return cudaSucces if kernel is launched synchronously, otherwise the result
  * of cudaThreadSynchronize
  */
-a_err cuda_reduce(size_t (*grid_size)[3], size_t (*block_size)[3], void *data,
-                  size_t (*array_size)[3], size_t (*arr_start)[3],
-                  size_t (*arr_end)[3], void *reduced_val, meta_type_id type,
-                  int async, meta_callback *call, meta_event *ret_event);
+meta_err cuda_reduce(size_t (*grid_size)[3], size_t (*block_size)[3],
+                     void *data, size_t (*array_size)[3],
+                     size_t (*arr_start)[3], size_t (*arr_end)[3],
+                     void *reduced_val, meta_type_id type, int async,
+                     meta_callback *call, meta_event *ret_event);
 /**
  * CUDA wrapper to transpose a 2D array
  * \param grid_size The number of blocks in each dimension
@@ -244,11 +246,11 @@ a_err cuda_reduce(size_t (*grid_size)[3], size_t (*block_size)[3], void *data,
  * \return cudaSucces if kernel is launched synchronously, otherwise the result
  * of cudaThreadSynchronize
  */
-a_err cuda_transpose_face(size_t (*grid_size)[3], size_t (*block_size)[3],
-                          void *indata, void *outdata, size_t (*arr_dim_xy)[3],
-                          size_t (*tran_dim_xy)[3], meta_type_id type,
-                          int async, meta_callback *call,
-                          meta_event *ret_event);
+meta_err cuda_transpose_face(size_t (*grid_size)[3], size_t (*block_size)[3],
+                             void *indata, void *outdata,
+                             size_t (*arr_dim_xy)[3], size_t (*tran_dim_xy)[3],
+                             meta_type_id type, int async, meta_callback *call,
+                             meta_event *ret_event);
 /**
  * CUDA wrapper for the face packing kernel
  * \param grid_size The number of blocks to run in the X dimension, Y and Z are
@@ -283,12 +285,12 @@ a_err cuda_transpose_face(size_t (*grid_size)[3], size_t (*block_size)[3],
  * \warning Implemented as a 1D kernel, Y and Z grid/block parameters will be
  * ignored
  */
-a_err cuda_pack_face(size_t (*grid_size)[3], size_t (*block_size)[3],
-                     void *packed_buf, void *buf, meta_face *face,
-                     int *remain_dim, meta_type_id type, int async,
-                     meta_callback *call, meta_event *ret_event_k1,
-                     meta_event *ret_event_c1, meta_event *ret_event_c2,
-                     meta_event *ret_event_c3);
+meta_err cuda_pack_face(size_t (*grid_size)[3], size_t (*block_size)[3],
+                        void *packed_buf, void *buf, meta_face *face,
+                        int *remain_dim, meta_type_id type, int async,
+                        meta_callback *call, meta_event *ret_event_k1,
+                        meta_event *ret_event_c1, meta_event *ret_event_c2,
+                        meta_event *ret_event_c3);
 /**
  * CUDA wrapper for the face unpacking kernel
  * \param grid_size The number of blocks to run in the X dimension, Y and Z are
@@ -323,12 +325,12 @@ a_err cuda_pack_face(size_t (*grid_size)[3], size_t (*block_size)[3],
  * \warning Implemented as a 1D kernel, Y and Z grid/block parameters will be
  * ignored
  */
-a_err cuda_unpack_face(size_t (*grid_size)[3], size_t (*block_size)[3],
-                       void *packed_buf, void *buf, meta_face *face,
-                       int *remain_dim, meta_type_id type, int async,
-                       meta_callback *call, meta_event *ret_event_k1,
-                       meta_event *ret_event_c1, meta_event *ret_event_c2,
-                       meta_event *ret_event_c3);
+meta_err cuda_unpack_face(size_t (*grid_size)[3], size_t (*block_size)[3],
+                          void *packed_buf, void *buf, meta_face *face,
+                          int *remain_dim, meta_type_id type, int async,
+                          meta_callback *call, meta_event *ret_event_k1,
+                          meta_event *ret_event_c1, meta_event *ret_event_c2,
+                          meta_event *ret_event_c3);
 /**
  * CUDA wrapper for the 3D 7-point stencil averaging kernel
  * \param grid_size The number of blocks to run in each dimension
@@ -355,11 +357,11 @@ a_err cuda_unpack_face(size_t (*grid_size)[3], size_t (*block_size)[3],
  * \return either the result of enqueuing the kernel if async or the result of
  * cudaThreadSynchronize if sync
  */
-a_err cuda_stencil_3d7p(size_t (*grid_size)[3], size_t (*block_size)[3],
-                        void *indata, void *outdata, size_t (*array_size)[3],
-                        size_t (*arr_start)[3], size_t (*arr_end)[3],
-                        meta_type_id type, int async, meta_callback *call,
-                        meta_event *ret_event);
+meta_err cuda_stencil_3d7p(size_t (*grid_size)[3], size_t (*block_size)[3],
+                           void *indata, void *outdata, size_t (*array_size)[3],
+                           size_t (*arr_start)[3], size_t (*arr_end)[3],
+                           meta_type_id type, int async, meta_callback *call,
+                           meta_event *ret_event);
 #ifdef __CUDACC__
 }
 #endif

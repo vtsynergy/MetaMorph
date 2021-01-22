@@ -40,7 +40,7 @@ int meta_get_acc_c_(int *accel, int *mode) {
 int meta_validate_worksize_c_(size_t *grid_x, size_t *grid_y, size_t *grid_z,
                               size_t *block_x, size_t *block_y,
                               size_t *block_z) {
-  a_dim3 grid, block;
+  meta_dim3 grid, block;
   grid[0] = *grid_x, grid[1] = *grid_y, grid[2] = *grid_z;
   block[0] = *block_x, block[1] = *block_y, block[2] = *block_z;
   return (int)meta_validate_worksize(&grid, &block);
@@ -52,14 +52,14 @@ int meta_dotprod_c_(size_t *grid_x, size_t *grid_y, size_t *grid_z,
                     size_t *start_z, size_t *end_x, size_t *end_y,
                     size_t *end_z, void *reduction_var, meta_type_id type,
                     int *async) {
-  a_dim3 grid, block, size, start, end;
+  meta_dim3 grid, block, size, start, end;
   grid[0] = *grid_x, grid[1] = *grid_y, grid[2] = *grid_z;
   block[0] = *block_x, block[1] = *block_y, block[2] = *block_z;
   size[0] = *size_x, size[1] = *size_y, size[2] = *size_z;
   start[0] = *start_x - 1, start[1] = *start_y - 1, start[2] = *start_z - 1;
   end[0] = *end_x - 1, end[1] = *end_y - 1, end[2] = *end_z - 1;
   return (int)meta_dotProd(&grid, &block, data1, data2, &size, &start, &end,
-                           reduction_var, type, (a_bool)*async, NULL, NULL);
+                           reduction_var, type, (meta_bool)*async, NULL, NULL);
 }
 int meta_reduce_c_(size_t *grid_x, size_t *grid_y, size_t *grid_z,
                    size_t *block_x, size_t *block_y, size_t *block_z,
@@ -67,21 +67,21 @@ int meta_reduce_c_(size_t *grid_x, size_t *grid_y, size_t *grid_z,
                    size_t *start_x, size_t *start_y, size_t *start_z,
                    size_t *end_x, size_t *end_y, size_t *end_z,
                    void *reduction_var, meta_type_id type, int *async) {
-  a_dim3 grid, block, size, start, end;
+  meta_dim3 grid, block, size, start, end;
   grid[0] = *grid_x, grid[1] = *grid_y, grid[2] = *grid_z;
   block[0] = *block_x, block[1] = *block_y, block[2] = *block_z;
   size[0] = *size_x, size[1] = *size_y, size[2] = *size_z;
   start[0] = *start_x - 1, start[1] = *start_y - 1, start[2] = *start_z - 1;
   end[0] = *end_x - 1, end[1] = *end_y - 1, end[2] = *end_z - 1;
   return (int)meta_reduce(&grid, &block, data, &size, &start, &end,
-                          reduction_var, type, (a_bool)*async, NULL, NULL);
+                          reduction_var, type, (meta_bool)*async, NULL, NULL);
 }
 int meta_copy_h2d_c_(void *dst, void *src, size_t *size, int *async) {
-  return (int)meta_copy_h2d(dst, src, *size, (a_bool)*async, NULL, NULL);
+  return (int)meta_copy_h2d(dst, src, *size, (meta_bool)*async, NULL, NULL);
 }
 int meta_copy_d2h_c_(void *dst, void *src, size_t *size, int *async) {
-  return (int)meta_copy_d2h(dst, src, *size, (a_bool)*async, NULL, NULL);
+  return (int)meta_copy_d2h(dst, src, *size, (meta_bool)*async, NULL, NULL);
 }
 int meta_copy_d2d_c_(void *dst, void *src, size_t *size, int *async) {
-  return (int)meta_copy_d2d(dst, src, *size, (a_bool)*async, NULL, NULL);
+  return (int)meta_copy_d2d(dst, src, *size, (meta_bool)*async, NULL, NULL);
 }

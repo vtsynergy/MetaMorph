@@ -6,7 +6,7 @@
 #Manually update package version information
 #Use origin for a stronger "not-defined" check, and a defined but empty variable still returns true to ifdef
 ifeq ($(origin VERSION),undefined)
-VERSION=0.3b-rc1
+VERSION=0.3.1b-rc1
 endif
 
 #define version_less
@@ -32,12 +32,16 @@ OS :=
 ARCH :=
 VER :=
 ifeq ($(shell uname),Linux)
-ifneq (, $(shell which lsb_release))
-OS = $(shell lsb_release -si)
-OS := $(shell echo $(OS) | tr '[:upper:]' '[:lower:]')
 ARCH = $(shell uname -m)#| sed 's/x86_//;s/i[3-6]86/32/')
+ifneq (, $(shell which lsb_release 2>/dev/null))
+OS = $(shell lsb_release -si)
 VER = $(shell lsb_release -sr)
+else
+#grep the /etc/*-release file instead
+OS = $(shell cat /etc/*-release | grep "^ID=" | sed 's/^.*=//g')
+VER = $(shell cat /etc/*-release | grep "^VERSION_ID=" | sed 's/^.*=//g')
 endif
+OS := $(shell echo $(OS) | tr '[:upper:]' '[:lower:]')
 endif
 #check if 64-bit libs should be used
 ifeq ($(shell arch),x86_64)
@@ -72,7 +76,7 @@ endif
 #CHECK for an MPI environment
 ifndef MPI_DIR
 #attempt to autodetect
-ifneq ($(shell which mpicc),)
+ifneq ($(shell which mpicc 2>/dev/null),)
 MPI_DIR=$(patsubst %/bin/mpicc,%,$(shell which mpicc))
 else
 MPI_DIR=
@@ -105,7 +109,7 @@ endif
 
 #Ensure CUDA environment
 ifndef CUDA_LIB_DIR #Autodetect a cuda installation
-ifeq ($(shell which nvcc),)
+ifeq ($(shell which nvcc 2>/dev/null),)
 #none found
 CUDA_LIB_DIR=
 else
@@ -430,34 +434,35 @@ $(MM_LIB):
 $(MM_LIB)/libmetamorph.so: $(MM_DEPS) | $(MM_LIB)
 	$(CC) $(MM_DEPS) $(CC_FLAGS) $(INCLUDES) -L$(MM_LIB) $(MM_COMPONENTS) -o $(MM_LIB)/libmetamorph.so -ldl -shared -Wl,-soname,libmetamorph.so
 
-$(MM_LIB)/libmetamorph_profiling.so: $(MM_CORE)/metamorph_profiling.c | $(MM_LIB)
-	$(CC) $(MM_CORE)/metamorph_profiling.c $(CC_FLAGS) $(INCLUDES) -o $(MM_LIB)/libmetamorph_profiling.so -shared -Wl,-soname,libmetamorph_profiling.so
+$(MM_LIB)/libmetamorph_profiling.so: $(MM_LIB) $(MM_LIB)/libmetamorph.so $(MM_CORE)/metamorph_profiling.c
+	$(CC) $(MM_CORE)/metamorph_profiling.c $(CC_FLAGS) $(INCLUDES) -L $(MM_LIB) -lmetamorph -o $(MM_LIB)/libmetamorph_profiling.so -shared -Wl,-soname,libmetamorph_profiling.so
 
-$(MM_LIB)/libmetamorph_mpi.so: $(MM_CORE)/metamorph_mpi.c | $(MM_LIB)
-	$(MPICC) $(MM_CORE)/metamorph_mpi.c $(CC_FLAGS) $(INCLUDES) -I$(MPI_DIR)/include -L$(MPI_DIR)/lib -o $(MM_LIB)/libmetamorph_mpi.so -shared -Wl,-soname,libmetamorph_mpi.so
+$(MM_LIB)/libmetamorph_mpi.so: $(MM_LIB) $(MM_LIB)/libmetamorph.so $(MM_CORE)/metamorph_mpi.c
+	$(MPICC) $(MM_CORE)/metamorph_mpi.c $(CC_FLAGS) $(INCLUDES) -I$(MPI_DIR)/include -L $(MM_LIB) -lmetamorph -L$(MPI_DIR)/lib -o $(MM_LIB)/libmetamorph_mpi.so -shared -Wl,-soname,libmetamorph_mpi.so
 
-$(MM_LIB)/libmetamorph_openmp.so: | $(MM_LIB)
+$(MM_LIB)/libmetamorph_openmp.so: $(MM_LIB) $(MM_LIB)/libmetamorph.so
 	cd $(MM_MP) && $(MAKE) $(MFLAGS) libmetamorph_openmp.so
 
 #TODO Make this happen transparently to this file, create a symlink in the backend's makefile	
-$(MM_LIB)/libmetamorph_openmp_mic.so: | $(MM_LIB)
+$(MM_LIB)/libmetamorph_openmp_mic.so: $(MM_LIB) $(MM_LIB)/libmetamorph.so
 	cd $(MM_MP) && $(MAKE) $(MFLAGS) libmetamorph_openmp_mic.so
 
-$(MM_LIB)/libmetamorph_cuda.so: | $(MM_LIB)
+$(MM_LIB)/libmetamorph_cuda.so: $(MM_LIB) $(MM_LIB)/libmetamorph.so
 	cd $(MM_CU) && $(MAKE) $(MFLAGS) libmetamorph_cuda.so
 
-$(MM_LIB)/libmetamorph_opencl.so: | $(MM_LIB)
+$(MM_LIB)/libmetamorph_opencl.so: $(MM_LIB) $(MM_LIB)/libmetamorph.so
 	cd $(MM_CL) && $(MAKE) $(MFLAGS) libmetamorph_opencl.so
 
 #TODO Make this happen transparently to this file, create a symlink in the backend's makefile	
-$(MM_LIB)/libmetamorph_opencl_intelfpga.so: | $(MM_LIB)
+$(MM_LIB)/libmetamorph_opencl_intelfpga.so: $(MM_LIB) $(MM_LIB)/libmetamorph.so
 	cd $(MM_CL) && $(MAKE) $(MFLAGS) libmetamorph_opencl_intelfpga.so
 
 .PHONY: generators
 generators: $(MM_GEN_CL)/metaCL
 
-$(MM_GEN_CL)/metaCL:
-	cd $(MM_GEN_CL) && $(MAKE) $(METACL_FLAGS) metaCL
+
+$(MM_GEN_CL)/metaCL: $(MM_GEN_CL)/metacl.cpp $(MM_GEN_CL)/metamorph_shim.c $(MM_GEN_CL)/shim_dynamic.h include/metamorph_emulatable.h $(MM_CL)/metamorph_opencl_emulatable.h
+	cd $(MM_GEN_CL) && $(MAKE) metaCL
 
 .PHONY: examples
 examples: torus_ex
@@ -468,7 +473,14 @@ torus_ex:
 #Install should only do what's supported according to the config and auto-detected packages
 #TODO add headers
 .PHONY: install
-install: all $(foreach target,$(BUILD_LIBS),$(subst $(MM_LIB),$(BASE_INSTALL_DIR)/$(LINK_LIB_RDIR),$(target))) install-metaCL
+install: all install-libraries install-headers install-metaCL
+
+#these variants support the "only what's configured" install targets
+.PHONY: install-libraries
+install-libraries: $(foreach target,$(BUILD_LIBS),$(subst $(MM_LIB),$(BASE_INSTALL_DIR)/$(LINK_LIB_RDIR),$(target)))
+
+.PHONY: install-headers
+install-headers: install-core-headers $(subst metamorph_cuda.h,metamorph_cuda.cuh,$(foreach target,$(BUILD_LIBS),$(subst .so,.h,$(subst libmetamorph,metamorph,$(subst $(MM_LIB),$(BASE_INSTALL_DIR)/include,$(target))))))
 
 #install all should try to do everything
 .PHONY: install-all
@@ -609,9 +621,13 @@ $(BASE_INSTALL_DIR)/include:
 .PHONY: install-main-header
 install-main-header: $(BASE_INSTALL_DIR)/include/metamorph.h
 
-$(BASE_INSTALL_DIR)/include/metamorph.h: $(BASE_INSTALL_DIR)/include include/metamorph.h
+$(BASE_INSTALL_DIR)/include/metamorph.h: $(BASE_INSTALL_DIR)/include $(BASE_INSTALL_DIR)/include/metamorph_emulatable.h include/metamorph.h
 	@if [ -f $(BASE_INSTALL_DIR)/include/metamorph.h ]; then rm $(BASE_INSTALL_DIR)/include/metamorph.h; fi
 	cp include/metamorph.h $(BASE_INSTALL_DIR)/include/
+
+$(BASE_INSTALL_DIR)/include/metamorph_emulatable.h: $(BASE_INSTALL_DIR)/include include/metamorph_emulatable.h
+	@if [ -f $(BASE_INSTALL_DIR)/include/metamorph_emulatable.h ]; then rm $(BASE_INSTALL_DIR)/include/metamorph_emulatable.h; fi
+	cp include/metamorph_emulatable.h $(BASE_INSTALL_DIR)/include/
 
 .PHONY: install-dynSym-header
 install-dynSym-header: $(BASE_INSTALL_DIR)/include/metamorph_dynamic_symbols.h
@@ -637,9 +653,13 @@ install-backend-headers: install-opencl-headers install-cuda-headers install-ope
 .PHONY: install-opencl-headers
 install-opencl-headers: $(BASE_INSTALL_DIR)/include/metamorph_opencl.h
 
-$(BASE_INSTALL_DIR)/include/metamorph_opencl.h: $(BASE_INSTALL_DIR)/include metamorph-backends/opencl-backend/metamorph_opencl.h
+$(BASE_INSTALL_DIR)/include/metamorph_opencl.h: $(BASE_INSTALL_DIR)/include $(BASE_INSTALL_DIR)/include/metamorph_opencl_emulatable.h metamorph-backends/opencl-backend/metamorph_opencl.h
 	@if [ -f $(BASE_INSTALL_DIR)/include/metamorph_opencl.h ]; then rm $(BASE_INSTALL_DIR)/include/metamorph_opencl.h; fi
 	cp metamorph-backends/opencl-backend/metamorph_opencl.h $(BASE_INSTALL_DIR)/include/
+
+$(BASE_INSTALL_DIR)/include/metamorph_opencl_emulatable.h: $(BASE_INSTALL_DIR)/include metamorph-backends/opencl-backend/metamorph_opencl_emulatable.h
+	@if [ -f $(BASE_INSTALL_DIR)/include/metamorph_opencl_emulatable.h ]; then rm $(BASE_INSTALL_DIR)/include/metamorph_opencl_emulatable.h; fi
+	cp metamorph-backends/opencl-backend/metamorph_opencl_emulatable.h $(BASE_INSTALL_DIR)/include/
 
 .PHONY: install-cuda-headers
 install-cuda-headers: $(BASE_INSTALL_DIR)/include/metamorph_cuda.cuh
@@ -717,11 +737,13 @@ uninstall:
 	if [ -d $(BASE_INSTALL_DIR)/$(LINK_LIB_RDIR)/$(VERSIONED_LIB_RDIR) ]; then rmdir $(BASE_INSTALL_DIR)/$(LINK_LIB_RDIR)/$(VERSIONED_LIB_RDIR); fi
 	#Core headers
 	if [ -f $(BASE_INSTALL_DIR)/include/metamorph.h ]; then rm $(BASE_INSTALL_DIR)/include/metamorph.h; fi
+	if [ -f $(BASE_INSTALL_DIR)/include/metamorph_emulatable.h ]; then rm $(BASE_INSTALL_DIR)/include/metamorph_emulatable.h; fi
 	if [ -f $(BASE_INSTALL_DIR)/include/metamorph_dynamic_symbols.h ]; then rm $(BASE_INSTALL_DIR)/include/metamorph_dynamic_symbols.h; fi
 	if [ -f $(BASE_INSTALL_DIR)/include/metamorph_fortran_compat.h ]; then rm $(BASE_INSTALL_DIR)/include/metamorph_fortran_compat.h; fi
 	if [ -f $(BASE_INSTALL_DIR)/include/metamorph_fortran_header.F03 ]; then rm $(BASE_INSTALL_DIR)/include/metamorph_fortran_header.F03; fi
 	#Backend headers
 	if [ -f $(BASE_INSTALL_DIR)/include/metamorph_opencl.h ]; then rm $(BASE_INSTALL_DIR)/include/metamorph_opencl.h; fi
+	if [ -f $(BASE_INSTALL_DIR)/include/metamorph_opencl_emulatable.h ]; then rm $(BASE_INSTALL_DIR)/include/metamorph_opencl_emulatable.h; fi
 	if [ -f $(BASE_INSTALL_DIR)/include/metamorph_cuda.cuh ]; then rm $(BASE_INSTALL_DIR)/include/metamorph_cuda.cuh; fi
 	if [ -f $(BASE_INSTALL_DIR)/include/metamorph_openmp.h ]; then rm $(BASE_INSTALL_DIR)/include/metamorph_openmp.h; fi
 	#Plugin headers
