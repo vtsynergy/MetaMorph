@@ -1,12 +1,11 @@
 Name:           MetaMorph
-Version:        0.3b
+Version:        0.3.1b
 Release:        1%{?dist}
 Summary:        MetaMorph heterogenous runtime and support utilities
 
 License:        LGPLv2.1+
 URL:            https://github.com/vtsynergy/%{name}
 Source0:        https://github.com/vtsynergy/%{name}/archive/v%{version}.tar.gz
-Patch0:		Centos8_MetaCL_MakeFix.patch
 
 #TODO: figure ou how to have a generic cuda-compiler version
 %define _cuda_major 11
@@ -30,7 +29,6 @@ MetaMorph Core Library, which implements the core API and dynamicallyloaded brid
 
 %prep
 %setup
-%patch0 -p1
 #TODO: support pull from github
 
 %build
@@ -61,6 +59,10 @@ make clean
 %changelog
 * Wed Jul  8 2020 Paul Sathre
 - #TODO
+
+* Fri Jan 22 2021 Paul Sathre
+- Increment to 0.3.1b
+- Remove unnecessary makefile patch
 
 
 %package openmp
