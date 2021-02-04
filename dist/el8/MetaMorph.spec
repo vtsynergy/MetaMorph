@@ -39,7 +39,7 @@ DESTDIR=%{buildroot} PATH=%{_usr}/local/cuda-%{_cuda_major}.%{_cuda_minor}/bin:$
 rm -rf $RPM_BUILD_ROOT
 #%make_install
 #TODO
-VERSION=%{version} DESTDIR=%{buildroot} make install-all
+DESTDIR=%{buildroot} PATH=%{_usr}/local/cuda-%{_cuda_major}.%{_cuda_minor}/bin:$PATH VERSION=%{version} MPI_DIR=%{_mpidir} LIBRARY_PATH=%{_usr}/local/cuda-%{_cuda_major}.%{_cuda_minor}/targets/%{_arch}-%{_os}/lib:$LIBRARY_PATH CLANG_LIB_PATH=%{_libdir} USE_CUDA=TRUE USE_OPENCL=TRUE USE_OPENMP=TRUE USE_MPI=TRUE USE_FORTRAN=TRUE USE_TIMERS=TRUE make install-all
 
 %clean
 make clean
@@ -57,12 +57,12 @@ make clean
 
 
 %changelog
-* Wed Jul  8 2020 Paul Sathre
-- #TODO
-
 * Fri Jan 22 2021 Paul Sathre
 - Increment to 0.3.1b
 - Remove unnecessary makefile patch
+
+* Wed Jul  8 2020 Paul Sathre
+- #TODO
 
 
 %package openmp
@@ -126,6 +126,7 @@ Requires: metamorph
 %files dev
 %dir %{_usr}/local/include
 %{_usr}/local/include/metamorph.h
+%{_usr}/local/include/metamorph_emulatable.h
 %{_usr}/local/include/metamorph_dynamic_symbols.h
 %{_usr}/local/include/metamorph_fortran_compat.h
 %{_usr}/local/include/metamorph_fortran_header.F03
@@ -156,6 +157,7 @@ Files necessary to develop a new application using features specific to the Open
 Requires: metamorph-dev, metamorph-opencl, opencl-headers
 %files opencl-dev
 %{_usr}/local/include/metamorph_opencl.h
+%{_usr}/local/include/metamorph_opencl_emulatable.h
 
 
 %package mpi-dev
