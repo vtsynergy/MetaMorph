@@ -12,7 +12,7 @@ Source0:        https://github.com/vtsynergy/%{name}/archive/v%{version}.tar.gz
 %define _cuda_minor 0
 %define _cuda_ver %{_cuda_major}-%{_cuda_minor}
 BuildRequires:	gcc-c++, cuda-compiler-%{_cuda_ver}, cuda-libraries-devel-%{_cuda_ver}, (mpich-devel or openmpi-devel), clang-devel >= 6.0, llvm-devel >= 6.0, llvm-static >= 6.0, ncurses-devel
-Requires:       (metamorph-openmp or metamorph-opencl or metamorph-cuda)
+Requires:       (MetaMorph-openmp or MetaMorph-opencl or MetaMorph-cuda)
 
 
 %if %( if [ -f %{_libdir}/mpich/bin/mpicc  ]; then echo "1" ; else echo "0" ; fi )
@@ -69,7 +69,7 @@ make clean
 Summary:MetaMorph OpenMP Backend
 %description openmp
 Implements OpenMP versions of MetaMorph's top-level functions
-Requires: metamorph
+Requires: MetaMorph
 %files openmp
 %{_usr}/local/lib/libmetamorph_openmp.so
 %{_usr}/local/lib/metamorph-%{version}/libmetamorph_openmp.so
@@ -79,7 +79,7 @@ Summary: MetaMorph CUDA Backend
 %description cuda
 Implements CUDA versions of MetaMorph's top-level functions
 
-Requires: metamorph, libcuda1
+Requires: MetaMorph, libcuda1
 %files cuda
 %{_usr}/local/lib/libmetamorph_cuda.so
 %{_usr}/local/lib/metamorph-%{version}/libmetamorph_cuda.so
@@ -90,7 +90,7 @@ Summary: MetaMorph OpenCL Backend
 Implements the OpenCL versions of MetaMorph's top-level functions
 It also provides OpenCL-specific functionality to support general OpenCL applications, particularly those created with MetaCL
 
-Requires: metamorph, opencl-icd | amd-opencl-icd, libopencl-1.1-1
+Requires: MetaMorph, opencl-icd | amd-opencl-icd, libopencl-1.1-1
 %files opencl
 %{_usr}/local/lib/libmetamorph_opencl.so
 %{_usr}/local/lib/metamorph-%{version}/libmetamorph_opencl.so
@@ -102,7 +102,7 @@ Summary: MetaMorph MPI Interoperability plugin
 %description mpi
 Provides operations to send and receive MetaMorph device buffers across MPI
 
-Requires: metamorph, mpi-default-bin
+Requires: MetaMorph, mpi-default-bin
 %files mpi
 %{_usr}/local/lib/libmetamorph_mpi.so
 %{_usr}/local/lib/metamorph-%{version}/libmetamorph_mpi.so
@@ -112,18 +112,18 @@ Summary: MetaMorph Profiling plugin
 %description profiling
 Provides transparent profiling of MetaMorph API calls via backend-native events.
 
-Requires: metamorph
+Requires: MetaMorph
 %files profiling
 %{_usr}/local/lib/libmetamorph_profiling.so
 %{_usr}/local/lib/metamorph-%{version}/libmetamorph_profiling.so
 
-%package dev
+%package devel
 Summary: MetaMorph core headers
-%description dev
+%description devel
 Files necessary to develop a new application based on only the core MetaMorph capabities
 
-Requires: metamorph
-%files dev
+Requires: MetaMorph
+%files devel
 %dir %{_usr}/local/include
 %{_usr}/local/include/metamorph.h
 %{_usr}/local/include/metamorph_emulatable.h
@@ -131,50 +131,50 @@ Requires: metamorph
 %{_usr}/local/include/metamorph_fortran_compat.h
 %{_usr}/local/include/metamorph_fortran_header.F03
 
-%package openmp-dev
+%package openmp-devel
 Summary: MetaMorph OpenMP Backend Headers
-%description openmp-dev
+%description openmp-devel
 Files necessary to develop a new application using features specific to the OpenMP backend
 
-Requires: metamorph-dev, metamorph-openmp
-%files openmp-dev
+Requires: MetaMorph-devel, MetaMorph-openmp
+%files openmp-devel
 %{_usr}/local/include/metamorph_openmp.h
 
-%package cuda-dev
+%package cuda-devel
 Summary: MetaMorph CUDA Backend headers
-%description cuda-dev
+%description cuda-devel
 Files necessary to develop a new application using features specific to the CUDA backend
 
-Requires: metamorph-dev, metamorph-cuda, cuda-headers
-%files cuda-dev
+Requires: MetaMorph-devel, MetaMorph-cuda, cuda-headers
+%files cuda-devel
 %{_usr}/local/include/metamorph_cuda.cuh
 
-%package opencl-dev
+%package opencl-devel
 Summary: MetaMorph OpenCL Backend Header
-%description opencl-dev
+%description opencl-devel
 Files necessary to develop a new application using features specific to the OpenCL Backend, including those necessary to support MetaCL-generated OpenCL applications.
 
-Requires: metamorph-dev, metamorph-opencl, opencl-headers
-%files opencl-dev
+Requires: MetaMorph-devel, MetaMorph-opencl, opencl-headers
+%files opencl-devel
 %{_usr}/local/include/metamorph_opencl.h
 %{_usr}/local/include/metamorph_opencl_emulatable.h
 
 
-%package mpi-dev
+%package mpi-devel
 Summary: MetaMorph MPI Interoperability headers 
-%description mpi-dev
+%description mpi-devel
 Files necessary to develop a new application using functionality from the MPI plugin
 
-Requires: metamorph-dev, metamorph-mpi, mpi-headers
-%files mpi-dev
+Requires: MetaMorph-devel, MetaMorph-mpi, mpi-headers
+%files mpi-devel
 %{_usr}/local/include/metamorph_mpi.h
 
-%package profiling-dev
+%package profiling-devel
 Summary: MetaMorph Profiling header
-%description profiling-dev
+%description profiling-devel
 Files necessary to direectly utilize MetaMorph's backend-native timing infrastructure.
 Only necessary for developers adding timers to features that lie outside the core MetaMorph API, or wishing to explitly flush or othewise manage the timers outside their own implicit constructor/destructor.
-%files profiling-dev
+%files profiling-devel
 %{_usr}/local/include/metamorph_profiling.h
 
 
@@ -183,7 +183,7 @@ Summary: MetaCL OpenCL Host Autogenerator.
 %description -n metacl
 MetaCL is an autogenerator for OpenCL host code based on the Clang/LLVM compiler framework.
 Given a set of OpencL kernel file(s), it generates the appropriate boilerplate to initialize the kernels and invoke them, wrapped inside a convenient and simplified API.
-Generated code is dependent on metamorph-opencl amd metamorh to run, and corresponding dev packages to compile, but the MetaCL tool itself does not.
+Generated code is dependent on metamorph-opencl and metamorphto run, and corresponding dev packages to compile, but the MetaCL tool itself does not.
 
 Requires: libclang (>=6.0)
 
