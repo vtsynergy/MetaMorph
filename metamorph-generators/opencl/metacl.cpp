@@ -1292,6 +1292,7 @@ int populateOutputFiles() {
     if (!isUnified || unifiedFirstPass) {
       // headers once per output
       *out_c << "//Force MetaMorph to include the OpenCL code\n";
+      *out_c << "#include <stdio.h>\n";
       *out_c << "#ifdef __APPLE__\n";
       *out_c << "#include <OpenCL/opencl.h>\n";
       *out_c << "#else\n";

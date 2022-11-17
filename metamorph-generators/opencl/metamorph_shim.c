@@ -22,6 +22,7 @@
  * A copy of the current license terms may be obtained from https://github.com/vtsynergy/MetaMorph/blob/master/LICENSE
  */
 #include <CL/opencl.h>
+#include <stdio.h>
 #include <string.h>
 #include "metamorph.h"
 #include "metamorph_opencl.h"
