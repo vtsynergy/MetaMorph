@@ -1234,10 +1234,17 @@ public:
       std::error_code error_c, error_h;
       /// \todo FIXME: Check error returns;
       /// \todo FIXME Filter off the .cl extension before outfile creation
+#if (LLVM_VERSION_MAJOR > 6)
+      cache->outfile_c =
+          new llvm::raw_fd_ostream(file + ".c", error_c, llvm::sys::fs::OF_None);
+      cache->outfile_h =
+          new llvm::raw_fd_ostream(file + ".h", error_h, llvm::sys::fs::OF_None);
+#else
       cache->outfile_c =
           new llvm::raw_fd_ostream(file + ".c", error_c, llvm::sys::fs::F_None);
       cache->outfile_h =
           new llvm::raw_fd_ostream(file + ".h", error_h, llvm::sys::fs::F_None);
+#endif
       llvm::errs() << error_c.message() << error_h.message();
     }
 
@@ -1570,15 +1577,31 @@ int populateOutputFiles() {
  */
 int main(int argc, const char **argv) {
   int errcode = 0;
+#if (LLVM_VERSION_MAJOR > 12)
+  auto ExpectedParser = CommonOptionsParser::create(argc, argv, MetaCLCategory);
+  if (!ExpectedParser) {
+    llvm::errs() << ExpectedParser.takeError();
+    return 1;
+  }
+  CommonOptionsParser &op = ExpectedParser.get();
+#else
   CommonOptionsParser op(argc, argv, MetaCLCategory);
+#endif
   // If they want unified output, generate the files
   if (UnifiedOutputFile.getValue() != "") {
     std::error_code error;
     /// \todo FIXME Check error returns
+#if (LLVM_VERSION_MAJOR > 6)
+    unified_output_c = new llvm::raw_fd_ostream(
+        UnifiedOutputFile.getValue() + ".c", error, llvm::sys::fs::OF_None);
+    unified_output_h = new llvm::raw_fd_ostream(
+        UnifiedOutputFile.getValue() + ".h", error, llvm::sys::fs::OF_None);
+#else
     unified_output_c = new llvm::raw_fd_ostream(
         UnifiedOutputFile.getValue() + ".c", error, llvm::sys::fs::F_None);
     unified_output_h = new llvm::raw_fd_ostream(
         UnifiedOutputFile.getValue() + ".h", error, llvm::sys::fs::F_None);
+#endif
   }
   // If they want optional or disabled MetaMorph integration, create the headers
   // and shim
@@ -1587,12 +1610,21 @@ int main(int argc, const char **argv) {
                            // bitfield,both disabled and optional will evaluate
                            // true
     std::error_code error;
+#if (LLVM_VERSION_MAJOR > 6)
+    raw_ostream *metamorph_h =
+        new llvm::raw_fd_ostream("metamorph.h", error, llvm::sys::fs::OF_None);
+    raw_ostream *metamorph_opencl_h = new llvm::raw_fd_ostream(
+        "metamorph_opencl.h", error, llvm::sys::fs::OF_None);
+    raw_ostream *metamorph_shim_c = new llvm::raw_fd_ostream(
+        "metamorph_shim.c", error, llvm::sys::fs::OF_None);
+#else
     raw_ostream *metamorph_h =
         new llvm::raw_fd_ostream("metamorph.h", error, llvm::sys::fs::F_None);
     raw_ostream *metamorph_opencl_h = new llvm::raw_fd_ostream(
         "metamorph_opencl.h", error, llvm::sys::fs::F_None);
     raw_ostream *metamorph_shim_c = new llvm::raw_fd_ostream(
         "metamorph_shim.c", error, llvm::sys::fs::F_None);
+#endif
     // If the support level is optional, inject the defines necessary to do the
     // dynamic loading and binding
     if (UseMetaMorph.getValue() == metaMorphOptional) {

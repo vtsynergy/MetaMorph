@@ -40,15 +40,15 @@ ifndef LLVM_INCLUDE_PATH
 LLVM_INCLUDE_PATH :=
 #Since debian and ubuntu explicitly version their directories, just grab the last listed
 ifeq ($(OS), ubuntu)
-LLVM_INCLUDE_PATH := $(shell ls -d /usr/lib/llvm-*/include | tail -n1)
+LLVM_INCLUDE_PATH := $(shell ls -d /usr/lib/llvm-*/include | sed 's/\/usr\/lib\/llvm-\(.*\)\/include/\1/g' | sort -n | tail -n1 | sed 's/^\(.*\)/\/usr\/lib\/llvm-\1\/include/g')
 else ifeq ($(OS), debian)
-LLVM_INCLUDE_PATH := $(shell ls -d /usr/lib/llvm-*/include | tail -n1)
+LLVM_INCLUDE_PATH := $(shell ls -d /usr/lib/llvm-*/include | sed 's/\/usr\/lib\/llvm-\(.*\)\/include/\1/g' | sort -n | tail -n1 | sed 's/^\(.*\)/\/usr\/lib\/llvm-\1\/include/g')
 else ifeq ($(OS), centos)
 #The only ones new enough to actually use on Centos 7 would actually be in /opt/rh/llvm-toolset-<VERSION>/root/usr/include
 LLVM_INCLUDE_PATH := /usr/include/
 path = $(LLVM_INCLUDE_PATH)
  ifneq ($(strip $(foreach filename, $(LLVM_REQD_INCLUDES), $(CHECK_FILE_EXISTS))),)
-  TOOLSET_PATH := $(shell ls -d /opt/rh/llvm-toolset-*/root/usr/include | tail -n1)
+  TOOLSET_PATH := $(shell ls -d /opt/rh/llvm-toolset-*/root/usr/include | sed 's/\/opt\/rh\/llvm-toolset-\(.*\)\/root\/usr\/include/\1/g' | sort -n | tail -n1 | sed 's/^\(.*\)/\/opt\/rh\/llvm-toolset-\1\/root\/usr\/include/g')
   ifneq ($(TOOLSET_PATH),)
    LLVM_INCLUDE_PATH := $(TOOLSET_PATH)
   endif
@@ -57,7 +57,7 @@ else ifeq ($(OS), rhel)
 LLVM_INCLUDE_PATH := /usr/include/
 path = $(LLVM_INCLUDE_PATH)
  ifneq ($(strip $(foreach filename, $(LLVM_REQD_INCLUDES), $(CHECK_FILE_EXISTS))),)
-  TOOLSET_PATH := $(shell ls -d /opt/rh/llvm-toolset-*/root/usr/include | tail -n1)
+  TOOLSET_PATH := $(shell ls -d /opt/rh/llvm-toolset-*/root/usr/include | sed 's/\/opt\/rh\/llvm-toolset-\(.*\)\/root\/usr\/include/\1/g' | sort -n | tail -n1 | sed 's/^\(.*\)/\/opt\/rh\/llvm-toolset-\1\/root\/usr\/include/g')
   ifneq ($(TOOLSET_PATH),)
    LLVM_INCLUDE_PATH := $(TOOLSET_PATH)
   endif
@@ -122,6 +122,12 @@ ifeq ($(shell expr $(LLVM_MAJOR_VER) \>= 10), 1)
 	LLVMFrontendOpenMP \
 	LLVMBitstreamReader \
 	LLVMDemangle
+  endif
+ifeq ($(shell expr $(LLVM_MAJOR_VER) \>= 14), 1)
+  LLVM_REQD_STATIC_LIBS := $(LLVM_REQD_STATIC_LIBS) \
+	LLVMObject \
+	LLVMDebugInfoDWARF \
+	LLVMTextAPI
   endif
 CLANG_REQD_STATIC_LIBS := clangAST \
 	clangASTMatchers \
@@ -204,40 +210,7 @@ endif
 #Debian 9 has them in /usr/lib/llvm-<VERISON>/lib/libclangASTMatchers.a
 #so does Ubuntu 18.04
 ifndef LLVM_LIBRARY_PATH
-LLVM_LIBRARY_PATH :=
-ifeq ($(OS), ubuntu)
-LLVM_LIBRARY_PATH := $(shell ls -d /usr/lib/llvm-*/lib | tail -n1)
-else ifeq ($(OS), debian)
-LLVM_LIBRARY_PATH := $(shell ls -d /usr/lib/llvm-*/lib | tail -n1)
-else ifeq ($(OS), centos)
-LLVM_LIBRARY_PATH := /usr/lib$(subst _,,$(subst x86,,$(ARCH)))
- ifeq ($(shell expr $(VER) \< 8), 1)
-  LLVM_LIBRARY_PATH := $(LLVM_LIBRARY_PATH)/llvm
- endif
-path = $(LLVM_LIBRARY_PATH)
- ifneq ($(strip $(foreach filename, $(foreach shortname, $(LLVM_REQD_LIBS), lib$(shortname)$(LIB_EXT)), $(CHECK_FILE_EXISTS))),)
-  TOOLSET_PATH := $(shell ls -d /opt/rh/llvm-toolset-*/root/usr/lib$(subst _,,$(subst x86,,$(ARCH))) | tail -n1)
-  ifneq ($(TOOLSET_PATH),)
-   LLVM_LIBRARY_PATH := $(TOOLSET_PATH)
-  endif
- endif
-else ifeq ($(OS), rhel)
-LLVM_LIBRARY_PATH := /usr/lib$(subst _,,$(subst x86,,$(ARCH)))
- ifeq ($(shell expr $(VER) \< 8), 1)
-  LLVM_LIBRARY_PATH := $(LLVM_LIBRARY_PATH)/llvm
- endif
-path = $(LLVM_LIBRARY_PATH)
- ifneq ($(strip $(foreach filename, $(foreach shortname, $(LLVM_REQD_LIBS), lib$(shortname)$(LIB_EXT)), $(CHECK_FILE_EXISTS))),)
-  TOOLSET_PATH := $(shell ls -d /opt/rh/llvm-toolset-*/root/usr/lib$(subst _,,$(subst x86,,$(ARCH))) | tail -n1)
-  ifneq ($(TOOLSET_PATH),)
-   LLVM_LIBRARY_PATH := $(TOOLSET_PATH)
-  endif
- endif
-else ifeq ($(OS), fedora)
-LLVM_LIBRARY_PATH := /usr/lib$(subst _,,$(subst x86,,$(ARCH)))
-else
-$(error Unrecognized Operating system, must manually set LLVM_LIBRARY_PATH)
-endif
+LLVM_LIBRARY_PATH := $(shell echo $(LLVM_INCLUDE_PATH) | sed 's/include/lib/g')
 endif
 ifndef CLANG_LIBRARY_PATH
 CLANG_LIBRARY_PATH :=
