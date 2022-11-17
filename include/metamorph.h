@@ -123,12 +123,6 @@ typedef unsigned short meta_ushort;
 typedef unsigned int meta_uint;
 /** Optional typedef to ensure internal types have predictable size */
 typedef unsigned long meta_ulong;
-/** Ensure a boolean type exists, use an existing one if possible */
-#if defined(__CUDACC__) || defined(__cplusplus) || defined(bool)
-typedef bool meta_bool;
-#else
-typedef enum boolean { false, true } meta_bool;
-#endif
 /** Define a standard type for specifying parameters of three or less dimensions
  */
 typedef size_t meta_dim3[3];

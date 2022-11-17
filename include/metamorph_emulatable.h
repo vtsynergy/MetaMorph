@@ -30,6 +30,12 @@
 extern "C" {
 #endif
 
+/** Ensure a boolean type exists, use an existing one if possible */
+#if defined(__CUDACC__) || defined(__cplusplus) || defined(bool)
+typedef bool meta_bool;
+#else
+typedef enum boolean { false, true } meta_bool;
+#endif
 /** Typedef for internal error type */
 typedef int meta_err;
 /** Define the set of supported execution modes */
