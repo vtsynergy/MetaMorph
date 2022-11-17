@@ -421,7 +421,7 @@ meta_cl_device_vendor metaOpenCLDetectDevice(cl_device_id dev) {
 #ifndef __META_OCL_GET_STATE_DYN
 #define __META_OCL_GET_STATE_DYN
 #endif
-meta_int meta_get_state_OpenCL(cl_platform_id *platform, cl_device_id *device,
+meta_err meta_get_state_OpenCL(cl_platform_id *platform, cl_device_id *device,
                                cl_context *context, cl_command_queue *queue) {
   __META_OCL_GET_STATE_DYN
   // f not dynamic, just NULL check each parameter and the current tuple, and
@@ -443,7 +443,7 @@ meta_int meta_get_state_OpenCL(cl_platform_id *platform, cl_device_id *device,
 #ifndef __META_OCL_SET_STATE_DYN
 #define __META_OCL_SET_STATE_DYN
 #endif
-meta_int meta_set_state_OpenCL(cl_platform_id platform, cl_device_id device,
+meta_err meta_set_state_OpenCL(cl_platform_id platform, cl_device_id device,
                                cl_context context, cl_command_queue queue) {
   __META_OCL_SET_STATE_DYN
   // If not dynamic, accept whatever they provided and directly set the tuple

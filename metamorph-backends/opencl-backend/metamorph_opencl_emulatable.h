@@ -107,9 +107,9 @@ size_t metaOpenCLLoadProgramSource(const char *filename, const char **progSrc,
 meta_cl_device_vendor metaOpenCLDetectDevice(cl_device_id dev);
 
 // share meta_context with with existing software
-meta_int meta_get_state_OpenCL(cl_platform_id *platform, cl_device_id *device,
+meta_err meta_get_state_OpenCL(cl_platform_id *platform, cl_device_id *device,
                                cl_context *context, cl_command_queue *queue);
-meta_int meta_set_state_OpenCL(cl_platform_id platform, cl_device_id device,
+meta_err meta_set_state_OpenCL(cl_platform_id platform, cl_device_id device,
                                cl_context context, cl_command_queue queue);
 #if defined(__OPENCLCC__) || defined(__cplusplus)
 }
